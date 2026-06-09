@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/arclabs561/netmon/util"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -250,7 +250,7 @@ func NewView() View {
 	}
 }
 
-// ViewPair represents a pair of views that are communicating withing one
+// ViewPair represents a pair of views that are communicating within one
 // packet, all determined from a single packet.
 type ViewPair struct {
 	Src    View
@@ -268,7 +268,7 @@ func (w *Watcher) ScanPackets(
 ) {
 	defer close(w.events)
 	for p := range packets {
-		vp := handlePacket(w.log, p)
+		vp := handlePacket(p)
 		w.updateHosts(vp, hosts)
 	}
 }
@@ -331,7 +331,7 @@ func (w *Watcher) updateHostWithView(
 		curr = prev
 		// TODO: Add timestamp arg to Touch method.
 		curr.Activity.Touch(now)
-		w.log.Debugf("touch host %s", curr)
+		log.Debug().Msgf("touch host %s", curr)
 		w.events <- Event{
 			Type: HostTouch,
 			Body: EventHostTouch{curr},
@@ -340,7 +340,7 @@ func (w *Watcher) updateHostWithView(
 
 	if v.Hostname != "" {
 		if curr.Hostname != v.Hostname {
-			w.log.Warnf("hostname has changed %s -> %s", curr.Hostname, v.Hostname)
+			log.Warn().Msgf("hostname has changed %s -> %s", curr.Hostname, v.Hostname)
 		}
 		curr.Hostname = v.Hostname
 	}
@@ -364,13 +364,13 @@ func (w *Watcher) updateHostWithView(
 	// findHost.
 	if v.IPv4 != nil && !v.IPv4.Equal(net.IPv4zero) {
 		if !curr.IPv4.Equal(v.IPv4) {
-			w.log.Debugf("host %s changed ips %s -> %s", curr, curr.IPv4, v.IPv4)
+			log.Debug().Msgf("host %s changed ips %s -> %s", curr, curr.IPv4, v.IPv4)
 		}
 		curr.IPv4 = v.IPv4
 	}
 	if v.IPv6 != nil && !v.IPv6.Equal(net.IPv6zero) {
 		if !curr.IPv6.Equal(v.IPv6) {
-			w.log.Debugf("host %s changed ips %s -> %s", curr, curr.IPv6, v.IPv6)
+			log.Debug().Msgf("host %s changed ips %s -> %s", curr, curr.IPv6, v.IPv6)
 		}
 		curr.IPv6 = v.IPv6
 	}
@@ -409,7 +409,7 @@ func (w *Watcher) updatePortsWithView(h *Host, v View) {
 			}
 			curr = prev
 			curr.Activity.Touch(now)
-			w.log.Debugf("touch host %s on %s", curr, h.IPv4)
+			log.Debug().Msgf("touch host %s on %s", curr, h.IPv4)
 		}
 
 	}
@@ -440,7 +440,7 @@ func (w *Watcher) updatePortsWithView(h *Host, v View) {
 			}
 			curr = prev
 			curr.Activity.Touch(now)
-			w.log.Debugf("touch host %s on %s", curr, h.IPv4)
+			log.Debug().Msgf("touch host %s on %s", curr, h.IPv4)
 			w.events <- Event{
 				Type: PortTouch,
 				Body: EventPortTouch{curr, h},
@@ -466,7 +466,7 @@ func addIP(v *View, ip net.IP) {
 	} else if len(ip) == net.IPv6len {
 		v.IPv6 = ip
 	} else {
-		util.NewLogger().Warnf("invalid ip len=%d: %#v", len(ip), ip)
+		log.Warn().Msgf("invalid ip len=%d: %#v", len(ip), ip)
 	}
 }
 
