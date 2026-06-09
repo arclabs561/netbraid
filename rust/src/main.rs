@@ -28,6 +28,18 @@ enum Cmd {
     Net,
     /// One device's situation (name/MAC/IP substring) and whether it's well-placed.
     Device { query: String },
+    /// This machine's situation (resolves the local hostname against the roster).
+    Here,
+}
+
+fn find_client<'a>(s: &'a Snapshot, query: &str) -> Option<&'a Client> {
+    let q = query.to_lowercase();
+    s.clients.iter().find(|c| {
+        [c.name.as_deref(), c.mac.as_deref(), c.ip.as_deref()]
+            .iter()
+            .flatten()
+            .any(|v| v.to_lowercase().contains(&q))
+    })
 }
 
 #[derive(Deserialize)]
@@ -165,14 +177,7 @@ fn cmd_net(s: &Snapshot) {
 }
 
 fn cmd_device(s: &Snapshot, query: &str) {
-    let q = query.to_lowercase();
-    let hit = s.clients.iter().find(|c| {
-        [c.name.as_deref(), c.mac.as_deref(), c.ip.as_deref()]
-            .iter()
-            .flatten()
-            .any(|v| v.to_lowercase().contains(&q))
-    });
-    let Some(c) = hit else {
+    let Some(c) = find_client(s, query) else {
         println!("no device matching '{query}' in the latest snapshot ({} clients)", s.clients.len());
         return;
     };
@@ -208,12 +213,38 @@ fn cmd_device(s: &Snapshot, query: &str) {
     }
 }
 
+fn cmd_here(s: &Snapshot) {
+    let host = std::process::Command::new("hostname")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|h| h.trim().split('.').next().unwrap_or("").to_string())
+        .unwrap_or_default();
+    if host.is_empty() {
+        println!("could not resolve the local hostname");
+        return;
+    }
+    if find_client(s, &host).is_some() {
+        println!("this device ('{host}'):");
+        cmd_device(s, &host);
+    } else {
+        println!("no roster match for this host ('{host}'); UniFi may name it differently.");
+        println!("your wireless devices, strongest first (try: netmon device <name>):");
+        let mut wl: Vec<&Client> = s.clients.iter().filter(|c| !c.wired && c.signal.is_some()).collect();
+        wl.sort_by(|a, b| b.signal.cmp(&a.signal));
+        for c in wl.iter().take(8) {
+            println!("  {:20} {} dBm  {}", c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?"), c.signal.unwrap_or(0), c.ap.as_deref().unwrap_or("?"));
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let snap = load(cli.file)?;
     match cli.cmd {
         Cmd::Net => cmd_net(&snap),
         Cmd::Device { query } => cmd_device(&snap, &query),
+        Cmd::Here => cmd_here(&snap),
     }
     Ok(())
 }
