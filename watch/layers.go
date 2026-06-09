@@ -7,15 +7,12 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 // TODO: Support returning more than just a view pair. Perhaps more generally a
 // collection of views, and a set of relationships between them.
-func handlePacket(
-	log *logrus.Logger,
-	packet gopacket.Packet,
-) ViewPair {
+func handlePacket(packet gopacket.Packet) ViewPair {
 	vp := ViewPair{
 		Src:    NewView(),
 		Dst:    NewView(),
@@ -45,7 +42,7 @@ func handlePacket(
 		case layers.LayerTypeDHCPv6:
 			handleDHCPv6(&vp, l.(*layers.DHCPv6))
 		default:
-			log.Debugf("unhandled layer type: %v", l.LayerType())
+			log.Debug().Msgf("unhandled layer type: %v", l.LayerType())
 		}
 	}
 	return vp

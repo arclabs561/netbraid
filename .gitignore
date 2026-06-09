@@ -1,0 +1,9 @@
+data
+build
+
+# go build output (the binary itself; main.go is committed)
+netwatch
+
+# Cargo (any subtree, e.g. rs/target)
+target/
+**/target/

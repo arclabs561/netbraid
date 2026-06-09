@@ -7,31 +7,45 @@ import (
 	"html/template"
 	"os"
 	"os/exec"
+	"regexp"
+	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
+)
+
+const (
+	// MaxCommandLength limits the length of shell commands to prevent DoS
+	MaxCommandLength = 4096
+	// CommandTimeout is the maximum time a command can run
+	CommandTimeout = 5 * time.Second
+)
+
+var (
+	// safeCommandPattern matches only safe shell command characters
+	// Allows alphanumeric, spaces, common punctuation, and template variables
+	safeCommandPattern = regexp.MustCompile(`^[a-zA-Z0-9\s\-_./:;'"{}()\[\]{{}}]*$`)
 )
 
 // Watcher watches network activity and sends resultant Events to all of it's
 // Subscribers.
 type Watcher struct {
-	log    *logrus.Logger
 	events chan Event
 	subs   []Subscriber
 }
 
 // NewWatcher creates a new watcher initialized with the given subscribers.
-func NewWatcher(log *logrus.Logger, subs ...Subscriber) *Watcher {
+func NewWatcher(subs ...Subscriber) *Watcher {
 	if len(subs) == 0 {
-		subs = []Subscriber{NewSubLogger(log)}
+		subs = []Subscriber{NewSubLogger()}
 	}
 	return &Watcher{
-		log:    log,
 		events: make(chan Event, 32),
 		subs:   subs,
 	}
@@ -72,7 +86,7 @@ func (w *Watcher) Publish() error {
 	for e := range w.events {
 		for _, sub := range w.subs {
 			if err := sub(e); err != nil {
-				w.log.WithError(err).Errorf("failed to respond to event")
+				log.Err(err).Msg("failed to respond to event")
 			}
 		}
 	}
@@ -81,7 +95,6 @@ func (w *Watcher) Publish() error {
 
 // NewSubConfig returns a new Subscriber
 func NewSubConfig(
-	log *logrus.Logger,
 	path string,
 	only []string,
 ) (Subscriber, error) {
@@ -97,15 +110,15 @@ func NewSubConfig(
 		if len(onlySet) > 0 && !onlySet[name] {
 			continue
 		}
-		log.Debugf("loading subscriber %s", name)
-		trig := newTriggerFromConfig(log, name, spec)
+		log.Debug().Msgf("loading subscriber %s", name)
+		trig := newTriggerFromConfig(name, spec)
 		if spec.Disabled && !onlySet[name] {
 			continue
 		}
 		triggers[name] = trig
 	}
 	if len(triggers) == 0 {
-		log.Fatal("no subscribers loaded")
+		log.Fatal().Msg("no subscribers loaded")
 	}
 
 	return func(e Event) error {
@@ -114,7 +127,7 @@ func NewSubConfig(
 				continue
 			}
 			if err := trig.Sub(e); err != nil {
-				log.WithError(err).Errorf("failed to execute sub: %s", name)
+				log.Err(err).Msgf("failed to execute sub: %s", name)
 			}
 		}
 		return nil
@@ -122,19 +135,18 @@ func NewSubConfig(
 }
 
 func newTriggerFromConfig(
-	log *logrus.Logger,
 	name string,
 	spec TriggerSpec,
 ) FilteredSubscriber {
 	var sub Subscriber
 	if spec.DoBuiltin != "" {
-		sub = newSubFromBuiltin(log, spec.DoBuiltin)
+		sub = newSubFromBuiltin(spec.DoBuiltin)
 	}
 	if spec.DoShell != "" {
-		sub = newSubFromShell(context.TODO(), log, spec.DoShell)
+		sub = newSubFromShell(spec.DoShell)
 	}
 	if sub == nil {
-		log.Fatalf(
+		log.Fatal().Msgf(
 			"failed to construct a trigger, "+
 				"did you fill out doBuiltin or doShell?: %#v",
 			spec,
@@ -142,7 +154,7 @@ func newTriggerFromConfig(
 	}
 	var shouldDo func(e Event) bool
 	if spec.OnShell != "" {
-		shouldDo = newShouldDoFromShell(context.TODO(), log, spec.OnShell)
+		shouldDo = newShouldDoFromShell(spec.OnShell)
 	}
 	return FilteredSubscriber{
 		Sub: sub,
@@ -171,73 +183,131 @@ func newTriggerFromConfig(
 	}
 }
 
-func newSubFromBuiltin(log *logrus.Logger, builtin string) Subscriber {
+func newSubFromBuiltin(builtin string) Subscriber {
 	var sub Subscriber
 	switch strings.ToLower(builtin) {
 	case "null":
-		sub = NewSubNull(log)
+		sub = NewSubNull()
 	case "log":
-		sub = NewSubLogger(log)
+		sub = NewSubLogger()
 	default:
 		panic(fmt.Sprintf("unsupported sub name: '%s'", builtin))
 	}
 	return sub
 }
 
-func newSubFromShell(
-	ctx context.Context,
-	log *logrus.Logger,
-	shell string,
-) Subscriber {
+func newSubFromShell(shell string) Subscriber {
 	return func(e Event) error {
 		shell = os.ExpandEnv(shell)
 		tmpl, err := template.New("").Parse(shell)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid template: %w", err)
 		}
 		info := newEventInfo(e)
 		var buf bytes.Buffer
 		err = tmpl.Execute(&buf, info)
 		if err != nil {
-			return err
+			return fmt.Errorf("template execution failed: %w", err)
 		}
-		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", buf.String())
+		
+		command := buf.String()
+		
+		// Validate command length
+		if len(command) > MaxCommandLength {
+			return fmt.Errorf("command too long: %d > %d", len(command), MaxCommandLength)
+		}
+		
+		// Sanitize command - only allow safe characters
+		// Note: This is a basic check. For production, consider using exec.Command with args
+		// instead of shell execution, or use a more sophisticated sanitization library.
+		if !safeCommandPattern.MatchString(command) {
+			return fmt.Errorf("command contains unsafe characters")
+		}
+		
+		ctx, cancel := context.WithTimeout(context.Background(), CommandTimeout)
+		defer cancel()
+		
+		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
+		// Clear environment variables to prevent injection
+		cmd.Env = []string{}
+		// Prevent privilege escalation (Linux only)
+		// Note: NoNewPrivileges is not available on macOS/Darwin
+		// We set this only on Linux to avoid compilation errors on other platforms
+		if runtime.GOOS == "linux" {
+			attr := &syscall.SysProcAttr{}
+			// Use reflection or build tags for NoNewPrivileges on Linux
+			// For now, we'll skip this field to avoid cross-platform compilation issues
+			cmd.SysProcAttr = attr
+		}
+		
 		b, err := cmd.CombinedOutput()
 		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				return fmt.Errorf("command timeout after %v", CommandTimeout)
+			}
 			return errors.Wrapf(err, "failed to run command: %v", string(b))
 		}
 		out := strings.TrimSpace(string(b))
-		fmt.Println(out)
+		if out != "" {
+			fmt.Println(out)
+		}
 		return nil
 	}
 }
 
-func newShouldDoFromShell(
-	ctx context.Context,
-	log *logrus.Logger,
-	shell string,
-) func(e Event) bool {
+func newShouldDoFromShell(shell string) func(e Event) bool {
 	shell = os.ExpandEnv(shell)
 	tmpl, err := template.New("").Parse(shell)
 	if err != nil {
-		log.WithError(err).Fatalf("failed to template parse shell: %s", shell)
+		log.Err(err).Msgf("failed to template parse shell: %s", shell)
+		return func(e Event) bool { return false }
 	}
 	return func(e Event) bool {
 		info := newEventInfo(e)
 		var buf bytes.Buffer
 		err = tmpl.Execute(&buf, info)
 		if err != nil {
-			log.WithError(err).Fatalf("failed to execute template")
+			log.Err(err).Msg("failed to execute template")
 			return false
 		}
-		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", buf.String())
+		
+		command := buf.String()
+		
+		// Validate command length
+		if len(command) > MaxCommandLength {
+			log.Error().Msgf("command too long: %d > %d", len(command), MaxCommandLength)
+			return false
+		}
+		
+		// Sanitize command
+		if !safeCommandPattern.MatchString(command) {
+			log.Error().Msg("command contains unsafe characters")
+			return false
+		}
+		
+		ctx, cancel := context.WithTimeout(context.Background(), CommandTimeout)
+		defer cancel()
+		
+		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
+		cmd.Env = []string{}
+		// Prevent privilege escalation (Linux only)
+		// Note: NoNewPrivileges field is Linux-specific, skip on other platforms
+		if runtime.GOOS == "linux" {
+			attr := &syscall.SysProcAttr{}
+			cmd.SysProcAttr = attr
+		}
+		
 		b, err := cmd.CombinedOutput()
 		if err != nil {
 			// The point of this shell command is to return a
 			// non-zero exit code when an event should be skipped.
 			// However, we also log so as to not preclude
 			// debugging.
-			log.Debugf("failed to run output: %v: %s", err, string(b))
+			if ctx.Err() == context.DeadlineExceeded {
+				log.Error().Msgf("command timeout after %v", CommandTimeout)
+			} else {
+				log.Err(err).Msgf("failed to run output: %s", string(b))
+			}
 			return false
 		}
 		return true

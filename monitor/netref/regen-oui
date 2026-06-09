@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -ex
+
+DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+URL="https://standards-oui.ieee.org"
+FILE="$DIR/oui.txt"
+
+# --retry-delay=0: Use default backoff time, whereas not setting flag uses
+# previously set delay. So that we do this for avoiding secondary effects of
+# previous curl calls.
+COMMON_FLAGS=(-fsSL -R -o "$FILE" --create-dirs --retry 5 --retry-delay 0)
+
+if [ -f "$FILE" ]; then
+    curl "${COMMON_FLAGS[@]}" -z "$FILE" $URL
+else
+    curl "${COMMON_FLAGS[@]}" $URL
+fi
