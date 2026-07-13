@@ -13,7 +13,10 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Parser)]
-#[command(name = "netmon", about = "Interactive network/RF debug + audit over the UniFi/Kismet substrate")]
+#[command(
+    name = "netmon",
+    about = "Interactive network/RF debug + audit over the UniFi/Kismet substrate"
+)]
 struct Cli {
     /// audit-history.jsonl to read (default: ~/.cache/netops/audit-history.jsonl)
     #[arg(long, global = true)]
@@ -119,20 +122,26 @@ fn load(file: Option<PathBuf>) -> Result<Snapshot> {
         let home = std::env::var("HOME").unwrap_or_default();
         PathBuf::from(format!("{home}/.cache/netops/audit-history.jsonl"))
     });
-    let text = std::fs::read_to_string(&path)
-        .with_context(|| format!("reading {}", path.display()))?;
+    let text =
+        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     let last = text
         .lines()
-        .filter(|l| !l.trim().is_empty())
-        .last()
+        .rfind(|line| !line.trim().is_empty())
         .context("audit history is empty")?;
     serde_json::from_str(last).context("parsing the latest audit snapshot")
 }
 
 fn age(ts: i64) -> String {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(ts);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(ts);
     let m = (now - ts).max(0) / 60;
-    if m < 60 { format!("{m}m ago") } else { format!("{}h{}m ago", m / 60, m % 60) }
+    if m < 60 {
+        format!("{m}m ago")
+    } else {
+        format!("{}h{}m ago", m / 60, m % 60)
+    }
 }
 
 fn cmd_net(s: &Snapshot) {
@@ -149,12 +158,25 @@ fn cmd_net(s: &Snapshot) {
     for (name, ap) in &s.aps {
         let mut radios = String::new();
         for (band_name, r) in &ap.radios {
-            let ch = r.channel.map(|c| c.to_string()).unwrap_or_else(|| "?".into());
+            let ch = r
+                .channel
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "?".into());
             let at = r.airtime.unwrap_or(0);
             radios.push_str(&format!(" {band_name}=ch{ch}/{at}%"));
         }
-        let mesh = if ap.uplink.as_deref() == Some("wireless") { "  [wireless mesh — throughput cost]" } else { "" };
-        println!("  {name:32} up {:>5.1}h  {} clients {}{}", ap.uptime_h, ap.clients, radios.trim(), mesh);
+        let mesh = if ap.uplink.as_deref() == Some("wireless") {
+            "  [wireless mesh — throughput cost]"
+        } else {
+            ""
+        };
+        println!(
+            "  {name:32} up {:>5.1}h  {} clients {}{}",
+            ap.uptime_h,
+            ap.clients,
+            radios.trim(),
+            mesh
+        );
         for (band_name, r) in &ap.radios {
             let at = r.airtime.unwrap_or(0);
             let neigh = r.neighbors.unwrap_or(0);
@@ -166,19 +188,31 @@ fn cmd_net(s: &Snapshot) {
             }
         }
     }
-    let mut weak: Vec<&Client> = s.clients.iter().filter(|c| !c.wired && c.signal.map(|v| v <= -72).unwrap_or(false)).collect();
+    let mut weak: Vec<&Client> = s
+        .clients
+        .iter()
+        .filter(|c| !c.wired && c.signal.map(|v| v <= -72).unwrap_or(false))
+        .collect();
     weak.sort_by_key(|c| c.signal.unwrap_or(0));
     if !weak.is_empty() {
         println!("\nweak clients (≤ -72 dBm — likely sticky or far):");
         for c in weak {
-            println!("  {:20} {} dBm on {}", c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?"), c.signal.unwrap_or(0), c.ap.as_deref().unwrap_or("?"));
+            println!(
+                "  {:20} {} dBm on {}",
+                c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?"),
+                c.signal.unwrap_or(0),
+                c.ap.as_deref().unwrap_or("?")
+            );
         }
     }
 }
 
 fn cmd_device(s: &Snapshot, query: &str) {
     let Some(c) = find_client(s, query) else {
-        println!("no device matching '{query}' in the latest snapshot ({} clients)", s.clients.len());
+        println!(
+            "no device matching '{query}' in the latest snapshot ({} clients)",
+            s.clients.len()
+        );
         return;
     };
     let nm = c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?");
@@ -188,19 +222,37 @@ fn cmd_device(s: &Snapshot, query: &str) {
     } else {
         let ap = c.ap.as_deref().unwrap_or("?");
         match c.signal {
-            Some(rssi) => println!("  on {ap} ({}), {rssi} dBm — {}", c.radio.as_deref().unwrap_or("?"), band(rssi)),
+            Some(rssi) => println!(
+                "  on {ap} ({}), {rssi} dBm — {}",
+                c.radio.as_deref().unwrap_or("?"),
+                band(rssi)
+            ),
             None => println!("  on {ap}"),
         }
         if let Some(sat) = c.sat {
-            let verdict = if sat >= 90 { "healthy" } else if sat >= 70 { "okay" } else { "poor — investigate" };
+            let verdict = if sat >= 90 {
+                "healthy"
+            } else if sat >= 70 {
+                "okay"
+            } else {
+                "poor — investigate"
+            };
             println!("  satisfaction {sat} ({verdict})");
         }
         // context: how busy is the AP it's on?
         if let Some(ap_name) = &c.ap {
             if let Some(ap) = s.aps.get(ap_name) {
-                if let Some((b, r)) = ap.radios.iter().find(|(b, _)| Some(b.as_str()) == c.radio.as_deref()) {
+                if let Some((b, r)) = ap
+                    .radios
+                    .iter()
+                    .find(|(b, _)| Some(b.as_str()) == c.radio.as_deref())
+                {
                     let at = r.airtime.unwrap_or(0);
-                    let note = if at > 75 { " — congested, your device shares the wait" } else { " — healthy" };
+                    let note = if at > 75 {
+                        " — congested, your device shares the wait"
+                    } else {
+                        " — healthy"
+                    };
                     println!("  {ap_name} {b} is at {at}% airtime{note}");
                 }
             }
@@ -209,7 +261,11 @@ fn cmd_device(s: &Snapshot, query: &str) {
     let tx = c.tx_bytes.unwrap_or(0);
     let rx = c.rx_bytes.unwrap_or(0);
     if tx + rx > 0 {
-        println!("  this session: {} sent / {} received", human(tx), human(rx));
+        println!(
+            "  this session: {} sent / {} received",
+            human(tx),
+            human(rx)
+        );
     }
 }
 
@@ -230,10 +286,19 @@ fn cmd_here(s: &Snapshot) {
     } else {
         println!("no roster match for this host ('{host}'); UniFi may name it differently.");
         println!("your wireless devices, strongest first (try: netmon device <name>):");
-        let mut wl: Vec<&Client> = s.clients.iter().filter(|c| !c.wired && c.signal.is_some()).collect();
-        wl.sort_by(|a, b| b.signal.cmp(&a.signal));
+        let mut wl: Vec<&Client> = s
+            .clients
+            .iter()
+            .filter(|c| !c.wired && c.signal.is_some())
+            .collect();
+        wl.sort_by_key(|client| std::cmp::Reverse(client.signal));
         for c in wl.iter().take(8) {
-            println!("  {:20} {} dBm  {}", c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?"), c.signal.unwrap_or(0), c.ap.as_deref().unwrap_or("?"));
+            println!(
+                "  {:20} {} dBm  {}",
+                c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?"),
+                c.signal.unwrap_or(0),
+                c.ap.as_deref().unwrap_or("?")
+            );
         }
     }
 }
