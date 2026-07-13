@@ -6,7 +6,6 @@ linters:
     - durationcheck
     - errname
     - errorlint
-    - exportloopref
     - gocheckcompilerdirectives
     - goconst
     - gosec
@@ -16,7 +15,7 @@ linters:
     - misspell
     - musttag
     - nilnil
-    - tenv
+    - usetesting
     - thelper
     - tparallel
     - unconvert

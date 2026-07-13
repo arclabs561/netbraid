@@ -111,8 +111,30 @@ func TestSolveMulti(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to solve: %+v", err)
 	}
-	if len(asmts) != 3 {
-		t.Fatalf("expected %d assignments, got %d: %v", 3, len(asmts), asmts)
+	if len(asmts) != len(regions) {
+		t.Fatalf("expected one assignment per region, got %d: %v", len(asmts), asmts)
+	}
+
+	assigned := roaring.New()
+	totalCardinality := uint64(0)
+	for _, asmt := range asmts {
+		totalCardinality += asmt.Set.GetCardinality()
+		assigned.Or(asmt.Set)
+		switch asmt.Index {
+		case [2]int{0, 0}:
+			if cardinality := asmt.Set.GetCardinality(); cardinality < 1 || cardinality > 14 {
+				t.Fatalf("at-least region cardinality outside [1, 14]: %d", cardinality)
+			}
+		case [2]int{0, 1}:
+			if cardinality := asmt.Set.GetCardinality(); cardinality != 1 {
+				t.Fatalf("exact region cardinality = %d, want 1", cardinality)
+			}
+		default:
+			t.Fatalf("assignment for unknown region: %v", asmt)
+		}
+	}
+	if assigned.GetCardinality() != totalCardinality {
+		t.Fatalf("assignments overlap: %v", asmts)
 	}
 }
 

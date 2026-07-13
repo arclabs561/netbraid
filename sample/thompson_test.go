@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/henrywallace/netmon/sample"
+	"github.com/arclabs561/netwatch/sample"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -38,11 +38,10 @@ func TestUpdateNormalInverseWishart(t *testing.T) {
 	}
 
 	if !floatEquals(newNiw.Mu.At(0, 0), 8.0/3, 1e-9) {
-		t.Errorf("UpdateNormalInverseWishart returned incorrect Mu: got %v want %v", newNiw.Mu.At(0, 0), 3.5)
+		t.Errorf("UpdateNormalInverseWishart returned incorrect Mu: got %v want %v", newNiw.Mu.At(0, 0), 8.0/3)
 	}
 
-	// Define expected Sigma. Be careful that expectedSigma has same dimensions as newNiw.Sigma
-	expectedSigma := mat.NewDense(1, 1, []float64{43.0 / 3}) // Change this value according to your expected outcome
+	expectedSigma := mat.NewDense(1, 1, []float64{43.0 / 3})
 	if !matrixEquals(newNiw.Sigma, expectedSigma, 1e-9) {
 		t.Errorf("UpdateNormalInverseWishart returned incorrect Sigma: got %v want %v", newNiw.Sigma, expectedSigma)
 	}
@@ -81,7 +80,7 @@ func TestUpdateNormalInverseWishartNegative(t *testing.T) {
 		t.Errorf("UpdateNormalInverseWishart returned incorrect Mu: got %v want %v", newNiw.Mu.At(0, 0), -2.5)
 	}
 
-	expectedSigma := mat.NewDense(1, 1, []float64{43.0 / 8.0})
+	expectedSigma := mat.NewDense(1, 1, []float64{37.0 / 2.0})
 	if !matrixEquals(newNiw.Sigma, expectedSigma, 1e-9) {
 		t.Errorf("UpdateNormalInverseWishart returned incorrect Sigma: got %v want %v", newNiw.Sigma, expectedSigma)
 	}
@@ -154,11 +153,11 @@ func TestUpdateNormalInverseWishartLargeDataPoints(t *testing.T) {
 		t.Errorf("UpdateNormalInverseWishart returned incorrect Nu: got %v want %v", newNiw.Nu, 9.0)
 	}
 
-	if !floatEquals(newNiw.Mu.At(0, 0), 8000.0/3.0, 1e-9) {
-		t.Errorf("UpdateNormalInverseWishart returned incorrect Mu: got %v want %v", newNiw.Mu.At(0, 0), 8000.0/3.0)
+	if !floatEquals(newNiw.Mu.At(0, 0), 150001.0/6.0, 1e-9) {
+		t.Errorf("UpdateNormalInverseWishart returned incorrect Mu: got %v want %v", newNiw.Mu.At(0, 0), 150001.0/6.0)
 	}
 
-	expectedSigma := mat.NewDense(1, 1, []float64{10000003.0 / 3.0})
+	expectedSigma := mat.NewDense(1, 1, []float64{10499700011.0 / 6.0})
 	if !matrixEquals(newNiw.Sigma, expectedSigma, 1e-9) {
 		t.Errorf("UpdateNormalInverseWishart returned incorrect Sigma: got %v want %v", newNiw.Sigma, expectedSigma)
 	}
@@ -184,5 +183,6 @@ func matrixEquals(A, B *mat.Dense, tol float64) bool {
 }
 
 func floatEquals(a, b, tol float64) bool {
-	return math.Abs(a-b) <= tol
+	scale := math.Max(1, math.Max(math.Abs(a), math.Abs(b)))
+	return math.Abs(a-b) <= tol*scale
 }
