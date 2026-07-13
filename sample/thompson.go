@@ -148,10 +148,6 @@ func UpdateNormalInverseWishart(niw *NormalInverseWishart, data *mat.VecDense) (
 	newNiw.Sigma.Add(niw.Sigma, outer)
 	newNiw.Sigma.Add(newNiw.Sigma, ss)
 
-	// Print intermediate calculations for debugging
-	fmt.Printf("Mu: %v\n", newNiw.Mu)
-	fmt.Printf("Sigma: %v\n", newNiw.Sigma)
-
 	return newNiw, nil
 }
 

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/henrywallace/netmon/monitor/netref"
+	"github.com/arclabs561/netwatch/monitor/netref"
 )
 
 //go:embed oui.txt
