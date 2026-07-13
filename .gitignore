@@ -7,3 +7,6 @@ netwatch
 # Cargo (any subtree, e.g. rs/target)
 target/
 **/target/
+
+# Local agent reports
+.agents/
