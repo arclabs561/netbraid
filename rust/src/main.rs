@@ -1,9 +1,7 @@
-// netmon — interactive network + RF debug/audit over the UniFi + (later) Kismet
-// substrate. Reads the netops/audit snapshot (the hourly UniFi roster + per-AP radio
-// stats) and INTERPRETS it: signal in plain language, congestion causes, where a
-// device sits and whether it's well-placed. This is the "I'm here on this device —
-// what's the picture and what does it imply" tool (ADR-0014, the interactive front
-// end). It consumes netops/audit output; it does not re-query the controller.
+// Compatibility reader for the latest saved netops audit snapshot. It interprets
+// signal, congestion, and client placement from one local JSONL record; it does not
+// capture traffic, query a controller, or implement netmon's gated evidence/replay
+// core.
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -15,7 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Parser)]
 #[command(
     name = "netmon",
-    about = "Interactive network/RF debug + audit over the UniFi/Kismet substrate"
+    about = "Inspect the latest saved netops audit snapshot"
 )]
 struct Cli {
     /// audit-history.jsonl to read (default: ~/.cache/netops/audit-history.jsonl)

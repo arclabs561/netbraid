@@ -2,7 +2,7 @@
 name = "netmon"
 version = "0.1.0"
 edition = "2021"
-description = "Interactive network + RF debug/audit (and, later, presence-fusion) over the Kismet + UniFi substrate"
+description = "Inspect the latest saved netops audit snapshot"
 
 [[bin]]
 name = "netmon"
