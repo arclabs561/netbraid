@@ -175,7 +175,8 @@ pub fn summarize_context_recurrence(
     let prior = records.iter().filter(|record| {
         record.source.observer_id == current.source.observer_id
             && record.record_id != current.record_id
-            && record.order < current.order
+            && (record.order < current.order
+                || (record.order == current.order && record.record_id < current.record_id))
     });
     let mut exact_prior_observations = 0;
     let mut compatible_prior_observations = 0;
@@ -515,5 +516,16 @@ mod tests {
         assert_eq!(summary.exact_prior_observations, 1);
         assert_eq!(summary.distinct_prior_associated_bssids, 0);
         assert_eq!(summary.current_bssid_seen_before, None);
+    }
+
+    #[test]
+    fn recurrence_uses_replay_id_order_when_timestamps_tie() {
+        let prior = observation("a-prior", 1, "house");
+        let mut current = observation("z-current", 2, "house");
+        current.order = prior.order.clone();
+
+        let summary = summarize_context_recurrence(&[prior], &current);
+
+        assert_eq!(summary.exact_prior_observations, 1);
     }
 }
