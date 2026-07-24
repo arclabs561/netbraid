@@ -31,6 +31,11 @@ enum Cmd {
     Device { query: String },
     /// This machine's situation (resolves the local hostname against the roster).
     Here,
+    /// Replay an experimental v0 host-path evidence JSONL log.
+    Evidence {
+        /// Path to a netmon.host_path_observation.v0 JSONL log.
+        log: PathBuf,
+    },
 }
 
 fn find_client<'a>(s: &'a Snapshot, query: &str) -> Option<&'a Client> {
@@ -301,13 +306,56 @@ fn cmd_here(s: &Snapshot) {
     }
 }
 
+fn cmd_evidence(log: &PathBuf) -> Result<()> {
+    let state =
+        netmon_replay::read_jsonl(log).with_context(|| format!("replaying {}", log.display()))?;
+    let contexts = state
+        .records
+        .iter()
+        .map(netmon_replay::HostPathObservationV0::context_key)
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    let changed = state
+        .transitions
+        .iter()
+        .filter(|transition| {
+            transition.relation == netmon_replay::ContextRelationV0::ContextChanged
+        })
+        .count();
+    println!(
+        "{} record(s), {contexts} context(s), {changed} context transition(s)",
+        state.records.len()
+    );
+    if let Some(latest) = state.records.last() {
+        println!(
+            "latest: {} via {} ({})",
+            latest
+                .path
+                .interface
+                .as_deref()
+                .unwrap_or("unknown interface"),
+            latest
+                .path
+                .next_hop
+                .as_deref()
+                .unwrap_or("unknown next hop"),
+            latest.record_id
+        );
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Cmd::Evidence { log } = &cli.cmd {
+        return cmd_evidence(log);
+    }
     let snap = load(cli.file)?;
     match cli.cmd {
         Cmd::Net => cmd_net(&snap),
         Cmd::Device { query } => cmd_device(&snap, &query),
         Cmd::Here => cmd_here(&snap),
+        Cmd::Evidence { .. } => unreachable!("evidence command returned before snapshot loading"),
     }
     Ok(())
 }
