@@ -309,7 +309,7 @@ fn cmd_here(s: &Snapshot) {
 fn cmd_evidence(log: &PathBuf) -> Result<()> {
     let state =
         netmon_replay::read_jsonl(log).with_context(|| format!("replaying {}", log.display()))?;
-    let contexts = state
+    let exact_keys = state
         .records
         .iter()
         .map(netmon_replay::HostPathObservationV0::context_key)
@@ -322,11 +322,19 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
             transition.relation == netmon_replay::ContextRelationV0::ContextChanged
         })
         .count();
+    let compatible = state
+        .transitions
+        .iter()
+        .filter(|transition| {
+            transition.relation == netmon_replay::ContextRelationV0::CompatibleContext
+        })
+        .count();
     println!(
-        "{} record(s), {contexts} context(s), {changed} context transition(s)",
+        "{} record(s), {exact_keys} exact key variant(s), {changed} confirmed context transition(s), {compatible} compatible/incomplete transition(s)",
         state.records.len()
     );
     if let Some(latest) = state.records.last() {
+        let recurrence = netmon_replay::summarize_context_recurrence(&state.records, latest);
         println!(
             "latest: {} via {} ({})",
             latest
@@ -340,6 +348,12 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
                 .as_deref()
                 .unwrap_or("unknown next hop"),
             latest.record_id
+        );
+        println!(
+            "recurrence: {} exact prior observation(s), {} compatible prior candidate(s), {} prior BSSID variant(s)",
+            recurrence.exact_prior_observations,
+            recurrence.compatible_prior_observations,
+            recurrence.distinct_prior_associated_bssids
         );
     }
     Ok(())
