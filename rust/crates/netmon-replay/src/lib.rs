@@ -15,6 +15,7 @@ pub use netmon_evidence::{
 pub enum ContextRelationV0 {
     FirstObservation,
     SameContext,
+    CompatibleContext,
     ContextChanged,
 }
 
@@ -119,6 +120,8 @@ pub fn compare_contexts(
     }
     let relation = if previous.context_key() == current.context_key() {
         ContextRelationV0::SameContext
+    } else if contexts_are_compatible(previous, current) {
+        ContextRelationV0::CompatibleContext
     } else {
         ContextRelationV0::ContextChanged
     };
@@ -126,6 +129,49 @@ pub fn compare_contexts(
         relation,
         changed_dimensions: changed,
     }
+}
+
+pub fn contexts_are_compatible(
+    previous: &HostPathObservationV0,
+    current: &HostPathObservationV0,
+) -> bool {
+    !optional_conflicts(&previous.path.link_type, &current.path.link_type)
+        && !network_names_conflict(&previous.path.network_name, &current.path.network_name)
+        && !optional_conflicts(&previous.path.next_hop, &current.path.next_hop)
+        && !optional_conflicts(
+            &previous.path.next_hop_link_address,
+            &current.path.next_hop_link_address,
+        )
+        && !sets_conflict(&previous.path.resolvers, &current.path.resolvers)
+        && !sets_conflict(
+            &previous.path.address_prefixes,
+            &current.path.address_prefixes,
+        )
+}
+
+fn optional_conflicts<T: PartialEq>(previous: &Option<T>, current: &Option<T>) -> bool {
+    matches!((previous, current), (Some(previous), Some(current)) if previous != current)
+}
+
+fn network_names_conflict(previous: &NetworkNameV0, current: &NetworkNameV0) -> bool {
+    matches!(
+        (
+            previous.visibility,
+            previous.value.as_deref(),
+            current.visibility,
+            current.value.as_deref(),
+        ),
+        (
+            NetworkNameVisibilityV0::Observed,
+            Some(previous),
+            NetworkNameVisibilityV0::Observed,
+            Some(current),
+        ) if previous != current
+    )
+}
+
+fn sets_conflict(previous: &[String], current: &[String]) -> bool {
+    !previous.is_empty() && !current.is_empty() && canonical_set(previous) != canonical_set(current)
 }
 
 pub fn replay(
@@ -277,6 +323,34 @@ mod tests {
             comparison.changed_dimensions,
             vec!["association", "associated_bssid"]
         );
+    }
+
+    #[test]
+    fn newly_observed_gateway_binding_is_compatible_not_a_context_change() {
+        let mut first = observation("first", 1, "house");
+        first.path.next_hop_link_address = None;
+        let second = observation("second", 2, "house");
+        let comparison = compare_contexts(Some(&first), &second);
+
+        assert_eq!(
+            comparison.relation,
+            ContextRelationV0::CompatibleContext
+        );
+        assert!(
+            comparison
+                .changed_dimensions
+                .contains(&"next_hop_link_address")
+        );
+    }
+
+    #[test]
+    fn different_observed_gateway_bindings_are_a_context_change() {
+        let first = observation("first", 1, "house");
+        let mut second = observation("second", 2, "house");
+        second.path.next_hop_link_address = Some("02:00:00:00:02:01".into());
+        let comparison = compare_contexts(Some(&first), &second);
+
+        assert_eq!(comparison.relation, ContextRelationV0::ContextChanged);
     }
 
     #[test]
