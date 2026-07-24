@@ -31,6 +31,24 @@ pub struct ReplayStateV0 {
     pub transitions: Vec<ContextComparisonV0>,
 }
 
+/// Observer-scoped recurrence evidence for one host-path observation.
+///
+/// Exact recurrence uses [`ContextKeyV0`] equality. Compatible records are
+/// reported separately because missing evidence is not an equivalence
+/// relation and must not be transitively clustered into a claimed context.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContextRecurrenceV0 {
+    pub exact_prior_observations: usize,
+    pub compatible_prior_observations: usize,
+    pub first_exact_observation_unix_ms: Option<i64>,
+    pub last_exact_observation_unix_ms: Option<i64>,
+    pub distinct_prior_associated_bssids: usize,
+    /// `Some(true)` means the current BSSID appeared in exact prior records;
+    /// `Some(false)` means exact prior BSSID evidence exists but not this
+    /// value. `None` means the current or prior BSSID evidence is absent.
+    pub current_bssid_seen_before: Option<bool>,
+}
+
 #[derive(Debug)]
 pub enum ReplayError {
     Io(io::Error),
@@ -147,6 +165,62 @@ pub fn contexts_are_compatible(
             &previous.path.address_prefixes,
             &current.path.address_prefixes,
         )
+}
+
+pub fn summarize_context_recurrence(
+    records: &[HostPathObservationV0],
+    current: &HostPathObservationV0,
+) -> ContextRecurrenceV0 {
+    let current_key = current.context_key();
+    let prior = records.iter().filter(|record| {
+        record.source.observer_id == current.source.observer_id
+            && record.record_id != current.record_id
+            && record.order < current.order
+    });
+    let mut exact_prior_observations = 0;
+    let mut compatible_prior_observations = 0;
+    let mut first_exact_observation_unix_ms = None;
+    let mut last_exact_observation_unix_ms = None;
+    let mut prior_bssids = BTreeSet::new();
+
+    for record in prior {
+        if record.context_key() == current_key {
+            exact_prior_observations += 1;
+            first_exact_observation_unix_ms = Some(
+                first_exact_observation_unix_ms
+                    .map_or(record.order.event_time_unix_ms, |first: i64| {
+                        first.min(record.order.event_time_unix_ms)
+                    }),
+            );
+            last_exact_observation_unix_ms = Some(
+                last_exact_observation_unix_ms
+                    .map_or(record.order.event_time_unix_ms, |last: i64| {
+                        last.max(record.order.event_time_unix_ms)
+                    }),
+            );
+            if let Some(bssid) = &record.path.associated_bssid {
+                prior_bssids.insert(bssid.clone());
+            }
+        } else if contexts_are_compatible(record, current) {
+            compatible_prior_observations += 1;
+        }
+    }
+
+    let current_bssid_seen_before = current
+        .path
+        .associated_bssid
+        .as_ref()
+        .filter(|_| !prior_bssids.is_empty())
+        .map(|bssid| prior_bssids.contains(bssid));
+
+    ContextRecurrenceV0 {
+        exact_prior_observations,
+        compatible_prior_observations,
+        first_exact_observation_unix_ms,
+        last_exact_observation_unix_ms,
+        distinct_prior_associated_bssids: prior_bssids.len(),
+        current_bssid_seen_before,
+    }
 }
 
 fn optional_conflicts<T: PartialEq>(previous: &Option<T>, current: &Option<T>) -> bool {
@@ -393,5 +467,53 @@ mod tests {
             first.transitions[1].relation,
             ContextRelationV0::ContextChanged
         );
+    }
+
+    #[test]
+    fn recurrence_keeps_exact_and_compatible_evidence_separate() {
+        let exact = observation("exact", 1, "house");
+        let mut incomplete = observation("incomplete", 2, "house");
+        incomplete.path.next_hop_link_address = None;
+        let current = observation("current", 3, "house");
+
+        let summary =
+            summarize_context_recurrence(&[exact, incomplete, current.clone()], &current);
+
+        assert_eq!(summary.exact_prior_observations, 1);
+        assert_eq!(summary.compatible_prior_observations, 1);
+        assert_eq!(summary.first_exact_observation_unix_ms, Some(1));
+        assert_eq!(summary.last_exact_observation_unix_ms, Some(1));
+    }
+
+    #[test]
+    fn recurrence_distinguishes_known_and_new_attachment_variants() {
+        let first = observation("first", 1, "house");
+        let second = observation("second", 2, "house");
+        let mut known = observation("known", 3, "house");
+        known.path.associated_bssid = first.path.associated_bssid.clone();
+        let mut new = observation("new", 4, "house");
+        new.path.associated_bssid = Some("02:00:00:00:00:ff".into());
+
+        let known_summary =
+            summarize_context_recurrence(&[first.clone(), second.clone()], &known);
+        let new_summary = summarize_context_recurrence(&[first, second], &new);
+
+        assert_eq!(known_summary.distinct_prior_associated_bssids, 2);
+        assert_eq!(known_summary.current_bssid_seen_before, Some(true));
+        assert_eq!(new_summary.distinct_prior_associated_bssids, 2);
+        assert_eq!(new_summary.current_bssid_seen_before, Some(false));
+    }
+
+    #[test]
+    fn recurrence_abstains_without_prior_attachment_evidence() {
+        let mut prior = observation("prior", 1, "house");
+        prior.path.associated_bssid = None;
+        let current = observation("current", 2, "house");
+
+        let summary = summarize_context_recurrence(&[prior], &current);
+
+        assert_eq!(summary.exact_prior_observations, 1);
+        assert_eq!(summary.distinct_prior_associated_bssids, 0);
+        assert_eq!(summary.current_bssid_seen_before, None);
     }
 }
