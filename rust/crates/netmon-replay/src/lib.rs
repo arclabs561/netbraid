@@ -106,6 +106,9 @@ pub fn compare_contexts(
     if previous.path.next_hop != current.path.next_hop {
         changed.push("next_hop");
     }
+    if previous.path.next_hop_link_address != current.path.next_hop_link_address {
+        changed.push("next_hop_link_address");
+    }
     if canonical_set(&previous.path.resolvers) != canonical_set(&current.path.resolvers) {
         changed.push("resolvers");
     }
@@ -244,6 +247,7 @@ mod tests {
                 association_id: Some(format!("association-{sequence}")),
                 associated_bssid: Some(format!("02:00:00:00:00:{sequence:02x}")),
                 next_hop: Some("192.0.2.1".into()),
+                next_hop_link_address: Some("02:00:00:00:01:01".into()),
                 resolvers: vec!["192.0.2.53".into()],
                 address_prefixes: vec!["192.0.2.7".into()],
             },

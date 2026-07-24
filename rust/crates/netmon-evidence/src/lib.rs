@@ -92,6 +92,8 @@ pub struct HostPathV0 {
     pub associated_bssid: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_hop: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_hop_link_address: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub resolvers: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -114,6 +116,7 @@ pub struct ContextKeyV0 {
     pub link_type: Option<String>,
     pub network_name: NetworkNameV0Key,
     pub next_hop: Option<String>,
+    pub next_hop_link_address: Option<String>,
     pub resolvers: Vec<String>,
     pub address_prefixes: Vec<String>,
 }
@@ -234,6 +237,7 @@ impl HostPathObservationV0 {
             link_type: self.path.link_type.clone(),
             network_name,
             next_hop: self.path.next_hop.clone(),
+            next_hop_link_address: self.path.next_hop_link_address.clone(),
             resolvers: canonical_strings(&self.path.resolvers),
             address_prefixes: canonical_strings(&self.path.address_prefixes),
         }
@@ -285,6 +289,7 @@ mod tests {
                 association_id: Some("association-7".into()),
                 associated_bssid: Some("02:00:00:00:00:07".into()),
                 next_hop: Some("192.0.2.1".into()),
+                next_hop_link_address: Some("02:00:00:00:01:01".into()),
                 resolvers: vec!["2001:db8::53".into(), "192.0.2.53".into()],
                 address_prefixes: vec!["2001:db8:7::/64".into(), "192.0.2.7".into()],
             },
@@ -318,6 +323,15 @@ mod tests {
         let mut after = before.clone();
         after.path.next_hop = Some("198.51.100.1".into());
         after.path.address_prefixes = vec!["198.51.100.9".into()];
+
+        assert_ne!(before.context_key(), after.context_key());
+    }
+
+    #[test]
+    fn gateway_link_binding_disambiguates_reused_private_network_details() {
+        let before = observation();
+        let mut after = before.clone();
+        after.path.next_hop_link_address = Some("02:00:00:00:02:01".into());
 
         assert_ne!(before.context_key(), after.context_key());
     }
