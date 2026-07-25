@@ -1,0 +1,220 @@
+# netmon
+
+Netmon is a transitional network-evidence workspace. It preserves a legacy Go capture
+tool, a narrow Rust saved-snapshot reader, and an acquisition-policy experiment while
+building a coherent Rust evidence/replay core.
+
+Netmon currently contains three separate, buildable surfaces:
+
+- The root Go CLI captures from one or more interfaces, optionally hops Wi-Fi
+  channels, writes one PCAP per interface plus `events.jsonl`, and can print packets or
+  a live summary.
+- `rust/` is a small reader for the latest `netops` audit JSONL. Its `net`, `device`,
+  and `here` commands do not capture traffic or query a controller directly. Its
+  experimental `evidence` command deterministically replays a supplied v0 host-path
+  JSONL log and distinguishes anchored exact recurrence from unanchored exact key
+  matches and compatible/incomplete observations.
+- `swucb/` is an experimental sliding-window UCB package. It is tested but is not
+  wired into either CLI.
+
+These surfaces share a repository, not one runtime or data model. Both CLIs currently
+build a binary named `netmon`; the commands below invoke them by build path rather than
+claiming they can be installed side by side. The Go module path
+`github.com/arclabs561/netwatch` is retained as a compatibility name, not as the
+repository's current charter.
+
+## Scope
+
+| Surface | Lifecycle | Job |
+| --- | --- | --- |
+| Go capture CLI | Legacy compatibility | Acquire selected packet/RF observations as PCAP and JSONL |
+| Rust snapshot CLI | Compatibility reader | Interpret the latest saved netops audit snapshot |
+| Rust v0 libraries | Experimental | Record, compare, and summarize observer-scoped key matches and anchored recurrence for explicit host-path context |
+| `swucb/` | Retained experiment | Evaluate adaptive channel-selection policy independently |
+| Rust evidence/replay core | Gated future | Normalize immutable artifacts, replay evidence, and reduce temporal state deterministically |
+| Live deployment or fusion service | External | Consume released evidence/replay artifacts after its own parity and rollback gates |
+
+The narrow Rust evidence/replay core exists as an experimental v0 package boundary.
+Its broader multi-modal contract remains gated on representative fixtures and a
+concrete consumer. `HostPathObservationV0` is specified in
+[`docs/design/rust-library-boundary.md`](docs/design/rust-library-boundary.md) so
+Linktop can act as a real second consumer without claiming that the broader gate has
+passed. New core work is Rust; the Go tree receives only compatibility, security, and
+build fixes until it can be retired.
+
+The repository does not own:
+
+- host-path and link-quality diagnosis, which belongs to Linktop. Once netmon exposes
+  a stable policy-neutral Rust API, Linktop may move from its exact-revision v0
+  dependency to that release; local diagnosis already remains usable without a
+  Netmon executable, store, controller, or deployment;
+- deployed collectors, operational stores, retention, topology, runtime health,
+  notifications, compatibility projections, or the current Python fusion service;
+- device aliases, assignments, enrolled anchors, consent, credentials, household
+  identity, or person-presence authority;
+- controller/Kismet integration, active LAN inventory, IDS behavior, arbitrary shell
+  hooks, or a distributed capture/dataflow runtime for the future core.
+
+The legacy capture and watcher code is not the foundation for the future core. New
+production capture belongs to the deployed Kismet path or mature capture tools; new
+netmon work must preserve source evidence rather than widening capture features.
+
+## Build and run the Go capture CLI
+
+Go 1.20 or newer is declared by `go.mod`.
+
+```sh
+go build -o netmon .
+./netmon --help
+```
+
+Capture one interface until interrupted, writing artifacts to the selected directory:
+
+```sh
+sudo ./netmon -q -i en0 -o /tmp/netmon-capture
+```
+
+`-i` accepts a Go regular expression as written; it is not implicitly anchored. Use
+`-I` for all active interfaces. Per-interface options follow the expression after a
+colon:
+
+```sh
+sudo ./netmon -q -i 'wlp.*:h=static,b=2.4ghz' -o /tmp/netmon-capture
+```
+
+`h=static|uniform|thompson` selects the hopping strategy and
+`b=2.4ghz|5ghz` limits the band. The default strategy is `uniform`, with a 200 ms
+capture interval. Multiple selected interfaces capture concurrently; one interface
+occupies one channel at a time.
+
+The capture directory contains `<hopper>:<interface>.pcap` files and `events.jsonl`.
+Without `-q`, packet records go to stdout. `-S` selects the dynamic summary instead.
+
+## Build and run the Rust snapshot CLI
+
+```sh
+cargo build --manifest-path rust/Cargo.toml
+./rust/target/debug/netmon --help
+./rust/target/debug/netmon net
+./rust/target/debug/netmon device '<name, MAC, or IP substring>'
+./rust/target/debug/netmon here
+./rust/target/debug/netmon evidence ./host-path.jsonl
+```
+
+The default snapshot input is `~/.cache/netops/audit-history.jsonl`; pass `--file PATH`
+to read another audit history. The snapshot commands read the last JSON object and
+exit. The `evidence` command strictly reads the complete supplied log. A missing,
+empty, or malformed input is an error rather than evidence about the live network.
+
+At the library boundary, `read_jsonl` remains strict.
+`read_jsonl_recovering_tail` can instead return the valid replay prefix plus a typed
+warning when only the final malformed fragment is unterminated; internal or
+newline-terminated corruption still fails. `append_jsonl` strictly preflights existing
+content, writes each canonical record and its newline from one buffer, and inserts one
+separator before a valid final JSON record that lacked a newline. Appends are
+fail-closed around known corruption but are not cross-process locking: one writer owns
+each log.
+
+## Promotion gates
+
+The future reusable core is narrower than “move fusion into netmon.” Each promoted
+slice must normalize a named immutable source artifact, preserve observer and coverage
+evidence, replay deterministically, and explain why a conclusion was reached or why
+the evidence is insufficient.
+
+The long-term boundary is:
+
+- netmon: versioned evidence records, source/coverage provenance, canonical replay,
+  reversible candidate mechanics, and explanations;
+- deployment consumers: collectors, operational stores, retention, topology,
+  runtime health, compatibility rendering, and live projections;
+- policy owners: device aliases, assignments, enrolled anchors, consent references,
+  and credentials.
+
+### Intended operator value
+
+The future core is justified only if it can answer questions that a single live host
+view or raw packet table cannot answer reproducibly:
+
+| Operator circumstance | Netmon job | Linktop projection |
+| --- | --- | --- |
+| A failure recurs across days or network contexts | replay source records into comparable path- or site-scoped episodes and baselines | show the relevant prior episode or baseline as optional cited evidence |
+| Sources disagree about an endpoint binding or role | retain every observation, coverage interval, conflict, and candidate lineage | show the contradiction without replacing the current host observation |
+| Encrypted traffic still needs coarse attribution | derive versioned application, service, stack, or role candidates from flow and handshake features, with alternatives and abstention | show a candidate only in a focused evidence view with source and window |
+| One host cannot distinguish local, controller, sensor, and remote symptoms | align event and acquisition time across observers and expose the earliest supported change | identify which vantage implicated a segment and what remains unseen |
+| An operator needs to hand off an intermittent incident | emit a deterministic, private evidence capsule and an explicitly sanitized projection | link the current session context to that capsule without requiring netmon |
+
+This is not a commitment to one daemon or dashboard. The first useful library slice
+is immutable records plus deterministic replay and explanation. Temporal reducers,
+entity relationships, episode construction, fingerprint candidates, and query
+projections follow only when each has a second consumer or a costly invariant worth
+centralizing.
+
+Linktop remains the immediate terminal instrument:
+
+- its default acquisition policy is passive host-local observation;
+- its active path probes are explicit, bounded, and independently useful;
+- switching a Linktop view never causes netmon or another source to collect more;
+- netmon evidence is optional, versioned, and provenance-preserving; and
+- multi-source durable fusion, cross-vantage baselines, identity policy, and
+  advisory fingerprint mechanics do not move into Linktop. Its explicitly
+  configured v0 host-path JSONL is a narrow consumer of Netmon replay, not a
+  second fusion plane.
+
+New core implementation is Rust. The Go capture CLI remains compatibility code rather
+than a base to port feature by feature.
+
+No typed multi-modal observation implementation starts before representative replay
+fixtures fix the minimum schema. A policy-neutral binding reducer moves here only if a
+later promotion decision proves a second consumer or a costly invariant. A live
+deployment remains authoritative until shadow replay and rollback prove a single
+replacement writer.
+
+Kismet, Zeek, TShark, controllers, flow exporters, DHCP, DNS-SD, and similar systems
+remain acquisition or dissection owners. A future netmon adapter may normalize their
+versioned artifacts or records; it must not quietly reimplement their capture stacks.
+Every temporal projection must retain source, observer, coverage, event/acquisition
+time, and extractor or rule version; distinguish `observed`, `advertised`, `inferred`,
+and `verified` claims; and support an explicit unknown or abstained result. Absence is
+evidence only when the relevant coverage and source completeness are recorded.
+
+Traffic fingerprints are one future inferred-evidence family, not device facts. TCP/IP
+traits, TLS or QUIC handshakes, DNS and certificate metadata, packet-size/direction
+sequences, flow timing, and control-plane advertisements may support application,
+stack, service, or device-role candidates. Each candidate must retain the source
+feature reference, observation window, extractor/signature/model version, conflicts,
+and an open-world unknown result. NAT, relays, VPNs, shared libraries, encrypted
+protocol evolution, and concept drift prevent a fingerprint from proving device
+identity, human presence, or intent.
+
+Collection purpose, site, modality, retention, and export remain deployment policy.
+Aliases, assignments, enrolled anchors, consent, and credentials remain outside
+Netmon. Netmon does not automatically label people or maintain a global fingerprint
+index over unknown devices.
+
+## Limitations
+
+- Wi-Fi monitor mode and channel changes depend on the interface, operating system,
+  drivers, and privileges. macOS cannot set channels through the current adapter; the
+  capture path degrades to the current channel when setup fails.
+- The Go capture model and disconnected `watch/` package are legacy code. The old
+  host/new-port hook examples are not wired into the current CLI.
+- The Rust CLI is a saved-snapshot and evidence-log reader, not a live controller or
+  Kismet client.
+- There is an experimental v0 host-path schema and deterministic replay contract,
+  but no stable multi-modal schema, daemon, or production fusion writer in this
+  repository today.
+
+## Checks
+
+```sh
+go test ./...
+cargo test --manifest-path rust/Cargo.toml
+just rust-check
+```
+
+The root `just test` also runs the repository's Go lint configuration before tests.
+
+## License
+
+Dual-licensed under the MIT License or the Unlicense.
