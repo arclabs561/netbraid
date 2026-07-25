@@ -3,6 +3,7 @@ name = "netmon"
 version = "0.1.0"
 edition = "2021"
 description = "Inspect the latest saved netops audit snapshot"
+publish = false
 
 [workspace]
 members = [

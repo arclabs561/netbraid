@@ -1,6 +1,14 @@
 data
 build
 
+# Private capture and replay artifacts. Sanitized fixtures belong only under
+# explicit test fixture directories.
+/*.pcap
+/events.jsonl
+/audit-history.jsonl
+/host-path*.jsonl
+/linktop-captures/
+
 # go build output (the binary itself; main.go is committed)
 netwatch
 
