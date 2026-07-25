@@ -350,13 +350,41 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
             latest.record_id
         );
         println!(
-            "recurrence: {} exact prior observation(s), {} compatible prior candidate(s), {} prior BSSID variant(s)",
+            "history: {} prior exact key match(es) [{}], {} compatible prior observation(s), {} prior BSSID attachment variant(s) [{}]",
             recurrence.exact_prior_observations,
+            exact_context_match_label(recurrence.exact_context_match),
             recurrence.compatible_prior_observations,
-            recurrence.distinct_prior_associated_bssids
+            recurrence.distinct_prior_associated_bssids,
+            attachment_corroboration_label(recurrence.attachment_corroboration),
         );
     }
     Ok(())
+}
+
+fn exact_context_match_label(value: netmon_replay::ExactContextMatchV0) -> &'static str {
+    match value {
+        netmon_replay::ExactContextMatchV0::NoPriorExactKeyMatch => "no prior exact key match",
+        netmon_replay::ExactContextMatchV0::UnanchoredExactKeyMatch => {
+            "unanchored exact key match; no recurring network-context claim"
+        }
+        netmon_replay::ExactContextMatchV0::AnchoredExactRecurrence => {
+            "anchored exact recurrence via gateway link address"
+        }
+    }
+}
+
+fn attachment_corroboration_label(value: netmon_replay::AttachmentCorroborationV0) -> &'static str {
+    match value {
+        netmon_replay::AttachmentCorroborationV0::NotObserved => {
+            "attachment corroboration unavailable"
+        }
+        netmon_replay::AttachmentCorroborationV0::NotSeenBefore => {
+            "current BSSID not seen in prior exact key matches"
+        }
+        netmon_replay::AttachmentCorroborationV0::SeenBefore => {
+            "current BSSID seen in a prior exact key match"
+        }
+    }
 }
 
 fn main() -> Result<()> {
@@ -389,6 +417,22 @@ mod tests {
     fn human_bytes_scale() {
         assert_eq!(human(2_300_000_000), "2.3 GB");
         assert_eq!(human(5_500_000), "6 MB");
+    }
+
+    #[test]
+    fn evidence_labels_distinguish_key_match_from_anchored_recurrence() {
+        assert_eq!(
+            exact_context_match_label(netmon_replay::ExactContextMatchV0::UnanchoredExactKeyMatch),
+            "unanchored exact key match; no recurring network-context claim"
+        );
+        assert_eq!(
+            exact_context_match_label(netmon_replay::ExactContextMatchV0::AnchoredExactRecurrence),
+            "anchored exact recurrence via gateway link address"
+        );
+        assert_eq!(
+            attachment_corroboration_label(netmon_replay::AttachmentCorroborationV0::SeenBefore),
+            "current BSSID seen in a prior exact key match"
+        );
     }
 
     #[test]

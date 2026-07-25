@@ -1,8 +1,8 @@
 //! Deterministic replay for experimental Netmon host-path evidence.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::{File, OpenOptions};
-use std::io::{self, BufRead, BufReader, Write};
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::Path;
 
 pub use netmon_evidence::{
@@ -31,22 +31,60 @@ pub struct ReplayStateV0 {
     pub transitions: Vec<ContextComparisonV0>,
 }
 
+/// Whether prior exact key matches support a recurring network-context claim.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExactContextMatchV0 {
+    NoPriorExactKeyMatch,
+    /// Exact key equality exists, but the key contains no context anchor.
+    UnanchoredExactKeyMatch,
+    /// Exact key equality includes a gateway next-hop link-layer address.
+    AnchoredExactRecurrence,
+}
+
+/// Whether the current attachment is corroborated by an exact prior key match.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttachmentCorroborationV0 {
+    /// The current BSSID or all exact prior BSSIDs are unavailable.
+    NotObserved,
+    /// Exact prior BSSID evidence exists, but not for the current BSSID.
+    NotSeenBefore,
+    /// The current BSSID appears in at least one exact prior key match.
+    SeenBefore,
+}
+
 /// Observer-scoped recurrence evidence for one host-path observation.
 ///
-/// Exact recurrence uses [`ContextKeyV0`] equality. Compatible records are
-/// reported separately because missing evidence is not an equivalence
-/// relation and must not be transitively clustered into a claimed context.
+/// Exact key matches use [`ContextKeyV0`] equality. They support an anchored
+/// recurrence only when the key includes a gateway next-hop link-layer
+/// address. Compatible records are reported separately because missing
+/// evidence is not an equivalence relation and must not be transitively
+/// clustered into a claimed context.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextRecurrenceV0 {
+    pub exact_context_match: ExactContextMatchV0,
     pub exact_prior_observations: usize,
     pub compatible_prior_observations: usize,
     pub first_exact_observation_unix_ms: Option<i64>,
     pub last_exact_observation_unix_ms: Option<i64>,
     pub distinct_prior_associated_bssids: usize,
-    /// `Some(true)` means the current BSSID appeared in exact prior records;
-    /// `Some(false)` means exact prior BSSID evidence exists but not this
-    /// value. `None` means the current or prior BSSID evidence is absent.
-    pub current_bssid_seen_before: Option<bool>,
+    pub attachment_corroboration: AttachmentCorroborationV0,
+}
+
+/// A replay prefix read from a JSONL log with an explicit tail warning.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JsonlReadV0 {
+    pub replay: ReplayStateV0,
+    pub warning: Option<JsonlReadWarningV0>,
+}
+
+/// A recoverable condition confined to the final unterminated JSONL fragment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JsonlReadWarningV0 {
+    UnterminatedMalformedRecord {
+        line: usize,
+        byte_offset: usize,
+        fragment_bytes: usize,
+    },
 }
 
 #[derive(Debug)]
@@ -207,20 +245,32 @@ pub fn summarize_context_recurrence(
         }
     }
 
-    let current_bssid_seen_before = current
-        .path
-        .associated_bssid
-        .as_ref()
-        .filter(|_| !prior_bssids.is_empty())
-        .map(|bssid| prior_bssids.contains(bssid));
+    let exact_context_match = if exact_prior_observations == 0 {
+        ExactContextMatchV0::NoPriorExactKeyMatch
+    } else if current.path.next_hop_link_address.is_some() {
+        ExactContextMatchV0::AnchoredExactRecurrence
+    } else {
+        ExactContextMatchV0::UnanchoredExactKeyMatch
+    };
+    let attachment_corroboration = match (
+        current.path.associated_bssid.as_ref(),
+        prior_bssids.is_empty(),
+    ) {
+        (Some(bssid), false) if prior_bssids.contains(bssid) => {
+            AttachmentCorroborationV0::SeenBefore
+        }
+        (Some(_), false) => AttachmentCorroborationV0::NotSeenBefore,
+        _ => AttachmentCorroborationV0::NotObserved,
+    };
 
     ContextRecurrenceV0 {
+        exact_context_match,
         exact_prior_observations,
         compatible_prior_observations,
         first_exact_observation_unix_ms,
         last_exact_observation_unix_ms,
         distinct_prior_associated_bssids: prior_bssids.len(),
-        current_bssid_seen_before,
+        attachment_corroboration,
     }
 }
 
@@ -286,17 +336,56 @@ pub fn replay(
 }
 
 pub fn read_jsonl(path: impl AsRef<Path>) -> Result<ReplayStateV0, ReplayError> {
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
+    Ok(read_jsonl_bytes(&fs::read(path)?, false)?.replay)
+}
+
+/// Reads the valid replay prefix while explicitly warning about an interrupted
+/// final record.
+///
+/// Only a malformed final fragment without a terminating newline is
+/// recoverable. Malformed internal records, newline-terminated malformed
+/// records, and invalid evidence remain errors.
+pub fn read_jsonl_recovering_tail(path: impl AsRef<Path>) -> Result<JsonlReadV0, ReplayError> {
+    read_jsonl_bytes(&fs::read(path)?, true)
+}
+
+fn read_jsonl_bytes(bytes: &[u8], recover_unterminated_tail: bool) -> Result<JsonlReadV0, ReplayError> {
     let mut records = Vec::new();
-    for (index, line) in reader.lines().enumerate() {
+    let has_unterminated_tail = !bytes.is_empty() && !bytes.ends_with(b"\n");
+    let final_fragment_index = bytes.split(|byte| *byte == b'\n').count() - 1;
+    let mut byte_offset = 0;
+
+    for (index, line) in bytes.split(|byte| *byte == b'\n').enumerate() {
         let line_number = index + 1;
-        let line = line?;
-        if line.trim().is_empty() {
+        if line.iter().all(u8::is_ascii_whitespace) {
+            byte_offset += line.len() + usize::from(index != final_fragment_index);
             continue;
         }
+        let value: serde_json::Value = match serde_json::from_slice(line) {
+            Ok(value) => value,
+            Err(_)
+                if recover_unterminated_tail
+                    && has_unterminated_tail
+                    && index == final_fragment_index =>
+            {
+                return Ok(JsonlReadV0 {
+                    replay: replay(records)?,
+                    warning: Some(JsonlReadWarningV0::UnterminatedMalformedRecord {
+                        line: line_number,
+                        byte_offset,
+                        fragment_bytes: line.len(),
+                    }),
+                });
+            }
+            Err(source) => {
+                return Err(ReplayError::Json {
+                    line: line_number,
+                    source,
+                });
+            }
+        };
         let record: HostPathObservationV0 =
-            serde_json::from_str(&line).map_err(|source| ReplayError::Json {
+            serde_json::from_value(value).map_err(|source| ReplayError::Json {
                 line: line_number,
                 source,
             })?;
@@ -307,27 +396,57 @@ pub fn read_jsonl(path: impl AsRef<Path>) -> Result<ReplayStateV0, ReplayError> 
                 source,
             })?;
         records.push(record);
+        byte_offset += line.len() + usize::from(index != final_fragment_index);
     }
-    replay(records)
+    Ok(JsonlReadV0 {
+        replay: replay(records)?,
+        warning: None,
+    })
 }
 
+/// Appends one canonical record to a JSONL log.
+///
+/// Existing content is parsed strictly before the append, so a corrupt tail is
+/// never silently extended. This is a fail-closed preflight, not cross-process
+/// locking; callers must keep one writer per log.
 pub fn append_jsonl(
     path: impl AsRef<Path>,
     record: &HostPathObservationV0,
 ) -> Result<(), ReplayError> {
+    let path = path.as_ref();
     let mut record = record.clone();
     record.canonicalize();
     record
         .validate()
         .map_err(|source| ReplayError::Invalid { line: 0, source })?;
+
+    let existing = match fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(source) if source.kind() == io::ErrorKind::NotFound => Vec::new(),
+        Err(source) => return Err(source.into()),
+    };
+    if !existing.is_empty() {
+        read_jsonl_bytes(&existing, false)?;
+    }
+
+    let mut serialized = serialize_jsonl_record(&record)?;
+    if !existing.is_empty() && !existing.ends_with(b"\n") {
+        serialized.insert(0, b'\n');
+    }
+
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
-    serde_json::to_writer(&mut file, &record).map_err(|source| ReplayError::Json {
+    file.write_all(&serialized)?;
+    file.flush()?;
+    Ok(())
+}
+
+fn serialize_jsonl_record(record: &HostPathObservationV0) -> Result<Vec<u8>, ReplayError> {
+    let mut serialized = serde_json::to_vec(record).map_err(|source| ReplayError::Json {
         line: 0,
         source,
     })?;
-    file.write_all(b"\n")?;
-    file.flush()?;
-    Ok(())
+    serialized.push(b'\n');
+    Ok(serialized)
 }
 
 fn canonical_set(values: &[String]) -> BTreeSet<&str> {
@@ -471,6 +590,135 @@ mod tests {
     }
 
     #[test]
+    fn append_serializes_one_canonical_newline_terminated_record() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("evidence.jsonl");
+        let mut record = observation("first", 1, "house");
+        record.path.resolvers = vec![
+            "192.0.2.54".into(),
+            "192.0.2.53".into(),
+            "192.0.2.53".into(),
+        ];
+        let mut canonical = record.clone();
+        canonical.canonicalize();
+
+        append_jsonl(&path, &record).unwrap();
+
+        let bytes = std::fs::read(&path).unwrap();
+        assert_eq!(bytes, serialize_jsonl_record(&canonical).unwrap());
+        assert_eq!(bytes.iter().filter(|byte| **byte == b'\n').count(), 1);
+        assert!(bytes.ends_with(b"\n"));
+    }
+
+    #[test]
+    fn strict_and_recovering_reads_accept_valid_final_json_without_newline() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("evidence.jsonl");
+        let mut bytes = serialize_jsonl_record(&observation("first", 1, "house")).unwrap();
+        assert_eq!(bytes.pop(), Some(b'\n'));
+        std::fs::write(&path, bytes).unwrap();
+
+        let strict = read_jsonl(&path).unwrap();
+        let recovering = read_jsonl_recovering_tail(&path).unwrap();
+
+        assert_eq!(strict.records.len(), 1);
+        assert_eq!(recovering.replay, strict);
+        assert_eq!(recovering.warning, None);
+    }
+
+    #[test]
+    fn recovering_read_warns_about_malformed_unterminated_tail() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("evidence.jsonl");
+        let first = serialize_jsonl_record(&observation("first", 1, "house")).unwrap();
+        let mut bytes = first.clone();
+        bytes.extend_from_slice(br#"{"schema":"netmon.host_path_observation.v0""#);
+        std::fs::write(&path, &bytes).unwrap();
+
+        assert!(matches!(
+            read_jsonl(&path),
+            Err(ReplayError::Json { line: 2, .. })
+        ));
+        let recovering = read_jsonl_recovering_tail(&path).unwrap();
+
+        assert_eq!(recovering.replay.records.len(), 1);
+        assert_eq!(
+            recovering.warning,
+            Some(JsonlReadWarningV0::UnterminatedMalformedRecord {
+                line: 2,
+                byte_offset: first.len(),
+                fragment_bytes: bytes.len() - first.len(),
+            })
+        );
+    }
+
+    #[test]
+    fn recovering_read_rejects_malformed_internal_line() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("evidence.jsonl");
+        let mut bytes = serialize_jsonl_record(&observation("first", 1, "house")).unwrap();
+        bytes.extend_from_slice(b"{malformed}\n");
+        bytes.extend_from_slice(
+            &serialize_jsonl_record(&observation("second", 2, "house")).unwrap(),
+        );
+        std::fs::write(&path, bytes).unwrap();
+
+        assert!(matches!(
+            read_jsonl_recovering_tail(&path),
+            Err(ReplayError::Json { line: 2, .. })
+        ));
+    }
+
+    #[test]
+    fn recovering_read_rejects_complete_invalid_final_record_without_newline() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("evidence.jsonl");
+        let mut invalid = observation("invalid", 1, "house");
+        invalid.schema = "unsupported".into();
+        let mut bytes = serialize_jsonl_record(&invalid).unwrap();
+        assert_eq!(bytes.pop(), Some(b'\n'));
+        std::fs::write(&path, bytes).unwrap();
+
+        assert!(matches!(
+            read_jsonl_recovering_tail(&path),
+            Err(ReplayError::Invalid { line: 1, .. })
+        ));
+    }
+
+    #[test]
+    fn append_inserts_one_separator_after_valid_final_json_without_newline() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("evidence.jsonl");
+        let mut first = serialize_jsonl_record(&observation("first", 1, "house")).unwrap();
+        assert_eq!(first.pop(), Some(b'\n'));
+        std::fs::write(&path, &first).unwrap();
+
+        let second = observation("second", 2, "house");
+        append_jsonl(&path, &second).unwrap();
+
+        let mut expected = first;
+        expected.push(b'\n');
+        expected.extend_from_slice(&serialize_jsonl_record(&second).unwrap());
+        assert_eq!(std::fs::read(&path).unwrap(), expected);
+        assert_eq!(read_jsonl(&path).unwrap().records.len(), 2);
+    }
+
+    #[test]
+    fn append_refuses_and_preserves_a_corrupt_tail() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("evidence.jsonl");
+        let mut corrupt = serialize_jsonl_record(&observation("first", 1, "house")).unwrap();
+        corrupt.extend_from_slice(b"{");
+        std::fs::write(&path, &corrupt).unwrap();
+
+        assert!(matches!(
+            append_jsonl(&path, &observation("second", 2, "house")),
+            Err(ReplayError::Json { line: 2, .. })
+        ));
+        assert_eq!(std::fs::read(&path).unwrap(), corrupt);
+    }
+
+    #[test]
     fn recurrence_keeps_exact_and_compatible_evidence_separate() {
         let exact = observation("exact", 1, "house");
         let mut incomplete = observation("incomplete", 2, "house");
@@ -480,6 +728,10 @@ mod tests {
         let summary =
             summarize_context_recurrence(&[exact, incomplete, current.clone()], &current);
 
+        assert_eq!(
+            summary.exact_context_match,
+            ExactContextMatchV0::AnchoredExactRecurrence
+        );
         assert_eq!(summary.exact_prior_observations, 1);
         assert_eq!(summary.compatible_prior_observations, 1);
         assert_eq!(summary.first_exact_observation_unix_ms, Some(1));
@@ -500,9 +752,15 @@ mod tests {
         let new_summary = summarize_context_recurrence(&[first, second], &new);
 
         assert_eq!(known_summary.distinct_prior_associated_bssids, 2);
-        assert_eq!(known_summary.current_bssid_seen_before, Some(true));
+        assert_eq!(
+            known_summary.attachment_corroboration,
+            AttachmentCorroborationV0::SeenBefore
+        );
         assert_eq!(new_summary.distinct_prior_associated_bssids, 2);
-        assert_eq!(new_summary.current_bssid_seen_before, Some(false));
+        assert_eq!(
+            new_summary.attachment_corroboration,
+            AttachmentCorroborationV0::NotSeenBefore
+        );
     }
 
     #[test]
@@ -515,7 +773,52 @@ mod tests {
 
         assert_eq!(summary.exact_prior_observations, 1);
         assert_eq!(summary.distinct_prior_associated_bssids, 0);
-        assert_eq!(summary.current_bssid_seen_before, None);
+        assert_eq!(
+            summary.attachment_corroboration,
+            AttachmentCorroborationV0::NotObserved
+        );
+    }
+
+    #[test]
+    fn exact_missing_values_are_an_unanchored_key_match() {
+        let mut prior = observation("prior", 1, "house");
+        prior.path.next_hop_link_address = None;
+        prior.path.associated_bssid = None;
+        let mut current = observation("current", 2, "house");
+        current.path.next_hop_link_address = None;
+        current.path.associated_bssid = None;
+
+        let summary = summarize_context_recurrence(&[prior], &current);
+
+        assert_eq!(summary.exact_prior_observations, 1);
+        assert_eq!(
+            summary.exact_context_match,
+            ExactContextMatchV0::UnanchoredExactKeyMatch
+        );
+        assert_eq!(
+            summary.attachment_corroboration,
+            AttachmentCorroborationV0::NotObserved
+        );
+    }
+
+    #[test]
+    fn repeated_bssid_corroborates_but_does_not_anchor_context() {
+        let mut prior = observation("prior", 1, "house");
+        prior.path.next_hop_link_address = None;
+        let mut current = observation("current", 2, "house");
+        current.path.next_hop_link_address = None;
+        current.path.associated_bssid = prior.path.associated_bssid.clone();
+
+        let summary = summarize_context_recurrence(&[prior], &current);
+
+        assert_eq!(
+            summary.exact_context_match,
+            ExactContextMatchV0::UnanchoredExactKeyMatch
+        );
+        assert_eq!(
+            summary.attachment_corroboration,
+            AttachmentCorroborationV0::SeenBefore
+        );
     }
 
     #[test]
@@ -527,5 +830,18 @@ mod tests {
         let summary = summarize_context_recurrence(&[prior], &current);
 
         assert_eq!(summary.exact_prior_observations, 1);
+    }
+
+    #[test]
+    fn recurrence_reports_when_no_prior_exact_key_match_exists() {
+        let current = observation("current", 1, "house");
+
+        let summary = summarize_context_recurrence(&[], &current);
+
+        assert_eq!(summary.exact_prior_observations, 0);
+        assert_eq!(
+            summary.exact_context_match,
+            ExactContextMatchV0::NoPriorExactKeyMatch
+        );
     }
 }
