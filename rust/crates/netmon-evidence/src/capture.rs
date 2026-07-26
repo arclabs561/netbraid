@@ -586,13 +586,13 @@ mod tests {
             capture_id: DIGEST.into(),
             artifact: CaptureArtifactRefV0 {
                 content_sha256: DIGEST.into(),
-                size_bytes: 128,
+                size_bytes: 136,
             },
             observer_id: Some("sensor-a".into()),
             acquired_time_unix_ms: None,
             extractor: CaptureExtractorRefV0 {
                 adapter: "netmon-adapter-tshark".into(),
-                adapter_version: "0.0.1".into(),
+                adapter_version: "0.1.0".into(),
                 tool: "tshark".into(),
                 tool_version: "TShark (Wireshark) 4.6.7".into(),
                 configuration_sha256: DIGEST.into(),
@@ -600,11 +600,11 @@ mod tests {
             },
             acquisition_policy: None,
             normalization: CaptureNormalizationV0 {
-                state: NormalizationStateV0::Complete,
+                state: NormalizationStateV0::Partial,
                 packet_limit: 1_000,
                 packet_limit_reached: false,
                 packet_rows_emitted: 1,
-                packet_rows_quarantined: 0,
+                packet_rows_quarantined: 1,
             },
         }
     }
@@ -643,6 +643,17 @@ mod tests {
         }
     }
 
+    fn quarantine() -> PacketQuarantineV0 {
+        PacketQuarantineV0 {
+            schema: PACKET_QUARANTINE_SCHEMA_V0.into(),
+            capture_id: DIGEST.into(),
+            source_line: 2,
+            frame_number_hint: Some(2),
+            reason: "invalid frame.time_epoch: expected seconds.nanoseconds".into(),
+            raw_row: "2\tinvalid".into(),
+        }
+    }
+
     fn receipt() -> CaptureRunReceiptV0 {
         let tool = |name: &str| ToolRunReceiptV0 {
             tool: name.into(),
@@ -665,15 +676,15 @@ mod tests {
                 file_type: "pcapng".into(),
                 encapsulation: "ether".into(),
                 timestamp_precision: "nanoseconds".into(),
-                packet_count: 1,
+                packet_count: 2,
                 file_size_bytes: 136,
-                original_data_size_bytes: 54,
+                original_data_size_bytes: 128,
                 snaplen: None,
                 inferred_snaplen_min: None,
                 inferred_snaplen_max: None,
-                duration_ns: Some(0),
+                duration_ns: Some(100_000_000),
                 earliest_packet_time_unix_ns: Some(1_700_000_000_123_456_789),
-                latest_packet_time_unix_ns: Some(1_700_000_000_123_456_789),
+                latest_packet_time_unix_ns: Some(1_700_000_000_223_456_789),
                 capture_hardware: Some("sensor-a".into()),
                 capture_operating_system: Some("NetBSD".into()),
                 capture_application: Some("dumpcap".into()),
@@ -683,18 +694,31 @@ mod tests {
             configuration_sha256: DIGEST.into(),
             field_registry: "netmon.tshark.packet_envelope.v0".into(),
             normalized_records_digest_profile: NORMALIZED_RECORDS_DIGEST_PROFILE_V0.into(),
-            normalized_records_sha256: DIGEST.into(),
+            normalized_records_sha256:
+                "sha256:2687b505578a27e4a6d11438a2df827f7f2c7b7d4bb6cf8cdd669cb6a729d329"
+                    .into(),
         }
     }
 
     #[test]
     fn manifest_requires_honest_complete_normalization() {
         let mut value = manifest();
-        value.normalization.packet_rows_quarantined = 1;
+        value.normalization.state = NormalizationStateV0::Complete;
 
         assert_eq!(
             value.validate(),
             Err(CaptureValidationError::InconsistentNormalization)
+        );
+    }
+
+    #[test]
+    fn golden_manifest_json_preserves_extractor_and_normalization_provenance() {
+        let value = manifest();
+        value.validate().unwrap();
+
+        assert_eq!(
+            format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
+            include_str!("../../../schema-fixtures/v0/capture_manifest_v0.json")
         );
     }
 
@@ -722,7 +746,7 @@ mod tests {
 
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
-            include_str!("../tests/fixtures/packet_envelope_v0.json")
+            include_str!("../../../schema-fixtures/v0/packet_envelope_v0.json")
         );
     }
 
@@ -750,7 +774,18 @@ mod tests {
 
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
-            include_str!("../tests/fixtures/capture_run_receipt_v0.json")
+            include_str!("../../../schema-fixtures/v0/capture_run_receipt_v0.json")
+        );
+    }
+
+    #[test]
+    fn golden_quarantine_json_preserves_raw_invalid_row() {
+        let value = quarantine();
+        value.validate().unwrap();
+
+        assert_eq!(
+            format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
+            include_str!("../../../schema-fixtures/v0/packet_quarantine_v0.json")
         );
     }
 }

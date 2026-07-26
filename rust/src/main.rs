@@ -15,6 +15,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Parser)]
 #[command(
     name = "netmon",
+    version,
     about = "Inspect saved network evidence and compatibility snapshots"
 )]
 struct Cli {

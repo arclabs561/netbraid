@@ -32,8 +32,12 @@ pub struct PcapArgs {
     pub acquired_time_unix_ms: Option<i64>,
 
     /// Emit versioned manifest, run receipt, packet, and quarantine records as JSONL.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "records_jsonl")]
     pub jsonl: bool,
+
+    /// Emit only deterministic manifest, packet, and quarantine records as JSONL.
+    #[arg(long, conflicts_with = "jsonl")]
+    pub records_jsonl: bool,
 
     /// Maximum packets TShark may read. A longer file makes normalization partial.
     #[arg(long, default_value_t = DEFAULT_PACKET_LIMIT)]
@@ -91,20 +95,23 @@ pub fn run(args: &PcapArgs) -> Result<()> {
     )
     .with_context(|| format!("normalizing {}", args.input.display()))?;
 
-    if args.jsonl {
-        print_jsonl(&report)
+    if args.jsonl || args.records_jsonl {
+        print_jsonl(&report, args.jsonl)
     } else {
         print_summary(&args.input, &report);
         Ok(())
     }
 }
 
-fn print_jsonl(report: &NormalizationReport) -> Result<()> {
+fn print_jsonl(report: &NormalizationReport, include_receipt: bool) -> Result<()> {
     let mut output = BufWriter::new(io::stdout().lock());
     serde_json::to_writer(&mut output, &report.manifest).context("writing capture manifest")?;
     output.write_all(b"\n")?;
-    serde_json::to_writer(&mut output, &report.receipt).context("writing capture run receipt")?;
-    output.write_all(b"\n")?;
+    if include_receipt {
+        serde_json::to_writer(&mut output, &report.receipt)
+            .context("writing capture run receipt")?;
+        output.write_all(b"\n")?;
+    }
     for packet in &report.packets {
         serde_json::to_writer(&mut output, packet).context("writing packet envelope")?;
         output.write_all(b"\n")?;

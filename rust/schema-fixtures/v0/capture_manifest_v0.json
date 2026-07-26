@@ -1,0 +1,24 @@
+{
+  "schema": "netmon.capture_manifest.v0",
+  "capture_id": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "artifact": {
+    "content_sha256": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "size_bytes": 136
+  },
+  "observer_id": "sensor-a",
+  "extractor": {
+    "adapter": "netmon-adapter-tshark",
+    "adapter_version": "0.1.0",
+    "tool": "tshark",
+    "tool_version": "TShark (Wireshark) 4.6.7",
+    "configuration_sha256": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "field_registry": "netmon.tshark.packet_envelope.v0"
+  },
+  "normalization": {
+    "state": "partial",
+    "packet_limit": 1000,
+    "packet_limit_reached": false,
+    "packet_rows_emitted": 1,
+    "packet_rows_quarantined": 1
+  }
+}

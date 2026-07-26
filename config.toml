@@ -3,22 +3,6 @@
     disabled = true
     onAny = true
     doBuiltin = "null"
-  [triggers.debug]
-    disabled = true
-    onAny = true
-    doShell = "echo '{{.Description}}'"
   [triggers.log]
     onEventsExcept = ["host.touch", "port.touch"]
     doBuiltin = "log"
-  [triggers.example]
-    disabled = true
-    onEvents = ["host.new"]
-    doShell = "echo Hello {{.Host.IPv4}} - $(date)"
-  [triggers.gmail]
-    disabled = true
-    onEvents = ["host.new"]
-    doShell = "notify -s 'New host {{.Host.MAC}} on {{.Host.IPv4}}'"
-  [triggers.gmail-ssh]
-    disabled = true
-    onShell = '[ "{{.Host.IPv4}} {{.PortString}}" = "$HOST1 $HOST1_PORT1" ]'
-    doShell = "echo '{{.Description}}'"

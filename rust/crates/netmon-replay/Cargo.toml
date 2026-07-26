@@ -1,10 +1,12 @@
 [package]
 name = "netmon-replay"
-version = "0.0.1"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Deterministic replay for experimental Netmon evidence"
-license = "MIT OR Unlicense"
-publish = false
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
 
 [dependencies]
 netmon-evidence = { path = "../netmon-evidence" }

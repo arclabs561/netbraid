@@ -3,7 +3,9 @@ build
 
 # Private capture and replay artifacts. Sanitized fixtures belong only under
 # explicit test fixture directories.
-/*.pcap
+*.pcap
+*.pcapng
+*.cap
 /events.jsonl
 /audit-history.jsonl
 /host-path*.jsonl

@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(json["path"]["network_name"]["visibility"], "observed");
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&record).unwrap()),
-            include_str!("../tests/fixtures/host_path_observation_v0.json")
+            include_str!("../../../schema-fixtures/v0/host_path_observation_v0.json")
         );
     }
 
