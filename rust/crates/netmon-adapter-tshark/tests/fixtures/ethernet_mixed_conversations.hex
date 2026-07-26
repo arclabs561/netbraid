@@ -1,0 +1,72 @@
+# Classic PCAP: little-endian, microsecond timestamps, Ethernet link type.
+d4 c3 b2 a1  02 00 04 00  00000000 00000000  ffff0000 01000000
+
+# Packet 1: 1700000000.123456, 54 captured/original octets.
+00f15365 40e20100  36000000 36000000
+
+# Ethernet II: host A -> host B, IPv4.
+02 00 00 00 00 02  02 00 00 00 00 01  0800
+
+# IPv4: 192.0.2.1 -> 198.51.100.2, TCP.
+45 00 0028 0001 4000 40 06 0000  c0000201 c6336402
+
+# TCP: ephemeral/40000 -> HTTPS/443, SYN.
+9c40 01bb 00000000 00000000  50 02 2000 0000 0000
+
+# Packet 2: 1700000000.223456, 54 captured/original octets.
+00f15365 e0680300  36000000 36000000
+
+# Ethernet II: host B -> host A, IPv4.
+02 00 00 00 00 01  02 00 00 00 00 02  0800
+
+# IPv4: 198.51.100.2 -> 192.0.2.1, TCP.
+45 00 0028 0002 4000 40 06 0000  c6336402 c0000201
+
+# TCP: HTTPS/443 -> ephemeral/40000, SYN+ACK.
+01bb 9c40 00000000 00000001  50 12 2000 0000 0000
+
+# Packet 3: 1700000000.323456, 54 captured/original octets.
+00f15365 80ef0400  36000000 36000000
+
+# Ethernet II and IPv4: host A -> host B, TCP.
+02 00 00 00 00 02  02 00 00 00 00 01  0800
+45 00 0028 0003 4000 40 06 0000  c0000201 c6336402
+
+# TCP: ephemeral/40000 -> HTTPS/443, ACK.
+9c40 01bb 00000001 00000001  50 10 2000 0000 0000
+
+# Packet 4: 1700000000.423456, 54 captured/original octets.
+00f15365 20760600  36000000 36000000
+
+# Ethernet II and IPv4: host B -> host A, TCP.
+02 00 00 00 00 01  02 00 00 00 00 02  0800
+45 00 0028 0004 4000 40 06 0000  c6336402 c0000201
+
+# TCP: HTTPS/443 -> ephemeral/40000, FIN+ACK.
+01bb 9c40 00000001 00000001  50 11 2000 0000 0000
+
+# Packet 5: 1700000000.523456, 54 captured/original octets.
+00f15365 c0fc0700  36000000 36000000
+
+# Ethernet II: DNS client -> resolver, IPv4.
+02 00 00 00 00 04  02 00 00 00 00 03  0800
+
+# IPv4: 203.0.113.10 -> 203.0.113.53, UDP.
+45 00 0028 0005 4000 40 11 0000  cb00710a cb007135
+
+# UDP: ephemeral/53000 -> DNS/53, followed by a minimal DNS query header.
+cf08 0035 0014 0000
+1234 0100 0000 0000 0000 0000
+
+# Packet 6: 1700000000.623456, 54 captured/original octets.
+00f15365 60830900  36000000 36000000
+
+# Ethernet II: resolver -> DNS client, IPv4.
+02 00 00 00 00 03  02 00 00 00 00 04  0800
+
+# IPv4: 203.0.113.53 -> 203.0.113.10, UDP.
+45 00 0028 0006 4000 40 11 0000  cb007135 cb00710a
+
+# UDP: DNS/53 -> ephemeral/53000, followed by a minimal DNS response header.
+0035 cf08 0014 0000
+1234 8180 0000 0000 0000 0000

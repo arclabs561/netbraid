@@ -127,7 +127,10 @@ frame octets, then descending frames, then canonical key.
 
 The CLI labels the section **capture conversations** and states that it is
 capture-wide. It never calls original frame octets payload bytes, transferred
-bytes, goodput, or throughput.
+bytes, goodput, or throughput. The capture section prints exact absolute bounds
+once; each conversation prints start/end offsets from that capture start plus
+its span, matching the operator convention of capture-relative conversation
+timing without discarding the underlying event timestamps.
 
 ## Tradeoffs
 

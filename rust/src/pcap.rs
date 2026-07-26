@@ -327,6 +327,12 @@ fn print_counts(title: &str, counts: &BTreeMap<String, usize>, limit: usize) {
 
 fn print_capture_conversations(report: &NormalizationReport) {
     let reduced = reduce_capture_conversations(&report.packets);
+    let capture_start_unix_ns = report
+        .packets
+        .iter()
+        .map(|packet| packet.frame.event_time_unix_ns)
+        .min()
+        .expect("capture conversations require at least one emitted packet");
     println!("\ncapture conversations");
     println!("  scope         capture-wide; endpoint A/B is canonical, not initiator");
     println!(
@@ -339,7 +345,7 @@ fn print_capture_conversations(report: &NormalizationReport) {
         println!("  excluded      {count} {}", reason.label());
     }
     for conversation in reduced.conversations.iter().take(8) {
-        print_capture_conversation(conversation);
+        print_capture_conversation(conversation, capture_start_unix_ns);
     }
     if reduced.conversations.len() > 8 {
         println!(
@@ -349,7 +355,7 @@ fn print_capture_conversations(report: &NormalizationReport) {
     }
 }
 
-fn print_capture_conversation(conversation: &CaptureConversationV0) {
+fn print_capture_conversation(conversation: &CaptureConversationV0, capture_start_unix_ns: i64) {
     let protocol = match conversation.key.transport {
         TransportProtocolV0::Tcp => "TCP",
         TransportProtocolV0::Udp => "UDP",
@@ -375,9 +381,17 @@ fn print_capture_conversation(conversation: &CaptureConversationV0) {
     print_conversation_direction("A→B", &conversation.a_to_b);
     print_conversation_direction("B→A", &conversation.b_to_a);
     println!(
-        "    span        {} .. {}  ({})",
-        format_epoch_ns(conversation.earliest_event_time_unix_ns),
-        format_epoch_ns(conversation.latest_event_time_unix_ns),
+        "    timing      +{} .. +{} from capture start / {} span",
+        format_duration_ns(
+            conversation
+                .earliest_event_time_unix_ns
+                .saturating_sub(capture_start_unix_ns)
+        ),
+        format_duration_ns(
+            conversation
+                .latest_event_time_unix_ns
+                .saturating_sub(capture_start_unix_ns)
+        ),
         format_duration_ns(
             conversation
                 .latest_event_time_unix_ns
