@@ -174,10 +174,11 @@ before adaptation can obscure an acquisition error.
 When a concrete adaptive acquisition consumer exists, its Rust implementation
 may depend on Muxer's domain-neutral arm-selection policy. The first experiment
 uses EXP3-IX over a stable ordered arm universe within one policy epoch. Netmon
-first validates that every member of the current eligible subset belongs to
-that full arm universe, then passes the subset and a logged decision seed and
-records the exact selection probability used to update the policy. Muxer's
-current API does not enforce the subset invariant for Netmon. A
+first validates that the full universe and current eligible subset are nonempty
+and duplicate-free, that every eligible member belongs to the full universe,
+and that the universe's ordering is stable. It then passes the subset and a
+logged decision seed and records the exact selection probability used to update
+the policy. Muxer's current API does not enforce these invariants for Netmon. A
 regulatory-domain, radio, hardware, or materially different location transition
 starts a new epoch. Transient cooldown or capability changes only change the
 eligible subset.
@@ -186,11 +187,16 @@ That dependency belongs only in the acquisition package or module that owns the
 consumer. It does not belong in `netmon-evidence`, `netmon-replay`, Linktop, or
 the passive default path.
 
-The dependency is not added until that consumer exists. Its intended
-declaration is:
+The dependency is not added until that consumer exists. Published Muxer 0.5.3
+does not yet satisfy the receipt-grade propensity gate: deterministic
+explore-first selection reports a renormalized base distribution instead of the
+point mass that actually selected the first unseen arm. Netmon must use the
+first released version containing that correction, or an exact separately
+verified Git revision, and pin it exactly. The eventual declaration has this
+shape:
 
 ```toml
-muxer = { version = "=0.5.3", default-features = false, features = ["stochastic", "serde"] }
+muxer = { version = "=<verified-version>", default-features = false, features = ["stochastic", "serde"] }
 ```
 
 This exposes EXP3-IX and serializable policy state without enabling contextual
@@ -281,8 +287,11 @@ or useful observation coverage rather than selection count alone.
 7. Cut over one additive projection. Use one writer, a durable boundary,
    injected failure, and a demonstrated rollback.
 8. Implement opt-in Rust acquisition if still needed. Start with a fixed or
-   seeded randomized schedule and prove receipt-bound attribution. Add Muxer
-   EXP3-IX only after that control passes and an adaptive operator case exists.
+   seeded randomized schedule and prove receipt-bound attribution. The legacy
+   Go hopper currently selects the next action before emitting and updating the
+   prior interval, so its action/observation pairing is a negative regression
+   fixture rather than behavior to port. Add Muxer EXP3-IX only after that
+   control passes and an adaptive operator case exists.
 9. Delete superseded runtimes. Remove the Go CLI and `swucb` after capture
    parity; remove each Python writer only after its Rust replacement passes
    shadow, cutover, and rollback gates.
@@ -299,9 +308,12 @@ or useful observation coverage rather than selection count alone.
   match.
 - Live cutover has one writer and one rollback authority at any instant.
 - Muxer receives only caller-eligible arms and cannot widen collection scope.
-- Every eligible arm is validated against the stable full arm universe before
-  Muxer receives it.
+- Full and eligible arm lists are nonempty and duplicate-free; every eligible
+  arm is validated against the stable full arm universe before Muxer receives
+  it.
 - A policy epoch keeps its full arm universe and ordering stable.
+- Reported propensity is the probability of the action actually selected,
+  including deterministic explore-first decisions.
 - Requested action, executed action, interval, and observation share one durable
   decision identity.
 - Raw packet counts are normalized for actual dwell and completeness before
