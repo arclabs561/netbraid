@@ -45,6 +45,14 @@
           "bssids": ["90:a4:de:c0:46:0a"],
           "transmitters": ["90:a4:de:c0:46:0a", "90:a4:de:c0:46:11"],
           "ssid_hex": ["6f6d7573"]
+        },
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 0,
+          "packet_envelopes_excluded": 10,
+          "conversations": 0,
+          "exclusions": [
+            {"reason": "ambiguous_network_layer", "packet_envelopes": 10}
+          ]
         }
       }
     },
@@ -92,6 +100,14 @@
           "bssids": ["00:01:e3:41:bd:6e", "ff:ff:ff:ff:ff:ff"],
           "transmitters": ["00:01:e3:41:bd:6e", "00:16:bc:3d:aa:57"],
           "ssid_hex": ["6d617274696e657433"]
+        },
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 0,
+          "packet_envelopes_excluded": 10,
+          "conversations": 0,
+          "exclusions": [
+            {"reason": "ambiguous_network_layer", "packet_envelopes": 10}
+          ]
         }
       }
     },
@@ -145,6 +161,14 @@
           "bssids": ["50:0f:80:70:18:d0", "ff:ff:ff:ff:ff:ff"],
           "transmitters": ["40:40:a7:50:73:db", "50:0f:80:70:18:d0"],
           "ssid_hex": ["696b65726972692d3567"]
+        },
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 0,
+          "packet_envelopes_excluded": 16,
+          "conversations": 0,
+          "exclusions": [
+            {"reason": "ambiguous_network_layer", "packet_envelopes": 16}
+          ]
         }
       }
     },
@@ -171,7 +195,15 @@
         "original_data_size_bytes": 84,
         "packets_emitted": 2,
         "packets_quarantined": 0,
-        "required_protocols": ["eth", "arp"]
+        "required_protocols": ["eth", "arp"],
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 0,
+          "packet_envelopes_excluded": 2,
+          "conversations": 0,
+          "exclusions": [
+            {"reason": "ambiguous_network_layer", "packet_envelopes": 2}
+          ]
+        }
       }
     },
     {
@@ -197,7 +229,15 @@
         "original_data_size_bytes": 38,
         "packets_emitted": 1,
         "packets_quarantined": 0,
-        "required_protocols": ["eth", "pppoed"]
+        "required_protocols": ["eth", "pppoed"],
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 0,
+          "packet_envelopes_excluded": 1,
+          "conversations": 0,
+          "exclusions": [
+            {"reason": "ambiguous_network_layer", "packet_envelopes": 1}
+          ]
+        }
       }
     },
     {
@@ -223,7 +263,15 @@
         "original_data_size_bytes": 98,
         "packets_emitted": 1,
         "packets_quarantined": 0,
-        "required_protocols": ["eth", "ip"]
+        "required_protocols": ["eth", "ip"],
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 0,
+          "packet_envelopes_excluded": 1,
+          "conversations": 0,
+          "exclusions": [
+            {"reason": "ambiguous_network_layer", "packet_envelopes": 1}
+          ]
+        }
       }
     },
     {
@@ -249,7 +297,13 @@
         "original_data_size_bytes": 1080,
         "packets_emitted": 12,
         "packets_quarantined": 0,
-        "required_protocols": ["eth", "ip", "udp", "ntp"]
+        "required_protocols": ["eth", "ip", "udp", "ntp"],
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 12,
+          "packet_envelopes_excluded": 0,
+          "conversations": 6,
+          "exclusions": []
+        }
       }
     },
     {
@@ -275,7 +329,13 @@
         "original_data_size_bytes": 1312,
         "packets_emitted": 4,
         "packets_quarantined": 0,
-        "required_protocols": ["eth", "ip", "udp", "dhcp"]
+        "required_protocols": ["eth", "ip", "udp", "dhcp"],
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 4,
+          "packet_envelopes_excluded": 0,
+          "conversations": 2,
+          "exclusions": []
+        }
       }
     }
   ]

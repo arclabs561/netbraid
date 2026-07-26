@@ -16,5 +16,6 @@ sha2 = "0.10.9"
 tempfile = "3"
 
 [dev-dependencies]
+netmon-replay = { path = "../netmon-replay" }
 serde = { version = "1", features = ["derive"] }
 sha1 = "0.10"

@@ -9,10 +9,14 @@ This directory has two fixture tiers:
 
 `upstream/corpus-v0.json` is the admission ledger. Each entry pins the upstream
 repository revision, source path, Git blob ID, decoded SHA-256 digest, license,
-curation purpose, and stable normalization expectations. The non-ignored corpus
-test checks the ledger and exact bytes without requiring Wireshark. The ignored
-smoke test additionally runs every admitted artifact through installed
-`capinfos` and `tshark`.
+curation purpose, stable normalization expectations, and typed conversation
+reduction expectations. The non-ignored corpus test checks the ledger, unique
+content identities and immutable origin coordinates, and exact bytes without
+requiring Wireshark. The ignored smoke test additionally normalizes every
+admitted artifact twice with installed `capinfos` and `tshark`, round-trips both
+the occurrence-bearing and deterministic JSONL projections through
+`netmon-replay`, and checks byte-stable deterministic records, receipt-bound
+digests, replayed evidence equality, and conservative conversation grouping.
 
 The corpus is intentionally small. It spans capture and link-layer boundaries
 that have changed adapter behavior:
@@ -46,7 +50,7 @@ Candidates inspected but not admitted:
 ## Running
 
 The integrity/provenance test runs in the normal Rust suite. To exercise the
-installed Wireshark tools too:
+installed Wireshark tools and end-to-end normalize/replay/reduce contract too:
 
 ```sh
 just pcap-smoke
