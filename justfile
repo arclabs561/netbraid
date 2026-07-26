@@ -24,7 +24,7 @@ rust-check:
     RUSTDOCFLAGS="-D warnings" cargo doc --locked --manifest-path rust/Cargo.toml --workspace --no-deps
 
 pcap-smoke:
-    cargo test --locked --manifest-path rust/Cargo.toml -p netmon-adapter-tshark --test tshark_smoke -- --ignored
+    cargo test --locked --manifest-path rust/Cargo.toml -p netmon-adapter-tshark --tests -- --ignored
     cargo test --locked --manifest-path rust/Cargo.toml -p netmon --test pcap_cli -- --ignored
 
 rust-check-full: rust-check pcap-smoke

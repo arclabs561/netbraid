@@ -1,0 +1,161 @@
+{
+  "schema": "netmon.capture_fixture_corpus.v0",
+  "fixtures": [
+    {
+      "id": "libpcap.ieee80211-exthdr",
+      "path": "upstream/libpcap-ieee80211-exthdr.pcap.hex",
+      "purpose": "Exercise classic PCAP with an IEEE 802.11 radiotap link type and non-IP frames.",
+      "origin": {
+        "repository": "the-tcpdump-group/libpcap",
+        "revision": "9f37478bad2abafb626a0bf8921506569960d48d",
+        "source_path": "tests/filter/ieee802.11_exthdr.pcap",
+        "source_url": "https://raw.githubusercontent.com/the-tcpdump-group/libpcap/9f37478bad2abafb626a0bf8921506569960d48d/tests/filter/ieee802.11_exthdr.pcap",
+        "upstream_blob_sha1": "52b8749894acb4b967ef70e9ba515ee485e3ef6a",
+        "license": "BSD-3-Clause",
+        "license_file": "third-party-licenses/libpcap-BSD-3-Clause.txt"
+      },
+      "content_sha256": "99214b891de429913e73a657d1ade08e5bb014dbd9096960fc6c831075dcafe4",
+      "size_bytes": 1583,
+      "expected": {
+        "file_type": "pcap",
+        "encapsulation": "ieee-802-11-radiotap",
+        "timestamp_precision": "microseconds",
+        "packet_count": 10,
+        "original_data_size_bytes": 1399,
+        "packets_emitted": 10,
+        "packets_quarantined": 0,
+        "required_protocols": ["radiotap", "wlan"]
+      }
+    },
+    {
+      "id": "libpcap.rarp-request-reply",
+      "path": "upstream/libpcap-rarp-request-reply.pcapng.hex",
+      "purpose": "Exercise PCAPNG file metadata and complete non-IP Ethernet frames.",
+      "origin": {
+        "repository": "the-tcpdump-group/libpcap",
+        "revision": "9f37478bad2abafb626a0bf8921506569960d48d",
+        "source_path": "tests/filter/rarp_req_reply.pcapng",
+        "source_url": "https://raw.githubusercontent.com/the-tcpdump-group/libpcap/9f37478bad2abafb626a0bf8921506569960d48d/tests/filter/rarp_req_reply.pcapng",
+        "upstream_blob_sha1": "439a1f8449f74cebe2e159fc38013d86c250b5f1",
+        "license": "BSD-3-Clause",
+        "license_file": "third-party-licenses/libpcap-BSD-3-Clause.txt"
+      },
+      "content_sha256": "eda5a20d0f4cca31a32087c44e24ed4d6bfa599869b7e0b46c3a57a625c118f2",
+      "size_bytes": 288,
+      "expected": {
+        "file_type": "pcapng",
+        "encapsulation": "ether",
+        "timestamp_precision": "microseconds",
+        "packet_count": 2,
+        "original_data_size_bytes": 84,
+        "packets_emitted": 2,
+        "packets_quarantined": 0,
+        "required_protocols": ["eth", "arp"]
+      }
+    },
+    {
+      "id": "libpcap.pppoe-discovery",
+      "path": "upstream/libpcap-pppoe-discovery.pcap.hex",
+      "purpose": "Exercise PPPoE discovery without inventing an IP conversation.",
+      "origin": {
+        "repository": "the-tcpdump-group/libpcap",
+        "revision": "9f37478bad2abafb626a0bf8921506569960d48d",
+        "source_path": "tests/filter/pppoe.pcap",
+        "source_url": "https://raw.githubusercontent.com/the-tcpdump-group/libpcap/9f37478bad2abafb626a0bf8921506569960d48d/tests/filter/pppoe.pcap",
+        "upstream_blob_sha1": "3296174cd63eadd0926e0d7e8151b259ed6c93bd",
+        "license": "BSD-3-Clause",
+        "license_file": "third-party-licenses/libpcap-BSD-3-Clause.txt"
+      },
+      "content_sha256": "28a35c864e1fa3ab016641799f6b3b54a5b928677270efa8e54106369668220f",
+      "size_bytes": 78,
+      "expected": {
+        "file_type": "pcap",
+        "encapsulation": "ether",
+        "timestamp_precision": "microseconds",
+        "packet_count": 1,
+        "original_data_size_bytes": 38,
+        "packets_emitted": 1,
+        "packets_quarantined": 0,
+        "required_protocols": ["eth", "pppoed"]
+      }
+    },
+    {
+      "id": "rust-pcap.snaplen-20",
+      "path": "upstream/rust-pcap-snaplen-20.pcap.hex",
+      "purpose": "Exercise a file whose one frame has 98 original octets but only 20 captured octets.",
+      "origin": {
+        "repository": "rust-pcap/pcap",
+        "revision": "23d1752b45accf20827c2dde80d8a36fcee16233",
+        "source_path": "tests/data/packet_snaplen_20.pcap",
+        "source_url": "https://raw.githubusercontent.com/rust-pcap/pcap/23d1752b45accf20827c2dde80d8a36fcee16233/tests/data/packet_snaplen_20.pcap",
+        "upstream_blob_sha1": "aee84dbd06d1f59085ed1d11a41df778e4caf3fd",
+        "license": "MIT",
+        "license_file": "third-party-licenses/rust-pcap-MIT.txt"
+      },
+      "content_sha256": "f79521cb3a6532c7aee8c541ca5514418ae1ef41c728f1665a76c1cd95c33026",
+      "size_bytes": 60,
+      "expected": {
+        "file_type": "pcap",
+        "encapsulation": "ether",
+        "timestamp_precision": "microseconds",
+        "packet_count": 1,
+        "original_data_size_bytes": 98,
+        "packets_emitted": 1,
+        "packets_quarantined": 0,
+        "required_protocols": ["eth", "ip"]
+      }
+    },
+    {
+      "id": "pcap-parser.ntp",
+      "path": "upstream/pcap-parser-ntp.pcap.hex",
+      "purpose": "Exercise multiple bidirectional UDP/NTP conversations over a nontrivial time span.",
+      "origin": {
+        "repository": "rusticata/pcap-parser",
+        "revision": "a5ca3c6ac8ade4694b6e6eeac0143e7e8de27784",
+        "source_path": "assets/ntp.pcap",
+        "source_url": "https://raw.githubusercontent.com/rusticata/pcap-parser/a5ca3c6ac8ade4694b6e6eeac0143e7e8de27784/assets/ntp.pcap",
+        "upstream_blob_sha1": "cc80d04afdd329b9a8ed2b0bf10ea4e3e7345196",
+        "license": "MIT",
+        "license_file": "third-party-licenses/pcap-parser-MIT.txt"
+      },
+      "content_sha256": "b10c1c7f8bc798939a9352604b9c89723f9b60bc892acba6feb0c63803552f7f",
+      "size_bytes": 1296,
+      "expected": {
+        "file_type": "pcap",
+        "encapsulation": "ether",
+        "timestamp_precision": "microseconds",
+        "packet_count": 12,
+        "original_data_size_bytes": 1080,
+        "packets_emitted": 12,
+        "packets_quarantined": 0,
+        "required_protocols": ["eth", "ip", "udp", "ntp"]
+      }
+    },
+    {
+      "id": "pcap-parser.big-endian-pcapng",
+      "path": "upstream/pcap-parser-big-endian.pcapng.hex",
+      "purpose": "Exercise big-endian PCAPNG, section/interface fields, and file-level capture provenance.",
+      "origin": {
+        "repository": "rusticata/pcap-parser",
+        "revision": "a5ca3c6ac8ade4694b6e6eeac0143e7e8de27784",
+        "source_path": "assets/test001-be.pcapng",
+        "source_url": "https://raw.githubusercontent.com/rusticata/pcap-parser/a5ca3c6ac8ade4694b6e6eeac0143e7e8de27784/assets/test001-be.pcapng",
+        "upstream_blob_sha1": "464a206ce4f4623f314734cbede6df6de571a72b",
+        "license": "MIT",
+        "license_file": "third-party-licenses/pcap-parser-MIT.txt"
+      },
+      "content_sha256": "d9706606fc3febb9740897d85818bd06edc76dc7538ea13d8a9131a988376dfb",
+      "size_bytes": 1596,
+      "expected": {
+        "file_type": "pcapng",
+        "encapsulation": "ether",
+        "timestamp_precision": "microseconds",
+        "packet_count": 4,
+        "original_data_size_bytes": 1312,
+        "packets_emitted": 4,
+        "packets_quarantined": 0,
+        "required_protocols": ["eth", "ip", "udp", "dhcp"]
+      }
+    }
+  ]
+}

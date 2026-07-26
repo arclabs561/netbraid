@@ -9,6 +9,16 @@ to crates.io.
 
 ## [Unreleased]
 
+### Added
+
+- A provenance-checked public saved-capture corpus spanning radiotap/802.11,
+  RARP PCAPNG, PPPoE discovery, snaplen truncation, NTP conversations, and
+  big-endian PCAPNG. Exact upstream bytes are stored as diffable hex beside
+  pinned source revisions, blob IDs, decoded digests, licenses, and real-tool
+  expectations.
+- Corpus smoke coverage against installed TShark and Capinfos in local and CI
+  Rust gates.
+
 ## [0.1.0] - 2026-07-26
 
 ### Added

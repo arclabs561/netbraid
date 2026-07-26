@@ -315,7 +315,12 @@ just rust-check-full
 
 The root `just test` also runs the repository's Go lint configuration before tests.
 `just pcap-smoke` is opt-in because it invokes the locally installed TShark and
-Capinfos against readable synthetic PCAP and PCAPNG fixtures.
+Capinfos against both readable synthetic captures and a small curated public corpus:
+radiotap/802.11, RARP, PPPoE discovery, severe snaplen truncation, NTP
+conversations, and big-endian PCAPNG. The upstream bytes remain text-reviewable
+hex; their manifest pins source commits, blob IDs, decoded digests, licenses,
+and stable normalization expectations. See the
+[fixture corpus](rust/crates/netmon-adapter-tshark/tests/fixtures/README.md).
 `just pcap-smoke-show` prints the finite operator summary from the CLI fixture so
 presentation changes can be reviewed without preparing a local capture.
 `just rust-check-full` is the release-oriented Rust gate: build, tests, Clippy,

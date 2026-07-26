@@ -40,7 +40,7 @@ jobs:
       - run: cargo test --locked --workspace
       - name: Exercise installed Wireshark tools and CLI projections
         run: |
-          cargo test --locked -p netmon-adapter-tshark --test tshark_smoke -- --ignored
+          cargo test --locked -p netmon-adapter-tshark --tests -- --ignored
           cargo test --locked -p netmon --test pcap_cli -- --ignored
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo doc --locked --workspace --no-deps
