@@ -4,7 +4,7 @@ Netmon is a transitional network-evidence workspace. It preserves a legacy Go ca
 tool, a narrow Rust saved-snapshot reader, and an acquisition-policy experiment while
 building a coherent Rust evidence/replay core.
 
-Netmon currently contains three separate, buildable surfaces:
+Netmon currently contains four separate, buildable surfaces:
 
 - The root Go CLI captures from one or more interfaces, optionally hops Wi-Fi
   channels, writes one PCAP per interface plus `events.jsonl`, and can print packets or
@@ -13,7 +13,14 @@ Netmon currently contains three separate, buildable surfaces:
   and `here` commands do not capture traffic or query a controller directly. Its
   experimental `evidence` command deterministically replays a supplied v0 host-path
   JSONL log and distinguishes anchored exact recurrence from unanchored exact key
-  matches and compatible/incomplete observations.
+  matches and compatible/incomplete observations. Its `pcap` command normalizes a
+  bounded saved capture through TShark and prints an operator summary or versioned
+  JSONL evidence.
+- `netmon-adapter-tshark` is an experimental Rust process boundary for saved PCAP and
+  PCAPNG artifacts. It stages a regular file, disables name resolution, selects an
+  explicit first-occurrence field registry, fingerprints effective TShark
+  configuration, refuses personal plugins unless explicitly allowed, and preserves
+  invalid rows as quarantines.
 - `swucb/` is an experimental sliding-window UCB package. It is tested but is not
   wired into either CLI.
 
@@ -30,6 +37,7 @@ repository's current charter.
 | Go capture CLI | Legacy compatibility | Acquire selected packet/RF observations as PCAP and JSONL |
 | Rust snapshot CLI | Compatibility reader | Interpret the latest saved netops audit snapshot |
 | Rust v0 libraries | Experimental | Record, compare, and summarize observer-scoped key matches and anchored recurrence for explicit host-path context |
+| Rust TShark adapter | Experimental | Normalize bounded saved captures into manifests, packet envelopes, and quarantines without live capture |
 | `swucb/` | Retained experiment | Evaluate adaptive channel-selection policy independently |
 | Rust evidence/replay core | Gated future | Normalize immutable artifacts, replay evidence, and reduce temporal state deterministically |
 | Live deployment or fusion service | External | Consume released evidence/replay artifacts after its own parity and rollback gates |
@@ -99,6 +107,8 @@ cargo build --manifest-path rust/Cargo.toml
 ./rust/target/debug/netmon device '<name, MAC, or IP substring>'
 ./rust/target/debug/netmon here
 ./rust/target/debug/netmon evidence ./host-path.jsonl
+./rust/target/debug/netmon pcap ./incident.pcap
+./rust/target/debug/netmon pcap ./incident.pcapng --jsonl
 ```
 
 The default snapshot input is `~/.cache/netops/audit-history.jsonl`; pass `--file PATH`
@@ -114,6 +124,16 @@ content, writes each canonical record and its newline from one buffer, and inser
 separator before a valid final JSON record that lacked a newline. Appends are
 fail-closed around known corruption but are not cross-process locking: one writer owns
 each log.
+
+The `pcap` command is offline and non-interactive. Its text output reports artifact
+identity, observer/acquisition unknowns, normalization completeness,
+packet/quarantine counts, capture span, octets, protocol stacks, first-occurrence L3
+directions, and transport destinations. `--jsonl` emits `netmon.capture_manifest.v0`,
+`netmon.packet_envelope.v0`, and `netmon.packet_quarantine.v0` records. The manifest
+does not infer that a detached artifact was acquired passively or that it covered a
+network, channel, or interval completely; observer, acquisition time, acquisition
+policy, and acquisition coverage are absent unless independently supplied. See
+[`docs/saved-pcap-normalization.md`](docs/saved-pcap-normalization.md).
 
 ## Promotion gates
 
@@ -171,8 +191,9 @@ deployment remains authoritative until shadow replay and rollback prove a single
 replacement writer.
 
 Kismet, Zeek, TShark, controllers, flow exporters, DHCP, DNS-SD, and similar systems
-remain acquisition or dissection owners. A future netmon adapter may normalize their
-versioned artifacts or records; it must not quietly reimplement their capture stacks.
+remain acquisition or dissection owners. The saved-capture TShark adapter normalizes
+one declared packet-envelope field registry; future adapters may normalize other
+versioned artifacts or records, but must not quietly reimplement their capture stacks.
 Every temporal projection must retain source, observer, coverage, event/acquisition
 time, and extractor or rule version; distinguish `observed`, `advertised`, `inferred`,
 and `verified` claims; and support an explicit unknown or abstained result. Absence is
@@ -200,7 +221,13 @@ index over unknown devices.
 - The Go capture model and disconnected `watch/` package are legacy code. The old
   host/new-port hook examples are not wired into the current CLI.
 - The Rust CLI is a saved-snapshot and evidence-log reader, not a live controller or
-  Kismet client.
+  Kismet client. Saved-PCAP normalization additionally requires a compatible `tshark`
+  executable at runtime.
+- TShark plugins and defaults can affect dissection. The adapter isolates personal
+  configuration, removes documented ambient TShark behavior/path overrides, refuses
+  personal plugins by default, and fingerprints effective configuration reports.
+  `--allow-personal-plugins` is an executable-code opt-in; the digest is provenance,
+  not a hermetic plugin bundle.
 - There is an experimental v0 host-path schema and deterministic replay contract,
   but no stable multi-modal schema, daemon, or production fusion writer in this
   repository today.
@@ -211,9 +238,12 @@ index over unknown devices.
 go test ./...
 cargo test --manifest-path rust/Cargo.toml
 just rust-check
+just pcap-smoke
 ```
 
 The root `just test` also runs the repository's Go lint configuration before tests.
+`just pcap-smoke` is opt-in because it invokes the locally installed TShark against
+synthetic PCAP fixtures.
 
 ## License
 

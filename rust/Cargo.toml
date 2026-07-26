@@ -2,11 +2,12 @@
 name = "netmon"
 version = "0.1.0"
 edition = "2021"
-description = "Inspect the latest saved netops audit snapshot"
+description = "Inspect saved network evidence and compatibility snapshots"
 publish = false
 
 [workspace]
 members = [
+    "crates/netmon-adapter-tshark",
     "crates/netmon-evidence",
     "crates/netmon-replay",
 ]
@@ -21,4 +22,9 @@ clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
+netmon-adapter-tshark = { path = "crates/netmon-adapter-tshark" }
+netmon-evidence = { path = "crates/netmon-evidence" }
 netmon-replay = { path = "crates/netmon-replay" }
+
+[dev-dependencies]
+tempfile = "3"

@@ -3,6 +3,8 @@
 // capture traffic, query a controller, or implement netmon's gated evidence/replay
 // core.
 
+mod pcap;
+
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use serde::Deserialize;
@@ -13,11 +15,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Parser)]
 #[command(
     name = "netmon",
-    about = "Inspect the latest saved netops audit snapshot"
+    about = "Inspect saved network evidence and compatibility snapshots"
 )]
 struct Cli {
     /// audit-history.jsonl to read (default: ~/.cache/netops/audit-history.jsonl)
-    #[arg(long, global = true)]
+    #[arg(long)]
     file: Option<PathBuf>,
     #[command(subcommand)]
     cmd: Cmd,
@@ -36,6 +38,8 @@ enum Cmd {
         /// Path to a netmon.host_path_observation.v0 JSONL log.
         log: PathBuf,
     },
+    /// Normalize and summarize one saved PCAP or PCAPNG artifact through TShark.
+    Pcap(pcap::PcapArgs),
 }
 
 fn find_client<'a>(s: &'a Snapshot, query: &str) -> Option<&'a Client> {
@@ -389,8 +393,10 @@ fn attachment_corroboration_label(value: netmon_replay::AttachmentCorroborationV
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    if let Cmd::Evidence { log } = &cli.cmd {
-        return cmd_evidence(log);
+    match &cli.cmd {
+        Cmd::Evidence { log } => return cmd_evidence(log),
+        Cmd::Pcap(args) => return pcap::run(args),
+        _ => {}
     }
     let snap = load(cli.file)?;
     match cli.cmd {
@@ -398,6 +404,7 @@ fn main() -> Result<()> {
         Cmd::Device { query } => cmd_device(&snap, &query),
         Cmd::Here => cmd_here(&snap),
         Cmd::Evidence { .. } => unreachable!("evidence command returned before snapshot loading"),
+        Cmd::Pcap(_) => unreachable!("pcap command returned before snapshot loading"),
     }
     Ok(())
 }

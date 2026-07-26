@@ -20,3 +20,7 @@ rust-check:
 	cargo fmt --manifest-path rust/Cargo.toml -- --check
 	cargo test --manifest-path rust/Cargo.toml --workspace
 	cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+
+pcap-smoke:
+	cargo test --manifest-path rust/Cargo.toml -p netmon-adapter-tshark --test tshark_smoke -- --ignored
+	cargo test --manifest-path rust/Cargo.toml -p netmon --test pcap_cli -- --ignored
