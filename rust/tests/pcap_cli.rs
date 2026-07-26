@@ -132,6 +132,47 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
 }
 
 #[test]
+#[ignore = "requires installed tshark and capinfos; run through `just pcap-smoke`"]
+fn pcap_command_surfaces_bounded_wireless_operator_evidence() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("ieee80211-radiotap.pcap");
+    fs::write(
+        &input,
+        decode_hex(include_str!(
+            "../crates/netmon-adapter-tshark/tests/fixtures/upstream/libpcap-ieee80211-exthdr.pcap.hex"
+        )),
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_netmon"))
+        .args(["pcap", input.to_str().unwrap(), "--packet-limit", "100"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    if std::env::var_os("NETMON_SMOKE_SHOW_OUTPUT").is_some() {
+        eprintln!("{stdout}");
+    }
+
+    assert!(stdout.contains("IEEE 802.11\n"));
+    assert!(stdout.contains("coverage      10 WLAN frames / 7 with radio metadata"));
+    assert!(
+        stdout.contains("identifiers   BSSID 7 frames / 1 unique; TA 7 / 2; nonempty SSID 2 / 1")
+    );
+    assert!(stdout.contains("3  acknowledgment (ACK) [type 1 subtype 13]"));
+    assert!(stdout.contains("7  channel 1 / 2412 MHz / signal -74..-14 dBm / median -18 dBm (n=7)"));
+    assert!(stdout.contains("7  90:a4:de:c0:46:0a"));
+    assert!(stdout.contains("text=\"omus\" / hex=6f6d7573"));
+    assert!(!stdout.contains(
+        "scope         capture-wide; endpoint A/B is canonical, not initiator\n  coverage      0 grouped"
+    ));
+}
+
+#[test]
 fn pcap_jsonl_modes_are_mutually_exclusive() {
     let output = Command::new(env!("CARGO_BIN_EXE_netmon"))
         .args([

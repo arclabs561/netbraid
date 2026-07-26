@@ -166,6 +166,34 @@ pub struct UdpFieldsV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Ieee80211FieldsV0 {
+    pub frame_type: u8,
+    pub frame_subtype: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transmitter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub receiver: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bssid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ssid_hex: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WlanRadioFieldsV0 {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub center_frequency_mhz: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signal_dbm: Option<i8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PacketEnvelopeV0 {
     pub schema: String,
     pub record_id: String,
@@ -181,6 +209,10 @@ pub struct PacketEnvelopeV0 {
     pub tcp: Option<TcpFieldsV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub udp: Option<UdpFieldsV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ieee80211: Option<Ieee80211FieldsV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wlan_radio: Option<WlanRadioFieldsV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -221,6 +253,12 @@ pub enum CaptureValidationError {
     InvalidEthernetAddress(String),
     InvalidIpv4Address(String),
     InvalidIpv6Address(String),
+    InvalidIeee80211FrameType(u8),
+    InvalidIeee80211FrameSubtype(u8),
+    InvalidSsidHex,
+    EmptyWlanRadioFields,
+    ZeroWlanChannel,
+    ZeroWlanCenterFrequency,
     ZeroSourceLine,
     EmptyQuarantineReason,
 }
@@ -292,6 +330,22 @@ impl std::fmt::Display for CaptureValidationError {
             }
             Self::InvalidIpv4Address(value) => write!(formatter, "invalid IPv4 address {value:?}"),
             Self::InvalidIpv6Address(value) => write!(formatter, "invalid IPv6 address {value:?}"),
+            Self::InvalidIeee80211FrameType(value) => {
+                write!(formatter, "invalid IEEE 802.11 frame type {value}")
+            }
+            Self::InvalidIeee80211FrameSubtype(value) => {
+                write!(formatter, "invalid IEEE 802.11 frame subtype {value}")
+            }
+            Self::InvalidSsidHex => formatter.write_str(
+                "IEEE 802.11 SSID must be 1..=32 octets encoded as lowercase hexadecimal",
+            ),
+            Self::EmptyWlanRadioFields => {
+                formatter.write_str("WLAN radio field group must not be empty")
+            }
+            Self::ZeroWlanChannel => formatter.write_str("WLAN channel must be greater than zero"),
+            Self::ZeroWlanCenterFrequency => {
+                formatter.write_str("WLAN center frequency must be greater than zero")
+            }
             Self::ZeroSourceLine => {
                 formatter.write_str("quarantine source_line must be greater than zero")
             }
@@ -394,6 +448,55 @@ impl PacketEnvelopeV0 {
                         address.to_string(),
                     ));
                 }
+            }
+        }
+        if let Some(ieee80211) = &self.ieee80211 {
+            if ieee80211.frame_type > 3 {
+                return Err(CaptureValidationError::InvalidIeee80211FrameType(
+                    ieee80211.frame_type,
+                ));
+            }
+            if ieee80211.frame_subtype > 15 {
+                return Err(CaptureValidationError::InvalidIeee80211FrameSubtype(
+                    ieee80211.frame_subtype,
+                ));
+            }
+            for address in [
+                ieee80211.transmitter.as_deref(),
+                ieee80211.receiver.as_deref(),
+                ieee80211.source.as_deref(),
+                ieee80211.destination.as_deref(),
+                ieee80211.bssid.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                if !is_ethernet_address(address) {
+                    return Err(CaptureValidationError::InvalidEthernetAddress(
+                        address.to_owned(),
+                    ));
+                }
+            }
+            if ieee80211
+                .ssid_hex
+                .as_deref()
+                .is_some_and(|ssid| !is_lower_hex_bytes(ssid, 32))
+            {
+                return Err(CaptureValidationError::InvalidSsidHex);
+            }
+        }
+        if let Some(radio) = &self.wlan_radio {
+            if radio.channel.is_none()
+                && radio.center_frequency_mhz.is_none()
+                && radio.signal_dbm.is_none()
+            {
+                return Err(CaptureValidationError::EmptyWlanRadioFields);
+            }
+            if radio.channel == Some(0) {
+                return Err(CaptureValidationError::ZeroWlanChannel);
+            }
+            if radio.center_frequency_mhz == Some(0) {
+                return Err(CaptureValidationError::ZeroWlanCenterFrequency);
             }
         }
         Ok(())
@@ -565,6 +668,15 @@ fn is_lower_hex_sha256(hex: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+fn is_lower_hex_bytes(hex: &str, maximum_bytes: usize) -> bool {
+    !hex.is_empty()
+        && hex.len().is_multiple_of(2)
+        && hex.len() <= maximum_bytes * 2
+        && hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
 fn is_ethernet_address(value: &str) -> bool {
     let mut parts = value.split(':');
     (0..6).all(|_| {
@@ -640,6 +752,46 @@ mod tests {
                 flags: 2,
             }),
             udp: None,
+            ieee80211: None,
+            wlan_radio: None,
+        }
+    }
+
+    fn wireless_packet() -> PacketEnvelopeV0 {
+        PacketEnvelopeV0 {
+            schema: PACKET_ENVELOPE_SCHEMA_V0.into(),
+            record_id: format!("{DIGEST}:frame:2"),
+            capture_id: DIGEST.into(),
+            frame: PacketFrameV0 {
+                number: 2,
+                event_time_unix_ns: 1_700_000_000_223_456_789,
+                original_len: 144,
+                captured_len: 144,
+                section_number: Some(0),
+                interface_id: Some(0),
+                encapsulation_type: Some(23),
+                protocols: vec!["radiotap".into(), "wlan_radio".into(), "wlan".into()],
+            },
+            ethernet: None,
+            ipv4: None,
+            ipv6: None,
+            tcp: None,
+            udp: None,
+            ieee80211: Some(Ieee80211FieldsV0 {
+                frame_type: 0,
+                frame_subtype: 5,
+                transmitter: Some("02:00:00:00:00:01".into()),
+                receiver: Some("ff:ff:ff:ff:ff:ff".into()),
+                source: Some("02:00:00:00:00:01".into()),
+                destination: Some("ff:ff:ff:ff:ff:ff".into()),
+                bssid: Some("02:00:00:00:00:01".into()),
+                ssid_hex: Some("6f6d7573".into()),
+            }),
+            wlan_radio: Some(WlanRadioFieldsV0 {
+                channel: Some(1),
+                center_frequency_mhz: Some(2412),
+                signal_dbm: Some(-74),
+            }),
         }
     }
 
@@ -739,6 +891,72 @@ mod tests {
     }
 
     #[test]
+    fn packet_validates_wireless_groups_without_inventing_missing_evidence() {
+        let mut value = packet();
+        value.ieee80211 = Some(Ieee80211FieldsV0 {
+            frame_type: 0,
+            frame_subtype: 5,
+            transmitter: Some("02:00:00:00:00:01".into()),
+            receiver: None,
+            source: None,
+            destination: None,
+            bssid: Some("02:00:00:00:00:01".into()),
+            ssid_hex: Some("6f6d7573".into()),
+        });
+        value.wlan_radio = Some(WlanRadioFieldsV0 {
+            channel: Some(1),
+            center_frequency_mhz: Some(2412),
+            signal_dbm: Some(-74),
+        });
+        value.validate().unwrap();
+
+        value.ieee80211.as_mut().unwrap().ssid_hex = Some(String::new());
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidSsidHex)
+        );
+
+        value.ieee80211.as_mut().unwrap().ssid_hex = None;
+        value.wlan_radio = Some(WlanRadioFieldsV0 {
+            channel: None,
+            center_frequency_mhz: None,
+            signal_dbm: None,
+        });
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::EmptyWlanRadioFields)
+        );
+
+        let mut value = wireless_packet();
+        value.ieee80211.as_mut().unwrap().frame_type = 4;
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidIeee80211FrameType(4))
+        );
+
+        let mut value = wireless_packet();
+        value.ieee80211.as_mut().unwrap().frame_subtype = 16;
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidIeee80211FrameSubtype(16))
+        );
+
+        let mut value = wireless_packet();
+        value.wlan_radio.as_mut().unwrap().channel = Some(0);
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::ZeroWlanChannel)
+        );
+
+        let mut value = wireless_packet();
+        value.wlan_radio.as_mut().unwrap().center_frequency_mhz = Some(0);
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::ZeroWlanCenterFrequency)
+        );
+    }
+
+    #[test]
     fn golden_packet_json_preserves_protocol_order_and_exact_time() {
         let value = packet();
         value.validate().unwrap();
@@ -746,6 +964,17 @@ mod tests {
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
             include_str!("../../../schema-fixtures/v0/packet_envelope_v0.json")
+        );
+    }
+
+    #[test]
+    fn golden_wireless_packet_json_preserves_header_bytes_and_radio_metadata() {
+        let value = wireless_packet();
+        value.validate().unwrap();
+
+        assert_eq!(
+            format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
+            include_str!("../../../schema-fixtures/v0/packet_envelope_wlan_v0.json")
         );
     }
 

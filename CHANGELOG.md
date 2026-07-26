@@ -18,6 +18,13 @@ to crates.io.
   expectations.
 - Corpus smoke coverage against installed TShark and Capinfos in local and CI
   Rust gates.
+- Typed optional IEEE 802.11 packet fields and normalized wireless-radio
+  metadata in saved-capture records, with a bumped TShark field-registry
+  contract.
+- A bounded finite-text wireless evidence summary covering frame mix, field
+  coverage, radio contexts, observed identifiers, and nonempty SSID elements.
+- A sixth canonical v0 schema fixture exercising the additive wireless packet
+  envelope.
 
 ## [0.1.0] - 2026-07-26
 
