@@ -218,8 +218,11 @@ original acquisition was passive.
 
 The default CLI is a finite text summary for operators. It distinguishes
 capture-file facts from the possibly limited normalized packet subset and
-surfaces the successful run identifier and record digest. `--jsonl` emits the
-manifest, run receipt, packet envelopes, and quarantines as versioned records.
+surfaces the successful run identifier and record digest. Its text projection
+also uses the pure, capture-wide conversation reducer specified in
+[`design/capture-conversation-reduction.md`](design/capture-conversation-reduction.md).
+`--jsonl` remains the manifest, run receipt, packet envelopes, and quarantines;
+it does not yet imply a serialized flow or conversation contract.
 Normalization is non-interactive: a future replay TUI may consume these records,
 but the normalizer itself should compose predictably in scripts.
 
@@ -306,8 +309,6 @@ but the normalizer itself should compose predictably in scripts.
 
 - Which application-layer fields deserve a second registry after representative
   captures demonstrate an operator question they answer?
-- Should later reducers group bidirectional flows before or after
-  observer/capture alignment?
 - Which detailed pcapng interface metadata warrants a separate schema rather
   than being flattened into file metadata or repeated packet fields?
 - What durable failure-receipt destination and redaction policy could preserve

@@ -25,12 +25,18 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         String::from_utf8_lossy(&text.stderr)
     );
     let stdout = String::from_utf8(text.stdout).unwrap();
+    if std::env::var_os("NETMON_SMOKE_SHOW_OUTPUT").is_some() {
+        eprintln!("{stdout}");
+    }
     assert!(stdout.contains("capture file\n  format        pcap / ether / microseconds"));
     assert!(stdout.contains("normalization\n  state         complete"));
     assert!(stdout.contains("policy unknown (detached artifact)"));
     assert!(stdout.contains("successful run\n  id            run:"));
-    assert!(stdout.contains("L3 directions (first occurrence)"));
-    assert!(stdout.contains("TCP dst/443"));
+    assert!(stdout.contains(
+        "capture conversations\n  scope         capture-wide; endpoint A/B is canonical, not initiator"
+    ));
+    assert!(stdout.contains("TCP 192.0.2.1:40000 ↔ 198.51.100.2:443"));
+    assert!(stdout.contains("flags SYN=1 SYN+ACK=0 FIN=0 RST=0"));
 
     let jsonl = Command::new(binary)
         .args([

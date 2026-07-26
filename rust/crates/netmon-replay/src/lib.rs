@@ -1,10 +1,17 @@
-//! Deterministic replay for experimental Netmon host-path evidence.
+//! Deterministic replay and pure reduction for experimental Netmon evidence.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
 
+mod conversation;
+
+pub use conversation::{
+    CaptureConversationKeyV0, CaptureConversationReportV0, CaptureConversationV0,
+    ConversationDirectionV0, ConversationEndpointV0, ConversationExclusionReasonV0, IpFamilyV0,
+    ObservationPointV0, TcpFlagCountsV0, TransportProtocolV0, reduce_capture_conversations,
+};
 pub use netmon_evidence::{
     CollectionModeV0, CollectionPolicyV0, ContextKeyV0, CoverageStateV0, CoverageV0,
     HOST_PATH_SCHEMA_V0, HostPathObservationV0, HostPathV0, NetworkNameV0,

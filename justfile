@@ -24,3 +24,6 @@ rust-check:
 pcap-smoke:
 	cargo test --manifest-path rust/Cargo.toml -p netmon-adapter-tshark --test tshark_smoke -- --ignored
 	cargo test --manifest-path rust/Cargo.toml -p netmon --test pcap_cli -- --ignored
+
+pcap-smoke-show:
+	NETMON_SMOKE_SHOW_OUTPUT=1 cargo test --manifest-path rust/Cargo.toml -p netmon --test pcap_cli -- --ignored --nocapture
