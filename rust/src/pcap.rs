@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -26,11 +27,11 @@ pub struct PcapArgs {
     #[arg(long)]
     pub acquired_time_unix_ms: Option<i64>,
 
-    /// Emit versioned manifest, packet, and quarantine records as JSONL.
+    /// Emit versioned manifest, run receipt, packet, and quarantine records as JSONL.
     #[arg(long)]
     pub jsonl: bool,
 
-    /// Maximum packets TShark may read. Hitting the limit makes normalization partial.
+    /// Maximum packets TShark may read. A longer file makes normalization partial.
     #[arg(long, default_value_t = DEFAULT_PACKET_LIMIT)]
     pub packet_limit: usize,
 
@@ -42,13 +43,17 @@ pub struct PcapArgs {
     #[arg(long, default_value_t = DEFAULT_MAX_STDOUT_BYTES as u64 / MIB)]
     pub max_output_mib: u64,
 
-    /// TShark subprocess deadline, in seconds.
+    /// Maximum subprocess deadline; metadata and version probes use lower safety caps.
     #[arg(long, default_value_t = DEFAULT_TIMEOUT.as_secs())]
     pub timeout_seconds: u64,
 
     /// TShark executable to invoke.
     #[arg(long, default_value = "tshark")]
     pub tshark: PathBuf,
+
+    /// Capinfos executable to invoke.
+    #[arg(long, default_value = "capinfos")]
+    pub capinfos: PathBuf,
 
     /// Permit executable personal Wireshark plugins; their registrations are fingerprinted.
     #[arg(long)]
@@ -69,6 +74,7 @@ pub fn run(args: &PcapArgs) -> Result<()> {
         &args.input,
         &NormalizeOptions {
             tshark_path: args.tshark.clone(),
+            capinfos_path: args.capinfos.clone(),
             observer_id: args.observer_id.clone(),
             acquired_time_unix_ms: args.acquired_time_unix_ms,
             allow_personal_plugins: args.allow_personal_plugins,
@@ -93,6 +99,8 @@ fn print_jsonl(report: &NormalizationReport) -> Result<()> {
     let mut output = BufWriter::new(io::stdout().lock());
     serde_json::to_writer(&mut output, &report.manifest).context("writing capture manifest")?;
     output.write_all(b"\n")?;
+    serde_json::to_writer(&mut output, &report.receipt).context("writing capture run receipt")?;
+    output.write_all(b"\n")?;
     for packet in &report.packets {
         serde_json::to_writer(&mut output, packet).context("writing packet envelope")?;
         output.write_all(b"\n")?;
@@ -108,7 +116,10 @@ fn print_jsonl(report: &NormalizationReport) -> Result<()> {
 fn print_summary(input: &Path, report: &NormalizationReport) {
     let manifest = &report.manifest;
     println!("capture");
-    println!("  file          {}", input.display());
+    println!(
+        "  file          {}",
+        operator_text(&input.display().to_string())
+    );
     println!("  content       {}", manifest.artifact.content_sha256);
     println!("  bytes         {}", manifest.artifact.size_bytes);
     println!(
@@ -116,7 +127,8 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
         manifest
             .observer_id
             .as_deref()
-            .unwrap_or("unknown (not asserted)")
+            .map(operator_text)
+            .unwrap_or_else(|| "unknown (not asserted)".into())
     );
     println!(
         "  acquisition   {}",
@@ -126,12 +138,67 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
             "policy unknown (detached artifact)"
         }
     );
-    println!("  extractor     {}", manifest.extractor.tool_version);
+    println!(
+        "  extractor     {}",
+        operator_text(&manifest.extractor.tool_version)
+    );
     println!("  registry      {}", manifest.extractor.field_registry);
     println!(
         "  configuration {}",
         manifest.extractor.configuration_sha256
     );
+
+    let file = &report.receipt.file;
+    println!("\ncapture file");
+    println!(
+        "  format        {} / {} / {}",
+        operator_text(&file.file_type),
+        operator_text(&file.encapsulation),
+        operator_text(&file.timestamp_precision)
+    );
+    println!(
+        "  extent        {} packets / {} original packet bytes / {} file bytes",
+        file.packet_count, file.original_data_size_bytes, file.file_size_bytes
+    );
+    println!(
+        "  snaplen       {}",
+        file.snaplen
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "unavailable".into())
+    );
+    match (
+        file.earliest_packet_time_unix_ns,
+        file.latest_packet_time_unix_ns,
+        file.duration_ns,
+    ) {
+        (Some(first), Some(last), Some(duration)) => println!(
+            "  file span     {} .. {}  ({})",
+            format_epoch_ns(first),
+            format_epoch_ns(last),
+            format_u64_duration_ns(duration)
+        ),
+        _ => println!("  file span     unavailable (empty capture)"),
+    }
+    if file.capture_hardware.is_some()
+        || file.capture_operating_system.is_some()
+        || file.capture_application.is_some()
+    {
+        println!(
+            "  provenance    hardware={} / os={} / application={}",
+            file.capture_hardware
+                .as_deref()
+                .map(operator_text)
+                .unwrap_or_else(|| "unavailable".into()),
+            file.capture_operating_system
+                .as_deref()
+                .map(operator_text)
+                .unwrap_or_else(|| "unavailable".into()),
+            file.capture_application
+                .as_deref()
+                .map(operator_text)
+                .unwrap_or_else(|| "unavailable".into())
+        );
+    }
 
     println!("\nnormalization");
     println!(
@@ -148,6 +215,30 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
         } else {
             ""
         }
+    );
+    println!(
+        "  file rows     {} declared / {} inspected",
+        file.packet_count,
+        manifest.normalization.packet_rows_emitted + manifest.normalization.packet_rows_quarantined
+    );
+
+    println!("\nsuccessful run");
+    println!("  id            {}", report.receipt.run_id);
+    println!(
+        "  elapsed       {}",
+        format_u64_duration_ns(report.receipt.elapsed_ns)
+    );
+    println!(
+        "  capinfos      {}",
+        operator_text(&report.receipt.capinfos.tool_version)
+    );
+    println!(
+        "  tshark        {}",
+        operator_text(&report.receipt.tshark.tool_version)
+    );
+    println!(
+        "  records       {}",
+        report.receipt.normalized_records_sha256
     );
 
     if report.packets.is_empty() {
@@ -282,8 +373,30 @@ fn print_counts(title: &str, counts: &BTreeMap<String, usize>, limit: usize) {
             .then_with(|| left_name.cmp(right_name))
     });
     for (name, count) in ranked.into_iter().take(limit) {
-        println!("  {count:>8}  {name}");
+        println!("  {count:>8}  {}", operator_text(name));
     }
+}
+
+fn operator_text(value: &str) -> String {
+    const MAX_CHARACTERS: usize = 240;
+
+    let mut characters = value.chars();
+    let mut escaped = String::new();
+    for character in characters.by_ref().take(MAX_CHARACTERS) {
+        match character {
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            character if character.is_control() => {
+                let _ = write!(escaped, "\\u{{{:x}}}", u32::from(character));
+            }
+            character => escaped.push(character),
+        }
+    }
+    if characters.next().is_some() {
+        escaped.push('…');
+    }
+    escaped
 }
 
 fn normalization_label(state: NormalizationStateV0) -> &'static str {
@@ -314,6 +427,16 @@ fn format_duration_ns(value: i64) -> String {
     }
 }
 
+fn format_u64_duration_ns(value: u64) -> String {
+    if value < 1_000_000 {
+        format!("{value} ns")
+    } else if value < 1_000_000_000 {
+        format!("{:.3} ms", value as f64 / 1_000_000.0)
+    } else {
+        format!("{:.3} s", value as f64 / 1_000_000_000.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +452,13 @@ mod tests {
         assert_eq!(format_duration_ns(999), "999 ns");
         assert_eq!(format_duration_ns(1_500_000), "1.500 ms");
         assert_eq!(format_duration_ns(2_000_000_000), "2.000 s");
+        assert_eq!(format_u64_duration_ns(2_000_000_000), "2.000 s");
+    }
+
+    #[test]
+    fn operator_text_escapes_controls_and_bounds_untrusted_metadata() {
+        assert_eq!(operator_text("sensor\n\u{1b}[31m"), "sensor\\n\\u{1b}[31m");
+        let long = "x".repeat(241);
+        assert_eq!(operator_text(&long), format!("{}…", "x".repeat(240)));
     }
 }

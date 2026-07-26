@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use netmon_adapter_tshark::{normalize_saved_capture, NormalizeOptions};
+use netmon_evidence::NormalizationStateV0;
 
 #[test]
 #[ignore = "requires an installed tshark; run through `just pcap-smoke`"]
@@ -23,6 +24,21 @@ fn installed_tshark_normalizes_synthetic_capture() {
         tcp_again.manifest.extractor.configuration_sha256
     );
     assert_eq!(tcp.packets, tcp_again.packets);
+    assert_eq!(tcp.receipt.file, tcp_again.receipt.file);
+    assert_eq!(
+        tcp.receipt.normalized_records_sha256,
+        tcp_again.receipt.normalized_records_sha256
+    );
+    assert_ne!(tcp.receipt.run_id, tcp_again.receipt.run_id);
+    assert_eq!(tcp.receipt.file.file_type, "pcap");
+    assert_eq!(tcp.receipt.file.packet_count, 1);
+    assert_eq!(tcp.receipt.file.file_size_bytes, tcp.manifest.artifact.size_bytes);
+    assert!(tcp
+        .receipt
+        .tshark
+        .argument_template
+        .iter()
+        .any(|argument| argument == "$STAGED_CAPTURE"));
     let packet = &tcp.packets[0];
     assert_eq!(
         packet.frame.event_time_unix_ns,
@@ -56,6 +72,22 @@ fn installed_tshark_normalizes_synthetic_capture() {
     assert!(packet.tcp.is_none());
     assert!(packet.udp.is_none());
     assert!(packet.frame.protocols.iter().any(|protocol| protocol == "arp"));
+
+    let pcapng = normalize_fixture_with_extension(
+        directory.path(),
+        "ethernet-ipv4-tcp-pcapng",
+        "pcapng",
+        include_str!("fixtures/ethernet_ipv4_tcp.pcapng.hex"),
+        1,
+    );
+    assert_eq!(pcapng.receipt.file.file_type, "pcapng");
+    assert_eq!(pcapng.receipt.file.encapsulation, "ether");
+    assert_eq!(pcapng.receipt.file.snaplen, None);
+    assert_eq!(
+        pcapng.manifest.normalization.state,
+        NormalizationStateV0::Complete
+    );
+    assert!(!pcapng.manifest.normalization.packet_limit_reached);
 }
 
 fn normalize_fixture(
@@ -63,7 +95,17 @@ fn normalize_fixture(
     name: &str,
     fixture: &str,
 ) -> netmon_adapter_tshark::NormalizationReport {
-    let input = directory.join(format!("{name}.pcap"));
+    normalize_fixture_with_extension(directory, name, "pcap", fixture, 10)
+}
+
+fn normalize_fixture_with_extension(
+    directory: &std::path::Path,
+    name: &str,
+    extension: &str,
+    fixture: &str,
+    packet_limit: usize,
+) -> netmon_adapter_tshark::NormalizationReport {
+    let input = directory.join(format!("{name}.{extension}"));
     fs::write(&input, decode_hex(fixture)).unwrap();
     let report = normalize_saved_capture(
         &input,
@@ -71,8 +113,11 @@ fn normalize_fixture(
             tshark_path: std::env::var_os("TSHARK")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("tshark")),
+            capinfos_path: std::env::var_os("CAPINFOS")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("capinfos")),
             observer_id: Some("synthetic-fixture".into()),
-            packet_limit: 10,
+            packet_limit,
             ..NormalizeOptions::default()
         },
     )
@@ -83,7 +128,11 @@ fn normalize_fixture(
 }
 
 fn decode_hex(input: &str) -> Vec<u8> {
-    let input: String = input.chars().filter(|character| !character.is_whitespace()).collect();
+    let input: String = input
+        .lines()
+        .flat_map(|line| line.split('#').next().unwrap_or_default().chars())
+        .filter(|character| !character.is_whitespace())
+        .collect();
     assert_eq!(input.len() % 2, 0);
     input
         .as_bytes()

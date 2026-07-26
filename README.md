@@ -17,10 +17,11 @@ Netmon currently contains four separate, buildable surfaces:
   bounded saved capture through TShark and prints an operator summary or versioned
   JSONL evidence.
 - `netmon-adapter-tshark` is an experimental Rust process boundary for saved PCAP and
-  PCAPNG artifacts. It stages a regular file, disables name resolution, selects an
-  explicit first-occurrence field registry, fingerprints effective TShark
-  configuration, refuses personal plugins unless explicitly allowed, and preserves
-  invalid rows as quarantines.
+  PCAPNG artifacts. It stages a regular file, reads file-level facts through
+  Capinfos, disables name resolution, selects an explicit first-occurrence TShark
+  field registry, fingerprints effective TShark configuration, refuses personal
+  plugins unless explicitly allowed, preserves invalid rows as quarantines, and
+  emits a successful-run receipt.
 - `swucb/` is an experimental sliding-window UCB package. It is tested but is not
   wired into either CLI.
 
@@ -37,7 +38,7 @@ repository's current charter.
 | Go capture CLI | Legacy compatibility | Acquire selected packet/RF observations as PCAP and JSONL |
 | Rust snapshot CLI | Compatibility reader | Interpret the latest saved netops audit snapshot |
 | Rust v0 libraries | Experimental | Record, compare, and summarize observer-scoped key matches and anchored recurrence for explicit host-path context |
-| Rust TShark adapter | Experimental | Normalize bounded saved captures into manifests, packet envelopes, and quarantines without live capture |
+| Rust Wireshark-tool adapter | Experimental | Normalize bounded saved captures into manifests, successful-run receipts, packet envelopes, and quarantines without live capture |
 | `swucb/` | Retained experiment | Evaluate adaptive channel-selection policy independently |
 | Rust evidence/replay core | Gated future | Normalize immutable artifacts, replay evidence, and reduce temporal state deterministically |
 | Live deployment or fusion service | External | Consume released evidence/replay artifacts after its own parity and rollback gates |
@@ -126,9 +127,11 @@ fail-closed around known corruption but are not cross-process locking: one write
 each log.
 
 The `pcap` command is offline and non-interactive. Its text output reports artifact
-identity, observer/acquisition unknowns, normalization completeness,
-packet/quarantine counts, capture span, octets, protocol stacks, first-occurrence L3
-directions, and transport destinations. `--jsonl` emits `netmon.capture_manifest.v0`,
+identity, observer/acquisition unknowns, Capinfos file type and declared extent,
+normalization completeness, packet/quarantine counts, the normalized packet subset,
+protocol stacks, first-occurrence L3 directions, transport destinations, and the
+successful run identifier and emitted-record digest. `--jsonl` emits
+`netmon.capture_manifest.v0`, `netmon.capture_run_receipt.v0`,
 `netmon.packet_envelope.v0`, and `netmon.packet_quarantine.v0` records. The manifest
 does not infer that a detached artifact was acquired passively or that it covered a
 network, channel, or interval completely; observer, acquisition time, acquisition
@@ -221,8 +224,8 @@ index over unknown devices.
 - The Go capture model and disconnected `watch/` package are legacy code. The old
   host/new-port hook examples are not wired into the current CLI.
 - The Rust CLI is a saved-snapshot and evidence-log reader, not a live controller or
-  Kismet client. Saved-PCAP normalization additionally requires a compatible `tshark`
-  executable at runtime.
+  Kismet client. Saved-PCAP normalization additionally requires compatible `tshark`
+  and `capinfos` executables at runtime.
 - TShark plugins and defaults can affect dissection. The adapter isolates personal
   configuration, removes documented ambient TShark behavior/path overrides, refuses
   personal plugins by default, and fingerprints effective configuration reports.
@@ -242,8 +245,8 @@ just pcap-smoke
 ```
 
 The root `just test` also runs the repository's Go lint configuration before tests.
-`just pcap-smoke` is opt-in because it invokes the locally installed TShark against
-synthetic PCAP fixtures.
+`just pcap-smoke` is opt-in because it invokes the locally installed TShark and
+Capinfos against readable synthetic PCAP and PCAPNG fixtures.
 
 ## License
 

@@ -4,6 +4,7 @@
 //! disables name resolution, selects a fixed field registry, and returns typed
 //! evidence plus explicit quarantines.
 
+mod capinfos;
 mod fields;
 mod process;
 
@@ -11,14 +12,17 @@ use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant, SystemTime, SystemTimeError, UNIX_EPOCH};
 
+use capinfos::{argument_template as capinfos_argument_template, parse_table};
 use fields::{parse_rows, FIELDS};
 pub use fields::FIELD_REGISTRY_ID;
 use netmon_evidence::{
-    CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureManifestV0,
-    CaptureNormalizationV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
-    PacketQuarantineV0, CAPTURE_MANIFEST_SCHEMA_V0,
+    CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0, CaptureArtifactRefV0,
+    CaptureExtractorRefV0, CaptureManifestV0, CaptureNormalizationV0, CaptureRunReceiptV0,
+    CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0, PacketQuarantineV0,
+    ToolRunReceiptV0, NORMALIZED_RECORDS_DIGEST_PROFILE_V0,
 };
 use process::run_bounded;
 pub use process::ProcessError;
@@ -30,10 +34,14 @@ pub const DEFAULT_MAX_INPUT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub const DEFAULT_MAX_STDOUT_BYTES: usize = 128 * 1024 * 1024;
 pub const DEFAULT_MAX_STDERR_BYTES: usize = 1024 * 1024;
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
+pub const WIRESHARK_ENVIRONMENT_POLICY_ID: &str = "netmon.wireshark.environment.v0";
+
+static RUN_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone)]
 pub struct NormalizeOptions {
     pub tshark_path: PathBuf,
+    pub capinfos_path: PathBuf,
     pub observer_id: Option<String>,
     pub acquired_time_unix_ms: Option<i64>,
     pub acquisition_policy: Option<CollectionPolicyV0>,
@@ -49,6 +57,7 @@ impl Default for NormalizeOptions {
     fn default() -> Self {
         Self {
             tshark_path: PathBuf::from("tshark"),
+            capinfos_path: PathBuf::from("capinfos"),
             observer_id: None,
             acquired_time_unix_ms: None,
             acquisition_policy: None,
@@ -65,6 +74,7 @@ impl Default for NormalizeOptions {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizationReport {
     pub manifest: CaptureManifestV0,
+    pub receipt: CaptureRunReceiptV0,
     pub packets: Vec<PacketEnvelopeV0>,
     pub quarantines: Vec<PacketQuarantineV0>,
 }
@@ -103,7 +113,33 @@ pub enum AdapterError {
         stderr: String,
     },
     ToolVersionMissing,
+    CapinfosProcess(ProcessError),
+    CapinfosFailed {
+        operation: String,
+        exit_code: Option<i32>,
+        stderr: String,
+    },
+    CapinfosDiagnostic {
+        operation: String,
+        stderr: String,
+    },
+    CapinfosVersionMissing,
+    InvalidCapinfosTable(String),
+    CaptureFileSizeMismatch {
+        staged_bytes: u64,
+        reported_bytes: u64,
+    },
+    CapturePacketCountMismatch {
+        file_packets: u64,
+        rows_seen: u64,
+        packet_limit: u64,
+    },
+    NonUtf8Executable(&'static str),
+    ClockBeforeUnixEpoch(SystemTimeError),
+    ClockOutOfRange,
+    RecordSerialization(serde_json::Error),
     InvalidManifest(netmon_evidence::CaptureValidationError),
+    InvalidReceipt(netmon_evidence::CaptureValidationError),
 }
 
 impl std::fmt::Display for AdapterError {
@@ -165,7 +201,59 @@ impl std::fmt::Display for AdapterError {
             Self::ToolVersionMissing => {
                 formatter.write_str("TShark --version returned no version line")
             }
+            Self::CapinfosProcess(source) => write!(formatter, "running Capinfos: {source}"),
+            Self::CapinfosFailed {
+                operation,
+                exit_code,
+                stderr,
+            } => write!(
+                formatter,
+                "Capinfos {operation} failed with exit code {}: {}",
+                exit_code
+                    .map(|code| code.to_string())
+                    .unwrap_or_else(|| "signal".into()),
+                stderr.trim()
+            ),
+            Self::CapinfosDiagnostic { operation, stderr } => write!(
+                formatter,
+                "Capinfos {operation} reported an error: {}",
+                stderr.trim()
+            ),
+            Self::CapinfosVersionMissing => {
+                formatter.write_str("Capinfos --version returned no version line")
+            }
+            Self::InvalidCapinfosTable(reason) => {
+                write!(formatter, "invalid Capinfos table: {reason}")
+            }
+            Self::CaptureFileSizeMismatch {
+                staged_bytes,
+                reported_bytes,
+            } => write!(
+                formatter,
+                "Capinfos reported {reported_bytes} file bytes for a {staged_bytes}-byte staged artifact"
+            ),
+            Self::CapturePacketCountMismatch {
+                file_packets,
+                rows_seen,
+                packet_limit,
+            } => write!(
+                formatter,
+                "Capinfos reported {file_packets} packets but TShark emitted {rows_seen} rows with limit {packet_limit}"
+            ),
+            Self::NonUtf8Executable(tool) => {
+                write!(formatter, "configured {tool} executable path is not valid UTF-8")
+            }
+            Self::ClockBeforeUnixEpoch(_) => {
+                formatter.write_str("system clock is before the Unix epoch")
+            }
+            Self::ClockOutOfRange => {
+                formatter.write_str("system clock or elapsed duration exceeds the v0 nanosecond range")
+            }
+            Self::RecordSerialization(source) => {
+                write!(formatter, "serializing normalized record for digest: {source}")
+            }
             Self::InvalidManifest(source) => write!(formatter, "invalid capture manifest: {source}"),
+            Self::InvalidReceipt(source) => write!(formatter, "invalid capture receipt: {source}"),
         }
     }
 }
@@ -176,7 +264,9 @@ impl std::error::Error for AdapterError {
             Self::InputMetadata { source, .. } | Self::InputRead { source, .. } => Some(source),
             Self::TemporaryWorkspace(source) => Some(source),
             Self::PersonalPluginInspection { source, .. } => Some(source),
-            Self::InvalidManifest(source) => Some(source),
+            Self::ClockBeforeUnixEpoch(source) => Some(source),
+            Self::RecordSerialization(source) => Some(source),
+            Self::InvalidManifest(source) | Self::InvalidReceipt(source) => Some(source),
             _ => None,
         }
     }
@@ -187,15 +277,40 @@ pub fn normalize_saved_capture(
     options: &NormalizeOptions,
 ) -> Result<NormalizationReport, AdapterError> {
     validate_options(options)?;
+    let started_time_unix_ns = unix_time_ns(SystemTime::now())?;
+    let started = Instant::now();
     let staged = stage_capture(input, options.max_input_bytes)?;
     reject_personal_plugins_unless_allowed(options.allow_personal_plugins)?;
-    let environment = TsharkEnvironment::new()?;
+    let environment = WiresharkEnvironment::new()?;
+
+    let capinfos_identity = capinfos_version(options, &environment)?;
+    let capinfos_args = capinfos::arguments(&staged.path);
+    let capinfos_output = run_bounded(
+        &options.capinfos_path,
+        &capinfos_args,
+        &environment.variables,
+        options.timeout.min(Duration::from_secs(15)),
+        1024 * 1024,
+        options.max_stderr_bytes,
+    )
+    .map_err(AdapterError::CapinfosProcess)?;
+    ensure_capinfos_success("capture-file metadata", &capinfos_output)?;
+    let file_metadata =
+        parse_table(&capinfos_output.stdout).map_err(AdapterError::InvalidCapinfosTable)?;
+    if file_metadata.file_size_bytes != staged.artifact.size_bytes {
+        return Err(AdapterError::CaptureFileSizeMismatch {
+            staged_bytes: staged.artifact.size_bytes,
+            reported_bytes: file_metadata.file_size_bytes,
+        });
+    }
+
     let tool_identity = tshark_version(options, &environment)?;
     let configuration_sha256 =
         tshark_configuration_sha256(options, &environment, &tool_identity.full_output)?;
+    let tshark_args = tshark_args(&staged.path, options.packet_limit);
     let output = run_bounded(
         &options.tshark_path,
-        &tshark_args(&staged.path, options.packet_limit),
+        &tshark_args,
         &environment.variables,
         options.timeout,
         options.max_stdout_bytes,
@@ -222,7 +337,17 @@ pub fn normalize_saved_capture(
         return Err(AdapterError::InputChanged);
     }
 
-    let packet_limit_reached = parsed.rows_seen >= options.packet_limit;
+    let rows_seen = u64::try_from(parsed.rows_seen).unwrap_or(u64::MAX);
+    let packet_limit = u64::try_from(options.packet_limit).unwrap_or(u64::MAX);
+    let expected_rows = file_metadata.packet_count.min(packet_limit);
+    if rows_seen != expected_rows {
+        return Err(AdapterError::CapturePacketCountMismatch {
+            file_packets: file_metadata.packet_count,
+            rows_seen,
+            packet_limit,
+        });
+    }
+    let packet_limit_reached = file_metadata.packet_count > packet_limit;
     let state = if packet_limit_reached || !parsed.quarantines.is_empty() {
         NormalizationStateV0::Partial
     } else {
@@ -238,14 +363,14 @@ pub fn normalize_saved_capture(
             adapter: "netmon-adapter-tshark".into(),
             adapter_version: env!("CARGO_PKG_VERSION").into(),
             tool: "tshark".into(),
-            tool_version: tool_identity.version,
+            tool_version: tool_identity.version.clone(),
             configuration_sha256,
             field_registry: FIELD_REGISTRY_ID.into(),
         },
         acquisition_policy: options.acquisition_policy.clone(),
         normalization: CaptureNormalizationV0 {
             state,
-            packet_limit: u64::try_from(options.packet_limit).unwrap_or(u64::MAX),
+            packet_limit,
             packet_limit_reached,
             packet_rows_emitted: u64::try_from(parsed.packets.len()).unwrap_or(u64::MAX),
             packet_rows_quarantined: u64::try_from(parsed.quarantines.len())
@@ -253,9 +378,48 @@ pub fn normalize_saved_capture(
         },
     };
     manifest.validate().map_err(AdapterError::InvalidManifest)?;
+    let normalized_records_sha256 =
+        normalized_records_sha256(&manifest, &parsed.packets, &parsed.quarantines)?;
+    let finished_time_unix_ns = unix_time_ns(SystemTime::now())?;
+    let elapsed_ns =
+        u64::try_from(started.elapsed().as_nanos()).map_err(|_| AdapterError::ClockOutOfRange)?;
+    let receipt = CaptureRunReceiptV0 {
+        schema: CAPTURE_RUN_RECEIPT_SCHEMA_V0.into(),
+        run_id: run_id(
+            &manifest.capture_id,
+            started_time_unix_ns,
+            std::process::id(),
+            RUN_COUNTER.fetch_add(1, Ordering::Relaxed),
+        ),
+        capture_id: manifest.capture_id.clone(),
+        started_time_unix_ns,
+        finished_time_unix_ns,
+        elapsed_ns,
+        file: file_metadata,
+        capinfos: tool_run_receipt(
+            "capinfos",
+            &options.capinfos_path,
+            &capinfos_identity.version,
+            capinfos_argument_template(),
+            &capinfos_output,
+        )?,
+        tshark: tool_run_receipt(
+            "tshark",
+            &options.tshark_path,
+            &tool_identity.version,
+            tshark_argument_template(options.packet_limit),
+            &output,
+        )?,
+        configuration_sha256: manifest.extractor.configuration_sha256.clone(),
+        field_registry: manifest.extractor.field_registry.clone(),
+        normalized_records_digest_profile: NORMALIZED_RECORDS_DIGEST_PROFILE_V0.into(),
+        normalized_records_sha256,
+    };
+    receipt.validate().map_err(AdapterError::InvalidReceipt)?;
 
     Ok(NormalizationReport {
         manifest,
+        receipt,
         packets: parsed.packets,
         quarantines: parsed.quarantines,
     })
@@ -360,9 +524,54 @@ struct ToolIdentity {
     full_output: Vec<u8>,
 }
 
+fn capinfos_version(
+    options: &NormalizeOptions,
+    environment: &WiresharkEnvironment,
+) -> Result<ToolIdentity, AdapterError> {
+    let output = run_bounded(
+        &options.capinfos_path,
+        &[OsString::from("--version")],
+        &environment.variables,
+        options.timeout.min(Duration::from_secs(5)),
+        64 * 1024,
+        options.max_stderr_bytes,
+    )
+    .map_err(AdapterError::CapinfosProcess)?;
+    ensure_capinfos_success("version query", &output)?;
+    let version = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .map(str::to_owned)
+        .ok_or(AdapterError::CapinfosVersionMissing)?;
+    Ok(ToolIdentity {
+        version,
+        full_output: output.stdout,
+    })
+}
+
+fn ensure_capinfos_success(
+    operation: &str,
+    output: &process::BoundedOutput,
+) -> Result<(), AdapterError> {
+    if !output.status.success() {
+        return Err(AdapterError::CapinfosFailed {
+            operation: operation.into(),
+            exit_code: output.status.code(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        });
+    }
+    if !output.stderr.is_empty() {
+        return Err(AdapterError::CapinfosDiagnostic {
+            operation: operation.into(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        });
+    }
+    Ok(())
+}
+
 fn tshark_version(
     options: &NormalizeOptions,
-    environment: &TsharkEnvironment,
+    environment: &WiresharkEnvironment,
 ) -> Result<ToolIdentity, AdapterError> {
     let output = run_bounded(
         &options.tshark_path,
@@ -399,7 +608,7 @@ fn tshark_version(
 
 fn tshark_configuration_sha256(
     options: &NormalizeOptions,
-    environment: &TsharkEnvironment,
+    environment: &WiresharkEnvironment,
     version_output: &[u8],
 ) -> Result<String, AdapterError> {
     const REPORTS: &[&str] = &[
@@ -488,12 +697,103 @@ fn tshark_args(input: &Path, packet_limit: usize) -> Vec<OsString> {
     args
 }
 
-struct TsharkEnvironment {
+fn tshark_argument_template(packet_limit: usize) -> Vec<String> {
+    tshark_args(Path::new("$STAGED_CAPTURE"), packet_limit)
+        .into_iter()
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect()
+}
+
+fn tool_run_receipt(
+    tool: &'static str,
+    configured_executable: &Path,
+    version: &str,
+    argument_template: Vec<String>,
+    output: &process::BoundedOutput,
+) -> Result<ToolRunReceiptV0, AdapterError> {
+    let configured_executable = configured_executable
+        .to_str()
+        .ok_or(AdapterError::NonUtf8Executable(tool))?;
+    Ok(ToolRunReceiptV0 {
+        tool: tool.into(),
+        configured_executable: configured_executable.into(),
+        tool_version: version.into(),
+        argument_template,
+        environment_policy: WIRESHARK_ENVIRONMENT_POLICY_ID.into(),
+        exit_code: output.status.code().unwrap_or(0),
+        stdout_sha256: sha256_bytes(&output.stdout),
+        stderr_sha256: sha256_bytes(&output.stderr),
+    })
+}
+
+fn normalized_records_sha256(
+    manifest: &CaptureManifestV0,
+    packets: &[PacketEnvelopeV0],
+    quarantines: &[PacketQuarantineV0],
+) -> Result<String, AdapterError> {
+    let mut hasher = Sha256::new();
+    hasher.update(b"netmon.normalized_records.v0\0");
+
+    let manifest = serde_json::to_vec(manifest).map_err(AdapterError::RecordSerialization)?;
+    hash_indexed_record(&mut hasher, "manifest", 0, &manifest);
+    for (index, packet) in packets.iter().enumerate() {
+        let packet = serde_json::to_vec(packet).map_err(AdapterError::RecordSerialization)?;
+        hash_indexed_record(
+            &mut hasher,
+            "packet",
+            u64::try_from(index).unwrap_or(u64::MAX),
+            &packet,
+        );
+    }
+    for (index, quarantine) in quarantines.iter().enumerate() {
+        let quarantine =
+            serde_json::to_vec(quarantine).map_err(AdapterError::RecordSerialization)?;
+        hash_indexed_record(
+            &mut hasher,
+            "quarantine",
+            u64::try_from(index).unwrap_or(u64::MAX),
+            &quarantine,
+        );
+    }
+    Ok(format!("sha256:{:x}", hasher.finalize()))
+}
+
+fn hash_indexed_record(hasher: &mut Sha256, kind: &str, index: u64, bytes: &[u8]) {
+    hasher.update(kind.as_bytes());
+    hasher.update([0]);
+    hasher.update(index.to_le_bytes());
+    hasher.update(u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_le_bytes());
+    hasher.update(bytes);
+}
+
+fn sha256_bytes(bytes: &[u8]) -> String {
+    format!("sha256:{:x}", Sha256::digest(bytes))
+}
+
+fn unix_time_ns(time: SystemTime) -> Result<i64, AdapterError> {
+    let duration = time
+        .duration_since(UNIX_EPOCH)
+        .map_err(AdapterError::ClockBeforeUnixEpoch)?;
+    i64::try_from(duration.as_nanos()).map_err(|_| AdapterError::ClockOutOfRange)
+}
+
+fn run_id(capture_id: &str, started_time_unix_ns: i64, process_id: u32, counter: u64) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"netmon.capture_run.v0\0");
+    hasher.update(capture_id.as_bytes());
+    hasher.update([0]);
+    hasher.update(started_time_unix_ns.to_le_bytes());
+    hasher.update(process_id.to_le_bytes());
+    hasher.update(counter.to_le_bytes());
+    format!("run:{:x}", hasher.finalize())
+}
+
+struct WiresharkEnvironment {
     _directory: TempDir,
     variables: Vec<(OsString, OsString)>,
 }
 
-impl TsharkEnvironment {
+impl WiresharkEnvironment {
     fn new() -> Result<Self, AdapterError> {
         let directory = tempfile::Builder::new()
             .prefix("netmon-tshark-")

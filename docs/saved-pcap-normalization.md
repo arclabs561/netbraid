@@ -36,6 +36,12 @@ Netmon already separates pure evidence records (`netmon-evidence`) from
 deterministic file/replay mechanics (`netmon-replay`). The process boundary has
 a different dependency and failure profile from either crate.
 
+Capinfos is part of the same Wireshark tool suite and reads the same capture
+formats as TShark. Its table mode can report file type, encapsulation, timestamp
+precision, snap length, packet and byte counts, capture span, and capture-file
+provenance without deriving those values from the subset of packets emitted by
+the normalizer.
+
 ## Non-goals
 
 - Live capture, monitor mode, channel control, or privilege management.
@@ -48,6 +54,10 @@ a different dependency and failure profile from either crate.
 - Treating a protocol field, port number, hostname, or TLS value as verified
   application identity.
 - A daemon, database, retention policy, or background watcher.
+- A receipt for failed or interrupted normalization attempts in the v0 schema.
+- Hashing the TShark or Capinfos executable files themselves.
+- Normalizing detailed pcapng interface-description blocks, name-resolution
+  blocks, capture comments, or packet comments in the first metadata schema.
 
 ## Options considered
 
@@ -77,6 +87,26 @@ without a shell, uses a declared `-T fields` registry, enforces a deadline and
 output/input limits, records tool, registry, and effective-configuration
 versions, and returns typed records plus quarantined rows. Chosen.
 
+### Infer capture-file metadata from emitted packet envelopes
+
+Summing emitted frame lengths and taking their minimum and maximum timestamps
+would be deterministic, but wrong whenever a packet limit is reached, a row is
+quarantined, or a capture contains metadata not repeated on packets. Rejected.
+
+### Parse Capinfos' long human-readable report
+
+The long report includes detailed interface information, but its indentation,
+localized labels, and repeated prose form a display contract rather than a
+machine contract. Rejected for the first schema.
+
+### Parse a bounded Capinfos table
+
+Capinfos table mode supplies a header and one quoted CSV row per input file.
+Netmon selects a fixed metadata field set, suppresses free-form capture and
+packet comments, maps known headers into a typed record, and ignores additional
+headers. This keeps file-level facts separate from packet normalization while
+reusing the same isolated Wireshark process boundary. Chosen.
+
 ## Chosen approach
 
 The dependency direction is:
@@ -91,14 +121,18 @@ netmon-replay   netmon-adapter-tshark
                     netmon CLI
 ```
 
-`netmon-evidence` owns three pure record families:
+`netmon-evidence` owns four pure record families:
 
 - a capture manifest with content digest, byte length, observer provenance,
   extractor provenance, optional acquisition policy, and normalization
   completeness;
 - packet-envelope records with capture/frame identity, exact event time, frame
   lengths, protocol stack, and first-occurrence link/network/transport fields;
-- quarantine records with the source row and a parser reason.
+- quarantine records with the source row and a parser reason;
+- a successful normalization-run receipt with an occurrence identifier,
+  wall-clock interval and monotonic elapsed time, capture-file metadata, bounded
+  tool-invocation receipts, and a digest of the emitted manifest, packet, and
+  quarantine records.
 
 The adapter uses an ordered field registry and explicitly selects the first
 occurrence for every field. That rule is important for tunnels and repeated
@@ -119,6 +153,20 @@ tshark -n -Q -r INPUT -c PACKET_LIMIT -T fields \
   -E header=n -E separator=/t -E occurrence=f -E quote=n \
   -e FIELD ...
 ```
+
+Before packet dissection, the adapter invokes Capinfos against the same staged
+file:
+
+```text
+capinfos -T -R -m -Q -K -P -t -E -F -c -s -d -l -u -a -e -S INPUT
+```
+
+`-K` and `-P` suppress capture and packet comments. The selected table fields
+describe the file container and its declared capture extent; they do not prove
+what traffic, interfaces, channels, or locations were observable when the file
+was acquired. Netmon parses quoted CSV using exact header names. Required
+file-level fields fail closed; optional snap-length and capture-application
+fields remain absent when the installed Capinfos does not report them.
 
 All selected fields have bounded numeric, address, or protocol-stack syntax; no
 free-form dissector text or payload field is selected. The adapter sets a stable
@@ -145,15 +193,35 @@ them. System plugins, and explicitly allowed personal plugins, remain part of
 the effective-registration fingerprint. This is provenance, not a claim that
 TShark is a hermetic sandbox.
 
+The successful-run receipt records the configured executable strings, first
+version lines, an argument template using `$STAGED_CAPTURE` instead of the
+deleted temporary pathname, the stable environment-policy identifier, process
+exit codes, and SHA-256 digests of bounded stdout and stderr. It also records a
+versioned digest profile and domain-separated SHA-256 over the schema-ordered
+compact JSON encoding of the emitted manifest, packet envelopes, and
+quarantines. The profile length-prefixes each record and binds its record kind
+and index; this is deterministic framing, not RFC 8785 canonical JSON. Capinfos
+stdout includes its staged pathname, so its raw-output digest identifies this
+occurrence; typed metadata and the emitted-record digest remain stable across
+equivalent runs.
+
+Run identifiers are occurrence identifiers, not content identifiers. The v0
+adapter derives one from the capture digest, run start time, process identifier,
+and a per-process counter. Started and finished times use the system clock;
+elapsed time uses a monotonic clock and remains meaningful if wall time is
+adjusted during the run.
+
 Artifact acquisition time, observer identity, and acquisition policy are
 optional because a detached PCAP often cannot prove any of them; their absence
 remains explicit. Offline normalization is passive, but that does not imply the
 original acquisition was passive.
 
-The default CLI is a finite text summary for operators. `--jsonl` emits the
-manifest, packet envelopes, and quarantines as versioned records. Normalization
-is non-interactive: a future replay TUI may consume these records, but the
-normalizer itself should compose predictably in scripts.
+The default CLI is a finite text summary for operators. It distinguishes
+capture-file facts from the possibly limited normalized packet subset and
+surfaces the successful run identifier and record digest. `--jsonl` emits the
+manifest, run receipt, packet envelopes, and quarantines as versioned records.
+Normalization is non-interactive: a future replay TUI may consume these records,
+but the normalizer itself should compose predictably in scripts.
 
 ## Tradeoffs
 
@@ -177,6 +245,12 @@ normalizer itself should compose predictably in scripts.
   artifact cannot prove which network, channels, interfaces, or time interval
   the original collector could observe unless separately supplied provenance
   does so.
+- Requiring Capinfos adds one bounded process and makes the command depend on
+  both standard Wireshark CLI programs. This avoids fabricating file facts from
+  partial packet rows.
+- A successful-run receipt supports reproduction and comparison, but is not an
+  attestation: it is unsigned, the configured tool path is not resolved and
+  hashed, and v0 writes no durable receipt when a subprocess fails.
 
 ## Implementation plan
 
@@ -190,6 +264,8 @@ normalizer itself should compose predictably in scripts.
    using Ethernet/IPv4/TCP, Ethernet/IPv6/UDP, and ARP fixtures built only from
    documentation addresses and locally administered MAC addresses.
 5. Update the public scope and command documentation.
+6. Add bounded Capinfos metadata, a successful-run receipt, and PCAPNG replay
+   coverage without changing the crate dependency direction.
 
 ## Gates
 
@@ -206,6 +282,8 @@ normalizer itself should compose predictably in scripts.
   subprocess has a deadline. Host filesystem reads remain subject to operating
   system I/O behavior.
 - The staged artifact digest is identical before and after TShark runs.
+- Capinfos and TShark read the same private staged file. Capinfos' file byte
+  count must equal the staged artifact byte count.
 - The effective configuration is fingerprinted from canonicalized TShark
   reports, and repeated normalization proves the fingerprint and records stable.
 - Personal Wireshark plugins are refused by default and require an explicit
@@ -215,10 +293,14 @@ normalizer itself should compose predictably in scripts.
 - Invalid rows are retained as typed quarantines and make normalization partial.
 - Packet order remains capture/frame order.
 - Golden tests cover canonical JSON and parser edge cases.
-- A real TShark smoke test exercises the process boundary against three
+- A real Wireshark-tool-suite smoke test exercises PCAP and PCAPNG plus three
   link/network/transport shapes.
-- Text output states normalization state, limits, quarantine count, and
-  extractor version.
+- Successful receipts use a staged-path placeholder rather than retaining a
+  private temporary pathname, and bind the emitted records with a canonical
+  digest.
+- Text output states file type, encapsulation, declared file extent,
+  normalization state, limits, quarantine count, extractor version, run
+  identifier, and emitted-record digest.
 
 ## Open questions
 
@@ -226,7 +308,11 @@ normalizer itself should compose predictably in scripts.
   captures demonstrate an operator question they answer?
 - Should later reducers group bidirectional flows before or after
   observer/capture alignment?
-- Which capture metadata should be normalized directly from pcapng interface
-  blocks rather than repeated packet fields?
+- Which detailed pcapng interface metadata warrants a separate schema rather
+  than being flattened into file metadata or repeated packet fields?
+- What durable failure-receipt destination and redaction policy could preserve
+  diagnostics without leaking capture paths or unbounded tool output?
+- When should executable resolution and hashing become required provenance
+  rather than an operator packaging concern?
 - What evidence and evaluation threshold would justify advisory traffic
   fingerprints without turning them into identity claims?

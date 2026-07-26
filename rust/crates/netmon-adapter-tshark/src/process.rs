@@ -5,7 +5,7 @@ use std::process::{Command, ExitStatus, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-const CLEARED_TSHARK_ENVIRONMENT: &[&str] = &[
+pub(crate) const CLEARED_WIRESHARK_ENVIRONMENT: &[&str] = &[
     "WIRESHARK_DEBUG_WMEM_OVERRIDE",
     "WIRESHARK_RUN_FROM_BUILD_DIRECTORY",
     "WIRESHARK_DATA_DIR",
@@ -117,7 +117,7 @@ fn bounded_command(
     environment: &[(OsString, OsString)],
 ) -> Command {
     let mut command = Command::new(program);
-    for name in CLEARED_TSHARK_ENVIRONMENT {
+    for name in CLEARED_WIRESHARK_ENVIRONMENT {
         command.env_remove(name);
     }
     command
@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn command_clears_tshark_behavior_and_path_overrides() {
+    fn command_clears_wireshark_behavior_and_path_overrides() {
         let command = bounded_command(
             Path::new("tshark"),
             &[OsString::from("--version")],
@@ -178,7 +178,7 @@ mod tests {
             .map(|(name, value)| (name.to_owned(), value.map(OsString::from)))
             .collect();
 
-        for name in CLEARED_TSHARK_ENVIRONMENT {
+        for name in CLEARED_WIRESHARK_ENVIRONMENT {
             assert_eq!(environment.get(std::ffi::OsStr::new(name)), Some(&None));
         }
         assert_eq!(

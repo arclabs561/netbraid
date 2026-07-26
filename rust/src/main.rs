@@ -38,7 +38,7 @@ enum Cmd {
         /// Path to a netmon.host_path_observation.v0 JSONL log.
         log: PathBuf,
     },
-    /// Normalize and summarize one saved PCAP or PCAPNG artifact through TShark.
+    /// Normalize and summarize one saved PCAP or PCAPNG artifact through Wireshark tools.
     Pcap(pcap::PcapArgs),
 }
 

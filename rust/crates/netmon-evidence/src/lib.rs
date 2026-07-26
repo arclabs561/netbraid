@@ -11,11 +11,12 @@ use serde::{Deserialize, Serialize};
 mod capture;
 
 pub use capture::{
-    CAPTURE_MANIFEST_SCHEMA_V0, CaptureArtifactRefV0, CaptureNormalizationV0,
-    CaptureExtractorRefV0, CaptureManifestV0, CaptureValidationError, EthernetFieldsV0,
-    Ipv4FieldsV0, Ipv6FieldsV0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
-    NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0, PacketQuarantineV0, TcpFieldsV0,
-    UdpFieldsV0,
+    CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0, CaptureArtifactRefV0,
+    CaptureExtractorRefV0, CaptureFileMetadataV0, CaptureManifestV0, CaptureNormalizationV0,
+    CaptureRunReceiptV0, CaptureValidationError, EthernetFieldsV0, Ipv4FieldsV0, Ipv6FieldsV0,
+    NormalizationStateV0, NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0,
+    PACKET_QUARANTINE_SCHEMA_V0, PacketEnvelopeV0, PacketFrameV0, PacketQuarantineV0,
+    TcpFieldsV0, ToolRunReceiptV0, UdpFieldsV0,
 };
 
 pub const HOST_PATH_SCHEMA_V0: &str = "netmon.host_path_observation.v0";
@@ -358,7 +359,7 @@ mod tests {
         assert_eq!(json["policy"]["mode"], "passive_host_local");
         assert_eq!(json["path"]["network_name"]["visibility"], "observed");
         assert_eq!(
-            format!("{}\n", serde_json::to_string(&record).unwrap()),
+            format!("{}\n", serde_json::to_string_pretty(&record).unwrap()),
             include_str!("../tests/fixtures/host_path_observation_v0.json")
         );
     }
