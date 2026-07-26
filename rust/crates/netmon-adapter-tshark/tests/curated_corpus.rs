@@ -49,7 +49,15 @@ struct Expected {
     packets_quarantined: u64,
     required_protocols: Vec<String>,
     #[serde(default)]
+    protocol_frame_counts: Vec<ExpectedProtocolFrameCount>,
+    #[serde(default)]
     ieee80211: Option<ExpectedIeee80211>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExpectedProtocolFrameCount {
+    protocol: String,
+    frames: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,7 +70,8 @@ struct ExpectedIeee80211 {
     frame_mix: Vec<ExpectedFrameMix>,
     channels: Vec<u32>,
     center_frequencies_mhz: Vec<u16>,
-    signal_dbm: ExpectedSignalRange,
+    #[serde(default)]
+    signal_dbm: Option<ExpectedSignalRange>,
     bssids: Vec<String>,
     transmitters: Vec<String>,
     ssid_hex: Vec<String>,
@@ -294,6 +303,28 @@ fn installed_wireshark_tools_normalize_curated_corpus() {
                 fixture.id
             );
         }
+        let mut observed_protocol_frame_counts = std::collections::BTreeMap::new();
+        for protocol in report
+            .packets
+            .iter()
+            .flat_map(|packet| packet.frame.protocols.iter())
+        {
+            *observed_protocol_frame_counts
+                .entry(protocol.as_str())
+                .or_insert(0) += 1;
+        }
+        for expected_count in &fixture.expected.protocol_frame_counts {
+            assert_eq!(
+                observed_protocol_frame_counts
+                    .get(expected_count.protocol.as_str())
+                    .copied()
+                    .unwrap_or_default(),
+                expected_count.frames,
+                "{} protocol {:?} frame count",
+                fixture.id,
+                expected_count.protocol
+            );
+        }
 
         assert_ieee80211_expectations(&fixture, &report.packets);
     }
@@ -394,24 +425,32 @@ fn assert_ieee80211_expectations(fixture: &Fixture, packets: &[netmon_evidence::
         fixture.id
     );
     let signals: Vec<_> = radios.iter().filter_map(|radio| radio.signal_dbm).collect();
-    assert_eq!(
-        signals.len(),
-        expected.signal_dbm.samples,
-        "{} signal sample coverage",
-        fixture.id
-    );
-    assert_eq!(
-        signals.iter().min().copied(),
-        Some(expected.signal_dbm.minimum),
-        "{} signal minimum",
-        fixture.id
-    );
-    assert_eq!(
-        signals.iter().max().copied(),
-        Some(expected.signal_dbm.maximum),
-        "{} signal maximum",
-        fixture.id
-    );
+    if let Some(expected_signal) = &expected.signal_dbm {
+        assert_eq!(
+            signals.len(),
+            expected_signal.samples,
+            "{} signal sample coverage",
+            fixture.id
+        );
+        assert_eq!(
+            signals.iter().min().copied(),
+            Some(expected_signal.minimum),
+            "{} signal minimum",
+            fixture.id
+        );
+        assert_eq!(
+            signals.iter().max().copied(),
+            Some(expected_signal.maximum),
+            "{} signal maximum",
+            fixture.id
+        );
+    } else {
+        assert!(
+            signals.is_empty(),
+            "{} unexpectedly exposed signal strength samples",
+            fixture.id
+        );
+    }
     assert_eq!(
         unique_sorted(wireless.iter().filter_map(|fields| fields.bssid.clone())),
         expected.bssids,
