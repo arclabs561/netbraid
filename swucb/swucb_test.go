@@ -68,6 +68,26 @@ func TestSWUCBAlgorithm_Probabilistic(t *testing.T) {
 	}
 }
 
+func TestSWUCBAlgorithm_UsesDurationUnitsAfterWindowFills(t *testing.T) {
+	var durations []time.Duration
+	observer := func(_ int, duration time.Duration) (int, error) {
+		durations = append(durations, duration)
+		if duration <= 0 {
+			return 0, errors.New("observation duration must be positive")
+		}
+		return int(10 * duration.Seconds()), nil
+	}
+
+	algo := NewSWUCBAlgorithm(1, 1, time.Second)
+	if err := algo.Run(observer, &OptRunMaxSteps{3}); err != nil {
+		t.Fatalf("Run returned an invalid observation duration: %v", err)
+	}
+
+	if durations[1] != 100*time.Millisecond {
+		t.Fatalf("Expected a 100ms adaptive observation, got %v", durations[1])
+	}
+}
+
 func TestSWUCBAlgorithm_VaryingTDefault(t *testing.T) {
 	packetRates := []float64{1, 2, 3, 4, 5}
 	TDefaults := []time.Duration{100 * time.Millisecond, 500 * time.Millisecond, 1 * time.Second}
