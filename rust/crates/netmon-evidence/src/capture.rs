@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use crate::CollectionPolicyV0;
 
 pub const CAPTURE_MANIFEST_SCHEMA_V0: &str = "netmon.capture_manifest.v0";
+pub const CAPTURE_RUN_RECEIPT_SCHEMA_V0: &str = "netmon.capture_run_receipt.v0";
+pub const NORMALIZED_RECORDS_DIGEST_PROFILE_V0: &str = "netmon.normalized_records_digest.v0";
 pub const PACKET_ENVELOPE_SCHEMA_V0: &str = "netmon.packet_envelope.v0";
 pub const PACKET_QUARANTINE_SCHEMA_V0: &str = "netmon.packet_quarantine.v0";
 
@@ -53,6 +55,63 @@ pub struct CaptureManifestV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub acquisition_policy: Option<CollectionPolicyV0>,
     pub normalization: CaptureNormalizationV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptureFileMetadataV0 {
+    pub file_type: String,
+    pub encapsulation: String,
+    pub timestamp_precision: String,
+    pub packet_count: u64,
+    pub file_size_bytes: u64,
+    pub original_data_size_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snaplen: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inferred_snaplen_min: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inferred_snaplen_max: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ns: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub earliest_packet_time_unix_ns: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_packet_time_unix_ns: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture_hardware: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture_operating_system: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture_application: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolRunReceiptV0 {
+    pub tool: String,
+    pub configured_executable: String,
+    pub tool_version: String,
+    pub argument_template: Vec<String>,
+    pub environment_policy: String,
+    pub exit_code: i32,
+    pub stdout_sha256: String,
+    pub stderr_sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptureRunReceiptV0 {
+    pub schema: String,
+    pub run_id: String,
+    pub capture_id: String,
+    pub started_time_unix_ns: i64,
+    pub finished_time_unix_ns: i64,
+    pub elapsed_ns: u64,
+    pub file: CaptureFileMetadataV0,
+    pub capinfos: ToolRunReceiptV0,
+    pub tshark: ToolRunReceiptV0,
+    pub configuration_sha256: String,
+    pub field_registry: String,
+    pub normalized_records_digest_profile: String,
+    pub normalized_records_sha256: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -143,6 +202,17 @@ pub enum CaptureValidationError {
     EmptyObserverId,
     EmptyExtractorField(&'static str),
     InvalidConfigurationDigest,
+    InvalidRunId,
+    EmptyReceiptField(&'static str),
+    InvalidReceiptDigest(&'static str),
+    UnsupportedDigestProfile(String),
+    UnsuccessfulToolReceipt(&'static str),
+    UnexpectedToolReceipt {
+        expected: &'static str,
+        actual: String,
+    },
+    MissingStagedCapturePlaceholder(&'static str),
+    InconsistentCaptureFileTimes,
     PassivePolicyHasActiveActions,
     InconsistentNormalization,
     ZeroFrameNumber,
@@ -172,6 +242,34 @@ impl std::fmt::Display for CaptureValidationError {
             Self::InvalidConfigurationDigest => {
                 formatter.write_str("extractor.configuration_sha256 is not a SHA-256 digest")
             }
+            Self::InvalidRunId => {
+                formatter.write_str("run_id must use run:<64 lowercase hex>")
+            }
+            Self::EmptyReceiptField(field) => {
+                write!(formatter, "receipt field {field} must not be empty")
+            }
+            Self::InvalidReceiptDigest(field) => {
+                write!(formatter, "receipt field {field} is not a SHA-256 digest")
+            }
+            Self::UnsupportedDigestProfile(profile) => {
+                write!(
+                    formatter,
+                    "unsupported normalized-record digest profile {profile:?}"
+                )
+            }
+            Self::UnsuccessfulToolReceipt(tool) => {
+                write!(formatter, "successful run receipt has nonzero {tool} exit code")
+            }
+            Self::UnexpectedToolReceipt { expected, actual } => {
+                write!(formatter, "expected {expected} tool receipt, got {actual:?}")
+            }
+            Self::MissingStagedCapturePlaceholder(tool) => write!(
+                formatter,
+                "{tool} argument template must contain $STAGED_CAPTURE exactly once"
+            ),
+            Self::InconsistentCaptureFileTimes => formatter.write_str(
+                "capture-file packet count, duration, and earliest/latest times are inconsistent",
+            ),
             Self::PassivePolicyHasActiveActions => {
                 formatter.write_str("passive artifact policy cannot name active actions")
             }
@@ -298,6 +396,67 @@ impl PacketEnvelopeV0 {
     }
 }
 
+impl CaptureRunReceiptV0 {
+    pub fn validate(&self) -> Result<(), CaptureValidationError> {
+        validate_schema(&self.schema, CAPTURE_RUN_RECEIPT_SCHEMA_V0)?;
+        validate_capture_id(&self.capture_id)?;
+        validate_run_id(&self.run_id)?;
+        for (field, value) in [
+            ("file.file_type", self.file.file_type.as_str()),
+            ("file.encapsulation", self.file.encapsulation.as_str()),
+            (
+                "file.timestamp_precision",
+                self.file.timestamp_precision.as_str(),
+            ),
+            ("configuration_sha256", self.configuration_sha256.as_str()),
+            ("field_registry", self.field_registry.as_str()),
+            (
+                "normalized_records_digest_profile",
+                self.normalized_records_digest_profile.as_str(),
+            ),
+            (
+                "normalized_records_sha256",
+                self.normalized_records_sha256.as_str(),
+            ),
+        ] {
+            if value.trim().is_empty() {
+                return Err(CaptureValidationError::EmptyReceiptField(field));
+            }
+        }
+        for (field, value) in [
+            ("configuration_sha256", self.configuration_sha256.as_str()),
+            (
+                "normalized_records_sha256",
+                self.normalized_records_sha256.as_str(),
+            ),
+        ] {
+            if validate_capture_id(value).is_err() {
+                return Err(CaptureValidationError::InvalidReceiptDigest(field));
+            }
+        }
+        if self.normalized_records_digest_profile != NORMALIZED_RECORDS_DIGEST_PROFILE_V0 {
+            return Err(CaptureValidationError::UnsupportedDigestProfile(
+                self.normalized_records_digest_profile.clone(),
+            ));
+        }
+        validate_tool_receipt("capinfos", &self.capinfos)?;
+        validate_tool_receipt("tshark", &self.tshark)?;
+
+        match (
+            self.file.packet_count,
+            self.file.duration_ns,
+            self.file.earliest_packet_time_unix_ns,
+            self.file.latest_packet_time_unix_ns,
+        ) {
+            (0, None, None, None) => {}
+            (count, Some(_), Some(earliest), Some(latest))
+                if count > 0 && earliest <= latest => {}
+            _ => return Err(CaptureValidationError::InconsistentCaptureFileTimes),
+        }
+        Ok(())
+    }
+}
+
 impl PacketQuarantineV0 {
     pub fn validate(&self) -> Result<(), CaptureValidationError> {
         validate_schema(&self.schema, PACKET_QUARANTINE_SCHEMA_V0)?;
@@ -335,6 +494,71 @@ fn validate_capture_id(value: &str) -> Result<(), CaptureValidationError> {
     } else {
         Err(CaptureValidationError::InvalidCaptureId)
     }
+}
+
+fn validate_run_id(value: &str) -> Result<(), CaptureValidationError> {
+    let Some(hex) = value.strip_prefix("run:") else {
+        return Err(CaptureValidationError::InvalidRunId);
+    };
+    if is_lower_hex_sha256(hex) {
+        Ok(())
+    } else {
+        Err(CaptureValidationError::InvalidRunId)
+    }
+}
+
+fn validate_tool_receipt(
+    expected_tool: &'static str,
+    receipt: &ToolRunReceiptV0,
+) -> Result<(), CaptureValidationError> {
+    for (field, value) in [
+        ("tool", receipt.tool.as_str()),
+        ("configured_executable", receipt.configured_executable.as_str()),
+        ("tool_version", receipt.tool_version.as_str()),
+        ("environment_policy", receipt.environment_policy.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(CaptureValidationError::EmptyReceiptField(field));
+        }
+    }
+    if receipt.tool != expected_tool {
+        return Err(CaptureValidationError::UnexpectedToolReceipt {
+            expected: expected_tool,
+            actual: receipt.tool.clone(),
+        });
+    }
+    if receipt.exit_code != 0 {
+        return Err(CaptureValidationError::UnsuccessfulToolReceipt(
+            expected_tool,
+        ));
+    }
+    for (field, value) in [
+        ("stdout_sha256", receipt.stdout_sha256.as_str()),
+        ("stderr_sha256", receipt.stderr_sha256.as_str()),
+    ] {
+        if validate_capture_id(value).is_err() {
+            return Err(CaptureValidationError::InvalidReceiptDigest(field));
+        }
+    }
+    if receipt
+        .argument_template
+        .iter()
+        .filter(|argument| argument.as_str() == "$STAGED_CAPTURE")
+        .count()
+        != 1
+    {
+        return Err(CaptureValidationError::MissingStagedCapturePlaceholder(
+            expected_tool,
+        ));
+    }
+    Ok(())
+}
+
+fn is_lower_hex_sha256(hex: &str) -> bool {
+    hex.len() == 64
+        && hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn is_ethernet_address(value: &str) -> bool {
@@ -415,6 +639,51 @@ mod tests {
         }
     }
 
+    fn receipt() -> CaptureRunReceiptV0 {
+        let tool = |name: &str| ToolRunReceiptV0 {
+            tool: name.into(),
+            configured_executable: name.into(),
+            tool_version: format!("{name} (Wireshark) 4.6.7"),
+            argument_template: vec!["-r".into(), "$STAGED_CAPTURE".into()],
+            environment_policy: "netmon.wireshark.environment.v0".into(),
+            exit_code: 0,
+            stdout_sha256: DIGEST.into(),
+            stderr_sha256: DIGEST.into(),
+        };
+        CaptureRunReceiptV0 {
+            schema: CAPTURE_RUN_RECEIPT_SCHEMA_V0.into(),
+            run_id:
+                "run:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789".into(),
+            capture_id: DIGEST.into(),
+            started_time_unix_ns: 1_700_000_001_000_000_000,
+            finished_time_unix_ns: 1_700_000_001_250_000_000,
+            elapsed_ns: 250_000_000,
+            file: CaptureFileMetadataV0 {
+                file_type: "pcapng".into(),
+                encapsulation: "ether".into(),
+                timestamp_precision: "nanoseconds".into(),
+                packet_count: 1,
+                file_size_bytes: 136,
+                original_data_size_bytes: 54,
+                snaplen: None,
+                inferred_snaplen_min: None,
+                inferred_snaplen_max: None,
+                duration_ns: Some(0),
+                earliest_packet_time_unix_ns: Some(1_700_000_000_123_456_789),
+                latest_packet_time_unix_ns: Some(1_700_000_000_123_456_789),
+                capture_hardware: Some("sensor-a".into()),
+                capture_operating_system: Some("NetBSD".into()),
+                capture_application: Some("dumpcap".into()),
+            },
+            capinfos: tool("capinfos"),
+            tshark: tool("tshark"),
+            configuration_sha256: DIGEST.into(),
+            field_registry: "netmon.tshark.packet_envelope.v0".into(),
+            normalized_records_digest_profile: NORMALIZED_RECORDS_DIGEST_PROFILE_V0.into(),
+            normalized_records_sha256: DIGEST.into(),
+        }
+    }
+
     #[test]
     fn manifest_requires_honest_complete_normalization() {
         let mut value = manifest();
@@ -449,8 +718,38 @@ mod tests {
         value.validate().unwrap();
 
         assert_eq!(
-            format!("{}\n", serde_json::to_string(&value).unwrap()),
+            format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
             include_str!("../tests/fixtures/packet_envelope_v0.json")
+        );
+    }
+
+    #[test]
+    fn receipt_requires_success_and_consistent_file_extent() {
+        let mut value = receipt();
+        value.capinfos.exit_code = 2;
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::UnsuccessfulToolReceipt(
+                "capinfos"
+            ))
+        );
+
+        let mut value = receipt();
+        value.file.latest_packet_time_unix_ns = None;
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::InconsistentCaptureFileTimes)
+        );
+    }
+
+    #[test]
+    fn golden_receipt_json_preserves_tool_and_file_provenance() {
+        let value = receipt();
+        value.validate().unwrap();
+
+        assert_eq!(
+            format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
+            include_str!("../tests/fixtures/capture_run_receipt_v0.json")
         );
     }
 }

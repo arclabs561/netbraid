@@ -1,0 +1,21 @@
+# PCAPNG section header: little-endian, version 1.0, unknown section length.
+0a0d0d0a 1c000000 4d3c2b1a 0100 0000 ffffffffffffffff 1c000000
+
+# Interface description: Ethernet, snaplen 65535.
+01000000 14000000 0100 0000 ffff0000 14000000
+
+# Enhanced packet: interface 0, 1700000000.123456, 54 captured/original octets.
+06000000 58000000
+00000000 240a0600 40222018 36000000 36000000
+
+# Ethernet II: locally administered source/destination, IPv4.
+02 00 00 00 00 02  02 00 00 00 00 01  0800
+
+# IPv4: 192.0.2.1 -> 198.51.100.2, TCP.
+45 00 0028 0001 4000 40 06 0000  c0000201 c6336402
+
+# TCP: source 40000 -> HTTPS/443, SYN.
+9c40 01bb 00000000 00000000  50 02 2000 0000 0000
+
+# Two-octet packet-data padding and repeated enhanced-packet block length.
+0000 58000000
