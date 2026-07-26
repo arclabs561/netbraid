@@ -695,8 +695,7 @@ mod tests {
             field_registry: "netmon.tshark.packet_envelope.v0".into(),
             normalized_records_digest_profile: NORMALIZED_RECORDS_DIGEST_PROFILE_V0.into(),
             normalized_records_sha256:
-                "sha256:2687b505578a27e4a6d11438a2df827f7f2c7b7d4bb6cf8cdd669cb6a729d329"
-                    .into(),
+                "sha256:2687b505578a27e4a6d11438a2df827f7f2c7b7d4bb6cf8cdd669cb6a729d329".into(),
         }
     }
 
