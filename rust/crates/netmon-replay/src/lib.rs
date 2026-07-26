@@ -6,6 +6,7 @@ use std::io::{self, Write};
 use std::path::Path;
 
 mod conversation;
+mod saved_capture;
 
 pub use conversation::{
     reduce_capture_conversations, CaptureConversationKeyV0, CaptureConversationReportV0,
@@ -17,6 +18,10 @@ pub use netmon_evidence::{
     CollectionModeV0, CollectionPolicyV0, ContextKeyV0, CoverageStateV0, CoverageV0,
     HostPathObservationV0, HostPathV0, NetworkNameV0, NetworkNameVisibilityV0, ObservationOrderV0,
     SourceRefV0, ValidationError, HOST_PATH_SCHEMA_V0,
+};
+pub use saved_capture::{
+    parse_saved_capture_jsonl, read_saved_capture_jsonl, SavedCaptureReadError,
+    SavedCaptureRecordFamilyV0, SavedCaptureRecordStreamV0,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
