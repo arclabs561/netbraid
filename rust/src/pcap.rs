@@ -266,12 +266,7 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
         format_epoch_ns(last_ns),
         format_duration_ns(last_ns.saturating_sub(first_ns))
     );
-    println!(
-        "  octets        {} on wire / {} captured / {} not captured",
-        wire_bytes,
-        captured_bytes,
-        wire_bytes.saturating_sub(captured_bytes)
-    );
+    println!("{}", format_frame_extent(wire_bytes, captured_bytes));
 
     if let Some(summary) = render_ieee80211_summary(&report.packets) {
         print!("{summary}");
@@ -881,6 +876,14 @@ fn format_u64_duration_ns(value: u64) -> String {
     }
 }
 
+fn format_frame_extent(original_frame_octets: u64, captured_frame_octets: u64) -> String {
+    format!(
+        "  octets        {original_frame_octets} original frame octets / \
+         {captured_frame_octets} captured frame octets / {} uncaptured octets",
+        original_frame_octets.saturating_sub(captured_frame_octets)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -946,6 +949,14 @@ mod tests {
         assert_eq!(format_duration_ns(1_500_000), "1.500 ms");
         assert_eq!(format_duration_ns(2_000_000_000), "2.000 s");
         assert_eq!(format_u64_duration_ns(2_000_000_000), "2.000 s");
+    }
+
+    #[test]
+    fn packet_extent_does_not_overclaim_link_wire_bytes() {
+        assert_eq!(
+            format_frame_extent(120, 80),
+            "  octets        120 original frame octets / 80 captured frame octets / 40 uncaptured octets"
+        );
     }
 
     #[test]
