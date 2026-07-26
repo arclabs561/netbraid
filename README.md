@@ -48,8 +48,13 @@ Its broader multi-modal contract remains gated on representative fixtures and a
 concrete consumer. `HostPathObservationV0` is specified in
 [`docs/design/rust-library-boundary.md`](docs/design/rust-library-boundary.md) so
 Linktop can act as a real second consumer without claiming that the broader gate has
-passed. New core work is Rust; the Go tree receives only compatibility, security, and
-build fixes until it can be retired.
+passed. The dependency-ordered removal of the Go capture CLI and eventual migration
+of reusable live-plane logic are specified in
+[`docs/design/rust-acquisition-cutover.md`](docs/design/rust-acquisition-cutover.md).
+New core work is Rust; the Go tree receives only compatibility, security, and build
+fixes until it can be retired. A future opt-in Rust acquisition policy may reuse
+Muxer instead of porting `swucb`; Muxer does not enter evidence, replay, Linktop, or
+the passive default path.
 
 The repository does not own:
 
