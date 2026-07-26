@@ -206,37 +206,3 @@ func (w *fallbackWiFi) IsWiFiInterface(iface string) bool {
 	return false
 }
 
-// parseChannelsFromIwList extracts channel numbers from iw list output
-func parseChannelsFromIwList(output string) ([]int, error) {
-	var channels []int
-	seen := make(map[int]bool)
-	
-	// Look for channel patterns like "[6]" or "channel 6"
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		// Match patterns like "* 2437 MHz [6]" or "channel 6"
-		if strings.Contains(line, "MHz [") {
-			// Extract channel number from [X] pattern
-			start := strings.Index(line, "[")
-			end := strings.Index(line, "]")
-			if start != -1 && end != -1 && end > start {
-				chStr := line[start+1 : end]
-				var ch int
-				if _, err := fmt.Sscanf(chStr, "%d", &ch); err == nil && ch > 0 {
-					if !seen[ch] {
-						channels = append(channels, ch)
-						seen[ch] = true
-					}
-				}
-			}
-		}
-	}
-	
-	if len(channels) == 0 {
-		// Fallback to common channels
-		return []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}, nil
-	}
-	
-	return channels, nil
-}
-
