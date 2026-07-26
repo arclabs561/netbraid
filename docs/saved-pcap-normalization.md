@@ -275,10 +275,15 @@ repository revision and source path, Git blob ID, decoded SHA-256 digest,
 bounded size, and a named behavior. The committed representation is exact
 binary content rendered as lowercase hex, so source review remains textual.
 The normal test suite verifies the ledger, licenses, complete file inventory,
-decoded size, and digest without network access or Wireshark. The opt-in smoke
-suite additionally normalizes every admitted capture using installed Capinfos
-and TShark and checks stable container facts, row coverage, and required
-protocol vocabulary.
+unique content identities and immutable origin coordinates, decoded size, and
+digest without network access or Wireshark. The opt-in smoke suite additionally
+normalizes every admitted capture twice using installed Capinfos and TShark. It
+constructs the full occurrence-bearing JSONL and deterministic records JSONL in
+their canonical family order, parses both through `netmon-replay`, verifies that
+the receipt binds the parser-recomputed digest, and proves equivalent runs
+produce byte-identical deterministic records and equal replayed evidence.
+Typed corpus expectations also run the replay crate's conservative conversation
+reducer and pin grouped, excluded, exclusion-reason, and conversation counts.
 
 The corpus does not make the upstream artifact's original observer or
 acquisition policy knowable. Those fields remain absent. Public parser fixtures

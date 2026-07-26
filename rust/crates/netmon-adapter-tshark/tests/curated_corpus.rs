@@ -1,10 +1,14 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use netmon_adapter_tshark::{normalize_saved_capture, NormalizeOptions};
+use netmon_adapter_tshark::{normalize_saved_capture, NormalizationReport, NormalizeOptions};
 use netmon_evidence::NormalizationStateV0;
-use serde::Deserialize;
+use netmon_replay::{
+    parse_saved_capture_jsonl, reduce_capture_conversations, ConversationExclusionReasonV0,
+    SavedCaptureRecordStreamV0,
+};
+use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
 
@@ -52,6 +56,7 @@ struct Expected {
     protocol_frame_counts: Vec<ExpectedProtocolFrameCount>,
     #[serde(default)]
     ieee80211: Option<ExpectedIeee80211>,
+    conversation_reduction: ExpectedConversationReduction,
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,6 +96,31 @@ struct ExpectedSignalRange {
     maximum: i8,
 }
 
+#[derive(Debug, Deserialize)]
+struct ExpectedConversationReduction {
+    packet_envelopes_grouped: u64,
+    packet_envelopes_excluded: u64,
+    conversations: usize,
+    #[serde(default)]
+    exclusions: Vec<ExpectedConversationExclusion>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExpectedConversationExclusion {
+    reason: ExpectedConversationExclusionReason,
+    packet_envelopes: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ExpectedConversationExclusionReason {
+    InvalidPacketEnvelope,
+    UnmodeledEncapsulation,
+    AmbiguousNetworkLayer,
+    AmbiguousTransportLayer,
+    IndistinguishableEndpoints,
+}
+
 #[test]
 fn curated_corpus_is_complete_content_addressed_and_licensed() {
     let fixtures_root = fixtures_root();
@@ -100,6 +130,8 @@ fn curated_corpus_is_complete_content_addressed_and_licensed() {
 
     let mut ids = BTreeSet::new();
     let mut manifest_paths = BTreeSet::new();
+    let mut content_digests = BTreeSet::new();
+    let mut origin_coordinates = BTreeSet::new();
     for fixture in &corpus.fixtures {
         assert!(
             ids.insert(fixture.id.as_str()),
@@ -110,6 +142,22 @@ fn curated_corpus_is_complete_content_addressed_and_licensed() {
             manifest_paths.insert(fixture.path.as_str()),
             "duplicate path {}",
             fixture.path
+        );
+        assert!(
+            content_digests.insert(fixture.content_sha256.as_str()),
+            "duplicate content SHA-256 {}",
+            fixture.content_sha256
+        );
+        assert!(
+            origin_coordinates.insert((
+                fixture.origin.repository.as_str(),
+                fixture.origin.revision.as_str(),
+                fixture.origin.source_path.as_str(),
+            )),
+            "duplicate immutable origin coordinate {}/{}:{}",
+            fixture.origin.repository,
+            fixture.origin.revision,
+            fixture.origin.source_path
         );
         assert!(
             !fixture.purpose.trim().is_empty(),
@@ -228,20 +276,20 @@ fn installed_wireshark_tools_normalize_curated_corpus() {
             .join(format!("{}.{}", fixture.id, extension));
         fs::write(&input, decoded).unwrap();
 
-        let report = normalize_saved_capture(
-            &input,
-            &NormalizeOptions {
-                tshark_path: std::env::var_os("TSHARK")
-                    .map(PathBuf::from)
-                    .unwrap_or_else(|| PathBuf::from("tshark")),
-                capinfos_path: std::env::var_os("CAPINFOS")
-                    .map(PathBuf::from)
-                    .unwrap_or_else(|| PathBuf::from("capinfos")),
-                packet_limit: 100,
-                ..NormalizeOptions::default()
-            },
-        )
-        .unwrap_or_else(|error| panic!("normalizing {}: {error}", fixture.id));
+        let options = NormalizeOptions {
+            tshark_path: std::env::var_os("TSHARK")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("tshark")),
+            capinfos_path: std::env::var_os("CAPINFOS")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("capinfos")),
+            packet_limit: 100,
+            ..NormalizeOptions::default()
+        };
+        let report = normalize_saved_capture(&input, &options)
+            .unwrap_or_else(|error| panic!("normalizing {} first run: {error}", fixture.id));
+        let rerun = normalize_saved_capture(&input, &options)
+            .unwrap_or_else(|error| panic!("normalizing {} second run: {error}", fixture.id));
 
         assert_eq!(
             report.manifest.capture_id,
@@ -327,7 +375,179 @@ fn installed_wireshark_tools_normalize_curated_corpus() {
         }
 
         assert_ieee80211_expectations(&fixture, &report.packets);
+        assert_replay_and_reduction_expectations(&fixture, &report, &rerun);
     }
+}
+
+fn assert_replay_and_reduction_expectations(
+    fixture: &Fixture,
+    report: &NormalizationReport,
+    rerun: &NormalizationReport,
+) {
+    assert_ne!(
+        report.receipt.run_id, rerun.receipt.run_id,
+        "{} normalization occurrences must have distinct run IDs",
+        fixture.id
+    );
+
+    let full_bytes = full_jsonl(report);
+    let records_bytes = records_jsonl(report);
+    let rerun_full_bytes = full_jsonl(rerun);
+    let rerun_records_bytes = records_jsonl(rerun);
+    assert_eq!(
+        records_bytes, rerun_records_bytes,
+        "{} deterministic records JSONL changed across equivalent runs",
+        fixture.id
+    );
+    assert_ne!(
+        full_bytes, rerun_full_bytes,
+        "{} occurrence-bearing JSONL unexpectedly stayed byte-identical",
+        fixture.id
+    );
+
+    let full = parse_stream(&fixture.id, "full first-run", &full_bytes);
+    let records = parse_stream(&fixture.id, "records first-run", &records_bytes);
+    let rerun_full = parse_stream(&fixture.id, "full second-run", &rerun_full_bytes);
+    let rerun_records = parse_stream(&fixture.id, "records second-run", &rerun_records_bytes);
+
+    assert_eq!(
+        full.receipt.as_ref(),
+        Some(&report.receipt),
+        "{} full JSONL did not preserve its exact run receipt",
+        fixture.id
+    );
+    assert_eq!(
+        rerun_full.receipt.as_ref(),
+        Some(&rerun.receipt),
+        "{} second full JSONL did not preserve its exact run receipt",
+        fixture.id
+    );
+    assert!(
+        records.receipt.is_none() && rerun_records.receipt.is_none(),
+        "{} deterministic records JSONL must omit occurrence receipts",
+        fixture.id
+    );
+    assert_replayed_records_equal(&fixture.id, &full, &records);
+    assert_replayed_records_equal(&fixture.id, &rerun_full, &rerun_records);
+    assert_replayed_records_equal(&fixture.id, &records, &rerun_records);
+    assert_eq!(
+        records.normalized_records_sha256, report.receipt.normalized_records_sha256,
+        "{} replay digest did not match the producer receipt",
+        fixture.id
+    );
+    assert_eq!(
+        rerun_records.normalized_records_sha256, rerun.receipt.normalized_records_sha256,
+        "{} rerun replay digest did not match the producer receipt",
+        fixture.id
+    );
+
+    let reduction = reduce_capture_conversations(&records.packets);
+    let expected = &fixture.expected.conversation_reduction;
+    assert_eq!(
+        reduction.packet_envelopes_seen, fixture.expected.packets_emitted,
+        "{} reducer input coverage",
+        fixture.id
+    );
+    assert_eq!(
+        reduction.packet_envelopes_grouped, expected.packet_envelopes_grouped,
+        "{} grouped packet envelopes",
+        fixture.id
+    );
+    assert_eq!(
+        reduction.packet_envelopes_excluded, expected.packet_envelopes_excluded,
+        "{} excluded packet envelopes",
+        fixture.id
+    );
+    assert_eq!(
+        reduction.conversations.len(),
+        expected.conversations,
+        "{} conversation count",
+        fixture.id
+    );
+    let expected_exclusions: BTreeMap<_, _> = expected
+        .exclusions
+        .iter()
+        .map(|exclusion| {
+            (
+                exclusion.reason.as_replay_reason(),
+                exclusion.packet_envelopes,
+            )
+        })
+        .collect();
+    assert_eq!(
+        reduction.exclusions, expected_exclusions,
+        "{} conversation exclusion reasons",
+        fixture.id
+    );
+}
+
+impl ExpectedConversationExclusionReason {
+    fn as_replay_reason(&self) -> ConversationExclusionReasonV0 {
+        match self {
+            Self::InvalidPacketEnvelope => ConversationExclusionReasonV0::InvalidPacketEnvelope,
+            Self::UnmodeledEncapsulation => ConversationExclusionReasonV0::UnmodeledEncapsulation,
+            Self::AmbiguousNetworkLayer => ConversationExclusionReasonV0::AmbiguousNetworkLayer,
+            Self::AmbiguousTransportLayer => ConversationExclusionReasonV0::AmbiguousTransportLayer,
+            Self::IndistinguishableEndpoints => {
+                ConversationExclusionReasonV0::IndistinguishableEndpoints
+            }
+        }
+    }
+}
+
+fn full_jsonl(report: &NormalizationReport) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    push_jsonl_record(&mut bytes, &report.manifest);
+    push_jsonl_record(&mut bytes, &report.receipt);
+    for packet in &report.packets {
+        push_jsonl_record(&mut bytes, packet);
+    }
+    for quarantine in &report.quarantines {
+        push_jsonl_record(&mut bytes, quarantine);
+    }
+    bytes
+}
+
+fn records_jsonl(report: &NormalizationReport) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    push_jsonl_record(&mut bytes, &report.manifest);
+    for packet in &report.packets {
+        push_jsonl_record(&mut bytes, packet);
+    }
+    for quarantine in &report.quarantines {
+        push_jsonl_record(&mut bytes, quarantine);
+    }
+    bytes
+}
+
+fn push_jsonl_record<T: Serialize>(output: &mut Vec<u8>, record: &T) {
+    serde_json::to_writer(&mut *output, record).expect("serializing typed fixture record");
+    output.push(b'\n');
+}
+
+fn parse_stream(fixture_id: &str, stream: &str, bytes: &[u8]) -> SavedCaptureRecordStreamV0 {
+    parse_saved_capture_jsonl(bytes)
+        .unwrap_or_else(|error| panic!("parsing {stream} JSONL for {fixture_id}: {error}"))
+}
+
+fn assert_replayed_records_equal(
+    fixture_id: &str,
+    left: &SavedCaptureRecordStreamV0,
+    right: &SavedCaptureRecordStreamV0,
+) {
+    assert_eq!(
+        left.manifest, right.manifest,
+        "{fixture_id} replayed manifests"
+    );
+    assert_eq!(left.packets, right.packets, "{fixture_id} replayed packets");
+    assert_eq!(
+        left.quarantines, right.quarantines,
+        "{fixture_id} replayed quarantines"
+    );
+    assert_eq!(
+        left.normalized_records_sha256, right.normalized_records_sha256,
+        "{fixture_id} replayed record digests"
+    );
 }
 
 fn assert_ieee80211_expectations(fixture: &Fixture, packets: &[netmon_evidence::PacketEnvelopeV0]) {
