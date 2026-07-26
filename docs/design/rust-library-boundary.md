@@ -173,5 +173,10 @@ durability guarantee.
 - Capture conversations keep observation points separate, use canonical
   endpoint direction rather than guessed initiator direction, and report
   excluded packet-envelope coverage.
+- Saved-capture adapter fixtures include a content-addressed, licensed upstream
+  corpus beyond the hand-authored one-packet cases; the integrity test is
+  network- and tool-independent, while the smoke lane exercises installed
+  Wireshark tools.
 - Semver publication requires backward-compatibility tests and representative
-  fixtures beyond the host-path v0 slice.
+  fixtures for each promoted evidence family beyond the host-path and current
+  saved-capture slices.

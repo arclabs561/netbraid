@@ -82,6 +82,13 @@ reusable validation and replay into Rust, shadow existing projections, then cut
 over one writer at a durable interval. Retire the Go capture path only after its
 remaining required behavior has a Rust owner. Chosen.
 
+The public saved-capture adapter corpus is a format and normalization gate, not
+a sealed-deployment parity fixture. It can prove behavior across PCAP/PCAPNG,
+byte order, truncation, radiotap, and several protocol stacks. It cannot prove
+Kismet, Hypha, rtl_433, Meshtastic, controller, or fusion-record semantics;
+those cutovers still require sanitized or private sealed artifacts from the
+actual deployment boundary.
+
 ## Relevant prior art
 
 - Linux wireless regulatory processing makes the current regulatory domain,

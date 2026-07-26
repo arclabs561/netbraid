@@ -239,6 +239,31 @@ contract.
 Normalization is non-interactive: a future replay TUI may consume these records,
 but the normalizer itself should compose predictably in scripts.
 
+### Fixture corpus
+
+Adapter promotion uses two complementary fixture tiers. Hand-authored,
+commented hex captures isolate exact packet and container fields using
+documentation addresses and locally administered MAC addresses. A curated
+upstream corpus exercises behavior that hand-built one-packet files can easily
+miss: radiotap/802.11 encapsulation, non-IP Ethernet, PPPoE discovery, severe
+snaplen truncation, multi-conversation timing, big-endian PCAPNG, section and
+interface fields, and file-embedded capture provenance.
+
+Upstream artifacts are admitted only with a redistribution license, immutable
+repository revision and source path, Git blob ID, decoded SHA-256 digest,
+bounded size, and a named behavior. The committed representation is exact
+binary content rendered as lowercase hex, so source review remains textual.
+The normal test suite verifies the ledger, licenses, complete file inventory,
+decoded size, and digest without network access or Wireshark. The opt-in smoke
+suite additionally normalizes every admitted capture using installed Capinfos
+and TShark and checks stable container facts, row coverage, and required
+protocol vocabulary.
+
+The corpus does not make the upstream artifact's original observer or
+acquisition policy knowable. Those fields remain absent. Public parser fixtures
+also do not substitute for private, sealed deployment fixtures when evaluating
+Kismet, Hypha, rtl_433, Meshtastic, controller, or fusion adapters.
+
 ## Tradeoffs
 
 - TShark remains a runtime dependency for this command, but Netmon does not
@@ -278,11 +303,12 @@ but the normalizer itself should compose predictably in scripts.
    successful-run record, and `--records-jsonl` for the deterministic
    normalized-record stream.
 4. Add parser/golden tests and an opt-in smoke test against an installed TShark
-   using Ethernet/IPv4/TCP, Ethernet/IPv6/UDP, and ARP fixtures built only from
-   documentation addresses and locally administered MAC addresses.
+   using readable synthetic captures.
 5. Update the public scope and command documentation.
 6. Add bounded Capinfos metadata, a successful-run receipt, and PCAPNG replay
    coverage without changing the crate dependency direction.
+7. Admit a compact, licensed upstream corpus through a content-addressed
+   manifest and run it through the same installed-tool smoke boundary.
 
 ## Gates
 
@@ -310,8 +336,12 @@ but the normalizer itself should compose predictably in scripts.
 - Invalid rows are retained as typed quarantines and make normalization partial.
 - Packet order remains capture/frame order.
 - Golden tests cover canonical JSON and parser edge cases.
-- A real Wireshark-tool-suite smoke test exercises PCAP and PCAPNG plus three
-  link/network/transport shapes.
+- A real Wireshark-tool-suite smoke test exercises synthetic and curated
+  upstream PCAP/PCAPNG across Ethernet, radiotap/802.11, ARP/RARP, PPPoE,
+  truncated IPv4, UDP/NTP, DHCP, and both container byte orders.
+- Every upstream fixture is pinned by immutable source revision and path, Git
+  blob ID, decoded SHA-256, size, license, and named purpose. The manifest and
+  directory inventory must agree exactly.
 - Successful receipts use a staged-path placeholder rather than retaining a
   private temporary pathname, and bind the emitted records with a canonical
   digest.
