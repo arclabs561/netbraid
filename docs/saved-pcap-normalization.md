@@ -205,6 +205,22 @@ stdout includes its staged pathname, so its raw-output digest identifies this
 occurrence; typed metadata and the emitted-record digest remain stable across
 equivalent runs.
 
+The `netmon.normalized_records_digest.v0` byte sequence starts with
+`netmon.normalized_records.v0` followed by one NUL byte. Each record then adds,
+in order: its ASCII kind (`manifest`, `packet`, or `quarantine`), one NUL byte,
+its zero-based index as a little-endian `u64`, its compact-JSON byte length as a
+little-endian `u64`, and the compact JSON bytes. The manifest index is zero;
+packet and quarantine indices each start at zero within their own family. The
+stored value is `sha256:` followed by the lowercase hexadecimal SHA-256 of that
+complete byte sequence.
+
+Replay accepts only the exact compact typed serialization of every JSONL line.
+Alternate key order, insignificant whitespace, unknown fields, and explicit
+nulls for omitted optional fields fail closed rather than riding under the
+producer's digest. Path-based replay also requires a caller-supplied byte limit
+and reads through one open handle, probing at most one byte beyond the limit to
+distinguish an exact-limit file from an oversized file.
+
 Run identifiers are occurrence identifiers, not content identifiers. The v0
 adapter derives one from the capture digest, run start time, process identifier,
 and a per-process counter. Started and finished times use the system clock;
@@ -235,6 +251,11 @@ that stream through `normalized_records_sha256`; consumers do not need to
 filter occurrence fields to compare reruns. `--jsonl` and `--records-jsonl`
 are mutually exclusive. Neither mode implies a serialized flow or conversation
 contract.
+
+When a run receipt is present, replay additionally requires the manifest's
+emitted plus quarantined row count to equal the smaller of the capture-file
+packet count and packet limit. `packet_limit_reached` is true exactly when the
+capture-file packet count exceeds that limit.
 
 Normalization is non-interactive: a future replay TUI may consume these records,
 but the normalizer itself should compose predictably in scripts.

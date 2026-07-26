@@ -59,6 +59,18 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         "{}",
         String::from_utf8_lossy(&jsonl.stderr)
     );
+    let parsed_stream = netmon_replay::parse_saved_capture_jsonl(&jsonl.stdout).unwrap();
+    assert!(parsed_stream.receipt.is_some());
+    assert_eq!(parsed_stream.packets.len(), 6);
+    assert!(parsed_stream.quarantines.is_empty());
+    assert_eq!(
+        parsed_stream.normalized_records_sha256,
+        parsed_stream
+            .receipt
+            .as_ref()
+            .unwrap()
+            .normalized_records_sha256
+    );
     let records: Vec<serde_json::Value> = String::from_utf8(jsonl.stdout)
         .unwrap()
         .lines()
@@ -112,6 +124,10 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         first_records.stdout, second_records.stdout,
         "normalized-record JSONL must be byte-identical for the same artifact and configuration"
     );
+    let parsed_records = netmon_replay::parse_saved_capture_jsonl(&first_records.stdout).unwrap();
+    assert!(parsed_records.receipt.is_none());
+    assert_eq!(parsed_records.packets.len(), 6);
+    assert!(parsed_records.quarantines.is_empty());
 
     let deterministic_records: Vec<serde_json::Value> = String::from_utf8(first_records.stdout)
         .unwrap()
