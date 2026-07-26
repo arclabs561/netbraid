@@ -1,9 +1,9 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use netmon_evidence::{
-    EthernetFieldsV0, Ipv4FieldsV0, Ipv6FieldsV0, PACKET_ENVELOPE_SCHEMA_V0,
-    PACKET_QUARANTINE_SCHEMA_V0, PacketEnvelopeV0, PacketFrameV0, PacketQuarantineV0,
-    TcpFieldsV0, UdpFieldsV0,
+    EthernetFieldsV0, Ipv4FieldsV0, Ipv6FieldsV0, PacketEnvelopeV0, PacketFrameV0,
+    PacketQuarantineV0, TcpFieldsV0, UdpFieldsV0, PACKET_ENVELOPE_SCHEMA_V0,
+    PACKET_QUARANTINE_SCHEMA_V0,
 };
 
 pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v0";
@@ -52,10 +52,7 @@ pub(crate) fn parse_rows(stdout: &[u8], capture_id: &str) -> ParsedRows {
         rows_seen += 1;
         let raw_row = String::from_utf8_lossy(raw_bytes).into_owned();
         match parse_row(&raw_row, capture_id) {
-            Ok(packet)
-                if previous_frame
-                    .is_none_or(|previous| packet.frame.number > previous) =>
-            {
+            Ok(packet) if previous_frame.is_none_or(|previous| packet.frame.number > previous) => {
                 previous_frame = Some(packet.frame.number);
                 packets.push(packet);
             }
@@ -135,7 +132,11 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
 }
 
 fn parse_ipv4(fields: &[&str]) -> Result<Option<Ipv4FieldsV0>, String> {
-    match (fields[10].is_empty(), fields[11].is_empty(), fields[12].is_empty()) {
+    match (
+        fields[10].is_empty(),
+        fields[11].is_empty(),
+        fields[12].is_empty(),
+    ) {
         (true, true, true) => Ok(None),
         (false, false, false) => Ok(Some(Ipv4FieldsV0 {
             source: fields[10]
@@ -153,7 +154,11 @@ fn parse_ipv4(fields: &[&str]) -> Result<Option<Ipv4FieldsV0>, String> {
 }
 
 fn parse_ipv6(fields: &[&str]) -> Result<Option<Ipv6FieldsV0>, String> {
-    match (fields[13].is_empty(), fields[14].is_empty(), fields[15].is_empty()) {
+    match (
+        fields[13].is_empty(),
+        fields[14].is_empty(),
+        fields[15].is_empty(),
+    ) {
         (true, true, true) => Ok(None),
         (false, false, false) => Ok(Some(Ipv6FieldsV0 {
             source: fields[13]
@@ -171,7 +176,11 @@ fn parse_ipv6(fields: &[&str]) -> Result<Option<Ipv6FieldsV0>, String> {
 }
 
 fn parse_tcp(fields: &[&str]) -> Result<Option<TcpFieldsV0>, String> {
-    match (fields[16].is_empty(), fields[17].is_empty(), fields[18].is_empty()) {
+    match (
+        fields[16].is_empty(),
+        fields[17].is_empty(),
+        fields[18].is_empty(),
+    ) {
         (true, true, true) => Ok(None),
         (false, false, false) => Ok(Some(TcpFieldsV0 {
             source_port: parse_required(fields[16], FIELDS[16])?,
@@ -231,9 +240,9 @@ fn canonical_ethernet(value: &str) -> Result<Option<String>, String> {
     let value = value.to_ascii_lowercase();
     let mut parts = value.split(':');
     let valid = (0..6).all(|_| {
-        parts
-            .next()
-            .is_some_and(|part| part.len() == 2 && part.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        parts.next().is_some_and(|part| {
+            part.len() == 2 && part.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
     }) && parts.next().is_none();
     if valid {
         Ok(Some(value))

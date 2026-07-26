@@ -1,0 +1,17 @@
+# Classic PCAP: little-endian, microsecond timestamps, Ethernet link type.
+# The file header's snaplen is 54 octets.
+d4 c3 b2 a1  02 00 04 00  00000000 00000000  36000000 01000000
+
+# Packet record: 1700000003.000000, 54 captured of 74 original octets.
+03f15365 00000000  36000000 4a000000
+
+# Ethernet II: locally administered source/destination, IPv4.
+02 00 00 00 00 06  02 00 00 00 00 05  0800
+
+# IPv4: 192.0.2.5 -> 198.51.100.6, TCP.
+# Total length is 60 octets: 40 captured IP/TCP-header octets plus 20
+# payload octets omitted by the capture snaplen.
+45 00 003c 0007 4000 40 06 0000  c0000205 c6336406
+
+# TCP: source 41000 -> HTTPS/443, SYN. The omitted payload follows this header.
+a028 01bb 00000000 00000000  50 02 2000 0000 0000

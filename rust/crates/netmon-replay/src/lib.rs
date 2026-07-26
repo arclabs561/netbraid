@@ -8,14 +8,15 @@ use std::path::Path;
 mod conversation;
 
 pub use conversation::{
-    CaptureConversationKeyV0, CaptureConversationReportV0, CaptureConversationV0,
-    ConversationDirectionV0, ConversationEndpointV0, ConversationExclusionReasonV0, IpFamilyV0,
-    ObservationPointV0, TcpFlagCountsV0, TransportProtocolV0, reduce_capture_conversations,
+    reduce_capture_conversations, CaptureConversationKeyV0, CaptureConversationReportV0,
+    CaptureConversationV0, ConversationDirectionV0, ConversationEndpointV0,
+    ConversationExclusionReasonV0, IpFamilyV0, ObservationPointV0, TcpFlagCountsV0,
+    TransportProtocolV0,
 };
 pub use netmon_evidence::{
     CollectionModeV0, CollectionPolicyV0, ContextKeyV0, CoverageStateV0, CoverageV0,
-    HOST_PATH_SCHEMA_V0, HostPathObservationV0, HostPathV0, NetworkNameV0,
-    NetworkNameVisibilityV0, ObservationOrderV0, SourceRefV0, ValidationError,
+    HostPathObservationV0, HostPathV0, NetworkNameV0, NetworkNameVisibilityV0, ObservationOrderV0,
+    SourceRefV0, ValidationError, HOST_PATH_SCHEMA_V0,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,7 +113,9 @@ impl std::fmt::Display for ReplayError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Io(source) => write!(formatter, "{source}"),
-            Self::Json { line, source } => write!(formatter, "invalid JSON on line {line}: {source}"),
+            Self::Json { line, source } => {
+                write!(formatter, "invalid JSON on line {line}: {source}")
+            }
             Self::Invalid { line, source } => {
                 write!(formatter, "invalid evidence on line {line}: {source}")
             }
@@ -312,10 +315,9 @@ pub fn replay(
     let mut by_id = BTreeMap::new();
     for mut record in records {
         record.canonicalize();
-        record.validate().map_err(|source| ReplayError::Invalid {
-            line: 0,
-            source,
-        })?;
+        record
+            .validate()
+            .map_err(|source| ReplayError::Invalid { line: 0, source })?;
         if let Some(previous) = by_id.get(&record.record_id) {
             if previous != &record {
                 return Err(ReplayError::ConflictingRecordId(record.record_id));
@@ -334,7 +336,9 @@ pub fn replay(
     let transitions = records
         .iter()
         .enumerate()
-        .map(|(index, current)| compare_contexts(index.checked_sub(1).map(|i| &records[i]), current))
+        .map(|(index, current)| {
+            compare_contexts(index.checked_sub(1).map(|i| &records[i]), current)
+        })
         .collect();
     Ok(ReplayStateV0 {
         records,
@@ -356,7 +360,10 @@ pub fn read_jsonl_recovering_tail(path: impl AsRef<Path>) -> Result<JsonlReadV0,
     read_jsonl_bytes(&fs::read(path)?, true)
 }
 
-fn read_jsonl_bytes(bytes: &[u8], recover_unterminated_tail: bool) -> Result<JsonlReadV0, ReplayError> {
+fn read_jsonl_bytes(
+    bytes: &[u8],
+    recover_unterminated_tail: bool,
+) -> Result<JsonlReadV0, ReplayError> {
     let mut records = Vec::new();
     let has_unterminated_tail = !bytes.is_empty() && !bytes.ends_with(b"\n");
     let final_fragment_index = bytes.split(|byte| *byte == b'\n').count() - 1;
@@ -396,12 +403,10 @@ fn read_jsonl_bytes(bytes: &[u8], recover_unterminated_tail: bool) -> Result<Jso
                 line: line_number,
                 source,
             })?;
-        record
-            .validate()
-            .map_err(|source| ReplayError::Invalid {
-                line: line_number,
-                source,
-            })?;
+        record.validate().map_err(|source| ReplayError::Invalid {
+            line: line_number,
+            source,
+        })?;
         records.push(record);
         byte_offset += line.len() + usize::from(index != final_fragment_index);
     }
@@ -448,10 +453,8 @@ pub fn append_jsonl(
 }
 
 fn serialize_jsonl_record(record: &HostPathObservationV0) -> Result<Vec<u8>, ReplayError> {
-    let mut serialized = serde_json::to_vec(record).map_err(|source| ReplayError::Json {
-        line: 0,
-        source,
-    })?;
+    let mut serialized =
+        serde_json::to_vec(record).map_err(|source| ReplayError::Json { line: 0, source })?;
     serialized.push(b'\n');
     Ok(serialized)
 }
@@ -533,15 +536,10 @@ mod tests {
         let second = observation("second", 2, "house");
         let comparison = compare_contexts(Some(&first), &second);
 
-        assert_eq!(
-            comparison.relation,
-            ContextRelationV0::CompatibleContext
-        );
-        assert!(
-            comparison
-                .changed_dimensions
-                .contains(&"next_hop_link_address")
-        );
+        assert_eq!(comparison.relation, ContextRelationV0::CompatibleContext);
+        assert!(comparison
+            .changed_dimensions
+            .contains(&"next_hop_link_address"));
     }
 
     #[test]
@@ -732,8 +730,7 @@ mod tests {
         incomplete.path.next_hop_link_address = None;
         let current = observation("current", 3, "house");
 
-        let summary =
-            summarize_context_recurrence(&[exact, incomplete, current.clone()], &current);
+        let summary = summarize_context_recurrence(&[exact, incomplete, current.clone()], &current);
 
         assert_eq!(
             summary.exact_context_match,
@@ -754,8 +751,7 @@ mod tests {
         let mut new = observation("new", 4, "house");
         new.path.associated_bssid = Some("02:00:00:00:00:ff".into());
 
-        let known_summary =
-            summarize_context_recurrence(&[first.clone(), second.clone()], &known);
+        let known_summary = summarize_context_recurrence(&[first.clone(), second.clone()], &known);
         let new_summary = summarize_context_recurrence(&[first, second], &new);
 
         assert_eq!(known_summary.distinct_prior_associated_bssids, 2);

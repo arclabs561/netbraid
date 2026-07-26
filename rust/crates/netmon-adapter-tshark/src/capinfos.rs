@@ -6,8 +6,8 @@ use netmon_evidence::CaptureFileMetadataV0;
 
 pub(crate) fn arguments(input: &Path) -> Vec<OsString> {
     [
-        "-T", "-R", "-m", "-Q", "-K", "-P", "-t", "-E", "-F", "-c", "-s", "-d", "-l", "-u",
-        "-a", "-e", "-S",
+        "-T", "-R", "-m", "-Q", "-K", "-P", "-t", "-E", "-F", "-c", "-s", "-d", "-l", "-u", "-a",
+        "-e", "-S",
     ]
     .into_iter()
     .map(OsString::from)
@@ -239,10 +239,7 @@ mod tests {
 
     #[test]
     fn exact_seconds_parser_handles_pre_epoch_and_rejects_excess_precision() {
-        assert_eq!(
-            parse_epoch_ns("-0.5", "Start time").unwrap(),
-            -500_000_000
-        );
+        assert_eq!(parse_epoch_ns("-0.5", "Start time").unwrap(), -500_000_000);
         assert!(parse_epoch_ns("1.0000000001", "Start time").is_err());
         assert!(parse_duration_ns("-1", "Capture duration (seconds)").is_err());
     }
