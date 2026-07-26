@@ -42,7 +42,7 @@ repository's current charter.
 | Rust v0 libraries | Experimental | Record and replay evidence, compare host-path context, and reduce eligible packet envelopes into capture-wide conversations |
 | Rust Wireshark-tool adapter | Experimental | Normalize bounded saved captures into manifests, successful-run receipts, packet envelopes, and quarantines without live capture |
 | `swucb/` | Legacy, deletion-gated | Preserve no runtime behavior; remove after the Rust acquisition control proves receipt-bound attribution |
-| Rust evidence/replay core | Gated future | Normalize immutable artifacts, replay evidence, and reduce temporal state deterministically |
+| Broader multi-modal evidence families | Gated future | Add temporal, entity, episode, or fingerprint records only after representative fixtures and a concrete second consumer |
 | Live deployment or fusion service | External | Consume released evidence/replay artifacts after its own parity and rollback gates |
 
 The narrow Rust evidence/replay core exists as an experimental v0 package boundary.
@@ -79,6 +79,12 @@ netmon work must preserve source evidence rather than widening capture features.
 
 Go 1.25.12 or newer is declared by `go.mod`; this compatibility floor tracks
 standard-library security fixes rather than the future Rust architecture.
+
+This is the legacy acquisition binary, not the passive Rust reader. Invoking it
+without a subcommand begins live acquisition on selected/default interfaces and
+writes into the current directory. Keep it build-path-qualified and supply an
+explicit interface, output directory, and terminal condition; do not install it
+beside the Rust binary.
 
 ```sh
 go build -o netmon .
@@ -161,6 +167,10 @@ The default snapshot input is `~/.cache/netops/audit-history.jsonl`; pass `--fil
 to read another audit history. The snapshot commands read the last JSON object and
 exit. The `evidence` command strictly reads the complete supplied log. A missing,
 empty, or malformed input is an error rather than evidence about the live network.
+Compatibility output identifies the saved source path, exact Unix timestamp,
+relative age or future-clock warning, and controller-reported metric names. Device
+queries prioritize exact values, refuse ambiguous substring matches, and never turn
+a hostname-shaped roster match into verified device identity.
 
 At the library boundary, `read_jsonl` remains strict.
 `read_jsonl_recovering_tail` can instead return the valid replay prefix plus a typed
@@ -325,10 +335,11 @@ just rust-check-full
 The root `just test` also runs the repository's Go lint configuration before tests.
 `just pcap-smoke` is opt-in because it invokes the locally installed TShark and
 Capinfos against both readable synthetic captures and a small curated public corpus:
-radiotap/802.11, RARP, PPPoE discovery, severe snaplen truncation, NTP
-conversations, and big-endian PCAPNG. The upstream bytes remain text-reviewable
-hex; their manifest pins source commits, blob IDs, decoded digests, licenses,
-and stable normalization expectations. See the
+radiotap/802.11, raw 802.11, 5 GHz WPA2 association/EAPOL/protected data,
+RARP, PPPoE discovery, severe snaplen truncation, NTP conversations, and
+big-endian PCAPNG. The upstream bytes remain text-reviewable hex; their manifest
+pins source commits, blob IDs, decoded digests, licenses, and stable normalization
+expectations. See the
 [fixture corpus](rust/crates/netmon-adapter-tshark/tests/fixtures/README.md).
 `just pcap-smoke-show` prints the finite operator summary from the CLI fixture so
 presentation changes can be reviewed without preparing a local capture.

@@ -9,8 +9,13 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use serde::Deserialize;
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+const OPERATOR_TEXT_CHARS: usize = 160;
+const OPERATOR_LIST_ITEMS: usize = 8;
+const AP_LIST_ITEMS: usize = 32;
+const WEAK_CLIENT_LIST_ITEMS: usize = 20;
 
 #[derive(Parser)]
 #[command(
@@ -43,14 +48,57 @@ enum Cmd {
     Pcap(pcap::PcapArgs),
 }
 
-fn find_client<'a>(s: &'a Snapshot, query: &str) -> Option<&'a Client> {
+enum ClientMatch<'a> {
+    Exact(&'a Client),
+    UniquePartial(&'a Client),
+    Ambiguous(Vec<&'a Client>),
+    None,
+}
+
+fn match_clients<'a>(s: &'a Snapshot, query: &str) -> ClientMatch<'a> {
     let q = query.to_lowercase();
-    s.clients.iter().find(|c| {
-        [c.name.as_deref(), c.mac.as_deref(), c.ip.as_deref()]
-            .iter()
-            .flatten()
-            .any(|v| v.to_lowercase().contains(&q))
-    })
+    let fields = |client: &'a Client| {
+        [
+            client.name.as_deref(),
+            client.mac.as_deref(),
+            client.ip.as_deref(),
+        ]
+    };
+    let exact = s
+        .clients
+        .iter()
+        .filter(|client| {
+            fields(client)
+                .iter()
+                .flatten()
+                .any(|value| value.to_lowercase() == q)
+        })
+        .collect::<Vec<_>>();
+    match exact.as_slice() {
+        [client] => return ClientMatch::Exact(client),
+        [] => {}
+        _ => return ClientMatch::Ambiguous(exact),
+    }
+    let partial = s
+        .clients
+        .iter()
+        .filter(|client| {
+            fields(client)
+                .iter()
+                .flatten()
+                .any(|value| value.to_lowercase().contains(&q))
+        })
+        .collect::<Vec<_>>();
+    match partial.as_slice() {
+        [] => ClientMatch::None,
+        [client] => ClientMatch::UniquePartial(client),
+        _ => ClientMatch::Ambiguous(partial),
+    }
+}
+
+struct LoadedSnapshot {
+    source: PathBuf,
+    snapshot: Snapshot,
 }
 
 #[derive(Deserialize)]
@@ -106,11 +154,11 @@ struct Client {
 
 fn band(rssi: i64) -> &'static str {
     match rssi {
-        r if r > -50 => "excellent (right next to the AP)",
-        r if r > -60 => "strong",
-        r if r > -67 => "good",
-        r if r > -72 => "fair",
-        _ => "weak (far from the AP / through walls)",
+        r if r > -50 => "excellent RSSI",
+        r if r > -60 => "strong RSSI",
+        r if r > -67 => "good RSSI",
+        r if r > -72 => "fair RSSI",
+        _ => "weak RSSI",
     }
 }
 
@@ -125,26 +173,50 @@ fn human(bytes: i64) -> String {
     }
 }
 
-fn load(file: Option<PathBuf>) -> Result<Snapshot> {
+fn load(file: Option<PathBuf>) -> Result<LoadedSnapshot> {
     let path = file.unwrap_or_else(|| {
         let home = std::env::var("HOME").unwrap_or_default();
         PathBuf::from(format!("{home}/.cache/netops/audit-history.jsonl"))
     });
-    let text =
-        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+    let text = std::fs::read_to_string(&path).with_context(|| {
+        format!(
+            "reading {}",
+            operator_text(path.as_os_str().to_string_lossy().as_ref())
+        )
+    })?;
     let last = text
         .lines()
         .rfind(|line| !line.trim().is_empty())
         .context("audit history is empty")?;
-    serde_json::from_str(last).context("parsing the latest audit snapshot")
+    let snapshot = serde_json::from_str(last).context("parsing the latest audit snapshot")?;
+    Ok(LoadedSnapshot {
+        source: path,
+        snapshot,
+    })
 }
 
 fn age(ts: i64) -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
-        .unwrap_or(ts);
-    let m = (now - ts).max(0) / 60;
+        .ok();
+    age_at(ts, now)
+}
+
+fn age_at(ts: i64, now: Option<i64>) -> String {
+    let Some(now) = now else {
+        return "age unavailable: system clock is before Unix epoch".into();
+    };
+    if ts > now {
+        let delta = ts - now;
+        let amount = if delta < 60 {
+            format!("{delta}s")
+        } else {
+            format!("{}m", delta / 60)
+        };
+        return format!("{amount} in the future; clock skew or timestamp error");
+    }
+    let m = (now - ts) / 60;
     if m < 60 {
         format!("{m}m ago")
     } else {
@@ -152,32 +224,54 @@ fn age(ts: i64) -> String {
     }
 }
 
-fn cmd_net(s: &Snapshot) {
+fn print_snapshot_header(s: &Snapshot, source: &Path) {
     println!(
-        "saved controller compatibility snapshot ({}) — {} wireless / {} wired clients, reported satisfaction min {} / avg {}, WAN {}",
-        age(s.ts),
+        "saved controller compatibility snapshot — source {} — timestamp {} unix ({})",
+        operator_text(&source.display().to_string()),
+        s.ts,
+        age(s.ts)
+    );
+}
+
+fn cmd_net(s: &Snapshot, source: &Path) {
+    print_snapshot_header(s, source);
+    println!(
+        "{} wireless / {} wired clients, reported satisfaction min {} / avg {}, reported WAN status {}",
         s.clients_wireless,
         s.clients_wired,
         s.sat_min.map(|v| v.to_string()).unwrap_or_else(|| "?".into()),
         s.sat_avg.map(|v| v.to_string()).unwrap_or_else(|| "?".into()),
-        s.wan_status.as_deref().unwrap_or("?"),
+        s.wan_status
+            .as_deref()
+            .map(operator_text)
+            .unwrap_or_else(|| "?".into()),
     );
     println!("\naccess points:");
-    for (name, ap) in &s.aps {
+    for (name, ap) in s.aps.iter().take(AP_LIST_ITEMS) {
         let mut radios = String::new();
-        for (band_name, r) in &ap.radios {
+        for (band_name, r) in ap.radios.iter().take(OPERATOR_LIST_ITEMS) {
             let ch = r
                 .channel
                 .map(|c| c.to_string())
                 .unwrap_or_else(|| "?".into());
-            let at = r.airtime.unwrap_or(0);
-            radios.push_str(&format!(" {band_name}=ch{ch}/{at}%"));
+            let at = r
+                .airtime
+                .map(|value| format!("{value}%"))
+                .unwrap_or_else(|| "?".into());
+            radios.push_str(&format!(" {}=ch{ch}/{at}", operator_text(band_name)));
+        }
+        if ap.radios.len() > OPERATOR_LIST_ITEMS {
+            radios.push_str(&format!(
+                " … +{} radio(s)",
+                ap.radios.len() - OPERATOR_LIST_ITEMS
+            ));
         }
         let mesh = if ap.uplink.as_deref() == Some("wireless") {
-            "  [wireless mesh — throughput cost]"
+            "  [reported wireless uplink; capacity impact not measured]"
         } else {
             ""
         };
+        let name = operator_text(name);
         println!(
             "  {name:32} up {:>5.1}h  {} clients {}{}",
             ap.uptime_h,
@@ -185,16 +279,26 @@ fn cmd_net(s: &Snapshot) {
             radios.trim(),
             mesh
         );
-        for (band_name, r) in &ap.radios {
-            let at = r.airtime.unwrap_or(0);
-            let neigh = r.neighbors.unwrap_or(0);
-            if at > 75 {
-                println!("      ⚠ {band_name} congested: {at}% airtime (channel is busy — clients will feel it)");
+        for (band_name, r) in ap.radios.iter().take(OPERATOR_LIST_ITEMS) {
+            if let Some(at) = r.airtime.filter(|value| *value > 75) {
+                println!(
+                    "      {}: reported airtime {at}% exceeds the 75% review threshold; client impact not measured",
+                    operator_text(band_name)
+                );
             }
-            if neigh > 100 {
-                println!("      ⚠ {band_name} crowded: shares its channel with {neigh} neighbor APs (environmental, steer to 5/6 GHz)");
+            if let Some(neigh) = r.neighbors.filter(|value| *value > 100) {
+                println!(
+                    "      {}: reported neighbor count {neigh} exceeds the 100-AP review threshold; overlap and impact not established",
+                    operator_text(band_name)
+                );
             }
         }
+    }
+    if s.aps.len() > AP_LIST_ITEMS {
+        println!(
+            "  … +{} access point(s) omitted",
+            s.aps.len() - AP_LIST_ITEMS
+        );
     }
     let mut weak: Vec<&Client> = s
         .clients
@@ -203,56 +307,77 @@ fn cmd_net(s: &Snapshot) {
         .collect();
     weak.sort_by_key(|c| c.signal.unwrap_or(0));
     if !weak.is_empty() {
-        println!("\nweak clients (≤ -72 dBm — likely sticky or far):");
-        for c in weak {
+        println!("\nclients with reported RSSI ≤ -72 dBm (cause not inferred):");
+        for c in weak.iter().take(WEAK_CLIENT_LIST_ITEMS) {
             println!(
                 "  {:20} {} dBm on {}",
-                c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?"),
+                operator_text(c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?")),
                 c.signal.unwrap_or(0),
-                c.ap.as_deref().unwrap_or("?")
+                operator_text(c.ap.as_deref().unwrap_or("?"))
+            );
+        }
+        if weak.len() > WEAK_CLIENT_LIST_ITEMS {
+            println!(
+                "  … +{} client(s) omitted",
+                weak.len() - WEAK_CLIENT_LIST_ITEMS
             );
         }
     }
 }
 
-fn cmd_device(s: &Snapshot, query: &str) {
-    println!("saved controller compatibility snapshot ({})", age(s.ts));
-    cmd_device_details(s, query);
+fn cmd_device(s: &Snapshot, source: &Path, query: &str) {
+    print_snapshot_header(s, source);
+    match match_clients(s, query) {
+        ClientMatch::Exact(client) => print_client_details(s, client),
+        ClientMatch::UniquePartial(client) => {
+            println!(
+                "unique substring roster match for {:?}:",
+                operator_text(query)
+            );
+            print_client_details(s, client);
+        }
+        ClientMatch::Ambiguous(clients) => print_ambiguous_clients(query, &clients),
+        ClientMatch::None => println!(
+            "no client matching {:?} in the saved snapshot ({} clients)",
+            operator_text(query),
+            s.clients.len()
+        ),
+    }
 }
 
-fn cmd_device_details(s: &Snapshot, query: &str) {
-    let Some(c) = find_client(s, query) else {
-        println!(
-            "no device matching '{query}' in the latest snapshot ({} clients)",
-            s.clients.len()
-        );
-        return;
-    };
-    let nm = c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?");
-    println!("{nm}  ({})", c.ip.as_deref().unwrap_or("no ip"));
+fn print_client_details(s: &Snapshot, c: &Client) {
+    let nm = operator_text(c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?"));
+    println!(
+        "{nm}  ({})",
+        operator_text(c.ip.as_deref().unwrap_or("no reported IP"))
+    );
     if c.wired {
-        println!("  wired on {}", c.ap.as_deref().unwrap_or("?"));
+        println!(
+            "  reported wired attachment {}",
+            operator_text(c.ap.as_deref().unwrap_or("?"))
+        );
     } else {
-        let ap = c.ap.as_deref().unwrap_or("?");
+        let ap = operator_text(c.ap.as_deref().unwrap_or("?"));
         match c.signal {
             Some(rssi) => println!(
-                "  on {ap} ({}), {rssi} dBm — {}",
-                c.radio.as_deref().unwrap_or("?"),
+                "  reported attachment {ap} ({}), {rssi} dBm — {}",
+                operator_text(c.radio.as_deref().unwrap_or("?")),
                 band(rssi)
             ),
-            None => println!("  on {ap}"),
+            None => println!("  reported attachment {ap}"),
         }
         if let Some(sat) = c.sat {
-            let verdict = if sat >= 90 {
-                "healthy"
+            let display_band = if sat >= 90 {
+                "high"
             } else if sat >= 70 {
-                "okay"
+                "mid"
             } else {
-                "poor — investigate"
+                "low"
             };
-            println!("  reported controller satisfaction score {sat} ({verdict})");
+            println!(
+                "  reported controller satisfaction score {sat} ({display_band} display band: high ≥90, mid 70–89, low <70)"
+            );
         }
-        // context: how busy is the AP it's on?
         if let Some(ap_name) = &c.ap {
             if let Some(ap) = s.aps.get(ap_name) {
                 if let Some((b, r)) = ap
@@ -260,13 +385,18 @@ fn cmd_device_details(s: &Snapshot, query: &str) {
                     .iter()
                     .find(|(b, _)| Some(b.as_str()) == c.radio.as_deref())
                 {
-                    let at = r.airtime.unwrap_or(0);
-                    let note = if at > 75 {
-                        " — congested, your device shares the wait"
-                    } else {
-                        " — healthy"
-                    };
-                    println!("  {ap_name} {b} is at {at}% airtime{note}");
+                    if let Some(at) = r.airtime {
+                        let note = if at > 75 {
+                            " — above the 75% review threshold; client impact not measured"
+                        } else {
+                            " — at or below the 75% review threshold"
+                        };
+                        println!(
+                            "  {} {} reported airtime {at}%{note}",
+                            operator_text(ap_name),
+                            operator_text(b)
+                        );
+                    }
                 }
             }
         }
@@ -275,15 +405,43 @@ fn cmd_device_details(s: &Snapshot, query: &str) {
     let rx = c.rx_bytes.unwrap_or(0);
     if tx + rx > 0 {
         println!(
-            "  this session: {} sent / {} received",
+            "  reported byte counters: {} sent / {} received (counter interval not recorded)",
             human(tx),
             human(rx)
         );
     }
 }
 
-fn cmd_here(s: &Snapshot) {
-    println!("saved controller compatibility snapshot ({})", age(s.ts));
+fn print_ambiguous_clients(query: &str, clients: &[&Client]) {
+    println!(
+        "{} roster candidates match {:?}; refine the query:",
+        clients.len(),
+        operator_text(query)
+    );
+    for client in clients.iter().take(OPERATOR_LIST_ITEMS) {
+        println!(
+            "  {}  {}  {}",
+            operator_text(
+                client
+                    .name
+                    .as_deref()
+                    .or(client.mac.as_deref())
+                    .unwrap_or("?")
+            ),
+            operator_text(client.ip.as_deref().unwrap_or("no reported IP")),
+            operator_text(client.ap.as_deref().unwrap_or("no reported attachment"))
+        );
+    }
+    if clients.len() > OPERATOR_LIST_ITEMS {
+        println!(
+            "  … +{} candidate(s) omitted",
+            clients.len() - OPERATOR_LIST_ITEMS
+        );
+    }
+}
+
+fn cmd_here(s: &Snapshot, source: &Path) {
+    print_snapshot_header(s, source);
     let host = std::process::Command::new("hostname")
         .output()
         .ok()
@@ -294,32 +452,63 @@ fn cmd_here(s: &Snapshot) {
         println!("could not resolve the local hostname");
         return;
     }
-    if find_client(s, &host).is_some() {
-        println!("this device ('{host}'):");
-        cmd_device_details(s, &host);
-    } else {
-        println!("no roster match for this host ('{host}'); UniFi may name it differently.");
-        println!("your wireless devices, strongest first (try: netmon device <name>):");
-        let mut wl: Vec<&Client> = s
-            .clients
-            .iter()
-            .filter(|c| !c.wired && c.signal.is_some())
-            .collect();
-        wl.sort_by_key(|client| std::cmp::Reverse(client.signal));
-        for c in wl.iter().take(8) {
+    match match_clients(s, &host) {
+        ClientMatch::Exact(client) => {
             println!(
-                "  {:20} {} dBm  {}",
-                c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?"),
-                c.signal.unwrap_or(0),
-                c.ap.as_deref().unwrap_or("?")
+                "exact roster match for local hostname {:?}; controller naming is not verified device identity:",
+                operator_text(&host)
             );
+            print_client_details(s, client);
+        }
+        ClientMatch::UniquePartial(client) => {
+            println!(
+                "one substring roster candidate for local hostname {:?}; device identity is not verified:",
+                operator_text(&host)
+            );
+            print_client_details(s, client);
+        }
+        ClientMatch::Ambiguous(clients) => print_ambiguous_clients(&host, &clients),
+        ClientMatch::None => {
+            println!(
+                "no roster match for local hostname {:?}; controller naming may differ.",
+                operator_text(&host)
+            );
+            println!("wireless roster candidates, strongest reported RSSI first:");
+            let mut wl: Vec<&Client> = s
+                .clients
+                .iter()
+                .filter(|c| !c.wired && c.signal.is_some())
+                .collect();
+            wl.sort_by_key(|client| std::cmp::Reverse(client.signal));
+            if wl.is_empty() {
+                println!("  none with reported RSSI in this saved snapshot");
+            } else {
+                for c in wl.iter().take(OPERATOR_LIST_ITEMS) {
+                    println!(
+                        "  {:20} {} dBm  {}",
+                        operator_text(c.name.as_deref().or(c.mac.as_deref()).unwrap_or("?")),
+                        c.signal.expect("filtered to clients with reported RSSI"),
+                        operator_text(c.ap.as_deref().unwrap_or("?"))
+                    );
+                }
+                if wl.len() > OPERATOR_LIST_ITEMS {
+                    println!(
+                        "  … +{} candidate(s) omitted",
+                        wl.len() - OPERATOR_LIST_ITEMS
+                    );
+                }
+            }
         }
     }
 }
 
 fn cmd_evidence(log: &PathBuf) -> Result<()> {
-    let state =
-        netmon_replay::read_jsonl(log).with_context(|| format!("replaying {}", log.display()))?;
+    let state = netmon_replay::read_jsonl(log).with_context(|| {
+        format!(
+            "replaying {}",
+            operator_text(log.as_os_str().to_string_lossy().as_ref())
+        )
+    })?;
     let exact_keys = state
         .records
         .iter()
@@ -352,21 +541,21 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
                 .path
                 .interface
                 .as_deref()
-                .map(evidence_text)
+                .map(operator_text)
                 .unwrap_or_else(|| "unknown interface".into()),
             latest
                 .path
                 .next_hop
                 .as_deref()
-                .map(evidence_text)
+                .map(operator_text)
                 .unwrap_or_else(|| "unknown next hop".into()),
-            evidence_text(&latest.record_id)
+            operator_text(&latest.record_id)
         );
         println!(
             "source: observer {} / adapter {} {}",
-            evidence_text(&latest.source.observer_id),
-            evidence_text(&latest.source.adapter),
-            evidence_text(&latest.source.adapter_version)
+            operator_text(&latest.source.observer_id),
+            operator_text(&latest.source.adapter),
+            operator_text(&latest.source.adapter_version)
         );
         println!(
             "order: event {} ms unix / acquired {} ms unix / source sequence {}",
@@ -382,13 +571,7 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
             } else {
                 format!(
                     " / actions {}",
-                    latest
-                        .policy
-                        .active_actions
-                        .iter()
-                        .map(|action| evidence_text(action))
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    evidence_list(&latest.policy.active_actions, "none")
                 )
             }
         );
@@ -405,19 +588,19 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
                 .path
                 .link_type
                 .as_deref()
-                .map(evidence_text)
+                .map(operator_text)
                 .unwrap_or_else(|| "unknown".into()),
             latest
                 .path
                 .association_id
                 .as_deref()
-                .map(evidence_text)
+                .map(operator_text)
                 .unwrap_or_else(|| "unavailable".into()),
             latest
                 .path
                 .associated_bssid
                 .as_deref()
-                .map(evidence_text)
+                .map(operator_text)
                 .unwrap_or_else(|| "unavailable".into())
         );
         println!(
@@ -426,7 +609,7 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
                 .path
                 .next_hop_link_address
                 .as_deref()
-                .map(evidence_text)
+                .map(operator_text)
                 .unwrap_or_else(|| "unavailable".into()),
             evidence_list(&latest.path.address_prefixes, "none"),
             evidence_list(&latest.path.resolvers, "none")
@@ -446,7 +629,7 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
                 if transition.changed_dimensions.is_empty() {
                     "none".into()
                 } else {
-                    transition.changed_dimensions.join(", ")
+                    evidence_list(&transition.changed_dimensions, "none")
                 }
             );
         }
@@ -454,30 +637,35 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn evidence_text(value: &str) -> String {
+fn operator_text(value: &str) -> String {
     let mut rendered = String::new();
-    for character in value.chars().take(160) {
+    for character in value.chars().take(OPERATOR_TEXT_CHARS) {
         if character.is_control() {
             rendered.extend(character.escape_default());
         } else {
             rendered.push(character);
         }
     }
-    if value.chars().count() > 160 {
+    if value.chars().count() > OPERATOR_TEXT_CHARS {
         rendered.push('…');
     }
     rendered
 }
 
-fn evidence_list(values: &[String], empty: &str) -> String {
+fn evidence_list<T: AsRef<str>>(values: &[T], empty: &str) -> String {
     if values.is_empty() {
         empty.into()
     } else {
-        values
+        let mut rendered = values
             .iter()
-            .map(|value| evidence_text(value))
+            .take(OPERATOR_LIST_ITEMS)
+            .map(|value| operator_text(value.as_ref()))
             .collect::<Vec<_>>()
-            .join(", ")
+            .join(", ");
+        if values.len() > OPERATOR_LIST_ITEMS {
+            rendered.push_str(&format!(", … +{} more", values.len() - OPERATOR_LIST_ITEMS));
+        }
+        rendered
     }
 }
 
@@ -500,7 +688,7 @@ fn network_name_text(name: &netmon_replay::NetworkNameV0) -> String {
     match name.visibility {
         netmon_replay::NetworkNameVisibilityV0::Observed => format!(
             "observed {:?}",
-            evidence_text(name.value.as_deref().unwrap_or_default())
+            operator_text(name.value.as_deref().unwrap_or_default())
         ),
         netmon_replay::NetworkNameVisibilityV0::Restricted => {
             "restricted by platform policy".into()
@@ -551,11 +739,11 @@ fn main() -> Result<()> {
         Cmd::Pcap(args) => return pcap::run(args),
         _ => {}
     }
-    let snap = load(cli.file)?;
+    let loaded = load(cli.file)?;
     match cli.cmd {
-        Cmd::Net => cmd_net(&snap),
-        Cmd::Device { query } => cmd_device(&snap, &query),
-        Cmd::Here => cmd_here(&snap),
+        Cmd::Net => cmd_net(&loaded.snapshot, &loaded.source),
+        Cmd::Device { query } => cmd_device(&loaded.snapshot, &loaded.source, &query),
+        Cmd::Here => cmd_here(&loaded.snapshot, &loaded.source),
         Cmd::Evidence { .. } => unreachable!("evidence command returned before snapshot loading"),
         Cmd::Pcap(_) => unreachable!("pcap command returned before snapshot loading"),
     }
@@ -568,9 +756,9 @@ mod tests {
 
     #[test]
     fn signal_bands_read_in_plain_language() {
-        assert!(band(-42).starts_with("excellent"));
-        assert_eq!(band(-65), "good");
-        assert!(band(-76).starts_with("weak"));
+        assert_eq!(band(-42), "excellent RSSI");
+        assert_eq!(band(-65), "good RSSI");
+        assert_eq!(band(-76), "weak RSSI");
     }
 
     #[test]
@@ -609,7 +797,7 @@ mod tests {
             context_relation_label(netmon_replay::ContextRelationV0::ContextChanged),
             "context_changed"
         );
-        assert_eq!(evidence_text("observer\n\u{1b}"), "observer\\n\\u{1b}");
+        assert_eq!(operator_text("observer\n\u{1b}"), "observer\\n\\u{1b}");
         assert_eq!(
             network_name_text(&netmon_replay::NetworkNameV0 {
                 visibility: netmon_replay::NetworkNameVisibilityV0::Restricted,
@@ -617,6 +805,57 @@ mod tests {
             }),
             "restricted by platform policy"
         );
+    }
+
+    #[test]
+    fn client_matching_prioritizes_exact_values_and_reports_ambiguity() {
+        let snapshot = Snapshot {
+            ts: 1,
+            aps: BTreeMap::new(),
+            clients: vec![
+                test_client("arc", "192.0.2.1"),
+                test_client("arcade", "192.0.2.2"),
+            ],
+            clients_wireless: 2,
+            clients_wired: 0,
+            sat_min: None,
+            sat_avg: None,
+            wan_status: None,
+        };
+        assert!(matches!(
+            match_clients(&snapshot, "ARC"),
+            ClientMatch::Exact(client) if client.name.as_deref() == Some("arc")
+        ));
+        assert!(matches!(
+            match_clients(&snapshot, "cade"),
+            ClientMatch::UniquePartial(client) if client.name.as_deref() == Some("arcade")
+        ));
+        assert!(matches!(
+            match_clients(&snapshot, "ar"),
+            ClientMatch::Ambiguous(clients) if clients.len() == 2
+        ));
+    }
+
+    #[test]
+    fn snapshot_age_calls_out_future_timestamps() {
+        assert_eq!(
+            age_at(1_030, Some(1_000)),
+            "30s in the future; clock skew or timestamp error"
+        );
+        assert_eq!(age_at(1_000, Some(1_120)), "2m ago");
+        assert!(age_at(1_000, None).contains("age unavailable"));
+    }
+
+    #[test]
+    fn operator_lists_are_bounded_and_escape_controls() {
+        let values = (0..10)
+            .map(|index| format!("source-{index}\n"))
+            .collect::<Vec<_>>();
+        let rendered = evidence_list(&values, "none");
+        assert!(rendered.contains("source-0\\n"));
+        assert!(rendered.contains("source-7\\n"));
+        assert!(!rendered.contains("source-8"));
+        assert!(rendered.ends_with("… +2 more"));
     }
 
     #[test]
@@ -632,5 +871,20 @@ mod tests {
         assert_eq!(s.clients.len(), 2);
         assert!(s.clients.iter().any(|c| c.wired));
         assert_eq!(s.aps["AP1"].radios["na"].airtime, Some(7));
+    }
+
+    fn test_client(name: &str, ip: &str) -> Client {
+        Client {
+            mac: None,
+            name: Some(name.into()),
+            wired: false,
+            ap: None,
+            ip: Some(ip.into()),
+            signal: None,
+            radio: None,
+            sat: None,
+            tx_bytes: None,
+            rx_bytes: None,
+        }
     }
 }
