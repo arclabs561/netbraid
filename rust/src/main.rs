@@ -28,11 +28,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Network overview: APs, congestion + its cause, clients, anything off.
+    /// Read the latest saved controller compatibility snapshot for the network.
     Net,
-    /// One device's situation (name/MAC/IP substring) and whether it's well-placed.
+    /// Read one device from the latest saved controller compatibility snapshot.
     Device { query: String },
-    /// This machine's situation (resolves the local hostname against the roster).
+    /// Match this host against the latest saved controller compatibility snapshot.
     Here,
     /// Replay an experimental v0 host-path evidence JSONL log.
     Evidence {
@@ -154,7 +154,7 @@ fn age(ts: i64) -> String {
 
 fn cmd_net(s: &Snapshot) {
     println!(
-        "network snapshot ({}) — {} wireless / {} wired clients, satisfaction min {} / avg {}, WAN {}",
+        "saved controller compatibility snapshot ({}) — {} wireless / {} wired clients, reported satisfaction min {} / avg {}, WAN {}",
         age(s.ts),
         s.clients_wireless,
         s.clients_wired,
@@ -216,6 +216,11 @@ fn cmd_net(s: &Snapshot) {
 }
 
 fn cmd_device(s: &Snapshot, query: &str) {
+    println!("saved controller compatibility snapshot ({})", age(s.ts));
+    cmd_device_details(s, query);
+}
+
+fn cmd_device_details(s: &Snapshot, query: &str) {
     let Some(c) = find_client(s, query) else {
         println!(
             "no device matching '{query}' in the latest snapshot ({} clients)",
@@ -245,7 +250,7 @@ fn cmd_device(s: &Snapshot, query: &str) {
             } else {
                 "poor — investigate"
             };
-            println!("  satisfaction {sat} ({verdict})");
+            println!("  reported controller satisfaction score {sat} ({verdict})");
         }
         // context: how busy is the AP it's on?
         if let Some(ap_name) = &c.ap {
@@ -278,6 +283,7 @@ fn cmd_device(s: &Snapshot, query: &str) {
 }
 
 fn cmd_here(s: &Snapshot) {
+    println!("saved controller compatibility snapshot ({})", age(s.ts));
     let host = std::process::Command::new("hostname")
         .output()
         .ok()
@@ -290,7 +296,7 @@ fn cmd_here(s: &Snapshot) {
     }
     if find_client(s, &host).is_some() {
         println!("this device ('{host}'):");
-        cmd_device(s, &host);
+        cmd_device_details(s, &host);
     } else {
         println!("no roster match for this host ('{host}'); UniFi may name it differently.");
         println!("your wireless devices, strongest first (try: netmon device <name>):");
@@ -346,13 +352,84 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
                 .path
                 .interface
                 .as_deref()
-                .unwrap_or("unknown interface"),
+                .map(evidence_text)
+                .unwrap_or_else(|| "unknown interface".into()),
             latest
                 .path
                 .next_hop
                 .as_deref()
-                .unwrap_or("unknown next hop"),
-            latest.record_id
+                .map(evidence_text)
+                .unwrap_or_else(|| "unknown next hop".into()),
+            evidence_text(&latest.record_id)
+        );
+        println!(
+            "source: observer {} / adapter {} {}",
+            evidence_text(&latest.source.observer_id),
+            evidence_text(&latest.source.adapter),
+            evidence_text(&latest.source.adapter_version)
+        );
+        println!(
+            "order: event {} ms unix / acquired {} ms unix / source sequence {}",
+            latest.order.event_time_unix_ms,
+            latest.order.acquired_time_unix_ms,
+            latest.order.source_sequence
+        );
+        println!(
+            "policy: {}{}",
+            collection_mode_label(latest.policy.mode),
+            if latest.policy.active_actions.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " / actions {}",
+                    latest
+                        .policy
+                        .active_actions
+                        .iter()
+                        .map(|action| evidence_text(action))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+        );
+        println!(
+            "coverage: {} / observed {} / missing {}",
+            coverage_state_label(latest.coverage.state),
+            evidence_list(&latest.coverage.observed_sources, "none"),
+            evidence_list(&latest.coverage.missing_sources, "none")
+        );
+        println!(
+            "network: {} / link {} / association {} / BSSID {}",
+            network_name_text(&latest.path.network_name),
+            latest
+                .path
+                .link_type
+                .as_deref()
+                .map(evidence_text)
+                .unwrap_or_else(|| "unknown".into()),
+            latest
+                .path
+                .association_id
+                .as_deref()
+                .map(evidence_text)
+                .unwrap_or_else(|| "unavailable".into()),
+            latest
+                .path
+                .associated_bssid
+                .as_deref()
+                .map(evidence_text)
+                .unwrap_or_else(|| "unavailable".into())
+        );
+        println!(
+            "boundary: next-hop link address {} / prefixes {} / resolvers {}",
+            latest
+                .path
+                .next_hop_link_address
+                .as_deref()
+                .map(evidence_text)
+                .unwrap_or_else(|| "unavailable".into()),
+            evidence_list(&latest.path.address_prefixes, "none"),
+            evidence_list(&latest.path.resolvers, "none")
         );
         println!(
             "history: {} prior exact key match(es) [{}], {} compatible prior observation(s), {} prior BSSID attachment variant(s) [{}]",
@@ -362,8 +439,83 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
             recurrence.distinct_prior_associated_bssids,
             attachment_corroboration_label(recurrence.attachment_corroboration),
         );
+        if let Some(transition) = state.transitions.last() {
+            println!(
+                "transition: {} / changed dimensions {}",
+                context_relation_label(transition.relation),
+                if transition.changed_dimensions.is_empty() {
+                    "none".into()
+                } else {
+                    transition.changed_dimensions.join(", ")
+                }
+            );
+        }
     }
     Ok(())
+}
+
+fn evidence_text(value: &str) -> String {
+    let mut rendered = String::new();
+    for character in value.chars().take(160) {
+        if character.is_control() {
+            rendered.extend(character.escape_default());
+        } else {
+            rendered.push(character);
+        }
+    }
+    if value.chars().count() > 160 {
+        rendered.push('…');
+    }
+    rendered
+}
+
+fn evidence_list(values: &[String], empty: &str) -> String {
+    if values.is_empty() {
+        empty.into()
+    } else {
+        values
+            .iter()
+            .map(|value| evidence_text(value))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
+
+fn collection_mode_label(mode: netmon_replay::CollectionModeV0) -> &'static str {
+    match mode {
+        netmon_replay::CollectionModeV0::PassiveHostLocal => "passive_host_local",
+        netmon_replay::CollectionModeV0::ActiveBounded => "active_bounded",
+    }
+}
+
+fn coverage_state_label(state: netmon_replay::CoverageStateV0) -> &'static str {
+    match state {
+        netmon_replay::CoverageStateV0::Complete => "complete",
+        netmon_replay::CoverageStateV0::Partial => "partial",
+        netmon_replay::CoverageStateV0::Unavailable => "unavailable",
+    }
+}
+
+fn network_name_text(name: &netmon_replay::NetworkNameV0) -> String {
+    match name.visibility {
+        netmon_replay::NetworkNameVisibilityV0::Observed => format!(
+            "observed {:?}",
+            evidence_text(name.value.as_deref().unwrap_or_default())
+        ),
+        netmon_replay::NetworkNameVisibilityV0::Restricted => {
+            "restricted by platform policy".into()
+        }
+        netmon_replay::NetworkNameVisibilityV0::Unavailable => "unavailable".into(),
+    }
+}
+
+fn context_relation_label(relation: netmon_replay::ContextRelationV0) -> &'static str {
+    match relation {
+        netmon_replay::ContextRelationV0::FirstObservation => "first_observation",
+        netmon_replay::ContextRelationV0::SameContext => "same_context",
+        netmon_replay::ContextRelationV0::CompatibleContext => "compatible_context",
+        netmon_replay::ContextRelationV0::ContextChanged => "context_changed",
+    }
 }
 
 fn exact_context_match_label(value: netmon_replay::ExactContextMatchV0) -> &'static str {
@@ -440,6 +592,30 @@ mod tests {
         assert_eq!(
             attachment_corroboration_label(netmon_replay::AttachmentCorroborationV0::SeenBefore),
             "current BSSID seen in a prior exact key match"
+        );
+    }
+
+    #[test]
+    fn evidence_projection_uses_schema_vocabulary_and_escapes_controls() {
+        assert_eq!(
+            collection_mode_label(netmon_replay::CollectionModeV0::PassiveHostLocal),
+            "passive_host_local"
+        );
+        assert_eq!(
+            coverage_state_label(netmon_replay::CoverageStateV0::Partial),
+            "partial"
+        );
+        assert_eq!(
+            context_relation_label(netmon_replay::ContextRelationV0::ContextChanged),
+            "context_changed"
+        );
+        assert_eq!(evidence_text("observer\n\u{1b}"), "observer\\n\\u{1b}");
+        assert_eq!(
+            network_name_text(&netmon_replay::NetworkNameV0 {
+                visibility: netmon_replay::NetworkNameVisibilityV0::Restricted,
+                value: None,
+            }),
+            "restricted by platform policy"
         );
     }
 
