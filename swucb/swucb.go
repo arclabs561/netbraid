@@ -110,10 +110,14 @@ func (a *SWUCBAlgorithm) Run(
 		}
 
 		var T time.Duration
-		if n[selectedChannel] < a.w {
+		windowPackets := sum(L[selectedChannel])
+		if n[selectedChannel] < a.w || windowPackets <= 0 {
 			T = a.TDefault
 		} else {
-			T = time.Duration(float64(a.w) / sum(L[selectedChannel]))
+			T = time.Duration(float64(time.Second) * float64(a.w) / windowPackets)
+			if T <= 0 {
+				T = time.Nanosecond
+			}
 		}
 
 		packetsObserved, err := packetObserver(selectedChannel, T)
