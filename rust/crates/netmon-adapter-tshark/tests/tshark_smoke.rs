@@ -1,0 +1,95 @@
+use std::fs;
+use std::path::PathBuf;
+
+use netmon_adapter_tshark::{normalize_saved_capture, NormalizeOptions};
+
+#[test]
+#[ignore = "requires an installed tshark; run through `just pcap-smoke`"]
+fn installed_tshark_normalizes_synthetic_capture() {
+    let directory = tempfile::tempdir().unwrap();
+    let tcp = normalize_fixture(
+        directory.path(),
+        "ethernet-ipv4-tcp",
+        include_str!("fixtures/ethernet_ipv4_tcp.hex"),
+    );
+    let tcp_again = normalize_fixture(
+        directory.path(),
+        "ethernet-ipv4-tcp-again",
+        include_str!("fixtures/ethernet_ipv4_tcp.hex"),
+    );
+    assert_eq!(tcp.manifest.capture_id, tcp_again.manifest.capture_id);
+    assert_eq!(
+        tcp.manifest.extractor.configuration_sha256,
+        tcp_again.manifest.extractor.configuration_sha256
+    );
+    assert_eq!(tcp.packets, tcp_again.packets);
+    let packet = &tcp.packets[0];
+    assert_eq!(
+        packet.frame.event_time_unix_ns,
+        1_700_000_000_123_456_000
+    );
+    assert_eq!(packet.ipv4.as_ref().unwrap().source, "192.0.2.1");
+    assert_eq!(
+        packet.ipv4.as_ref().unwrap().destination,
+        "198.51.100.2"
+    );
+    assert_eq!(packet.tcp.as_ref().unwrap().destination_port, 443);
+
+    let udp = normalize_fixture(
+        directory.path(),
+        "ethernet-ipv6-udp",
+        include_str!("fixtures/ethernet_ipv6_udp.hex"),
+    );
+    let packet = &udp.packets[0];
+    assert_eq!(packet.ipv6.as_ref().unwrap().source, "2001:db8::1");
+    assert_eq!(packet.ipv6.as_ref().unwrap().destination, "2001:db8::2");
+    assert_eq!(packet.udp.as_ref().unwrap().destination_port, 5353);
+
+    let arp = normalize_fixture(
+        directory.path(),
+        "ethernet-arp",
+        include_str!("fixtures/ethernet_arp.hex"),
+    );
+    let packet = &arp.packets[0];
+    assert!(packet.ipv4.is_none());
+    assert!(packet.ipv6.is_none());
+    assert!(packet.tcp.is_none());
+    assert!(packet.udp.is_none());
+    assert!(packet.frame.protocols.iter().any(|protocol| protocol == "arp"));
+}
+
+fn normalize_fixture(
+    directory: &std::path::Path,
+    name: &str,
+    fixture: &str,
+) -> netmon_adapter_tshark::NormalizationReport {
+    let input = directory.join(format!("{name}.pcap"));
+    fs::write(&input, decode_hex(fixture)).unwrap();
+    let report = normalize_saved_capture(
+        &input,
+        &NormalizeOptions {
+            tshark_path: std::env::var_os("TSHARK")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("tshark")),
+            observer_id: Some("synthetic-fixture".into()),
+            packet_limit: 10,
+            ..NormalizeOptions::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(report.packets.len(), 1);
+    assert!(report.quarantines.is_empty());
+    report
+}
+
+fn decode_hex(input: &str) -> Vec<u8> {
+    let input: String = input.chars().filter(|character| !character.is_whitespace()).collect();
+    assert_eq!(input.len() % 2, 0);
+    input
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap()
+        })
+        .collect()
+}

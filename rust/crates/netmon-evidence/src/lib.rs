@@ -8,6 +8,16 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
+mod capture;
+
+pub use capture::{
+    CAPTURE_MANIFEST_SCHEMA_V0, CaptureArtifactRefV0, CaptureNormalizationV0,
+    CaptureExtractorRefV0, CaptureManifestV0, CaptureValidationError, EthernetFieldsV0,
+    Ipv4FieldsV0, Ipv6FieldsV0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
+    NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0, PacketQuarantineV0, TcpFieldsV0,
+    UdpFieldsV0,
+};
+
 pub const HOST_PATH_SCHEMA_V0: &str = "netmon.host_path_observation.v0";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -44,6 +54,10 @@ impl CollectionPolicyV0 {
             mode: CollectionModeV0::PassiveHostLocal,
             active_actions: Vec::new(),
         }
+    }
+
+    pub fn is_passive(&self) -> bool {
+        self.mode == CollectionModeV0::PassiveHostLocal
     }
 }
 
@@ -192,9 +206,7 @@ impl HostPathObservationV0 {
         if self.source.adapter_version.trim().is_empty() {
             return Err(ValidationError::EmptyAdapterVersion);
         }
-        if self.policy.mode == CollectionModeV0::PassiveHostLocal
-            && !self.policy.active_actions.is_empty()
-        {
+        if self.policy.is_passive() && !self.policy.active_actions.is_empty() {
             return Err(ValidationError::PassivePolicyHasActiveActions);
         }
         match (

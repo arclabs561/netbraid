@@ -21,14 +21,14 @@ identity, traffic fingerprinting, or live fusion is settled.
 
 ## Decision
 
-Netmon exposes two Rust libraries beside its operator CLI:
+Netmon exposes three Rust libraries beside its operator CLI:
 
 ```text
-                    netmon-evidence
-                    /             \
-          netmon-replay          netmon CLI
-                 \
-                  Linktop CLI/TUI
+                         netmon-evidence
+                    /          |          \
+          netmon-replay        |      netmon-adapter-tshark
+                 \             |             /
+                  Linktop CLI/TUI       netmon CLI
 ```
 
 `netmon-evidence` owns serialized, versioned record types and their local
@@ -41,9 +41,13 @@ replay summaries. It may perform explicit file I/O, but it is not a daemon or
 generic storage framework. The same ordered records and cutoff must produce the
 same state.
 
-The `netmon` package remains an operator CLI. It may import both libraries as
-commands earn concrete use cases. The legacy Go CLI remains compatibility
-capture code and is not a library foundation.
+`netmon-adapter-tshark` owns the offline saved-capture process and provenance
+boundary. It returns `netmon-evidence` records; it does not capture live traffic
+or infer acquisition coverage.
+
+The `netmon` package remains an operator CLI. It may import the libraries as
+commands earn concrete use cases. The legacy Go CLI remains compatibility capture
+code and is not a library foundation.
 
 Linktop imports the libraries directly for optional prior-context comparison.
 It remains usable with no history path and no Netmon executable, service, or
@@ -69,6 +73,7 @@ Cargo.toml
 Cargo.lock
 crates/
   netmon/             # operator application, publish = false
+  netmon-adapter-tshark/
   netmon-evidence/    # versioned records and invariants
   netmon-replay/      # deterministic replay and explicit file I/O
 ```
@@ -77,10 +82,13 @@ Do not add `core`, `model`, `store`, `fusion`, `runtime`, or daemon crates in
 anticipation of future work. A package boundary must isolate a real dependency
 set, reusable API, independently released artifact, or second consumer.
 
-A future `netmon-adapter-tshark` crate is justified only when it owns bounded
-shell-free invocation, deadlines, tool/config provenance, a declared field
-registry, canonicalization, quarantine, and honest coverage. Returning raw
-TShark JSON is not enough to earn a crate.
+`netmon-adapter-tshark` earns its process boundary by owning bounded shell-free
+offline invocation, subprocess deadlines, private input staging, tool and
+effective-configuration provenance, a declared first-occurrence field registry,
+exact timestamp parsing, canonicalization, quarantine, and normalization
+completeness. Returning raw TShark JSON would not have earned a crate. Its
+saved-PCAP contract is specified in
+[`../saved-pcap-normalization.md`](../saved-pcap-normalization.md).
 
 ## Host-path v0 contract
 

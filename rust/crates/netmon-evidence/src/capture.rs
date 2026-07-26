@@ -1,0 +1,456 @@
+use std::net::{Ipv4Addr, Ipv6Addr};
+
+use serde::{Deserialize, Serialize};
+
+use crate::CollectionPolicyV0;
+
+pub const CAPTURE_MANIFEST_SCHEMA_V0: &str = "netmon.capture_manifest.v0";
+pub const PACKET_ENVELOPE_SCHEMA_V0: &str = "netmon.packet_envelope.v0";
+pub const PACKET_QUARANTINE_SCHEMA_V0: &str = "netmon.packet_quarantine.v0";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptureArtifactRefV0 {
+    pub content_sha256: String,
+    pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptureExtractorRefV0 {
+    pub adapter: String,
+    pub adapter_version: String,
+    pub tool: String,
+    pub tool_version: String,
+    pub configuration_sha256: String,
+    pub field_registry: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NormalizationStateV0 {
+    Complete,
+    Partial,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptureNormalizationV0 {
+    pub state: NormalizationStateV0,
+    pub packet_limit: u64,
+    pub packet_limit_reached: bool,
+    pub packet_rows_emitted: u64,
+    pub packet_rows_quarantined: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaptureManifestV0 {
+    pub schema: String,
+    pub capture_id: String,
+    pub artifact: CaptureArtifactRefV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observer_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acquired_time_unix_ms: Option<i64>,
+    pub extractor: CaptureExtractorRefV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acquisition_policy: Option<CollectionPolicyV0>,
+    pub normalization: CaptureNormalizationV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PacketFrameV0 {
+    pub number: u64,
+    pub event_time_unix_ns: i64,
+    pub original_len: u32,
+    pub captured_len: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub section_number: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interface_id: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encapsulation_type: Option<i16>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub protocols: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EthernetFieldsV0 {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Ipv4FieldsV0 {
+    pub source: String,
+    pub destination: String,
+    pub protocol: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Ipv6FieldsV0 {
+    pub source: String,
+    pub destination: String,
+    pub next_header: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TcpFieldsV0 {
+    pub source_port: u16,
+    pub destination_port: u16,
+    pub flags: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UdpFieldsV0 {
+    pub source_port: u16,
+    pub destination_port: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PacketEnvelopeV0 {
+    pub schema: String,
+    pub record_id: String,
+    pub capture_id: String,
+    pub frame: PacketFrameV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ethernet: Option<EthernetFieldsV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ipv4: Option<Ipv4FieldsV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ipv6: Option<Ipv6FieldsV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tcp: Option<TcpFieldsV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub udp: Option<UdpFieldsV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PacketQuarantineV0 {
+    pub schema: String,
+    pub capture_id: String,
+    pub source_line: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frame_number_hint: Option<u64>,
+    pub reason: String,
+    pub raw_row: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CaptureValidationError {
+    UnsupportedSchema(String),
+    InvalidCaptureId,
+    CaptureIdDoesNotMatchArtifact,
+    EmptyObserverId,
+    EmptyExtractorField(&'static str),
+    InvalidConfigurationDigest,
+    PassivePolicyHasActiveActions,
+    InconsistentNormalization,
+    ZeroFrameNumber,
+    UnexpectedRecordId,
+    CapturedLengthExceedsOriginal,
+    InvalidEthernetAddress(String),
+    InvalidIpv4Address(String),
+    InvalidIpv6Address(String),
+    ZeroSourceLine,
+    EmptyQuarantineReason,
+}
+
+impl std::fmt::Display for CaptureValidationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedSchema(schema) => write!(formatter, "unsupported schema {schema:?}"),
+            Self::InvalidCaptureId => {
+                formatter.write_str("capture_id must use sha256:<64 lowercase hex>")
+            }
+            Self::CaptureIdDoesNotMatchArtifact => {
+                formatter.write_str("capture_id must equal artifact.content_sha256")
+            }
+            Self::EmptyObserverId => formatter.write_str("observer_id must not be empty"),
+            Self::EmptyExtractorField(field) => {
+                write!(formatter, "extractor.{field} must not be empty")
+            }
+            Self::InvalidConfigurationDigest => {
+                formatter.write_str("extractor.configuration_sha256 is not a SHA-256 digest")
+            }
+            Self::PassivePolicyHasActiveActions => {
+                formatter.write_str("passive artifact policy cannot name active actions")
+            }
+            Self::InconsistentNormalization => formatter.write_str(
+                "complete normalization cannot have quarantines or a reached packet limit",
+            ),
+            Self::ZeroFrameNumber => formatter.write_str("frame number must be greater than zero"),
+            Self::UnexpectedRecordId => {
+                formatter.write_str("record_id must be <capture_id>:frame:<frame number>")
+            }
+            Self::CapturedLengthExceedsOriginal => {
+                formatter.write_str("captured frame length exceeds original frame length")
+            }
+            Self::InvalidEthernetAddress(value) => {
+                write!(formatter, "invalid Ethernet address {value:?}")
+            }
+            Self::InvalidIpv4Address(value) => write!(formatter, "invalid IPv4 address {value:?}"),
+            Self::InvalidIpv6Address(value) => write!(formatter, "invalid IPv6 address {value:?}"),
+            Self::ZeroSourceLine => {
+                formatter.write_str("quarantine source_line must be greater than zero")
+            }
+            Self::EmptyQuarantineReason => {
+                formatter.write_str("quarantine reason must not be empty")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CaptureValidationError {}
+
+impl CaptureManifestV0 {
+    pub fn validate(&self) -> Result<(), CaptureValidationError> {
+        validate_schema(&self.schema, CAPTURE_MANIFEST_SCHEMA_V0)?;
+        validate_capture_id(&self.capture_id)?;
+        if self.capture_id != self.artifact.content_sha256 {
+            return Err(CaptureValidationError::CaptureIdDoesNotMatchArtifact);
+        }
+        if self
+            .observer_id
+            .as_deref()
+            .is_some_and(|observer| observer.trim().is_empty())
+        {
+            return Err(CaptureValidationError::EmptyObserverId);
+        }
+        for (field, value) in [
+            ("adapter", self.extractor.adapter.as_str()),
+            ("adapter_version", self.extractor.adapter_version.as_str()),
+            ("tool", self.extractor.tool.as_str()),
+            ("tool_version", self.extractor.tool_version.as_str()),
+            (
+                "configuration_sha256",
+                self.extractor.configuration_sha256.as_str(),
+            ),
+            ("field_registry", self.extractor.field_registry.as_str()),
+        ] {
+            if value.trim().is_empty() {
+                return Err(CaptureValidationError::EmptyExtractorField(field));
+            }
+        }
+        if validate_capture_id(&self.extractor.configuration_sha256).is_err() {
+            return Err(CaptureValidationError::InvalidConfigurationDigest);
+        }
+        if self
+            .acquisition_policy
+            .as_ref()
+            .is_some_and(|policy| policy.is_passive() && !policy.active_actions.is_empty())
+        {
+            return Err(CaptureValidationError::PassivePolicyHasActiveActions);
+        }
+        if self.normalization.state == NormalizationStateV0::Complete
+            && (self.normalization.packet_limit_reached
+                || self.normalization.packet_rows_quarantined != 0)
+        {
+            return Err(CaptureValidationError::InconsistentNormalization);
+        }
+        Ok(())
+    }
+}
+
+impl PacketEnvelopeV0 {
+    pub fn validate(&self) -> Result<(), CaptureValidationError> {
+        validate_schema(&self.schema, PACKET_ENVELOPE_SCHEMA_V0)?;
+        validate_capture_id(&self.capture_id)?;
+        if self.frame.number == 0 {
+            return Err(CaptureValidationError::ZeroFrameNumber);
+        }
+        if self.record_id != format!("{}:frame:{}", self.capture_id, self.frame.number) {
+            return Err(CaptureValidationError::UnexpectedRecordId);
+        }
+        if self.frame.captured_len > self.frame.original_len {
+            return Err(CaptureValidationError::CapturedLengthExceedsOriginal);
+        }
+        if let Some(ethernet) = &self.ethernet {
+            for address in [ethernet.source.as_deref(), ethernet.destination.as_deref()]
+                .into_iter()
+                .flatten()
+            {
+                if !is_ethernet_address(address) {
+                    return Err(CaptureValidationError::InvalidEthernetAddress(
+                        address.to_owned(),
+                    ));
+                }
+            }
+        }
+        if let Some(ipv4) = &self.ipv4 {
+            for address in [&ipv4.source, &ipv4.destination] {
+                if address.parse::<Ipv4Addr>().is_err() {
+                    return Err(CaptureValidationError::InvalidIpv4Address(
+                        address.to_string(),
+                    ));
+                }
+            }
+        }
+        if let Some(ipv6) = &self.ipv6 {
+            for address in [&ipv6.source, &ipv6.destination] {
+                if address.parse::<Ipv6Addr>().is_err() {
+                    return Err(CaptureValidationError::InvalidIpv6Address(
+                        address.to_string(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl PacketQuarantineV0 {
+    pub fn validate(&self) -> Result<(), CaptureValidationError> {
+        validate_schema(&self.schema, PACKET_QUARANTINE_SCHEMA_V0)?;
+        validate_capture_id(&self.capture_id)?;
+        if self.source_line == 0 {
+            return Err(CaptureValidationError::ZeroSourceLine);
+        }
+        if self.reason.trim().is_empty() {
+            return Err(CaptureValidationError::EmptyQuarantineReason);
+        }
+        Ok(())
+    }
+}
+
+fn validate_schema(actual: &str, expected: &str) -> Result<(), CaptureValidationError> {
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(CaptureValidationError::UnsupportedSchema(
+            actual.to_owned(),
+        ))
+    }
+}
+
+fn validate_capture_id(value: &str) -> Result<(), CaptureValidationError> {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return Err(CaptureValidationError::InvalidCaptureId);
+    };
+    if hex.len() == 64
+        && hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        Ok(())
+    } else {
+        Err(CaptureValidationError::InvalidCaptureId)
+    }
+}
+
+fn is_ethernet_address(value: &str) -> bool {
+    let mut parts = value.split(':');
+    (0..6).all(|_| {
+        parts
+            .next()
+            .is_some_and(|part| part.len() == 2 && part.bytes().all(|byte| byte.is_ascii_hexdigit()))
+    }) && parts.next().is_none()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const DIGEST: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    fn manifest() -> CaptureManifestV0 {
+        CaptureManifestV0 {
+            schema: CAPTURE_MANIFEST_SCHEMA_V0.into(),
+            capture_id: DIGEST.into(),
+            artifact: CaptureArtifactRefV0 {
+                content_sha256: DIGEST.into(),
+                size_bytes: 128,
+            },
+            observer_id: Some("sensor-a".into()),
+            acquired_time_unix_ms: None,
+            extractor: CaptureExtractorRefV0 {
+                adapter: "netmon-adapter-tshark".into(),
+                adapter_version: "0.0.1".into(),
+                tool: "tshark".into(),
+                tool_version: "TShark (Wireshark) 4.6.7".into(),
+                configuration_sha256: DIGEST.into(),
+                field_registry: "netmon.tshark.packet_envelope.v0".into(),
+            },
+            acquisition_policy: None,
+            normalization: CaptureNormalizationV0 {
+                state: NormalizationStateV0::Complete,
+                packet_limit: 1_000,
+                packet_limit_reached: false,
+                packet_rows_emitted: 1,
+                packet_rows_quarantined: 0,
+            },
+        }
+    }
+
+    fn packet() -> PacketEnvelopeV0 {
+        PacketEnvelopeV0 {
+            schema: PACKET_ENVELOPE_SCHEMA_V0.into(),
+            record_id: format!("{DIGEST}:frame:1"),
+            capture_id: DIGEST.into(),
+            frame: PacketFrameV0 {
+                number: 1,
+                event_time_unix_ns: 1_700_000_000_123_456_789,
+                original_len: 74,
+                captured_len: 74,
+                section_number: Some(0),
+                interface_id: Some(0),
+                encapsulation_type: Some(1),
+                protocols: vec!["eth".into(), "ethertype".into(), "ip".into(), "tcp".into()],
+            },
+            ethernet: Some(EthernetFieldsV0 {
+                source: Some("02:00:00:00:00:01".into()),
+                destination: Some("02:00:00:00:00:02".into()),
+            }),
+            ipv4: Some(Ipv4FieldsV0 {
+                source: "192.0.2.1".into(),
+                destination: "198.51.100.2".into(),
+                protocol: 6,
+            }),
+            ipv6: None,
+            tcp: Some(TcpFieldsV0 {
+                source_port: 40_000,
+                destination_port: 443,
+                flags: 2,
+            }),
+            udp: None,
+        }
+    }
+
+    #[test]
+    fn manifest_requires_honest_complete_normalization() {
+        let mut value = manifest();
+        value.normalization.packet_rows_quarantined = 1;
+
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::InconsistentNormalization)
+        );
+    }
+
+    #[test]
+    fn packet_rejects_cross_layer_length_and_address_errors() {
+        let mut value = packet();
+        value.frame.captured_len = 75;
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::CapturedLengthExceedsOriginal)
+        );
+
+        let mut value = packet();
+        value.ipv4.as_mut().unwrap().source = "2001:db8::1".into();
+        assert!(matches!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidIpv4Address(_))
+        ));
+    }
+
+    #[test]
+    fn golden_packet_json_preserves_protocol_order_and_exact_time() {
+        let value = packet();
+        value.validate().unwrap();
+
+        assert_eq!(
+            format!("{}\n", serde_json::to_string(&value).unwrap()),
+            include_str!("../tests/fixtures/packet_envelope_v0.json")
+        );
+    }
+}
