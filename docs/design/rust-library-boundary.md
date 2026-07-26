@@ -37,9 +37,10 @@ access, networking, controller client, or deployment policy.
 
 `netmon-replay` owns deterministic operations over those records: JSONL
 decoding, append validation, ordering, context comparison, recurrence, and
-replay summaries. It may perform explicit file I/O, but it is not a daemon or
-generic storage framework. The same ordered records and cutoff must produce the
-same state.
+replay summaries, plus pure capture-conversation reduction over packet
+envelopes. It may perform explicit file I/O, but it is not a daemon or generic
+storage framework. The same records, ordering inputs, and cutoff must produce
+the same state.
 
 `netmon-adapter-tshark` owns the offline saved-capture process and provenance
 boundary. It returns `netmon-evidence` records; it does not capture live traffic
@@ -169,5 +170,8 @@ durability guarantee.
 - A consumer builds from a fresh checkout without a sibling Netmon checkout.
 - Shared crates contain no collection, controller, actuation, or identity
   policy.
+- Capture conversations keep observation points separate, use canonical
+  endpoint direction rather than guessed initiator direction, and report
+  excluded packet-envelope coverage.
 - Semver publication requires backward-compatibility tests and representative
   fixtures beyond the host-path v0 slice.

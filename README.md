@@ -37,7 +37,7 @@ repository's current charter.
 | --- | --- | --- |
 | Go capture CLI | Legacy compatibility | Acquire selected packet/RF observations as PCAP and JSONL |
 | Rust snapshot CLI | Compatibility reader | Interpret the latest saved netops audit snapshot |
-| Rust v0 libraries | Experimental | Record, compare, and summarize observer-scoped key matches and anchored recurrence for explicit host-path context |
+| Rust v0 libraries | Experimental | Record and replay evidence, compare host-path context, and reduce eligible packet envelopes into capture-wide conversations |
 | Rust Wireshark-tool adapter | Experimental | Normalize bounded saved captures into manifests, successful-run receipts, packet envelopes, and quarantines without live capture |
 | `swucb/` | Retained experiment | Evaluate adaptive channel-selection policy independently |
 | Rust evidence/replay core | Gated future | Normalize immutable artifacts, replay evidence, and reduce temporal state deterministically |
@@ -129,14 +129,18 @@ each log.
 The `pcap` command is offline and non-interactive. Its text output reports artifact
 identity, observer/acquisition unknowns, Capinfos file type and declared extent,
 normalization completeness, packet/quarantine counts, the normalized packet subset,
-protocol stacks, first-occurrence L3 directions, transport destinations, and the
-successful run identifier and emitted-record digest. `--jsonl` emits
+protocol stacks, capture-wide TCP/UDP conversations with directional frame/octet
+counts and observed TCP flags, and the successful run identifier and emitted-record
+digest. Conversation output uses canonical endpoint A/B ordering rather than claiming
+an initiator, and reports excluded packet-envelope coverage by typed reason. `--jsonl` emits
 `netmon.capture_manifest.v0`, `netmon.capture_run_receipt.v0`,
 `netmon.packet_envelope.v0`, and `netmon.packet_quarantine.v0` records. The manifest
 does not infer that a detached artifact was acquired passively or that it covered a
 network, channel, or interval completely; observer, acquisition time, acquisition
 policy, and acquisition coverage are absent unless independently supplied. See
 [`docs/saved-pcap-normalization.md`](docs/saved-pcap-normalization.md).
+The deliberately non-sessionized conversation reducer is specified in
+[`docs/design/capture-conversation-reduction.md`](docs/design/capture-conversation-reduction.md).
 
 ## Promotion gates
 
@@ -242,11 +246,14 @@ go test ./...
 cargo test --manifest-path rust/Cargo.toml
 just rust-check
 just pcap-smoke
+just pcap-smoke-show
 ```
 
 The root `just test` also runs the repository's Go lint configuration before tests.
 `just pcap-smoke` is opt-in because it invokes the locally installed TShark and
 Capinfos against readable synthetic PCAP and PCAPNG fixtures.
+`just pcap-smoke-show` prints the finite operator summary from the CLI fixture so
+presentation changes can be reviewed without preparing a local capture.
 
 ## License
 

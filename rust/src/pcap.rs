@@ -11,6 +11,10 @@ use netmon_adapter_tshark::{
     DEFAULT_MAX_STDOUT_BYTES, DEFAULT_PACKET_LIMIT, DEFAULT_TIMEOUT,
 };
 use netmon_evidence::NormalizationStateV0;
+use netmon_replay::{
+    reduce_capture_conversations, CaptureConversationV0, ConversationDirectionV0,
+    TransportProtocolV0,
+};
 
 const MIB: u64 = 1024 * 1024;
 
@@ -138,10 +142,6 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
             "policy unknown (detached artifact)"
         }
     );
-    println!(
-        "  extractor     {}",
-        operator_text(&manifest.extractor.tool_version)
-    );
     println!("  registry      {}", manifest.extractor.field_registry);
     println!(
         "  configuration {}",
@@ -157,7 +157,7 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
         operator_text(&file.timestamp_precision)
     );
     println!(
-        "  extent        {} packets / {} original packet bytes / {} file bytes",
+        "  extent        {} packets / {} original packet-data octets / {} file bytes",
         file.packet_count, file.original_data_size_bytes, file.file_size_bytes
     );
     println!(
@@ -217,33 +217,15 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
         }
     );
     println!(
-        "  file rows     {} declared / {} inspected",
-        file.packet_count,
-        manifest.normalization.packet_rows_emitted + manifest.normalization.packet_rows_quarantined
-    );
-
-    println!("\nsuccessful run");
-    println!("  id            {}", report.receipt.run_id);
-    println!(
-        "  elapsed       {}",
-        format_u64_duration_ns(report.receipt.elapsed_ns)
-    );
-    println!(
-        "  capinfos      {}",
-        operator_text(&report.receipt.capinfos.tool_version)
-    );
-    println!(
-        "  tshark        {}",
-        operator_text(&report.receipt.tshark.tool_version)
-    );
-    println!(
-        "  records       {}",
-        report.receipt.normalized_records_sha256
+        "  inspection    {} of {} file packets",
+        manifest.normalization.packet_rows_emitted + manifest.normalization.packet_rows_quarantined,
+        file.packet_count
     );
 
     if report.packets.is_empty() {
-        println!("\npacket envelope\n  no packet rows emitted");
+        println!("\nnormalized packet subset\n  no packet rows emitted");
         print_quarantines(report);
+        print_successful_run(report);
         return;
     }
 
@@ -270,7 +252,7 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
         .map(|packet| u64::from(packet.frame.captured_len))
         .sum();
 
-    println!("\npacket envelope");
+    println!("\nnormalized packet subset");
     println!(
         "  span          {} .. {}  ({})",
         format_epoch_ns(first_ns),
@@ -284,35 +266,14 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
         wire_bytes.saturating_sub(captured_bytes)
     );
 
+    print_capture_conversations(report);
+
     let protocol_stacks = count_by(report, |packet| {
         (!packet.frame.protocols.is_empty()).then(|| packet.frame.protocols.join(":"))
     });
     print_counts("protocol stacks", &protocol_stacks, 8);
-
-    let conversations = count_many(report, |packet| {
-        let mut values = Vec::new();
-        if let Some(ipv4) = &packet.ipv4 {
-            values.push(format!("IPv4 {} → {}", ipv4.source, ipv4.destination));
-        }
-        if let Some(ipv6) = &packet.ipv6 {
-            values.push(format!("IPv6 {} → {}", ipv6.source, ipv6.destination));
-        }
-        values
-    });
-    print_counts("L3 directions (first occurrence)", &conversations, 8);
-
-    let transport = count_many(report, |packet| {
-        let mut values = Vec::new();
-        if let Some(tcp) = &packet.tcp {
-            values.push(format!("TCP dst/{}", tcp.destination_port));
-        }
-        if let Some(udp) = &packet.udp {
-            values.push(format!("UDP dst/{}", udp.destination_port));
-        }
-        values
-    });
-    print_counts("transport destinations (first occurrence)", &transport, 8);
     print_quarantines(report);
+    print_successful_run(report);
 }
 
 fn print_quarantines(report: &NormalizationReport) {
@@ -348,19 +309,6 @@ fn count_by(
     counts
 }
 
-fn count_many(
-    report: &NormalizationReport,
-    keys: impl Fn(&netmon_evidence::PacketEnvelopeV0) -> Vec<String>,
-) -> BTreeMap<String, usize> {
-    let mut counts = BTreeMap::new();
-    for packet in &report.packets {
-        for key in keys(packet) {
-            *counts.entry(key).or_default() += 1;
-        }
-    }
-    counts
-}
-
 fn print_counts(title: &str, counts: &BTreeMap<String, usize>, limit: usize) {
     if counts.is_empty() {
         return;
@@ -374,6 +322,135 @@ fn print_counts(title: &str, counts: &BTreeMap<String, usize>, limit: usize) {
     });
     for (name, count) in ranked.into_iter().take(limit) {
         println!("  {count:>8}  {}", operator_text(name));
+    }
+}
+
+fn print_capture_conversations(report: &NormalizationReport) {
+    let reduced = reduce_capture_conversations(&report.packets);
+    println!("\ncapture conversations");
+    println!("  scope         capture-wide; endpoint A/B is canonical, not initiator");
+    println!(
+        "  coverage      {} grouped / {} emitted packet envelopes / {} excluded",
+        reduced.packet_envelopes_grouped,
+        reduced.packet_envelopes_seen,
+        reduced.packet_envelopes_excluded
+    );
+    for (reason, count) in &reduced.exclusions {
+        println!("  excluded      {count} {}", reason.label());
+    }
+    for conversation in reduced.conversations.iter().take(8) {
+        print_capture_conversation(conversation);
+    }
+    if reduced.conversations.len() > 8 {
+        println!(
+            "  … {} more capture conversations",
+            reduced.conversations.len() - 8
+        );
+    }
+}
+
+fn print_capture_conversation(conversation: &CaptureConversationV0) {
+    let protocol = match conversation.key.transport {
+        TransportProtocolV0::Tcp => "TCP",
+        TransportProtocolV0::Udp => "UDP",
+    };
+    println!(
+        "\n  {protocol} {} ↔ {}",
+        format_endpoint(&conversation.key.endpoint_a),
+        format_endpoint(&conversation.key.endpoint_b)
+    );
+    println!(
+        "    point       section={} / interface={} / encapsulation={}",
+        optional_number(conversation.key.observation_point.section_number),
+        optional_number(conversation.key.observation_point.interface_id),
+        optional_number(conversation.key.observation_point.encapsulation_type)
+    );
+    println!(
+        "    total       {} {} / {} original frame octets / {} captured frame octets",
+        conversation.total_frames(),
+        plural(conversation.total_frames(), "frame", "frames"),
+        conversation.total_original_frame_octets(),
+        conversation.total_captured_frame_octets()
+    );
+    print_conversation_direction("A→B", &conversation.a_to_b);
+    print_conversation_direction("B→A", &conversation.b_to_a);
+    println!(
+        "    span        {} .. {}  ({})",
+        format_epoch_ns(conversation.earliest_event_time_unix_ns),
+        format_epoch_ns(conversation.latest_event_time_unix_ns),
+        format_duration_ns(
+            conversation
+                .latest_event_time_unix_ns
+                .saturating_sub(conversation.earliest_event_time_unix_ns)
+        )
+    );
+}
+
+fn print_successful_run(report: &NormalizationReport) {
+    println!("\nsuccessful run");
+    println!("  id            {}", report.receipt.run_id);
+    println!(
+        "  elapsed       {}",
+        format_u64_duration_ns(report.receipt.elapsed_ns)
+    );
+    println!(
+        "  capinfos      {}",
+        operator_text(&report.receipt.capinfos.tool_version)
+    );
+    println!(
+        "  tshark        {}",
+        operator_text(&report.receipt.tshark.tool_version)
+    );
+    println!(
+        "  records       {}",
+        report.receipt.normalized_records_sha256
+    );
+}
+
+fn print_conversation_direction(label: &str, direction: &ConversationDirectionV0) {
+    print!(
+        "    {label:<11} {} {} / {} original / {} captured",
+        direction.frames,
+        plural(direction.frames, "frame", "frames"),
+        direction.original_frame_octets,
+        direction.captured_frame_octets
+    );
+    if let Some(flags) = &direction.tcp_flags {
+        if flags.syn_without_ack_frames != 0
+            || flags.syn_ack_frames != 0
+            || flags.fin_frames != 0
+            || flags.rst_frames != 0
+        {
+            print!(
+                " / flags SYN={} SYN+ACK={} FIN={} RST={}",
+                flags.syn_without_ack_frames,
+                flags.syn_ack_frames,
+                flags.fin_frames,
+                flags.rst_frames
+            );
+        }
+    }
+    println!();
+}
+
+fn format_endpoint(endpoint: &netmon_replay::ConversationEndpointV0) -> String {
+    match endpoint.address {
+        std::net::IpAddr::V4(address) => format!("{address}:{}", endpoint.port),
+        std::net::IpAddr::V6(address) => format!("[{address}]:{}", endpoint.port),
+    }
+}
+
+fn optional_number<T: std::fmt::Display>(value: Option<T>) -> String {
+    value
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "unknown".into())
+}
+
+fn plural<'a>(value: u64, singular: &'a str, plural: &'a str) -> &'a str {
+    if value == 1 {
+        singular
+    } else {
+        plural
     }
 }
 
