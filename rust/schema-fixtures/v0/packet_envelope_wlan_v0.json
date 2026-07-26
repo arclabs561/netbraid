@@ -1,0 +1,34 @@
+{
+  "schema": "netmon.packet_envelope.v0",
+  "record_id": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef:frame:2",
+  "capture_id": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "frame": {
+    "number": 2,
+    "event_time_unix_ns": 1700000000223456789,
+    "original_len": 144,
+    "captured_len": 144,
+    "section_number": 0,
+    "interface_id": 0,
+    "encapsulation_type": 23,
+    "protocols": [
+      "radiotap",
+      "wlan_radio",
+      "wlan"
+    ]
+  },
+  "ieee80211": {
+    "frame_type": 0,
+    "frame_subtype": 5,
+    "transmitter": "02:00:00:00:00:01",
+    "receiver": "ff:ff:ff:ff:ff:ff",
+    "source": "02:00:00:00:00:01",
+    "destination": "ff:ff:ff:ff:ff:ff",
+    "bssid": "02:00:00:00:00:01",
+    "ssid_hex": "6f6d7573"
+  },
+  "wlan_radio": {
+    "channel": 1,
+    "center_frequency_mhz": 2412,
+    "signal_dbm": -74
+  }
+}

@@ -1,12 +1,12 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use netmon_evidence::{
-    EthernetFieldsV0, Ipv4FieldsV0, Ipv6FieldsV0, PacketEnvelopeV0, PacketFrameV0,
-    PacketQuarantineV0, TcpFieldsV0, UdpFieldsV0, PACKET_ENVELOPE_SCHEMA_V0,
-    PACKET_QUARANTINE_SCHEMA_V0,
+    EthernetFieldsV0, Ieee80211FieldsV0, Ipv4FieldsV0, Ipv6FieldsV0, PacketEnvelopeV0,
+    PacketFrameV0, PacketQuarantineV0, TcpFieldsV0, UdpFieldsV0, WlanRadioFieldsV0,
+    PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
 };
 
-pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v0";
+pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v1";
 
 pub const FIELDS: &[&str] = &[
     "frame.number",
@@ -30,6 +30,17 @@ pub const FIELDS: &[&str] = &[
     "tcp.flags",
     "udp.srcport",
     "udp.dstport",
+    "wlan.fc.type",
+    "wlan.fc.subtype",
+    "wlan.ta",
+    "wlan.ra",
+    "wlan.sa",
+    "wlan.da",
+    "wlan.bssid",
+    "wlan.ssid",
+    "wlan_radio.channel",
+    "wlan_radio.frequency",
+    "wlan_radio.signal_dbm",
 ];
 
 pub(crate) struct ParsedRows {
@@ -103,6 +114,8 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
     let ipv6 = parse_ipv6(&fields)?;
     let tcp = parse_tcp(&fields)?;
     let udp = parse_udp(&fields)?;
+    let ieee80211 = parse_ieee80211(&fields)?;
+    let wlan_radio = parse_wlan_radio(&fields)?;
     let packet = PacketEnvelopeV0 {
         schema: PACKET_ENVELOPE_SCHEMA_V0.into(),
         record_id: format!("{capture_id}:frame:{frame_number}"),
@@ -126,6 +139,8 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
         ipv6,
         tcp,
         udp,
+        ieee80211,
+        wlan_radio,
     };
     packet.validate().map_err(|error| error.to_string())?;
     Ok(packet)
@@ -202,6 +217,41 @@ fn parse_udp(fields: &[&str]) -> Result<Option<UdpFieldsV0>, String> {
     }
 }
 
+fn parse_ieee80211(fields: &[&str]) -> Result<Option<Ieee80211FieldsV0>, String> {
+    match (fields[21].is_empty(), fields[22].is_empty()) {
+        (true, true) => {
+            if fields[23..=28].iter().any(|field| !field.is_empty()) {
+                Err("IEEE 802.11 attributes exist without frame type and subtype".into())
+            } else {
+                Ok(None)
+            }
+        }
+        (false, false) => Ok(Some(Ieee80211FieldsV0 {
+            frame_type: parse_required(fields[21], FIELDS[21])?,
+            frame_subtype: parse_required(fields[22], FIELDS[22])?,
+            transmitter: canonical_ethernet(fields[23])?,
+            receiver: canonical_ethernet(fields[24])?,
+            source: canonical_ethernet(fields[25])?,
+            destination: canonical_ethernet(fields[26])?,
+            bssid: canonical_ethernet(fields[27])?,
+            ssid_hex: canonical_ssid_hex(fields[28])?,
+        })),
+        _ => Err("incomplete first-occurrence IEEE 802.11 frame type group".into()),
+    }
+}
+
+fn parse_wlan_radio(fields: &[&str]) -> Result<Option<WlanRadioFieldsV0>, String> {
+    if fields[29..=31].iter().all(|field| field.is_empty()) {
+        Ok(None)
+    } else {
+        Ok(Some(WlanRadioFieldsV0 {
+            channel: parse_optional(fields[29], FIELDS[29])?,
+            center_frequency_mhz: parse_optional(fields[30], FIELDS[30])?,
+            signal_dbm: parse_optional(fields[31], FIELDS[31])?,
+        }))
+    }
+}
+
 fn parse_required<T>(value: &str, field: &str) -> Result<T, String>
 where
     T: std::str::FromStr,
@@ -248,6 +298,26 @@ fn canonical_ethernet(value: &str) -> Result<Option<String>, String> {
         Ok(Some(value))
     } else {
         Err(format!("{value:?} is not an Ethernet address"))
+    }
+}
+
+fn canonical_ssid_hex(value: &str) -> Result<Option<String>, String> {
+    if value.is_empty() {
+        return Ok(None);
+    }
+    let value = value.to_ascii_lowercase();
+    if value.len().is_multiple_of(2)
+        && value.len() <= 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        Ok(Some(value))
+    } else {
+        Err(format!(
+            "{} has invalid nonempty SSID bytes {value:?}",
+            FIELDS[28]
+        ))
     }
 }
 
@@ -333,6 +403,55 @@ mod tests {
             "0x0002",
             "",
             "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ]
+        .join("\t")
+    }
+
+    fn wireless_row() -> String {
+        [
+            "2",
+            "1700000000.223456789",
+            "144",
+            "144",
+            "0",
+            "0",
+            "23",
+            "radiotap:wlan_radio:wlan",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "0",
+            "5",
+            "02:00:00:00:00:01",
+            "ff:ff:ff:ff:ff:ff",
+            "02:00:00:00:00:01",
+            "ff:ff:ff:ff:ff:ff",
+            "02:00:00:00:00:01",
+            "6F6D7573",
+            "1",
+            "2412",
+            "-74",
         ]
         .join("\t")
     }
@@ -347,6 +466,60 @@ mod tests {
         assert_eq!(packet.frame.event_time_unix_ns, 1_700_000_000_123_456_789);
         assert_eq!(packet.frame.protocols, ["eth", "ethertype", "ip", "tcp"]);
         assert_eq!(packet.tcp.as_ref().unwrap().destination_port, 443);
+    }
+
+    #[test]
+    fn parser_preserves_wireless_header_and_normalized_radio_evidence() {
+        let parsed = parse_rows(format!("{}\n", wireless_row()).as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.quarantines.is_empty());
+        let packet = &parsed.packets[0];
+        let ieee80211 = packet.ieee80211.as_ref().unwrap();
+        assert_eq!((ieee80211.frame_type, ieee80211.frame_subtype), (0, 5));
+        assert_eq!(ieee80211.transmitter.as_deref(), Some("02:00:00:00:00:01"));
+        assert_eq!(ieee80211.ssid_hex.as_deref(), Some("6f6d7573"));
+        let radio = packet.wlan_radio.as_ref().unwrap();
+        assert_eq!(radio.channel, Some(1));
+        assert_eq!(radio.center_frequency_mhz, Some(2412));
+        assert_eq!(radio.signal_dbm, Some(-74));
+    }
+
+    #[test]
+    fn malformed_wireless_groups_are_quarantined_with_specific_reasons() {
+        let mutate = |index: usize, value: &str| {
+            let mut fields = wireless_row()
+                .split('\t')
+                .map(str::to_owned)
+                .collect::<Vec<_>>();
+            fields[index] = value.into();
+            fields.join("\t")
+        };
+
+        let missing_type_and_subtype = {
+            let mut fields = wireless_row()
+                .split('\t')
+                .map(str::to_owned)
+                .collect::<Vec<_>>();
+            fields[21].clear();
+            fields[22].clear();
+            fields.join("\t")
+        };
+        let missing_subtype = mutate(22, "");
+        let zero_channel = mutate(29, "0");
+        let input = format!("{missing_type_and_subtype}\n{missing_subtype}\n{zero_channel}\n");
+        let parsed = parse_rows(input.as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.packets.is_empty());
+        assert_eq!(parsed.quarantines.len(), 3);
+        assert!(parsed.quarantines[0]
+            .reason
+            .contains("attributes exist without frame type and subtype"));
+        assert!(parsed.quarantines[1]
+            .reason
+            .contains("incomplete first-occurrence IEEE 802.11 frame type group"));
+        assert!(parsed.quarantines[2]
+            .reason
+            .contains("WLAN channel must be greater than zero"));
     }
 
     #[test]

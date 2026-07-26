@@ -24,7 +24,28 @@
         "original_data_size_bytes": 1399,
         "packets_emitted": 10,
         "packets_quarantined": 0,
-        "required_protocols": ["radiotap", "wlan"]
+        "required_protocols": ["radiotap", "wlan"],
+        "ieee80211": {
+          "frames": 10,
+          "radio_frames": 7,
+          "bssid_frames": 7,
+          "transmitter_frames": 7,
+          "nonempty_ssid_frames": 2,
+          "frame_mix": [
+            {"frame_type": 0, "frame_subtype": 0, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 1, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 5, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 11, "frames": 2},
+            {"frame_type": 1, "frame_subtype": 13, "frames": 3},
+            {"frame_type": 2, "frame_subtype": 4, "frames": 2}
+          ],
+          "channels": [1],
+          "center_frequencies_mhz": [2412],
+          "signal_dbm": {"samples": 7, "minimum": -74, "maximum": -14},
+          "bssids": ["90:a4:de:c0:46:0a"],
+          "transmitters": ["90:a4:de:c0:46:0a", "90:a4:de:c0:46:11"],
+          "ssid_hex": ["6f6d7573"]
+        }
       }
     },
     {

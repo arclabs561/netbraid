@@ -48,6 +48,38 @@ struct Expected {
     packets_emitted: u64,
     packets_quarantined: u64,
     required_protocols: Vec<String>,
+    #[serde(default)]
+    ieee80211: Option<ExpectedIeee80211>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExpectedIeee80211 {
+    frames: usize,
+    radio_frames: usize,
+    bssid_frames: usize,
+    transmitter_frames: usize,
+    nonempty_ssid_frames: usize,
+    frame_mix: Vec<ExpectedFrameMix>,
+    channels: Vec<u32>,
+    center_frequencies_mhz: Vec<u16>,
+    signal_dbm: ExpectedSignalRange,
+    bssids: Vec<String>,
+    transmitters: Vec<String>,
+    ssid_hex: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+struct ExpectedFrameMix {
+    frame_type: u8,
+    frame_subtype: u8,
+    frames: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExpectedSignalRange {
+    samples: usize,
+    minimum: i8,
+    maximum: i8,
 }
 
 #[test]
@@ -262,7 +294,154 @@ fn installed_wireshark_tools_normalize_curated_corpus() {
                 fixture.id
             );
         }
+
+        assert_ieee80211_expectations(&fixture, &report.packets);
     }
+}
+
+fn assert_ieee80211_expectations(fixture: &Fixture, packets: &[netmon_evidence::PacketEnvelopeV0]) {
+    let Some(expected) = &fixture.expected.ieee80211 else {
+        assert!(
+            packets.iter().all(|packet| packet.ieee80211.is_none()),
+            "{} unexpectedly exposed IEEE 802.11 fields",
+            fixture.id
+        );
+        assert!(
+            packets.iter().all(|packet| packet.wlan_radio.is_none()),
+            "{} unexpectedly exposed WLAN radio fields",
+            fixture.id
+        );
+        return;
+    };
+
+    let wireless: Vec<_> = packets
+        .iter()
+        .filter_map(|packet| packet.ieee80211.as_ref())
+        .collect();
+    assert_eq!(
+        wireless.len(),
+        expected.frames,
+        "{} WLAN frames",
+        fixture.id
+    );
+    assert_eq!(
+        packets
+            .iter()
+            .filter(|packet| packet.wlan_radio.is_some())
+            .count(),
+        expected.radio_frames,
+        "{} radio metadata coverage",
+        fixture.id
+    );
+    assert_eq!(
+        wireless
+            .iter()
+            .filter(|fields| fields.bssid.is_some())
+            .count(),
+        expected.bssid_frames,
+        "{} BSSID coverage",
+        fixture.id
+    );
+    assert_eq!(
+        wireless
+            .iter()
+            .filter(|fields| fields.transmitter.is_some())
+            .count(),
+        expected.transmitter_frames,
+        "{} transmitter-address coverage",
+        fixture.id
+    );
+    assert_eq!(
+        wireless
+            .iter()
+            .filter(|fields| fields.ssid_hex.is_some())
+            .count(),
+        expected.nonempty_ssid_frames,
+        "{} SSID coverage",
+        fixture.id
+    );
+
+    let mut frame_mix = std::collections::BTreeMap::new();
+    for fields in &wireless {
+        *frame_mix
+            .entry((fields.frame_type, fields.frame_subtype))
+            .or_insert(0) += 1;
+    }
+    let observed_mix: Vec<_> = frame_mix
+        .into_iter()
+        .map(|((frame_type, frame_subtype), frames)| ExpectedFrameMix {
+            frame_type,
+            frame_subtype,
+            frames,
+        })
+        .collect();
+    assert_eq!(observed_mix, expected.frame_mix, "{} frame mix", fixture.id);
+
+    let radios: Vec<_> = packets
+        .iter()
+        .filter_map(|packet| packet.wlan_radio.as_ref())
+        .collect();
+    assert_eq!(
+        unique_sorted(radios.iter().filter_map(|radio| radio.channel)),
+        expected.channels,
+        "{} channels",
+        fixture.id
+    );
+    assert_eq!(
+        unique_sorted(radios.iter().filter_map(|radio| radio.center_frequency_mhz)),
+        expected.center_frequencies_mhz,
+        "{} center frequencies",
+        fixture.id
+    );
+    let signals: Vec<_> = radios.iter().filter_map(|radio| radio.signal_dbm).collect();
+    assert_eq!(
+        signals.len(),
+        expected.signal_dbm.samples,
+        "{} signal sample coverage",
+        fixture.id
+    );
+    assert_eq!(
+        signals.iter().min().copied(),
+        Some(expected.signal_dbm.minimum),
+        "{} signal minimum",
+        fixture.id
+    );
+    assert_eq!(
+        signals.iter().max().copied(),
+        Some(expected.signal_dbm.maximum),
+        "{} signal maximum",
+        fixture.id
+    );
+    assert_eq!(
+        unique_sorted(wireless.iter().filter_map(|fields| fields.bssid.clone())),
+        expected.bssids,
+        "{} BSSIDs",
+        fixture.id
+    );
+    assert_eq!(
+        unique_sorted(
+            wireless
+                .iter()
+                .filter_map(|fields| fields.transmitter.clone())
+        ),
+        expected.transmitters,
+        "{} transmitter addresses",
+        fixture.id
+    );
+    assert_eq!(
+        unique_sorted(wireless.iter().filter_map(|fields| fields.ssid_hex.clone())),
+        expected.ssid_hex,
+        "{} SSID bytes",
+        fixture.id
+    );
+}
+
+fn unique_sorted<T: Ord>(values: impl IntoIterator<Item = T>) -> Vec<T> {
+    values
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn fixtures_root() -> PathBuf {

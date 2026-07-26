@@ -180,6 +180,15 @@ and emitted-record digest. Conversation output uses canonical endpoint A/B
 ordering rather than claiming an initiator, and reports excluded
 packet-envelope coverage by typed reason.
 
+For saved wireless captures, normalized packet records may also carry typed
+IEEE 802.11 frame type/subtype, TA/RA/SA/DA/BSSID identifiers, nonempty SSID
+element bytes, and normalized channel/frequency/signal metadata when TShark
+supplies them. Finite text ranks frame mix, radio contexts, observed BSSIDs,
+transmitter addresses, and SSID elements with explicit packet-field coverage.
+These are artifact observations, not claims about complete channel coverage,
+device identity, role, presence, or intent. See
+[`docs/design/saved-capture-wlan-evidence.md`](docs/design/saved-capture-wlan-evidence.md).
+
 `--jsonl` emits the manifest, occurrence-specific successful-run receipt,
 packet envelopes, and quarantines. Its receipt deliberately changes across
 runs: it includes a run ID, wall-clock interval, elapsed time, and raw tool

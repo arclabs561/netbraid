@@ -10,7 +10,7 @@ use netmon_adapter_tshark::{
     normalize_saved_capture, NormalizationReport, NormalizeOptions, DEFAULT_MAX_INPUT_BYTES,
     DEFAULT_MAX_STDOUT_BYTES, DEFAULT_PACKET_LIMIT, DEFAULT_TIMEOUT,
 };
-use netmon_evidence::NormalizationStateV0;
+use netmon_evidence::{NormalizationStateV0, PacketEnvelopeV0};
 use netmon_replay::{
     reduce_capture_conversations, CaptureConversationV0, ConversationDirectionV0,
     TransportProtocolV0,
@@ -273,6 +273,9 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
         wire_bytes.saturating_sub(captured_bytes)
     );
 
+    if let Some(summary) = render_ieee80211_summary(&report.packets) {
+        print!("{summary}");
+    }
     print_capture_conversations(report);
 
     let protocol_stacks = count_by(report, |packet| {
@@ -281,6 +284,347 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
     print_counts("protocol stacks", &protocol_stacks, 8);
     print_quarantines(report);
     print_successful_run(report);
+}
+
+fn render_ieee80211_summary(packets: &[PacketEnvelopeV0]) -> Option<String> {
+    const FRAME_MIX_LIMIT: usize = 12;
+    const RADIO_CONTEXT_LIMIT: usize = 8;
+    const IDENTIFIER_LIMIT: usize = 8;
+
+    #[derive(Default)]
+    struct RadioContextSummary {
+        frames: usize,
+        signals: Vec<i8>,
+    }
+
+    let wireless_frames = packets
+        .iter()
+        .filter(|packet| packet.ieee80211.is_some())
+        .count();
+    if wireless_frames == 0 {
+        return None;
+    }
+
+    let radio_frames = packets
+        .iter()
+        .filter(|packet| packet.wlan_radio.is_some())
+        .count();
+    let bssid_frames = packets
+        .iter()
+        .filter(|packet| {
+            packet
+                .ieee80211
+                .as_ref()
+                .and_then(|fields| fields.bssid.as_ref())
+                .is_some()
+        })
+        .count();
+    let transmitter_frames = packets
+        .iter()
+        .filter(|packet| {
+            packet
+                .ieee80211
+                .as_ref()
+                .and_then(|fields| fields.transmitter.as_ref())
+                .is_some()
+        })
+        .count();
+    let ssid_frames = packets
+        .iter()
+        .filter(|packet| {
+            packet
+                .ieee80211
+                .as_ref()
+                .and_then(|fields| fields.ssid_hex.as_ref())
+                .is_some()
+        })
+        .count();
+
+    let mut frame_mix: BTreeMap<(u8, u8), usize> = BTreeMap::new();
+    let mut bssids: BTreeMap<String, usize> = BTreeMap::new();
+    let mut transmitters: BTreeMap<String, usize> = BTreeMap::new();
+    let mut ssids: BTreeMap<String, usize> = BTreeMap::new();
+    for fields in packets
+        .iter()
+        .filter_map(|packet| packet.ieee80211.as_ref())
+    {
+        *frame_mix
+            .entry((fields.frame_type, fields.frame_subtype))
+            .or_default() += 1;
+        if let Some(value) = &fields.bssid {
+            *bssids.entry(value.clone()).or_default() += 1;
+        }
+        if let Some(value) = &fields.transmitter {
+            *transmitters.entry(value.clone()).or_default() += 1;
+        }
+        if let Some(value) = &fields.ssid_hex {
+            *ssids.entry(value.clone()).or_default() += 1;
+        }
+    }
+
+    let mut output = String::new();
+    writeln!(output, "\nIEEE 802.11").unwrap();
+    writeln!(
+        output,
+        "  scope         normalized packet subset; observed frame fields only"
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "  coverage      {wireless_frames} WLAN frames / {radio_frames} with radio metadata"
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "  identifiers   BSSID {bssid_frames} frames / {} unique; TA {transmitter_frames} / {}; \
+         nonempty SSID {ssid_frames} / {}",
+        bssids.len(),
+        transmitters.len(),
+        ssids.len()
+    )
+    .unwrap();
+
+    let mut ranked_frames: Vec<_> = frame_mix.into_iter().collect();
+    ranked_frames.sort_by(|(left_key, left_count), (right_key, right_count)| {
+        right_count
+            .cmp(left_count)
+            .then_with(|| left_key.cmp(right_key))
+    });
+    write_ranked_header(
+        &mut output,
+        "frame mix",
+        ranked_frames.len(),
+        FRAME_MIX_LIMIT,
+    );
+    for ((frame_type, frame_subtype), count) in ranked_frames.iter().take(FRAME_MIX_LIMIT).copied()
+    {
+        writeln!(
+            output,
+            "  {count:>8}  {} [type {frame_type} subtype {frame_subtype}]",
+            ieee80211_frame_label(frame_type, frame_subtype)
+        )
+        .unwrap();
+    }
+    write_omitted_count(
+        &mut output,
+        ranked_frames.len(),
+        FRAME_MIX_LIMIT,
+        "frame subtypes",
+    );
+
+    let mut radio_contexts: BTreeMap<(Option<u32>, Option<u16>), RadioContextSummary> =
+        BTreeMap::new();
+    for radio in packets
+        .iter()
+        .filter_map(|packet| packet.wlan_radio.as_ref())
+    {
+        let entry = radio_contexts
+            .entry((radio.channel, radio.center_frequency_mhz))
+            .or_default();
+        entry.frames += 1;
+        if let Some(signal) = radio.signal_dbm {
+            entry.signals.push(signal);
+        }
+    }
+    if !radio_contexts.is_empty() {
+        let mut ranked_contexts: Vec<_> = radio_contexts.into_iter().collect();
+        ranked_contexts.sort_by(|(left_key, left_summary), (right_key, right_summary)| {
+            right_summary
+                .frames
+                .cmp(&left_summary.frames)
+                .then_with(|| left_key.cmp(right_key))
+        });
+        write_ranked_header(
+            &mut output,
+            "radio contexts",
+            ranked_contexts.len(),
+            RADIO_CONTEXT_LIMIT,
+        );
+        for ((channel, frequency), summary) in ranked_contexts.iter_mut().take(RADIO_CONTEXT_LIMIT)
+        {
+            write!(
+                output,
+                "  {:>8}  channel {} / {} MHz",
+                summary.frames,
+                optional_number(*channel),
+                optional_number(*frequency)
+            )
+            .unwrap();
+            if summary.signals.is_empty() {
+                writeln!(output, " / signal unavailable").unwrap();
+            } else {
+                summary.signals.sort_unstable();
+                let minimum = summary.signals[0];
+                let median = median_signal_dbm(&summary.signals);
+                let maximum = summary.signals[summary.signals.len() - 1];
+                writeln!(
+                    output,
+                    " / signal {minimum}..{maximum} dBm / median {median} dBm (n={})",
+                    summary.signals.len()
+                )
+                .unwrap();
+            }
+        }
+        write_omitted_count(
+            &mut output,
+            ranked_contexts.len(),
+            RADIO_CONTEXT_LIMIT,
+            "radio contexts",
+        );
+    }
+
+    write_ranked_observations(&mut output, "BSSIDs", &bssids, IDENTIFIER_LIMIT);
+    write_ranked_observations(
+        &mut output,
+        "transmitter addresses (TA)",
+        &transmitters,
+        IDENTIFIER_LIMIT,
+    );
+    if !ssids.is_empty() {
+        write_ranked_header(&mut output, "SSID elements", ssids.len(), IDENTIFIER_LIMIT);
+        writeln!(
+            output,
+            "  scope         nonempty elements only; hex is authoritative"
+        )
+        .unwrap();
+        let mut ranked: Vec<_> = ssids.into_iter().collect();
+        ranked.sort_by(|(left_name, left_count), (right_name, right_count)| {
+            right_count
+                .cmp(left_count)
+                .then_with(|| left_name.cmp(right_name))
+        });
+        for (ssid_hex, count) in ranked.iter().take(IDENTIFIER_LIMIT) {
+            match decode_ssid_hex(ssid_hex).and_then(|bytes| String::from_utf8(bytes).ok()) {
+                Some(ssid) => {
+                    writeln!(
+                        output,
+                        "  {count:>8}  text={:?} / hex={ssid_hex}",
+                        operator_text(&ssid)
+                    )
+                    .unwrap();
+                }
+                None => writeln!(output, "  {count:>8}  hex={ssid_hex}").unwrap(),
+            }
+        }
+        write_omitted_count(&mut output, ranked.len(), IDENTIFIER_LIMIT, "SSID elements");
+    }
+
+    Some(output)
+}
+
+fn write_ranked_observations(
+    output: &mut String,
+    title: &str,
+    counts: &BTreeMap<String, usize>,
+    limit: usize,
+) {
+    if counts.is_empty() {
+        return;
+    }
+    let mut ranked: Vec<_> = counts.iter().collect();
+    ranked.sort_by(|(left_name, left_count), (right_name, right_count)| {
+        right_count
+            .cmp(left_count)
+            .then_with(|| left_name.cmp(right_name))
+    });
+    write_ranked_header(output, title, ranked.len(), limit);
+    for (name, count) in ranked.iter().take(limit) {
+        writeln!(output, "  {count:>8}  {}", operator_text(name)).unwrap();
+    }
+    write_omitted_count(output, ranked.len(), limit, "observations");
+}
+
+fn write_ranked_header(output: &mut String, title: &str, total: usize, limit: usize) {
+    writeln!(
+        output,
+        "\n{title} (ranked by frame count; showing {}/{total})",
+        total.min(limit)
+    )
+    .unwrap();
+}
+
+fn write_omitted_count(output: &mut String, total: usize, limit: usize, noun: &str) {
+    if total > limit {
+        writeln!(output, "  … {} more {noun}", total - limit).unwrap();
+    }
+}
+
+fn decode_ssid_hex(value: &str) -> Option<Vec<u8>> {
+    value
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            std::str::from_utf8(pair)
+                .ok()
+                .and_then(|pair| u8::from_str_radix(pair, 16).ok())
+        })
+        .collect()
+}
+
+fn median_signal_dbm(sorted: &[i8]) -> String {
+    let middle = sorted.len() / 2;
+    if sorted.len() % 2 == 1 {
+        sorted[middle].to_string()
+    } else {
+        let doubled = i16::from(sorted[middle - 1]) + i16::from(sorted[middle]);
+        if doubled % 2 == 0 {
+            (doubled / 2).to_string()
+        } else {
+            format!("{:.1}", f32::from(doubled) / 2.0)
+        }
+    }
+}
+
+fn ieee80211_frame_label(frame_type: u8, frame_subtype: u8) -> &'static str {
+    match (frame_type, frame_subtype) {
+        (0, 0) => "association request",
+        (0, 1) => "association response",
+        (0, 2) => "reassociation request",
+        (0, 3) => "reassociation response",
+        (0, 4) => "probe request",
+        (0, 5) => "probe response",
+        (0, 6) => "measurement pilot",
+        (0, 8) => "beacon",
+        (0, 9) => "announcement traffic indication message (ATIM)",
+        (0, 10) => "disassociation",
+        (0, 11) => "authentication",
+        (0, 12) => "deauthentication",
+        (0, 13) => "action",
+        (0, 14) => "action no acknowledgment",
+        (0, _) => "management reserved/extension subtype",
+        (1, 2) => "trigger",
+        (1, 3) => "target wake time acknowledgment (TWT Ack)",
+        (1, 4) => "beamforming report poll",
+        (1, 5) => "VHT/HE/EHT/ranging NDP announcement",
+        (1, 7) => "control wrapper",
+        (1, 8) => "block acknowledgment request",
+        (1, 9) => "block acknowledgment",
+        (1, 10) => "power-save poll (PS-Poll)",
+        (1, 11) => "request to send (RTS)",
+        (1, 12) => "clear to send (CTS)",
+        (1, 13) => "acknowledgment (ACK)",
+        (1, 14) => "contention-free end (CF-End)",
+        (1, 15) => "contention-free end + acknowledgment",
+        (1, _) => "control reserved/extension subtype",
+        (2, 0) => "data",
+        (2, 1) => "data + CF-Ack",
+        (2, 2) => "data + CF-Poll",
+        (2, 3) => "data + CF-Ack + CF-Poll",
+        (2, 4) => "null function (no data)",
+        (2, 5) => "CF-Ack (no data)",
+        (2, 6) => "CF-Poll (no data)",
+        (2, 7) => "CF-Ack + CF-Poll (no data)",
+        (2, 8) => "QoS data",
+        (2, 9) => "QoS data + CF-Ack",
+        (2, 10) => "QoS data + CF-Poll",
+        (2, 11) => "QoS data + CF-Ack + CF-Poll",
+        (2, 12) => "QoS null (no data)",
+        (2, 14) => "QoS CF-Poll (no data)",
+        (2, 15) => "QoS CF-Ack + CF-Poll (no data)",
+        (2, _) => "data reserved subtype",
+        (3, _) => "extension frame",
+        _ => "unknown frame class",
+    }
 }
 
 fn print_quarantines(report: &NormalizationReport) {
@@ -341,7 +685,9 @@ fn print_capture_conversations(report: &NormalizationReport) {
         .min()
         .expect("capture conversations require at least one emitted packet");
     println!("\ncapture conversations");
-    println!("  scope         capture-wide; endpoint A/B is canonical, not initiator");
+    if !reduced.conversations.is_empty() {
+        println!("  scope         capture-wide; endpoint A/B is canonical, not initiator");
+    }
     println!(
         "  coverage      {} grouped / {} emitted packet envelopes / {} excluded",
         reduced.packet_envelopes_grouped,
@@ -538,6 +884,55 @@ fn format_u64_duration_ns(value: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use netmon_evidence::{
+        Ieee80211FieldsV0, PacketFrameV0, WlanRadioFieldsV0, PACKET_ENVELOPE_SCHEMA_V0,
+    };
+
+    const CAPTURE_ID: &str =
+        "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    fn wireless_packet(
+        frame: u64,
+        frame_type: u8,
+        frame_subtype: u8,
+        signal_dbm: Option<i8>,
+    ) -> PacketEnvelopeV0 {
+        PacketEnvelopeV0 {
+            schema: PACKET_ENVELOPE_SCHEMA_V0.into(),
+            record_id: format!("{CAPTURE_ID}:frame:{frame}"),
+            capture_id: CAPTURE_ID.into(),
+            frame: PacketFrameV0 {
+                number: frame,
+                event_time_unix_ns: i64::try_from(frame).unwrap(),
+                original_len: 100,
+                captured_len: 100,
+                section_number: Some(0),
+                interface_id: Some(0),
+                encapsulation_type: Some(23),
+                protocols: vec!["radiotap".into(), "wlan_radio".into(), "wlan".into()],
+            },
+            ethernet: None,
+            ipv4: None,
+            ipv6: None,
+            tcp: None,
+            udp: None,
+            ieee80211: Some(Ieee80211FieldsV0 {
+                frame_type,
+                frame_subtype,
+                transmitter: Some("02:00:00:00:00:01".into()),
+                receiver: Some("ff:ff:ff:ff:ff:ff".into()),
+                source: Some("02:00:00:00:00:01".into()),
+                destination: Some("ff:ff:ff:ff:ff:ff".into()),
+                bssid: Some("02:00:00:00:00:01".into()),
+                ssid_hex: Some("6f6d7573".into()),
+            }),
+            wlan_radio: Some(WlanRadioFieldsV0 {
+                channel: Some(1),
+                center_frequency_mhz: Some(2412),
+                signal_dbm,
+            }),
+        }
+    }
 
     #[test]
     fn epoch_format_is_exact_for_pre_epoch_values() {
@@ -558,5 +953,75 @@ mod tests {
         assert_eq!(operator_text("sensor\n\u{1b}[31m"), "sensor\\n\\u{1b}[31m");
         let long = "x".repeat(241);
         assert_eq!(operator_text(&long), format!("{}…", "x".repeat(240)));
+    }
+
+    #[test]
+    fn wireless_summary_prioritizes_coverage_frame_mix_and_radio_context() {
+        let packets = [
+            wireless_packet(1, 0, 5, Some(-74)),
+            wireless_packet(2, 0, 5, Some(-20)),
+            wireless_packet(3, 1, 13, None),
+        ];
+
+        let output = render_ieee80211_summary(&packets).unwrap();
+
+        assert!(output.contains("coverage      3 WLAN frames / 3 with radio metadata"));
+        assert!(output
+            .contains("identifiers   BSSID 3 frames / 1 unique; TA 3 / 1; nonempty SSID 3 / 1"));
+        assert!(output.contains("2  probe response [type 0 subtype 5]"));
+        assert!(output.contains("1  acknowledgment (ACK) [type 1 subtype 13]"));
+        assert!(
+            output.contains("3  channel 1 / 2412 MHz / signal -74..-20 dBm / median -47 dBm (n=2)")
+        );
+        assert!(output.contains("text=\"omus\" / hex=6f6d7573"));
+    }
+
+    #[test]
+    fn wireless_summary_uses_current_expert_subtype_vocabulary() {
+        assert_eq!(ieee80211_frame_label(0, 6), "measurement pilot");
+        assert_eq!(ieee80211_frame_label(1, 2), "trigger");
+        assert_eq!(
+            ieee80211_frame_label(1, 3),
+            "target wake time acknowledgment (TWT Ack)"
+        );
+        assert_eq!(ieee80211_frame_label(1, 4), "beamforming report poll");
+        assert_eq!(
+            ieee80211_frame_label(1, 5),
+            "VHT/HE/EHT/ranging NDP announcement"
+        );
+    }
+
+    #[test]
+    fn wireless_summary_discloses_every_bounded_ranked_section() {
+        let packets = (0_u8..13)
+            .map(|index| {
+                let mut packet = wireless_packet(u64::from(index) + 1, 0, index, Some(-40));
+                let address = format!("02:00:00:00:00:{:02x}", index + 1);
+                let fields = packet.ieee80211.as_mut().unwrap();
+                fields.bssid = Some(address.clone());
+                fields.transmitter = Some(address);
+                fields.ssid_hex = Some(format!("{:02x}", index + 1));
+                let radio = packet.wlan_radio.as_mut().unwrap();
+                radio.channel = Some(u32::from(index) + 1);
+                radio.center_frequency_mhz = Some(2_400 + u16::from(index));
+                packet
+            })
+            .collect::<Vec<_>>();
+
+        let output = render_ieee80211_summary(&packets).unwrap();
+
+        assert!(output.contains("frame mix (ranked by frame count; showing 12/13)"));
+        assert!(output.contains("… 1 more frame subtypes"));
+        assert!(output.contains("radio contexts (ranked by frame count; showing 8/13)"));
+        assert!(output.contains("… 5 more radio contexts"));
+        assert!(output.contains("BSSIDs (ranked by frame count; showing 8/13)"));
+        assert!(output.contains("transmitter addresses (TA) (ranked by frame count; showing 8/13)"));
+        assert!(output.contains("SSID elements (ranked by frame count; showing 8/13)"));
+        assert!(output.contains("… 5 more SSID elements"));
+    }
+
+    #[test]
+    fn no_wireless_evidence_does_not_add_an_empty_section() {
+        assert!(render_ieee80211_summary(&[]).is_none());
     }
 }

@@ -17,6 +17,7 @@ fn v0_fixture_inventory_is_exact_pretty_and_valid() {
         "capture_run_receipt_v0.json",
         "host_path_observation_v0.json",
         "packet_envelope_v0.json",
+        "packet_envelope_wlan_v0.json",
         "packet_quarantine_v0.json",
     ];
     let mut actual: Vec<String> = fs::read_dir(FIXTURE_DIRECTORY)
@@ -34,7 +35,9 @@ fn v0_fixture_inventory_is_exact_pretty_and_valid() {
     receipt.validate().unwrap();
     let packet = read_fixture::<PacketEnvelopeV0>(expected[3]);
     packet.validate().unwrap();
-    let quarantine = read_fixture::<PacketQuarantineV0>(expected[4]);
+    let wireless_packet = read_fixture::<PacketEnvelopeV0>(expected[4]);
+    wireless_packet.validate().unwrap();
+    let quarantine = read_fixture::<PacketQuarantineV0>(expected[5]);
     quarantine.validate().unwrap();
 }
 
