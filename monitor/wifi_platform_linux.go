@@ -58,7 +58,7 @@ func (w *linuxWiFi) GetChannels(ctx context.Context, iface string) ([]int, error
 	}
 	// Find channels for the specific interface
 	cmd = exec.CommandContext(ctx, "iw", "dev", iface, "info")
-	infoOut, err := cmd.Output()
+	_, err = cmd.Output()
 	if err != nil {
 		// Fallback: return all channels from all wiphys
 		var allChannels []int
@@ -107,4 +107,3 @@ func (w *linuxWiFi) IsWiFiInterface(iface string) bool {
 	cmd := exec.Command("iw", "dev", iface, "info")
 	return cmd.Run() == nil
 }
-
