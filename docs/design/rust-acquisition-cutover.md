@@ -167,11 +167,13 @@ before adaptation can obscure an acquisition error.
 When a concrete adaptive acquisition consumer exists, its Rust implementation
 may depend on Muxer's domain-neutral arm-selection policy. The first experiment
 uses EXP3-IX over a stable ordered arm universe within one policy epoch. Netmon
-passes the current eligible subset and a logged decision seed, then records the
-exact selection probability used to update the policy. A regulatory-domain,
-radio, hardware, or materially different location transition starts a new
-epoch. Transient cooldown or capability changes only change the eligible
-subset.
+first validates that every member of the current eligible subset belongs to
+that full arm universe, then passes the subset and a logged decision seed and
+records the exact selection probability used to update the policy. Muxer's
+current API does not enforce the subset invariant for Netmon. A
+regulatory-domain, radio, hardware, or materially different location transition
+starts a new epoch. Transient cooldown or capability changes only change the
+eligible subset.
 
 That dependency belongs only in the acquisition package or module that owns the
 consumer. It does not belong in `netmon-evidence`, `netmon-replay`, Linktop, or
@@ -243,6 +245,10 @@ or useful observation coverage rather than selection count alone.
   calibrated completeness, and explicit abstention. Cluster, unseen-mass, or
   novelty outputs remain hypotheses and collection signals, never device,
   place, or intent facts.
+- The current `hypha-core` crate does not yet provide the `hypha_advert` or
+  `hypha_minute` wire types assumed by Infra's fusion design. A sanitized sealed
+  fixture and a released wire contract must establish that boundary before
+  Netmon adds a Hypha adapter; a repository name is not a schema contract.
 - Direct Logp, Pare, Drawset, Graphops, Lattix, Hypha host, Cnk, and Sbits
   dependencies are not earned by the initial Rust flip.
 
@@ -286,6 +292,8 @@ or useful observation coverage rather than selection count alone.
   match.
 - Live cutover has one writer and one rollback authority at any instant.
 - Muxer receives only caller-eligible arms and cannot widen collection scope.
+- Every eligible arm is validated against the stable full arm universe before
+  Muxer receives it.
 - A policy epoch keeps its full arm universe and ordering stable.
 - Requested action, executed action, interval, and observation share one durable
   decision identity.

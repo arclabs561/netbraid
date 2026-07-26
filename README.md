@@ -23,8 +23,9 @@ Netmon currently contains four separate, buildable surfaces:
   field registry, fingerprints effective TShark configuration, refuses personal
   plugins unless explicitly allowed, preserves invalid rows as quarantines, and
   emits a successful-run receipt.
-- `swucb/` is an experimental sliding-window UCB package. It is tested but is not
-  wired into either CLI.
+- `swucb/` is an unused legacy sliding-window UCB experiment. It remains only
+  until the Rust acquisition control proves the receipt and replay contract
+  needed to delete the old Go acquisition tree.
 
 These surfaces share a repository, not one runtime or data model. Both CLIs currently
 build a binary named `netmon`; the commands below invoke them by build path rather than
@@ -40,7 +41,7 @@ repository's current charter.
 | Rust snapshot CLI | Compatibility reader | Interpret the latest saved netops audit snapshot |
 | Rust v0 libraries | Experimental | Record and replay evidence, compare host-path context, and reduce eligible packet envelopes into capture-wide conversations |
 | Rust Wireshark-tool adapter | Experimental | Normalize bounded saved captures into manifests, successful-run receipts, packet envelopes, and quarantines without live capture |
-| `swucb/` | Retained experiment | Evaluate adaptive channel-selection policy independently |
+| `swucb/` | Legacy, deletion-gated | Preserve no runtime behavior; remove after the Rust acquisition control proves receipt-bound attribution |
 | Rust evidence/replay core | Gated future | Normalize immutable artifacts, replay evidence, and reduce temporal state deterministically |
 | Live deployment or fusion service | External | Consume released evidence/replay artifacts after its own parity and rollback gates |
 
