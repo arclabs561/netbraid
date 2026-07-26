@@ -88,6 +88,66 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
             .unwrap(),
         "$STAGED_CAPTURE"
     );
+
+    let records_args = [
+        "pcap",
+        input.to_str().unwrap(),
+        "--packet-limit",
+        "10",
+        "--records-jsonl",
+    ];
+    let first_records = Command::new(binary).args(records_args).output().unwrap();
+    assert!(
+        first_records.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first_records.stderr)
+    );
+    let second_records = Command::new(binary).args(records_args).output().unwrap();
+    assert!(
+        second_records.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second_records.stderr)
+    );
+    assert_eq!(
+        first_records.stdout, second_records.stdout,
+        "normalized-record JSONL must be byte-identical for the same artifact and configuration"
+    );
+
+    let deterministic_records: Vec<serde_json::Value> = String::from_utf8(first_records.stdout)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(deterministic_records.len(), 7);
+    assert_eq!(
+        deterministic_records[0]["schema"],
+        "netmon.capture_manifest.v0"
+    );
+    assert!(deterministic_records[1..]
+        .iter()
+        .all(|record| record["schema"] == "netmon.packet_envelope.v0"));
+    assert!(deterministic_records
+        .iter()
+        .all(|record| record["schema"] != "netmon.capture_run_receipt.v0"));
+}
+
+#[test]
+fn pcap_jsonl_modes_are_mutually_exclusive() {
+    let output = Command::new(env!("CARGO_BIN_EXE_netmon"))
+        .args([
+            "pcap",
+            "does-not-need-to-exist.pcap",
+            "--jsonl",
+            "--records-jsonl",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("--jsonl"));
+    assert!(stderr.contains("--records-jsonl"));
+    assert!(stderr.contains("cannot be used with"));
 }
 
 fn decode_hex(input: &str) -> Vec<u8> {

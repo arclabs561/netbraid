@@ -221,8 +221,21 @@ capture-file facts from the possibly limited normalized packet subset and
 surfaces the successful run identifier and record digest. Its text projection
 also uses the pure, capture-wide conversation reducer specified in
 [`design/capture-conversation-reduction.md`](design/capture-conversation-reduction.md).
-`--jsonl` remains the manifest, run receipt, packet envelopes, and quarantines;
-it does not yet imply a serialized flow or conversation contract.
+`--jsonl` emits the manifest, occurrence-specific run receipt, packet
+envelopes, and quarantines. It is the complete successful-run record, not a
+byte-stable rerun projection: the receipt contains its run ID, wall-clock
+interval, elapsed time, and raw Capinfos output digest.
+
+`--records-jsonl` emits exactly the normalized-record digest sequence:
+manifest, packet envelopes in capture/frame order, and quarantines in source
+row order. It omits the run receipt. Equal staged bytes, independently supplied
+provenance, extractor/tool versions, effective configuration, field registry,
+and limits therefore produce byte-identical record streams. The receipt binds
+that stream through `normalized_records_sha256`; consumers do not need to
+filter occurrence fields to compare reruns. `--jsonl` and `--records-jsonl`
+are mutually exclusive. Neither mode implies a serialized flow or conversation
+contract.
+
 Normalization is non-interactive: a future replay TUI may consume these records,
 but the normalizer itself should compose predictably in scripts.
 
@@ -261,8 +274,9 @@ but the normalizer itself should compose predictably in scripts.
    to `netmon-evidence`.
 2. Add `netmon-adapter-tshark` with a fixed field registry, bounded process
    execution, exact timestamp parsing, artifact hashing, and row quarantine.
-3. Add `netmon pcap INPUT` with human text by default and `--jsonl` for machine
-   output.
+3. Add `netmon pcap INPUT` with human text by default, `--jsonl` for a complete
+   successful-run record, and `--records-jsonl` for the deterministic
+   normalized-record stream.
 4. Add parser/golden tests and an opt-in smoke test against an installed TShark
    using Ethernet/IPv4/TCP, Ethernet/IPv6/UDP, and ARP fixtures built only from
    documentation addresses and locally administered MAC addresses.
@@ -301,6 +315,8 @@ but the normalizer itself should compose predictably in scripts.
 - Successful receipts use a staged-path placeholder rather than retaining a
   private temporary pathname, and bind the emitted records with a canonical
   digest.
+- Repeating `--records-jsonl` over the same fixture and effective
+  normalization contract produces byte-identical output without a run receipt.
 - Text output states file type, encapsulation, declared file extent,
   normalization state, limits, quarantine count, extractor version, run
   identifier, and emitted-record digest.

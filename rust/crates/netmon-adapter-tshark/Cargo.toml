@@ -1,10 +1,12 @@
 [package]
 name = "netmon-adapter-tshark"
-version = "0.0.1"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Bounded saved-capture normalization through TShark"
-license = "MIT OR Unlicense"
-publish = false
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
 
 [dependencies]
 csv = "1.3"

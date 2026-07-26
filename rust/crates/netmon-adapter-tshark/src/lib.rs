@@ -1052,4 +1052,43 @@ mod tests {
             Some(plugin)
         );
     }
+
+    #[test]
+    fn public_capture_fixtures_form_one_receipt_bound_record_set() {
+        let manifest: CaptureManifestV0 = serde_json::from_str(include_str!(
+            "../../../schema-fixtures/v0/capture_manifest_v0.json"
+        ))
+        .unwrap();
+        let receipt: CaptureRunReceiptV0 = serde_json::from_str(include_str!(
+            "../../../schema-fixtures/v0/capture_run_receipt_v0.json"
+        ))
+        .unwrap();
+        let packet: PacketEnvelopeV0 = serde_json::from_str(include_str!(
+            "../../../schema-fixtures/v0/packet_envelope_v0.json"
+        ))
+        .unwrap();
+        let quarantine: PacketQuarantineV0 = serde_json::from_str(include_str!(
+            "../../../schema-fixtures/v0/packet_quarantine_v0.json"
+        ))
+        .unwrap();
+
+        assert_eq!(receipt.capture_id, manifest.capture_id);
+        assert_eq!(packet.capture_id, manifest.capture_id);
+        assert_eq!(quarantine.capture_id, manifest.capture_id);
+        assert_eq!(
+            receipt.file.file_size_bytes,
+            manifest.artifact.size_bytes
+        );
+        assert_eq!(manifest.normalization.packet_rows_emitted, 1);
+        assert_eq!(manifest.normalization.packet_rows_quarantined, 1);
+        assert_eq!(
+            receipt.file.packet_count,
+            manifest.normalization.packet_rows_emitted
+                + manifest.normalization.packet_rows_quarantined
+        );
+        assert_eq!(
+            receipt.normalized_records_sha256,
+            normalized_records_sha256(&manifest, &[packet], &[quarantine]).unwrap()
+        );
+    }
 }

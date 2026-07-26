@@ -251,8 +251,10 @@ or useful observation coverage rather than selection count alone.
 1. Distribute the current Rust boundary. Keep CI green, version the
    workspace, and publish checksummed macOS/Linux binaries plus schema fixtures.
 2. Add an Infra contract test. Run a pinned Netmon release against a
-   sanitized saved capture in a temporary directory; verify schema order,
-   digests, and byte-for-byte deterministic reruns.
+   sanitized saved capture in a temporary directory; require byte-identical
+   `--records-jsonl` output across reruns, verify its schema order and digest,
+   and separately validate the occurrence-specific fields and normalized-record
+   digest in the full `--jsonl` receipt.
 3. Establish the multi-modal parity corpus. Add sanitized Kismet, Hypha,
    rtl_433, Meshtastic, UniFi, presence, and sealed fusion-archive fixtures.
 4. Decode sealed artifacts in Rust. Add only the evidence types and adapter

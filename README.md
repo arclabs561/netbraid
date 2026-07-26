@@ -1,8 +1,9 @@
 # netmon
 
-Netmon is a transitional network-evidence workspace. It preserves a legacy Go capture
-tool, a narrow Rust saved-snapshot reader, and an acquisition-policy experiment while
-building a coherent Rust evidence/replay core.
+Netmon is a versioned network-evidence and deterministic-replay workspace. Its Rust
+release normalizes immutable artifacts, preserves provenance, and replays typed
+evidence; the repository also retains a legacy Go capture tool and a disconnected
+acquisition-policy experiment while the dependency-ordered Rust cutover proceeds.
 
 Netmon currently contains four separate, buildable surfaces:
 
@@ -75,7 +76,8 @@ netmon work must preserve source evidence rather than widening capture features.
 
 ## Build and run the Go capture CLI
 
-Go 1.20 or newer is declared by `go.mod`.
+Go 1.25.12 or newer is declared by `go.mod`; this compatibility floor tracks
+standard-library security fixes rather than the future Rust architecture.
 
 ```sh
 go build -o netmon .
@@ -108,6 +110,7 @@ Without `-q`, packet records go to stdout. `-S` selects the dynamic summary inst
 
 ```sh
 cargo build --manifest-path rust/Cargo.toml
+./rust/target/debug/netmon --version
 ./rust/target/debug/netmon --help
 ./rust/target/debug/netmon net
 ./rust/target/debug/netmon device '<name, MAC, or IP substring>'
@@ -115,7 +118,43 @@ cargo build --manifest-path rust/Cargo.toml
 ./rust/target/debug/netmon evidence ./host-path.jsonl
 ./rust/target/debug/netmon pcap ./incident.pcap
 ./rust/target/debug/netmon pcap ./incident.pcapng --jsonl
+./rust/target/debug/netmon pcap ./incident.pcapng --records-jsonl
 ```
+
+The Rust workspace requires Rust 1.88 or newer. It is a versioned GitHub binary
+release, not a crates.io package; every workspace package has `publish = false`.
+To install a source checkout into Cargo's binary directory:
+
+```sh
+cargo +1.88 install --locked --path rust
+netmon --version
+```
+
+Tagged releases use `netmon-vVERSION` and contain native archives for Linux
+x86-64, Intel macOS, and Apple silicon macOS. Each archive contains the Rust
+`netmon` binary, README, both license files, and the canonical
+`schema-fixtures/v0` bundle. For example:
+
+```sh
+version=0.1.0
+target=aarch64-apple-darwin
+asset="netmon-v${version}-${target}.tar.gz"
+gh release download "netmon-v${version}" --repo arclabs561/netmon \
+  --pattern "$asset" --pattern SHA256SUMS
+grep "  ${asset}$" SHA256SUMS | shasum -a 256 --check
+tar -xzf "$asset"
+mkdir -p "$HOME/.local/bin"
+install -m 0755 "netmon-v${version}-${target}/netmon" "$HOME/.local/bin/netmon"
+```
+
+Use `x86_64-apple-darwin` on an Intel Mac and
+`x86_64-unknown-linux-gnu` on x86-64 Linux. The checksum covers the
+downloaded archive. GitHub build-provenance attestations cover all release
+archives and `SHA256SUMS`.
+
+The macOS archives are not Developer ID signed or notarized. If local policy
+rejects a downloaded binary, build the verified tag from source with Cargo
+instead of weakening Gatekeeper.
 
 The default snapshot input is `~/.cache/netops/audit-history.jsonl`; pass `--file PATH`
 to read another audit history. The snapshot commands read the last JSON object and
@@ -134,18 +173,35 @@ each log.
 The `pcap` command is offline and non-interactive. Its text output reports artifact
 identity, observer/acquisition unknowns, Capinfos file type and declared extent,
 normalization completeness, packet/quarantine counts, the normalized packet subset,
-protocol stacks, capture-wide TCP/UDP conversations with directional frame/octet
-counts and observed TCP flags, and the successful run identifier and emitted-record
-digest. Conversation output uses canonical endpoint A/B ordering rather than claiming
-an initiator, and reports excluded packet-envelope coverage by typed reason. `--jsonl` emits
-`netmon.capture_manifest.v0`, `netmon.capture_run_receipt.v0`,
-`netmon.packet_envelope.v0`, and `netmon.packet_quarantine.v0` records. The manifest
-does not infer that a detached artifact was acquired passively or that it covered a
-network, channel, or interval completely; observer, acquisition time, acquisition
-policy, and acquisition coverage are absent unless independently supplied. See
+protocol stacks, capture-wide TCP/UDP conversations with directional
+frame/octet counts and observed TCP flags, and the successful run identifier
+and emitted-record digest. Conversation output uses canonical endpoint A/B
+ordering rather than claiming an initiator, and reports excluded
+packet-envelope coverage by typed reason.
+
+`--jsonl` emits the manifest, occurrence-specific successful-run receipt,
+packet envelopes, and quarantines. Its receipt deliberately changes across
+runs: it includes a run ID, wall-clock interval, elapsed time, and raw tool
+output digests. `--records-jsonl` emits exactly the deterministic
+normalized-record sequence bound by the receipt's
+`normalized_records_sha256`: manifest, packet envelopes, then quarantines. It
+omits the run receipt, and equivalent runs using the same artifact, fields,
+tools, configuration, limits, and independently supplied provenance produce
+byte-identical output. The two flags are mutually exclusive.
+
+The manifest does not infer that a detached artifact was acquired passively or
+that it covered a network, channel, or interval completely; observer,
+acquisition time, acquisition policy, and acquisition coverage are absent
+unless independently supplied. See
 [`docs/saved-pcap-normalization.md`](docs/saved-pcap-normalization.md).
 The deliberately non-sessionized conversation reducer is specified in
 [`docs/design/capture-conversation-reduction.md`](docs/design/capture-conversation-reduction.md).
+
+Saved-PCAP normalization requires compatible `tshark` and `capinfos`
+executables at runtime. They are not bundled in release archives. On macOS,
+install the Homebrew `wireshark` formula; on Debian or Ubuntu, install the
+`tshark` package. `net`, `device`, `here`, and host-path `evidence` replay do
+not invoke Wireshark tools.
 
 ## Promotion gates
 
@@ -231,7 +287,8 @@ index over unknown devices.
   drivers, and privileges. macOS cannot set channels through the current adapter; the
   capture path degrades to the current channel when setup fails.
 - The Go capture model and disconnected `watch/` package are legacy code. The old
-  host/new-port hook examples are not wired into the current CLI.
+  host/new-port hooks are not wired into the current CLI, and legacy shell action or
+  predicate triggers fail closed if selected.
 - The Rust CLI is a saved-snapshot and evidence-log reader, not a live controller or
   Kismet client. Saved-PCAP normalization additionally requires compatible `tshark`
   and `capinfos` executables at runtime.
@@ -252,6 +309,7 @@ cargo test --manifest-path rust/Cargo.toml
 just rust-check
 just pcap-smoke
 just pcap-smoke-show
+just rust-check-full
 ```
 
 The root `just test` also runs the repository's Go lint configuration before tests.
@@ -259,7 +317,11 @@ The root `just test` also runs the repository's Go lint configuration before tes
 Capinfos against readable synthetic PCAP and PCAPNG fixtures.
 `just pcap-smoke-show` prints the finite operator summary from the CLI fixture so
 presentation changes can be reviewed without preparing a local capture.
+`just rust-check-full` is the release-oriented Rust gate: build, tests, Clippy,
+rustdoc, and both installed-tool smoke suites. It does not install or bundle
+Wireshark.
 
 ## License
 
-Dual-licensed under the MIT License or the Unlicense.
+Dual-licensed under the [MIT License](LICENSE-MIT) or the
+[Unlicense](UNLICENSE).

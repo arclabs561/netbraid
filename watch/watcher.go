@@ -1,36 +1,14 @@
 package watch
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"html/template"
-	"os"
-	"os/exec"
-	"regexp"
-	"runtime"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-)
-
-const (
-	// MaxCommandLength limits the length of shell commands to prevent DoS
-	MaxCommandLength = 4096
-	// CommandTimeout is the maximum time a command can run
-	CommandTimeout = 5 * time.Second
-)
-
-var (
-	// safeCommandPattern matches only safe shell command characters
-	// Allows alphanumeric, spaces, common punctuation, and template variables
-	safeCommandPattern = regexp.MustCompile(`^[a-zA-Z0-9\s\-_./:;'"{}()\[\]{{}}]*$`)
 )
 
 // Watcher watches network activity and sends resultant Events to all of it's
@@ -110,10 +88,13 @@ func NewSubConfig(
 		if len(onlySet) > 0 && !onlySet[name] {
 			continue
 		}
-		log.Debug().Msgf("loading subscriber %s", name)
-		trig := newTriggerFromConfig(name, spec)
 		if spec.Disabled && !onlySet[name] {
 			continue
+		}
+		log.Debug().Msgf("loading subscriber %s", name)
+		trig, err := newTriggerFromConfig(spec)
+		if err != nil {
+			return nil, fmt.Errorf("trigger %q: %w", name, err)
 		}
 		triggers[name] = trig
 	}
@@ -134,36 +115,24 @@ func NewSubConfig(
 	}, nil
 }
 
-func newTriggerFromConfig(
-	name string,
-	spec TriggerSpec,
-) FilteredSubscriber {
-	var sub Subscriber
-	if spec.DoBuiltin != "" {
-		sub = newSubFromBuiltin(spec.DoBuiltin)
-	}
-	if spec.DoShell != "" {
-		sub = newSubFromShell(spec.DoShell)
-	}
-	if sub == nil {
-		log.Fatal().Msgf(
-			"failed to construct a trigger, "+
-				"did you fill out doBuiltin or doShell?: %#v",
-			spec,
+func newTriggerFromConfig(spec TriggerSpec) (FilteredSubscriber, error) {
+	if spec.DoShell != "" || spec.OnShell != "" {
+		return FilteredSubscriber{}, fmt.Errorf(
+			"shell triggers are disabled; use a built-in trigger",
 		)
 	}
-	var shouldDo func(e Event) bool
-	if spec.OnShell != "" {
-		shouldDo = newShouldDoFromShell(spec.OnShell)
+	if spec.DoBuiltin == "" {
+		return FilteredSubscriber{}, fmt.Errorf("doBuiltin is required")
+	}
+	sub, err := newSubFromBuiltin(spec.DoBuiltin)
+	if err != nil {
+		return FilteredSubscriber{}, err
 	}
 	return FilteredSubscriber{
 		Sub: sub,
 		ShouldDo: func(e Event) bool {
 			if spec.OnAny {
 				return true
-			}
-			if shouldDo != nil {
-				return shouldDo(e)
 			}
 			if len(spec.OnEventsExcept) > 0 {
 				for _, ty := range spec.OnEventsExcept {
@@ -180,260 +149,18 @@ func newTriggerFromConfig(
 			}
 			return false
 		},
-	}
+	}, nil
 }
 
-func newSubFromBuiltin(builtin string) Subscriber {
-	var sub Subscriber
+func newSubFromBuiltin(builtin string) (Subscriber, error) {
 	switch strings.ToLower(builtin) {
 	case "null":
-		sub = NewSubNull()
+		return NewSubNull(), nil
 	case "log":
-		sub = NewSubLogger()
+		return NewSubLogger(), nil
 	default:
-		panic(fmt.Sprintf("unsupported sub name: '%s'", builtin))
+		return nil, fmt.Errorf("unsupported built-in trigger %q", builtin)
 	}
-	return sub
-}
-
-func newSubFromShell(shell string) Subscriber {
-	return func(e Event) error {
-		shell = os.ExpandEnv(shell)
-		tmpl, err := template.New("").Parse(shell)
-		if err != nil {
-			return fmt.Errorf("invalid template: %w", err)
-		}
-		info := newEventInfo(e)
-		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, info)
-		if err != nil {
-			return fmt.Errorf("template execution failed: %w", err)
-		}
-		
-		command := buf.String()
-		
-		// Validate command length
-		if len(command) > MaxCommandLength {
-			return fmt.Errorf("command too long: %d > %d", len(command), MaxCommandLength)
-		}
-		
-		// Sanitize command - only allow safe characters
-		// Note: This is a basic check. For production, consider using exec.Command with args
-		// instead of shell execution, or use a more sophisticated sanitization library.
-		if !safeCommandPattern.MatchString(command) {
-			return fmt.Errorf("command contains unsafe characters")
-		}
-		
-		ctx, cancel := context.WithTimeout(context.Background(), CommandTimeout)
-		defer cancel()
-		
-		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
-		// Clear environment variables to prevent injection
-		cmd.Env = []string{}
-		// Prevent privilege escalation (Linux only)
-		// Note: NoNewPrivileges is not available on macOS/Darwin
-		// We set this only on Linux to avoid compilation errors on other platforms
-		if runtime.GOOS == "linux" {
-			attr := &syscall.SysProcAttr{}
-			// Use reflection or build tags for NoNewPrivileges on Linux
-			// For now, we'll skip this field to avoid cross-platform compilation issues
-			cmd.SysProcAttr = attr
-		}
-		
-		b, err := cmd.CombinedOutput()
-		if err != nil {
-			if ctx.Err() == context.DeadlineExceeded {
-				return fmt.Errorf("command timeout after %v", CommandTimeout)
-			}
-			return errors.Wrapf(err, "failed to run command: %v", string(b))
-		}
-		out := strings.TrimSpace(string(b))
-		if out != "" {
-			fmt.Println(out)
-		}
-		return nil
-	}
-}
-
-func newShouldDoFromShell(shell string) func(e Event) bool {
-	shell = os.ExpandEnv(shell)
-	tmpl, err := template.New("").Parse(shell)
-	if err != nil {
-		log.Err(err).Msgf("failed to template parse shell: %s", shell)
-		return func(e Event) bool { return false }
-	}
-	return func(e Event) bool {
-		info := newEventInfo(e)
-		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, info)
-		if err != nil {
-			log.Err(err).Msg("failed to execute template")
-			return false
-		}
-		
-		command := buf.String()
-		
-		// Validate command length
-		if len(command) > MaxCommandLength {
-			log.Error().Msgf("command too long: %d > %d", len(command), MaxCommandLength)
-			return false
-		}
-		
-		// Sanitize command
-		if !safeCommandPattern.MatchString(command) {
-			log.Error().Msg("command contains unsafe characters")
-			return false
-		}
-		
-		ctx, cancel := context.WithTimeout(context.Background(), CommandTimeout)
-		defer cancel()
-		
-		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
-		cmd.Env = []string{}
-		// Prevent privilege escalation (Linux only)
-		// Note: NoNewPrivileges field is Linux-specific, skip on other platforms
-		if runtime.GOOS == "linux" {
-			attr := &syscall.SysProcAttr{}
-			cmd.SysProcAttr = attr
-		}
-		
-		b, err := cmd.CombinedOutput()
-		if err != nil {
-			// The point of this shell command is to return a
-			// non-zero exit code when an event should be skipped.
-			// However, we also log so as to not preclude
-			// debugging.
-			if ctx.Err() == context.DeadlineExceeded {
-				log.Error().Msgf("command timeout after %v", CommandTimeout)
-			} else {
-				log.Err(err).Msgf("failed to run output: %s", string(b))
-			}
-			return false
-		}
-		return true
-	}
-}
-
-type printableEvent struct {
-	Description string
-	Host        Host
-	Port        Port
-	PortString  string
-	Up          time.Duration
-	Down        time.Duration
-	Age         time.Duration
-}
-
-func newEventInfo(e Event) printableEvent {
-	var pe printableEvent
-	switch e.Type {
-	case HostTouch:
-		e := e.Body.(EventHostTouch)
-		pe.Host = *e.Host
-		pe.Description = fmt.Sprintf(
-			"touched host %s at %s (up %s) (age %s)",
-			e.Host.MAC,
-			e.Host.IPv4,
-			time.Since(e.Host.Activity.FirstSeenEpisode),
-			e.Host.Activity.Age(),
-		)
-	case HostNew:
-		e := e.Body.(EventHostNew)
-		pe.Host = *e.Host
-		pe.Age = e.Host.Activity.Age()
-		pe.Description = fmt.Sprintf(
-			"new host %s at %s",
-			e.Host.MAC,
-			e.Host.IPv4,
-		)
-	case HostLost:
-		e := e.Body.(EventHostLost)
-		pe.Host = *e.Host
-		pe.Up = e.Up
-		pe.Description = fmt.Sprintf(
-			"new host %s at %s (up %s) (age %s)",
-			e.Host.MAC,
-			e.Host.IPv4,
-			e.Up,
-			e.Host.Activity.Age(),
-		)
-	case HostFound:
-		e := e.Body.(EventHostFound)
-		pe.Host = *e.Host
-		pe.Down = e.Down
-		pe.Description = fmt.Sprintf(
-			"found host %s at %s (down %s) (age %s)",
-			e.Host.MAC,
-			e.Host.IPv4,
-			e.Down,
-			e.Host.Activity.Age(),
-		)
-	case HostARPScanStart:
-		e := e.Body.(EventHostARPScanStart)
-		pe.Host = *e.Host
-		pe.Description = fmt.Sprintf(
-			"%s started arp scan started",
-			e.Host,
-		)
-	case HostARPScanStop:
-		e := e.Body.(EventHostARPScanStop)
-		pe.Host = *e.Host
-		pe.Description = fmt.Sprintf(
-			"%s stopped arp scan",
-			e.Host,
-		)
-	case PortTouch:
-		e := e.Body.(EventPortTouch)
-		pe.Port = *e.Port
-		pe.Host = *e.Host
-		pe.PortString = e.Port.String()
-		pe.Description = fmt.Sprintf(
-			"touched port %s at %s (up %s)",
-			pe.Port,
-			pe.Host.IPv4,
-			pe.Host.Activity.Age(),
-		)
-	case PortNew:
-		e := e.Body.(EventPortNew)
-		pe.Port = *e.Port
-		pe.Host = *e.Host
-		pe.PortString = e.Port.String()
-		pe.Description = fmt.Sprintf(
-			"new port %s at %s (age %s)",
-			e.Port,
-			e.Host.IPv4,
-			e.Port.Activity.Age(),
-		)
-	case PortLost:
-		e := e.Body.(EventPortLost)
-		pe.Port = *e.Port
-		pe.Up = e.Up
-		pe.Host = *e.Host
-		pe.PortString = e.Port.String()
-		pe.Description = fmt.Sprintf(
-			"new port %s at %s (up %s) (age %s)",
-			e.Port,
-			e.Host.IPv4,
-			e.Up,
-			e.Port.Activity.Age(),
-		)
-	case PortFound:
-		e := e.Body.(EventPortFound)
-		pe.Port = *e.Port
-		pe.Down = e.Down
-		pe.Host = *e.Host
-		pe.PortString = e.Port.String()
-		pe.Description = fmt.Sprintf(
-			"found port %s at %s (down %s) (age %s)",
-			e.Port,
-			e.Host.IPv4,
-			e.Down,
-			e.Port.Activity.Age(),
-		)
-	default:
-		panic(fmt.Sprintf("unhandled event type: %#v", e))
-	}
-	return pe
 }
 
 func stringSet(slice []string) map[string]bool {
