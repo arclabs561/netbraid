@@ -49,6 +49,106 @@
       }
     },
     {
+      "id": "libpcap.network-join-nokia-mobile",
+      "path": "upstream/libpcap-network-join-nokia-mobile.pcap.hex",
+      "purpose": "Exercise classic PCAP with raw IEEE 802.11 management, control, and data frames but no radiotap or inferred radio metadata.",
+      "origin": {
+        "repository": "the-tcpdump-group/libpcap",
+        "revision": "9f37478bad2abafb626a0bf8921506569960d48d",
+        "source_path": "tests/filter/Network_Join_Nokia_Mobile.pcap",
+        "source_url": "https://raw.githubusercontent.com/the-tcpdump-group/libpcap/9f37478bad2abafb626a0bf8921506569960d48d/tests/filter/Network_Join_Nokia_Mobile.pcap",
+        "upstream_blob_sha1": "28997e70e3e584119286e54a4a7d0ebb3bd38e6b",
+        "license": "BSD-3-Clause",
+        "license_file": "third-party-licenses/libpcap-BSD-3-Clause.txt"
+      },
+      "content_sha256": "d66a40532f2a67d3dac9bb8c438b6dca59f5228f531087f781ec03858b63162e",
+      "size_bytes": 734,
+      "expected": {
+        "file_type": "pcap",
+        "encapsulation": "ieee-802-11",
+        "timestamp_precision": "microseconds",
+        "packet_count": 10,
+        "original_data_size_bytes": 550,
+        "packets_emitted": 10,
+        "packets_quarantined": 0,
+        "required_protocols": ["wlan", "data"],
+        "ieee80211": {
+          "frames": 10,
+          "radio_frames": 0,
+          "bssid_frames": 7,
+          "transmitter_frames": 7,
+          "nonempty_ssid_frames": 4,
+          "frame_mix": [
+            {"frame_type": 0, "frame_subtype": 4, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 5, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 8, "frames": 2},
+            {"frame_type": 0, "frame_subtype": 12, "frames": 1},
+            {"frame_type": 1, "frame_subtype": 13, "frames": 3},
+            {"frame_type": 2, "frame_subtype": 0, "frames": 1},
+            {"frame_type": 2, "frame_subtype": 4, "frames": 1}
+          ],
+          "channels": [],
+          "center_frequencies_mhz": [],
+          "bssids": ["00:01:e3:41:bd:6e", "ff:ff:ff:ff:ff:ff"],
+          "transmitters": ["00:01:e3:41:bd:6e", "00:16:bc:3d:aa:57"],
+          "ssid_hex": ["6d617274696e657433"]
+        }
+      }
+    },
+    {
+      "id": "libpcap.wpa2-linkup",
+      "path": "upstream/libpcap-wpa2-linkup.pcap.hex",
+      "purpose": "Exercise 5 GHz radiotap metadata, a WPA2 EAPOL handshake, protected WLAN data, and a valid zero-length wildcard SSID without inferring application identity.",
+      "origin": {
+        "repository": "the-tcpdump-group/libpcap",
+        "revision": "9f37478bad2abafb626a0bf8921506569960d48d",
+        "source_path": "tests/filter/wpa2linkuppassphraseiswireshark.pcap",
+        "source_url": "https://raw.githubusercontent.com/the-tcpdump-group/libpcap/9f37478bad2abafb626a0bf8921506569960d48d/tests/filter/wpa2linkuppassphraseiswireshark.pcap",
+        "upstream_blob_sha1": "3a5f10ea039881645654acdaa1dd95777c0e5678",
+        "license": "BSD-3-Clause",
+        "license_file": "third-party-licenses/libpcap-BSD-3-Clause.txt"
+      },
+      "content_sha256": "69d6964b3bc5c14ca7ecbac3fdfd09f291ee3217ec15a9dfc082de5cae329bc8",
+      "size_bytes": 3606,
+      "expected": {
+        "file_type": "pcap",
+        "encapsulation": "ieee-802-11-radiotap",
+        "timestamp_precision": "microseconds",
+        "packet_count": 16,
+        "original_data_size_bytes": 3326,
+        "packets_emitted": 16,
+        "packets_quarantined": 0,
+        "required_protocols": ["radiotap", "wlan_radio", "wlan", "llc", "eapol", "data"],
+        "protocol_frame_counts": [
+          {"protocol": "eapol", "frames": 4},
+          {"protocol": "data", "frames": 4}
+        ],
+        "ieee80211": {
+          "frames": 16,
+          "radio_frames": 16,
+          "bssid_frames": 16,
+          "transmitter_frames": 16,
+          "nonempty_ssid_frames": 3,
+          "frame_mix": [
+            {"frame_type": 0, "frame_subtype": 0, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 1, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 4, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 5, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 8, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 10, "frames": 1},
+            {"frame_type": 0, "frame_subtype": 11, "frames": 2},
+            {"frame_type": 2, "frame_subtype": 8, "frames": 8}
+          ],
+          "channels": [36],
+          "center_frequencies_mhz": [5180],
+          "signal_dbm": {"samples": 16, "minimum": -64, "maximum": -40},
+          "bssids": ["50:0f:80:70:18:d0", "ff:ff:ff:ff:ff:ff"],
+          "transmitters": ["40:40:a7:50:73:db", "50:0f:80:70:18:d0"],
+          "ssid_hex": ["696b65726972692d3567"]
+        }
+      }
+    },
+    {
       "id": "libpcap.rarp-request-reply",
       "path": "upstream/libpcap-rarp-request-reply.pcapng.hex",
       "purpose": "Exercise PCAPNG file metadata and complete non-IP Ethernet frames.",

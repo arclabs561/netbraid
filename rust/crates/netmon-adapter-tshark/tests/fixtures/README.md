@@ -20,6 +20,8 @@ that have changed adapter behavior:
 | Fixture | Boundary exercised |
 | --- | --- |
 | libpcap radiotap | Classic PCAP, 802.11 radiotap, management/control frames |
+| libpcap Nokia mobile join | Classic PCAP, raw 802.11 management/control/data frames without radio metadata |
+| libpcap WPA2 link-up | 5 GHz radiotap, WPA2 EAPOL handshake, protected data, wildcard SSID |
 | libpcap RARP | PCAPNG, Ethernet, non-IP frames |
 | libpcap PPPoE | Classic PCAP, PPPoE discovery, conservative conversation exclusion |
 | rust-pcap snaplen 20 | Original length much larger than captured length |
