@@ -1075,10 +1075,7 @@ mod tests {
         assert_eq!(receipt.capture_id, manifest.capture_id);
         assert_eq!(packet.capture_id, manifest.capture_id);
         assert_eq!(quarantine.capture_id, manifest.capture_id);
-        assert_eq!(
-            receipt.file.file_size_bytes,
-            manifest.artifact.size_bytes
-        );
+        assert_eq!(receipt.file.file_size_bytes, manifest.artifact.size_bytes);
         assert_eq!(manifest.normalization.packet_rows_emitted, 1);
         assert_eq!(manifest.normalization.packet_rows_quarantined, 1);
         assert_eq!(

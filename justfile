@@ -17,7 +17,7 @@ test: lint
     go test ./...
 
 rust-check:
-    cargo fmt --manifest-path rust/Cargo.toml -- --check
+    cargo fmt --manifest-path rust/Cargo.toml --all -- --check
     cargo build --locked --manifest-path rust/Cargo.toml --workspace
     cargo test --locked --manifest-path rust/Cargo.toml --workspace
     cargo clippy --locked --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
