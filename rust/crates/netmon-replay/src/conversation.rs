@@ -4,8 +4,18 @@ use std::net::IpAddr;
 use netmon_evidence::PacketEnvelopeV0;
 
 const UNMODELED_ENCAPSULATION_PROTOCOLS: &[&str] = &[
-    "geneve", "gre", "gtp", "gtpv2", "ieee8021ad", "l2tp", "mpls", "mpls_pw", "pppoes", "teredo",
-    "vlan", "vxlan",
+    "geneve",
+    "gre",
+    "gtp",
+    "gtpv2",
+    "ieee8021ad",
+    "l2tp",
+    "mpls",
+    "mpls_pw",
+    "pppoes",
+    "teredo",
+    "vlan",
+    "vxlan",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -112,9 +122,7 @@ pub struct CaptureConversationReportV0 {
     pub conversations: Vec<CaptureConversationV0>,
 }
 
-pub fn reduce_capture_conversations(
-    packets: &[PacketEnvelopeV0],
-) -> CaptureConversationReportV0 {
+pub fn reduce_capture_conversations(packets: &[PacketEnvelopeV0]) -> CaptureConversationReportV0 {
     let mut conversations = BTreeMap::<CaptureConversationKeyV0, CaptureConversationV0>::new();
     let mut exclusions = BTreeMap::new();
     let mut grouped = 0_u64;
@@ -128,16 +136,15 @@ pub fn reduce_capture_conversations(
             }
         };
         grouped += 1;
-        let conversation =
-            conversations
-                .entry(candidate.key.clone())
-                .or_insert_with(|| CaptureConversationV0 {
-                    key: candidate.key,
-                    earliest_event_time_unix_ns: packet.frame.event_time_unix_ns,
-                    latest_event_time_unix_ns: packet.frame.event_time_unix_ns,
-                    a_to_b: direction(candidate.transport),
-                    b_to_a: direction(candidate.transport),
-                });
+        let conversation = conversations
+            .entry(candidate.key.clone())
+            .or_insert_with(|| CaptureConversationV0 {
+                key: candidate.key,
+                earliest_event_time_unix_ns: packet.frame.event_time_unix_ns,
+                latest_event_time_unix_ns: packet.frame.event_time_unix_ns,
+                a_to_b: direction(candidate.transport),
+                b_to_a: direction(candidate.transport),
+            });
         conversation.earliest_event_time_unix_ns = conversation
             .earliest_event_time_unix_ns
             .min(packet.frame.event_time_unix_ns);
@@ -201,7 +208,11 @@ fn candidate(packet: &PacketEnvelopeV0) -> Result<Candidate, ConversationExclusi
             (
                 IpFamilyV0::Ipv4,
                 IpAddr::V4(ipv4.source.parse().expect("validated IPv4 source")),
-                IpAddr::V4(ipv4.destination.parse().expect("validated IPv4 destination")),
+                IpAddr::V4(
+                    ipv4.destination
+                        .parse()
+                        .expect("validated IPv4 destination"),
+                ),
             )
         }
         (None, Some(ipv6))
@@ -315,8 +326,8 @@ fn count_tcp_flags(counts: &mut TcpFlagCountsV0, flags: u16) {
 #[cfg(test)]
 mod tests {
     use netmon_evidence::{
-        EthernetFieldsV0, Ipv4FieldsV0, PACKET_ENVELOPE_SCHEMA_V0, PacketFrameV0, TcpFieldsV0,
-        UdpFieldsV0,
+        EthernetFieldsV0, Ipv4FieldsV0, Ipv6FieldsV0, PacketFrameV0, TcpFieldsV0, UdpFieldsV0,
+        PACKET_ENVELOPE_SCHEMA_V0,
     };
 
     use super::*;
@@ -372,14 +383,7 @@ mod tests {
         destination: &str,
         destination_port: u16,
     ) -> PacketEnvelopeV0 {
-        let mut packet = tcp_packet(
-            frame,
-            source,
-            source_port,
-            destination,
-            destination_port,
-            0,
-        );
+        let mut packet = tcp_packet(frame, source, source_port, destination, destination_port, 0);
         packet.frame.protocols.pop();
         packet.frame.protocols.push("udp".into());
         packet.ipv4.as_mut().unwrap().protocol = 17;
@@ -387,6 +391,32 @@ mod tests {
         packet.udp = Some(UdpFieldsV0 {
             source_port,
             destination_port,
+        });
+        packet
+    }
+
+    fn ipv6_tcp_packet(
+        frame: u64,
+        source: &str,
+        source_port: u16,
+        destination: &str,
+        destination_port: u16,
+        flags: u16,
+    ) -> PacketEnvelopeV0 {
+        let mut packet = tcp_packet(
+            frame,
+            "192.0.2.1",
+            source_port,
+            "198.51.100.2",
+            destination_port,
+            flags,
+        );
+        packet.frame.protocols[2] = "ipv6".into();
+        packet.ipv4 = None;
+        packet.ipv6 = Some(Ipv6FieldsV0 {
+            source: source.into(),
+            destination: destination.into(),
+            next_header: 6,
         });
         packet
     }
@@ -435,8 +465,7 @@ mod tests {
         interface.frame.interface_id = Some(1);
         let mut section = tcp_packet(3, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x010);
         section.frame.section_number = Some(1);
-        let mut encapsulation =
-            tcp_packet(4, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x010);
+        let mut encapsulation = tcp_packet(4, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x010);
         encapsulation.frame.encapsulation_type = Some(113);
 
         let report = reduce_capture_conversations(&[first, interface, section, encapsulation]);
@@ -457,6 +486,31 @@ mod tests {
     }
 
     #[test]
+    fn ipv6_endpoints_share_the_same_canonical_conversation() {
+        let forward = ipv6_tcp_packet(1, "2001:db8::1", 40_000, "2001:db8::2", 443, 0x002);
+        let reverse = ipv6_tcp_packet(2, "2001:db8::2", 443, "2001:db8::1", 40_000, 0x012);
+
+        let report = reduce_capture_conversations(&[forward, reverse]);
+        assert_eq!(report.packet_envelopes_seen, 2);
+        assert_eq!(report.packet_envelopes_grouped, 2);
+        assert_eq!(report.packet_envelopes_excluded, 0);
+        assert!(report.exclusions.is_empty());
+        assert_eq!(report.conversations.len(), 1);
+        let conversation = &report.conversations[0];
+        assert_eq!(conversation.key.ip_family, IpFamilyV0::Ipv6);
+        assert_eq!(
+            conversation.key.endpoint_a.address,
+            "2001:db8::1".parse::<IpAddr>().unwrap()
+        );
+        assert_eq!(
+            conversation.key.endpoint_b.address,
+            "2001:db8::2".parse::<IpAddr>().unwrap()
+        );
+        assert_eq!(conversation.a_to_b.frames, 1);
+        assert_eq!(conversation.b_to_a.frames, 1);
+    }
+
+    #[test]
     fn ranking_and_reduction_are_input_order_independent() {
         let mut packets = vec![
             tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x002),
@@ -468,10 +522,7 @@ mod tests {
         let reverse = reduce_capture_conversations(&packets);
 
         assert_eq!(forward, reverse);
-        assert_eq!(
-            forward.conversations[0].total_original_frame_octets(),
-            148
-        );
+        assert_eq!(forward.conversations[0].total_original_frame_octets(), 148);
         assert_eq!(forward.conversations[1].total_original_frame_octets(), 74);
     }
 

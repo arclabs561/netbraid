@@ -137,9 +137,7 @@ enum ReadError {
 }
 
 fn read_bounded(mut reader: impl Read, limit: usize) -> Result<Vec<u8>, ReadError> {
-    let take_limit = u64::try_from(limit)
-        .unwrap_or(u64::MAX)
-        .saturating_add(1);
+    let take_limit = u64::try_from(limit).unwrap_or(u64::MAX).saturating_add(1);
     let mut bytes = Vec::with_capacity(limit.min(64 * 1024));
     reader
         .by_ref()
@@ -171,7 +169,10 @@ mod tests {
         let command = bounded_command(
             Path::new("tshark"),
             &[OsString::from("--version")],
-            &[(OsString::from("WIRESHARK_CONFIG_DIR"), OsString::from("/empty"))],
+            &[(
+                OsString::from("WIRESHARK_CONFIG_DIR"),
+                OsString::from("/empty"),
+            )],
         );
         let environment: std::collections::BTreeMap<_, _> = command
             .get_envs()

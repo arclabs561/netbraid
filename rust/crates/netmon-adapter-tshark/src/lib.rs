@@ -16,13 +16,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, SystemTimeError, UNIX_EPOCH};
 
 use capinfos::{argument_template as capinfos_argument_template, parse_table};
-use fields::{parse_rows, FIELDS};
 pub use fields::FIELD_REGISTRY_ID;
+use fields::{parse_rows, FIELDS};
 use netmon_evidence::{
-    CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0, CaptureArtifactRefV0,
-    CaptureExtractorRefV0, CaptureManifestV0, CaptureNormalizationV0, CaptureRunReceiptV0,
-    CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0, PacketQuarantineV0,
-    ToolRunReceiptV0, NORMALIZED_RECORDS_DIGEST_PROFILE_V0,
+    CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureManifestV0, CaptureNormalizationV0,
+    CaptureRunReceiptV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
+    PacketQuarantineV0, ToolRunReceiptV0, CAPTURE_MANIFEST_SCHEMA_V0,
+    CAPTURE_RUN_RECEIPT_SCHEMA_V0, NORMALIZED_RECORDS_DIGEST_PROFILE_V0,
 };
 use process::run_bounded;
 pub use process::ProcessError;
@@ -373,8 +373,7 @@ pub fn normalize_saved_capture(
             packet_limit,
             packet_limit_reached,
             packet_rows_emitted: u64::try_from(parsed.packets.len()).unwrap_or(u64::MAX),
-            packet_rows_quarantined: u64::try_from(parsed.quarantines.len())
-                .unwrap_or(u64::MAX),
+            packet_rows_quarantined: u64::try_from(parsed.quarantines.len()).unwrap_or(u64::MAX),
         },
     };
     manifest.validate().map_err(AdapterError::InvalidManifest)?;
@@ -493,22 +492,22 @@ fn first_personal_plugin(roots: Vec<PathBuf>) -> Result<Option<PathBuf>, Adapter
                 source,
             })?;
         for entry in entries {
-            let entry =
-                entry.map_err(|source| AdapterError::PersonalPluginInspection {
-                    path: path.clone(),
-                    source,
-                })?;
+            let entry = entry.map_err(|source| AdapterError::PersonalPluginInspection {
+                path: path.clone(),
+                source,
+            })?;
             visited += 1;
             if visited > 10_000 {
                 return Ok(Some(path));
             }
             let entry_path = entry.path();
-            let file_type = entry.file_type().map_err(|source| {
-                AdapterError::PersonalPluginInspection {
-                    path: entry_path.clone(),
-                    source,
-                }
-            })?;
+            let file_type =
+                entry
+                    .file_type()
+                    .map_err(|source| AdapterError::PersonalPluginInspection {
+                        path: entry_path.clone(),
+                        source,
+                    })?;
             if file_type.is_dir() {
                 pending.push(entry_path);
             } else {
@@ -837,12 +836,11 @@ fn stage_capture(input: &Path, limit: u64) -> Result<StagedCapture, AdapterError
         .tempdir()
         .map_err(AdapterError::TemporaryWorkspace)?;
     let path = directory.path().join("capture");
-    let mut source = BufReader::new(File::open(input).map_err(|source| {
-        AdapterError::InputRead {
+    let mut source =
+        BufReader::new(File::open(input).map_err(|source| AdapterError::InputRead {
             path: input.to_owned(),
             source,
-        }
-    })?);
+        })?);
     let mut destination = File::create(&path).map_err(AdapterError::TemporaryWorkspace)?;
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];
@@ -857,12 +855,12 @@ fn stage_capture(input: &Path, limit: u64) -> Result<StagedCapture, AdapterError
         if read == 0 {
             break;
         }
-        size = size
-            .checked_add(u64::try_from(read).unwrap())
-            .ok_or(AdapterError::InputTooLarge {
-                bytes: u64::MAX,
-                limit,
-            })?;
+        size =
+            size.checked_add(u64::try_from(read).unwrap())
+                .ok_or(AdapterError::InputTooLarge {
+                    bytes: u64::MAX,
+                    limit,
+                })?;
         if size > limit {
             return Err(AdapterError::InputTooLarge { bytes: size, limit });
         }
@@ -919,12 +917,12 @@ fn hash_capture(path: &Path, limit: u64) -> Result<CaptureArtifactRefV0, Adapter
         if read == 0 {
             break;
         }
-        size = size
-            .checked_add(u64::try_from(read).unwrap())
-            .ok_or(AdapterError::InputTooLarge {
-                bytes: u64::MAX,
-                limit,
-            })?;
+        size =
+            size.checked_add(u64::try_from(read).unwrap())
+                .ok_or(AdapterError::InputTooLarge {
+                    bytes: u64::MAX,
+                    limit,
+                })?;
         if size > limit {
             return Err(AdapterError::InputTooLarge { bytes: size, limit });
         }
@@ -965,9 +963,23 @@ mod tests {
             .map(|arg| arg.to_string_lossy().into_owned())
             .collect();
 
-        assert_eq!(&strings[..8], ["-n", "-Q", "-r", "capture file.pcap", "-c", "17", "-T", "fields"]);
+        assert_eq!(
+            &strings[..8],
+            [
+                "-n",
+                "-Q",
+                "-r",
+                "capture file.pcap",
+                "-c",
+                "17",
+                "-T",
+                "fields"
+            ]
+        );
         assert!(!strings.iter().any(|arg| arg == "-i"));
-        assert!(strings.windows(2).any(|pair| pair == ["-E", "occurrence=f"]));
+        assert!(strings
+            .windows(2)
+            .any(|pair| pair == ["-E", "occurrence=f"]));
         for field in FIELDS {
             assert!(strings.windows(2).any(|pair| pair == ["-e", *field]));
         }
@@ -983,8 +995,7 @@ mod tests {
             hash_capture(&path, 3).unwrap(),
             CaptureArtifactRefV0 {
                 content_sha256:
-                    "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-                        .into(),
+                    "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".into(),
                 size_bytes: 3,
             }
         );
@@ -1007,10 +1018,7 @@ mod tests {
         let staged = stage_capture(&input, 1024).unwrap();
         assert_ne!(staged.path.as_os_str(), "-");
         assert_eq!(fs::read(&staged.path).unwrap(), b"pcap bytes");
-        assert_eq!(
-            staged.artifact,
-            hash_capture(&staged.path, 1024).unwrap()
-        );
+        assert_eq!(staged.artifact, hash_capture(&staged.path, 1024).unwrap());
     }
 
     #[test]

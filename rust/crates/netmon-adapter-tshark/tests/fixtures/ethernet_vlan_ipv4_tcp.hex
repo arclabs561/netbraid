@@ -1,0 +1,17 @@
+# Classic PCAP: little-endian, microsecond timestamps, Ethernet link type.
+d4 c3 b2 a1  02 00 04 00  00000000 00000000  ffff0000 01000000
+
+# Packet record: 1700000004.000000, 58 captured/original octets.
+04f15365 00000000  3a000000 3a000000
+
+# Ethernet II: locally administered source/destination, IEEE 802.1Q.
+02 00 00 00 00 08  02 00 00 00 00 07  8100
+
+# 802.1Q: PCP 0, DEI 0, VLAN ID 42; encapsulated EtherType IPv4.
+002a 0800
+
+# IPv4: 192.0.2.7 -> 198.51.100.8, TCP.
+45 00 0028 0008 4000 40 06 0000  c0000207 c6336408
+
+# TCP: source 42000 -> HTTPS/443, SYN.
+a410 01bb 00000000 00000000  50 02 2000 0000 0000

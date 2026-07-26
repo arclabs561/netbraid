@@ -242,9 +242,7 @@ impl std::fmt::Display for CaptureValidationError {
             Self::InvalidConfigurationDigest => {
                 formatter.write_str("extractor.configuration_sha256 is not a SHA-256 digest")
             }
-            Self::InvalidRunId => {
-                formatter.write_str("run_id must use run:<64 lowercase hex>")
-            }
+            Self::InvalidRunId => formatter.write_str("run_id must use run:<64 lowercase hex>"),
             Self::EmptyReceiptField(field) => {
                 write!(formatter, "receipt field {field} must not be empty")
             }
@@ -258,10 +256,16 @@ impl std::fmt::Display for CaptureValidationError {
                 )
             }
             Self::UnsuccessfulToolReceipt(tool) => {
-                write!(formatter, "successful run receipt has nonzero {tool} exit code")
+                write!(
+                    formatter,
+                    "successful run receipt has nonzero {tool} exit code"
+                )
             }
             Self::UnexpectedToolReceipt { expected, actual } => {
-                write!(formatter, "expected {expected} tool receipt, got {actual:?}")
+                write!(
+                    formatter,
+                    "expected {expected} tool receipt, got {actual:?}"
+                )
             }
             Self::MissingStagedCapturePlaceholder(tool) => write!(
                 formatter,
@@ -449,8 +453,7 @@ impl CaptureRunReceiptV0 {
             self.file.latest_packet_time_unix_ns,
         ) {
             (0, None, None, None) => {}
-            (count, Some(_), Some(earliest), Some(latest))
-                if count > 0 && earliest <= latest => {}
+            (count, Some(_), Some(earliest), Some(latest)) if count > 0 && earliest <= latest => {}
             _ => return Err(CaptureValidationError::InconsistentCaptureFileTimes),
         }
         Ok(())
@@ -475,9 +478,7 @@ fn validate_schema(actual: &str, expected: &str) -> Result<(), CaptureValidation
     if actual == expected {
         Ok(())
     } else {
-        Err(CaptureValidationError::UnsupportedSchema(
-            actual.to_owned(),
-        ))
+        Err(CaptureValidationError::UnsupportedSchema(actual.to_owned()))
     }
 }
 
@@ -513,7 +514,10 @@ fn validate_tool_receipt(
 ) -> Result<(), CaptureValidationError> {
     for (field, value) in [
         ("tool", receipt.tool.as_str()),
-        ("configured_executable", receipt.configured_executable.as_str()),
+        (
+            "configured_executable",
+            receipt.configured_executable.as_str(),
+        ),
         ("tool_version", receipt.tool_version.as_str()),
         ("environment_policy", receipt.environment_policy.as_str()),
     ] {
@@ -564,9 +568,9 @@ fn is_lower_hex_sha256(hex: &str) -> bool {
 fn is_ethernet_address(value: &str) -> bool {
     let mut parts = value.split(':');
     (0..6).all(|_| {
-        parts
-            .next()
-            .is_some_and(|part| part.len() == 2 && part.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        parts.next().is_some_and(|part| {
+            part.len() == 2 && part.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
     }) && parts.next().is_none()
 }
 
@@ -652,8 +656,7 @@ mod tests {
         };
         CaptureRunReceiptV0 {
             schema: CAPTURE_RUN_RECEIPT_SCHEMA_V0.into(),
-            run_id:
-                "run:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789".into(),
+            run_id: "run:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789".into(),
             capture_id: DIGEST.into(),
             started_time_unix_ns: 1_700_000_001_000_000_000,
             finished_time_unix_ns: 1_700_000_001_250_000_000,
@@ -729,9 +732,7 @@ mod tests {
         value.capinfos.exit_code = 2;
         assert_eq!(
             value.validate(),
-            Err(CaptureValidationError::UnsuccessfulToolReceipt(
-                "capinfos"
-            ))
+            Err(CaptureValidationError::UnsuccessfulToolReceipt("capinfos"))
         );
 
         let mut value = receipt();
