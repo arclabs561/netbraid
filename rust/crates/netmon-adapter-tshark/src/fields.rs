@@ -302,7 +302,7 @@ fn canonical_ethernet(value: &str) -> Result<Option<String>, String> {
 }
 
 fn canonical_ssid_hex(value: &str) -> Result<Option<String>, String> {
-    if value.is_empty() {
+    if value.is_empty() || value == "<MISSING>" {
         return Ok(None);
     }
     let value = value.to_ascii_lowercase();
@@ -482,6 +482,29 @@ mod tests {
         assert_eq!(radio.channel, Some(1));
         assert_eq!(radio.center_frequency_mhz, Some(2412));
         assert_eq!(radio.signal_dbm, Some(-74));
+    }
+
+    #[test]
+    fn parser_preserves_wildcard_ssid_as_absent_evidence() {
+        let mut fields = wireless_row()
+            .split('\t')
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        fields[28] = "<MISSING>".into();
+        let row = fields.join("\t");
+
+        let parsed = parse_rows(format!("{row}\n").as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.quarantines.is_empty());
+        assert_eq!(parsed.packets.len(), 1);
+        assert_eq!(
+            parsed.packets[0]
+                .ieee80211
+                .as_ref()
+                .expect("wireless frame")
+                .ssid_hex,
+            None
+        );
     }
 
     #[test]
