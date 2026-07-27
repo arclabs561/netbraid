@@ -7,6 +7,7 @@ use std::path::Path;
 
 mod conversation;
 mod saved_capture;
+mod triage;
 
 pub use conversation::{
     reduce_capture_conversations, CaptureConversationKeyV0, CaptureConversationReportV0,
@@ -22,6 +23,19 @@ pub use netmon_evidence::{
 pub use saved_capture::{
     parse_saved_capture_jsonl, read_saved_capture_jsonl, SavedCaptureReadError,
     SavedCaptureRecordFamilyV0, SavedCaptureRecordStreamV0,
+};
+pub use triage::{
+    project_saved_pcap_triage, SavedPcapClaimScopeV0, SavedPcapCompletenessV0,
+    SavedPcapConversationAggregationV0, SavedPcapConversationDirectionV0,
+    SavedPcapConversationEndpointV0, SavedPcapConversationExclusionCountV0,
+    SavedPcapConversationExclusionReasonV0, SavedPcapConversationInsufficientReasonV0,
+    SavedPcapConversationTriageV0, SavedPcapConversationUnsupportedReasonV0,
+    SavedPcapEventWindowV0, SavedPcapNormalizationTriageV0, SavedPcapObservationPointV0,
+    SavedPcapQuarantineReasonV0, SavedPcapQuarantineTriageV0, SavedPcapTcpFlagCountsV0,
+    SavedPcapTemporalRelevanceV0, SavedPcapTopConversationV0, SavedPcapTransportProtocolV0,
+    SavedPcapTriageProjectionError, SavedPcapTriageSourceV0, SavedPcapTriageV0,
+    SavedPcapWlanDisconnectKindV0, SavedPcapWlanDisconnectV0, SavedPcapWlanInsufficientReasonV0,
+    SavedPcapWlanTriageV0, SavedPcapWlanUnsupportedReasonV0, SAVED_PCAP_TRIAGE_SCHEMA_V0,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

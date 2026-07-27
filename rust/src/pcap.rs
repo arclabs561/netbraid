@@ -14,8 +14,11 @@ use netmon_evidence::{
     CollectionModeV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
 };
 use netmon_replay::{
-    reduce_capture_conversations, CaptureConversationV0, ConversationDirectionV0,
-    TransportProtocolV0,
+    project_saved_pcap_triage, reduce_capture_conversations, CaptureConversationV0,
+    ConversationDirectionV0, SavedCaptureRecordStreamV0, SavedPcapClaimScopeV0,
+    SavedPcapCompletenessV0, SavedPcapConversationTriageV0, SavedPcapTopConversationV0,
+    SavedPcapTransportProtocolV0, SavedPcapTriageV0, SavedPcapWlanDisconnectKindV0,
+    SavedPcapWlanTriageV0, TransportProtocolV0,
 };
 
 const MIB: u64 = 1024 * 1024;
@@ -47,12 +50,16 @@ pub struct PcapArgs {
     #[arg(long, requires = "acquisition_mode")]
     pub active_action: Vec<String>,
 
+    /// Emit one finite, versioned saved-PCAP triage document as JSON.
+    #[arg(long, conflicts_with_all = ["jsonl", "records_jsonl"])]
+    pub json: bool,
+
     /// Emit versioned manifest, run receipt, packet, and quarantine records as JSONL.
-    #[arg(long, conflicts_with = "records_jsonl")]
+    #[arg(long, conflicts_with_all = ["json", "records_jsonl"])]
     pub jsonl: bool,
 
     /// Emit only deterministic manifest, packet, and quarantine records as JSONL.
-    #[arg(long, conflicts_with = "jsonl")]
+    #[arg(long, conflicts_with_all = ["json", "jsonl"])]
     pub records_jsonl: bool,
 
     /// Maximum packets TShark may read. A longer file makes normalization partial.
@@ -113,11 +120,12 @@ pub fn run(args: &PcapArgs) -> Result<()> {
     )
     .with_context(|| format!("normalizing {}", args.input.display()))?;
 
-    if args.jsonl || args.records_jsonl {
-        print_jsonl(&report, args.jsonl)
-    } else {
-        print_summary(&args.input, &report);
-        Ok(())
+    match (args.json, args.jsonl, args.records_jsonl) {
+        (true, false, false) => print_triage_json(&report),
+        (false, true, false) => print_jsonl(&report, true),
+        (false, false, true) => print_jsonl(&report, false),
+        (false, false, false) => print_summary(&args.input, &report),
+        _ => unreachable!("clap rejects conflicting output modes"),
     }
 }
 
@@ -168,9 +176,31 @@ fn print_jsonl(report: &NormalizationReport, include_receipt: bool) -> Result<()
     Ok(())
 }
 
-fn print_summary(input: &Path, report: &NormalizationReport) {
+fn print_triage_json(report: &NormalizationReport) -> Result<()> {
+    let triage = triage_for_report(report)?;
+    let mut output = BufWriter::new(io::stdout().lock());
+    serde_json::to_writer(&mut output, &triage).context("writing saved-PCAP triage projection")?;
+    output.write_all(b"\n")?;
+    output.flush()?;
+    Ok(())
+}
+
+fn triage_for_report(report: &NormalizationReport) -> Result<SavedPcapTriageV0> {
+    let records = SavedCaptureRecordStreamV0 {
+        manifest: report.manifest.clone(),
+        receipt: Some(report.receipt.clone()),
+        packets: report.packets.clone(),
+        quarantines: report.quarantines.clone(),
+        normalized_records_sha256: report.receipt.normalized_records_sha256.clone(),
+    };
+    project_saved_pcap_triage(&records).context("projecting validated saved-PCAP triage")
+}
+
+fn print_summary(input: &Path, report: &NormalizationReport) -> Result<()> {
+    print!("{}", render_triage(&triage_for_report(report)?));
+
     let manifest = &report.manifest;
-    println!("capture");
+    println!("\ncapture");
     println!(
         "  file          {}",
         operator_text(&input.display().to_string())
@@ -273,7 +303,7 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
         println!("\nnormalized packet subset\n  no packet rows emitted");
         print_quarantines(report);
         print_successful_run(report);
-        return;
+        return Ok(());
     }
 
     let first_ns = report
@@ -319,6 +349,252 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
     print_counts("protocol stacks", &protocol_stacks, 8);
     print_quarantines(report);
     print_successful_run(report);
+    Ok(())
+}
+
+fn render_triage(triage: &SavedPcapTriageV0) -> String {
+    let mut output = String::new();
+    writeln!(output, "triage").unwrap();
+    writeln!(
+        output,
+        "  normalization {} / {} emitted / {} quarantined / {} inspected",
+        normalization_label(triage.normalization.state),
+        triage.normalization.packet_rows_emitted,
+        triage.normalization.packet_rows_quarantined,
+        triage.normalization.packet_rows_inspected,
+    )
+    .unwrap();
+    match triage.normalization.completeness {
+        SavedPcapCompletenessV0::CompleteCapture => {
+            writeln!(output, "  completeness  complete capture normalization").unwrap();
+        }
+        SavedPcapCompletenessV0::PartialPacketSubset => {
+            writeln!(
+                output,
+                "  completeness  partial normalized packet subset; file-wide conclusions unavailable"
+            )
+            .unwrap();
+        }
+    }
+    if let Some(window) = &triage.normalization.emitted_packet_window {
+        writeln!(
+            output,
+            "  observed span {} emitted packets / {}",
+            window.observations,
+            triage_event_window(window)
+        )
+        .unwrap();
+    }
+    if triage.quarantine.rows == 0 {
+        writeln!(output, "  quarantine    0 rows").unwrap();
+    } else {
+        writeln!(
+            output,
+            "  quarantine    {} rows / {} distinct reasons / showing {}",
+            triage.quarantine.rows,
+            triage.quarantine.distinct_reasons,
+            triage.quarantine.reasons_shown,
+        )
+        .unwrap();
+        for reason in &triage.quarantine.top_reasons {
+            writeln!(
+                output,
+                "                  {} rows  {}",
+                reason.rows,
+                operator_text(&reason.reason)
+            )
+            .unwrap();
+        }
+    }
+
+    match &triage.wlan {
+        SavedPcapWlanTriageV0::Insufficient { scope, .. } => {
+            writeln!(
+                output,
+                "  WLAN disconnect frames  insufficient in {}: no IEEE 802.11 frame evidence",
+                claim_scope_label(*scope)
+            )
+            .unwrap();
+        }
+        SavedPcapWlanTriageV0::Unsupported { scope, .. } => {
+            writeln!(
+                output,
+                "  WLAN disconnect frames  unsupported in {}: no IEEE 802.11 frame evidence",
+                claim_scope_label(*scope)
+            )
+            .unwrap();
+        }
+        SavedPcapWlanTriageV0::NotObserved { scope, wlan_window } => {
+            writeln!(
+                output,
+                "  WLAN disconnect frames  not observed in {} among {} emitted WLAN frames / {}",
+                claim_scope_label(*scope),
+                wlan_window.observations,
+                triage_event_window(wlan_window)
+            )
+            .unwrap();
+        }
+        SavedPcapWlanTriageV0::Observed {
+            scope,
+            wlan_window,
+            disconnects,
+        } => {
+            let disconnect_frames = disconnects
+                .iter()
+                .map(|disconnect| disconnect.event_window.observations)
+                .sum::<u64>();
+            writeln!(
+                output,
+                "  WLAN disconnect frames  {disconnect_frames} observed across {} supported management subtypes in {} among {} emitted WLAN frames",
+                disconnects.len(),
+                claim_scope_label(*scope),
+                wlan_window.observations,
+            )
+            .unwrap();
+            writeln!(
+                output,
+                "                  observed management frames do not establish cause, impact, or attack"
+            )
+            .unwrap();
+            for disconnect in disconnects {
+                writeln!(
+                    output,
+                    "                  {} {} / {}",
+                    disconnect.event_window.observations,
+                    wlan_disconnect_label(disconnect.kind),
+                    triage_event_window(&disconnect.event_window)
+                )
+                .unwrap();
+                writeln!(
+                    output,
+                    "  WLAN pivot    tshark display filter: {}",
+                    disconnect.tshark_display_filter
+                )
+                .unwrap();
+            }
+        }
+    }
+
+    match &triage.top_capture_conversation {
+        SavedPcapConversationTriageV0::Insufficient {
+            scope,
+            packet_envelopes_seen,
+            packet_envelopes_excluded,
+            ..
+        } => {
+            writeln!(
+                output,
+                "  top capture   insufficient in {}: no eligible IP/TCP/UDP capture conversation \
+                 ({packet_envelopes_excluded}/{packet_envelopes_seen} packet envelopes excluded)",
+                claim_scope_label(*scope)
+            )
+            .unwrap();
+        }
+        SavedPcapConversationTriageV0::Unsupported {
+            scope,
+            packet_envelopes_seen,
+            packet_envelopes_excluded,
+            ..
+        } => {
+            writeln!(
+                output,
+                "  top capture   unsupported in {}: no eligible IP/TCP/UDP capture conversation \
+                 ({packet_envelopes_excluded}/{packet_envelopes_seen} packet envelopes excluded)",
+                claim_scope_label(*scope)
+            )
+            .unwrap();
+        }
+        SavedPcapConversationTriageV0::Observed {
+            scope,
+            packet_envelopes_grouped,
+            packet_envelopes_seen,
+            conversation,
+            ..
+        } => {
+            write_top_conversation(
+                &mut output,
+                *scope,
+                *packet_envelopes_grouped,
+                *packet_envelopes_seen,
+                conversation,
+            );
+        }
+    }
+    output
+}
+
+fn write_top_conversation(
+    output: &mut String,
+    claim_scope: SavedPcapClaimScopeV0,
+    packet_envelopes_grouped: u64,
+    packet_envelopes_seen: u64,
+    conversation: &SavedPcapTopConversationV0,
+) {
+    let scope = claim_scope_label(claim_scope);
+    let protocol = match conversation.transport {
+        SavedPcapTransportProtocolV0::Tcp => "TCP",
+        SavedPcapTransportProtocolV0::Udp => "UDP",
+    };
+    writeln!(
+        output,
+        "  top capture   cumulative {scope} aggregate by original frame octets; not recent, time-local, a flow, or a session"
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "                  {protocol} {} ↔ {} / {} frames / {} original frame octets",
+        format_triage_endpoint(&conversation.endpoint_a),
+        format_triage_endpoint(&conversation.endpoint_b),
+        conversation.total_frames,
+        conversation.total_original_frame_octets,
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "                  reduction coverage {packet_envelopes_grouped}/{packet_envelopes_seen} emitted packet envelopes"
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "  candidate pivot  tshark display filter: {}",
+        conversation.tshark_candidate_display_filter
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "                  candidate pivot may also select packets excluded by reducer eligibility rules"
+    )
+    .unwrap();
+}
+
+fn wlan_disconnect_label(kind: SavedPcapWlanDisconnectKindV0) -> &'static str {
+    match kind {
+        SavedPcapWlanDisconnectKindV0::Deauthentication => "deauthentication frame(s)",
+        SavedPcapWlanDisconnectKindV0::Disassociation => "disassociation frame(s)",
+    }
+}
+
+fn claim_scope_label(scope: SavedPcapClaimScopeV0) -> &'static str {
+    match scope {
+        SavedPcapClaimScopeV0::CompleteCapture => "complete capture",
+        SavedPcapClaimScopeV0::NormalizedPacketSubset => "normalized packet subset",
+    }
+}
+
+fn triage_event_window(window: &netmon_replay::SavedPcapEventWindowV0) -> String {
+    format!(
+        "{} .. {} / {} span",
+        format_epoch_ns(window.earliest_event_time_unix_ns),
+        format_epoch_ns(window.latest_event_time_unix_ns),
+        format_duration_ns(i64::try_from(window.observed_span_ns).unwrap_or(i64::MAX))
+    )
+}
+
+fn format_triage_endpoint(endpoint: &netmon_replay::SavedPcapConversationEndpointV0) -> String {
+    match endpoint.address {
+        std::net::IpAddr::V4(address) => format!("{address}:{}", endpoint.port),
+        std::net::IpAddr::V6(address) => format!("[{address}]:{}", endpoint.port),
+    }
 }
 
 fn render_ieee80211_summary(packets: &[PacketEnvelopeV0]) -> Option<String> {
