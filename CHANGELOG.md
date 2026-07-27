@@ -5,8 +5,8 @@ documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Netbraid uses one workspace release version. The CLI and three reusable
-libraries publish to crates.io in dependency order; GitHub native binary
-releases remain available.
+libraries are prepared for crates.io publication in dependency order; GitHub
+native binary releases remain available independently.
 
 ## [Unreleased]
 
@@ -14,9 +14,10 @@ releases remain available.
 
 ### Added
 
-- The `netbraid`, `netbraid-evidence`, `netbraid-replay`, and
-  `netbraid-adapter-tshark` crates.io packages, including self-contained
-  package documentation, licenses, fixtures, and tests.
+- Publishable `netbraid`, `netbraid-evidence`, `netbraid-replay`, and
+  `netbraid-adapter-tshark` package inventories, including self-contained
+  documentation, licenses, fixtures, and tests. Registry publication remains
+  pending credential rotation.
 - A provenance-checked public saved-capture corpus spanning radiotap/802.11,
   RARP PCAPNG, PPPoE discovery, snaplen truncation, NTP conversations, and
   big-endian PCAPNG. Exact upstream bytes are stored as diffable hex beside
