@@ -54,12 +54,26 @@ jobs:
             cargo package --locked --list -p "$package" >/dev/null
           done
           cargo package --locked --list -p netbraid-replay >"$RUNNER_TEMP/netbraid-replay-package.txt"
+          cargo package --locked --list -p netbraid-adapter-tshark >"$RUNNER_TEMP/netbraid-adapter-tshark-package.txt"
+          cargo package --locked --list -p netbraid >"$RUNNER_TEMP/netbraid-package.txt"
           grep -Fqx 'tests/fixtures/scenarios/wifi-hotspot-wifi/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
           grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
           grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/host-path.jsonl' "$RUNNER_TEMP/netbraid-replay-package.txt"
           grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/viewport.txt' "$RUNNER_TEMP/netbraid-replay-package.txt"
           grep -Fqx 'tests/fixtures/scenarios/vpn-overlay-transition/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
           grep -Fqx 'tests/fixtures/scenarios/cache-source-gap/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-6.jsonl' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          if grep -Eq '^tests/(curated_corpus\.rs|fixtures/(third-party-licenses|upstream)/)' "$RUNNER_TEMP/netbraid-adapter-tshark-package.txt"; then
+            echo "adapter package includes repository-only corpus material" >&2
+            exit 1
+          fi
+          if grep -Eq '^tests/(fixtures/|pcap_cli\.rs$|scenario_cli\.rs$)' "$RUNNER_TEMP/netbraid-package.txt"; then
+            echo "root package includes repository-only corpus material" >&2
+            exit 1
+          fi
       - run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - run: cargo doc --locked --workspace --all-features --no-deps
         env:

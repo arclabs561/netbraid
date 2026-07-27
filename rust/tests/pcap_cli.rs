@@ -476,6 +476,89 @@ fn pcap_triage_surfaces_observed_wlan_disconnect_frames_without_attack_claims() 
 }
 
 #[test]
+#[ignore = "requires installed tshark and capinfos; run through `just pcap-smoke`"]
+fn records_jsonl_preserves_the_six_to_seven_frame_wlan_boundary() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("network-join.pcap");
+    fs::write(
+        &input,
+        decode_hex(include_str!(
+            "fixtures/libpcap-network-join-nokia-mobile.pcap.hex"
+        )),
+    )
+    .unwrap();
+    let binary = env!("CARGO_BIN_EXE_netbraid");
+
+    let normalize = |limit: &str| {
+        let args = [
+            "pcap",
+            input.to_str().unwrap(),
+            "--packet-limit",
+            limit,
+            "--records-jsonl",
+        ];
+        let first = Command::new(binary).args(args).output().unwrap();
+        assert!(
+            first.status.success(),
+            "{}",
+            String::from_utf8_lossy(&first.stderr)
+        );
+        let second = Command::new(binary).args(args).output().unwrap();
+        assert!(
+            second.status.success(),
+            "{}",
+            String::from_utf8_lossy(&second.stderr)
+        );
+        assert_eq!(
+            first.stdout, second.stdout,
+            "receipt-free normalization must be deterministic within one extractor configuration"
+        );
+        netbraid_replay::parse_saved_capture_jsonl(&first.stdout).unwrap()
+    };
+
+    let six = normalize("6");
+    let seven = normalize("7");
+    assert_eq!(six.manifest.capture_id, seven.manifest.capture_id);
+    assert_eq!(six.packets.len(), 6);
+    assert_eq!(seven.packets.len(), 7);
+    assert_eq!(six.packets, seven.packets[..6]);
+    assert_eq!(seven.packets[6].ieee80211.as_ref().unwrap().frame_type, 0);
+    assert_eq!(
+        seven.packets[6].ieee80211.as_ref().unwrap().frame_subtype,
+        12
+    );
+
+    let six_triage = netbraid_replay::project_saved_pcap_triage_v1(
+        &six,
+        netbraid_replay::SavedPcapTriageOptionsV1::default(),
+    )
+    .unwrap();
+    let seven_triage = netbraid_replay::project_saved_pcap_triage_v1(
+        &seven,
+        netbraid_replay::SavedPcapTriageOptionsV1::default(),
+    )
+    .unwrap();
+    let six_triage = serde_json::to_value(six_triage).unwrap();
+    let seven_triage = serde_json::to_value(seven_triage).unwrap();
+    assert_eq!(
+        six_triage["normalization"]["completeness"],
+        "partial_packet_subset"
+    );
+    assert_eq!(six_triage["wlan"]["status"], "not_observed");
+    assert_eq!(six_triage["wlan"]["scope"], "normalized_packet_subset");
+    assert_eq!(seven_triage["wlan"]["status"], "observed");
+    assert_eq!(seven_triage["wlan"]["scope"], "normalized_packet_subset");
+    assert_eq!(
+        seven_triage["wlan"]["disconnects"][0]["kind"],
+        "deauthentication"
+    );
+    assert_eq!(
+        seven_triage["wlan"]["disconnects"][0]["event_window"]["observations"],
+        1
+    );
+}
+
+#[test]
 fn pcap_jsonl_modes_are_mutually_exclusive() {
     let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
         .args([

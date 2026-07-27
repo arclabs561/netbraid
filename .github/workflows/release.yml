@@ -50,7 +50,12 @@ jobs:
           jq -e 'all(.packages[];
             .publish == ["crates-io"] and
             .rust_version == "1.88" and
-            .license == "MIT OR Unlicense" and
+            (
+              (.name == "netbraid-replay" and
+                .license == "(MIT OR Unlicense) AND BSD-3-Clause") or
+              (.name != "netbraid-replay" and
+                .license == "MIT OR Unlicense")
+            ) and
             .repository == "https://github.com/arclabs561/netbraid"
           )' <<<"$metadata" >/dev/null
           jq -e --arg version "$version" '
@@ -97,6 +102,18 @@ jobs:
           for package in netbraid-evidence netbraid-replay netbraid-adapter-tshark netbraid; do
             cargo +1.88 package --locked --list --manifest-path rust/Cargo.toml -p "$package" >/dev/null
           done
+          cargo +1.88 package --locked --list --manifest-path rust/Cargo.toml -p netbraid-replay >"$RUNNER_TEMP/netbraid-replay-package.txt"
+          cargo +1.88 package --locked --list --manifest-path rust/Cargo.toml -p netbraid-adapter-tshark >"$RUNNER_TEMP/netbraid-adapter-tshark-package.txt"
+          cargo +1.88 package --locked --list --manifest-path rust/Cargo.toml -p netbraid >"$RUNNER_TEMP/netbraid-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          if grep -Eq '^tests/(curated_corpus\.rs|fixtures/(third-party-licenses|upstream)/)' "$RUNNER_TEMP/netbraid-adapter-tshark-package.txt"; then
+            echo "adapter package includes repository-only corpus material" >&2
+            exit 1
+          fi
+          if grep -Eq '^tests/(fixtures/|pcap_cli\.rs$|scenario_cli\.rs$)' "$RUNNER_TEMP/netbraid-package.txt"; then
+            echo "root package includes repository-only corpus material" >&2
+            exit 1
+          fi
           cargo +1.88 package --locked --manifest-path rust/Cargo.toml -p netbraid-evidence
 
   build:

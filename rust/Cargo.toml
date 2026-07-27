@@ -8,12 +8,14 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 readme = "../README.md"
+exclude = ["tests/fixtures/**", "tests/pcap_cli.rs", "tests/scenario_cli.rs"]
 keywords = ["network-analysis", "pcap", "replay", "tshark"]
 categories = ["command-line-utilities", "network-programming"]
 
 [features]
 default = []
 scenario-fixtures = ["netbraid-replay/scenario-fixtures"]
+scenario-fixtures-capture-derived = ["netbraid-replay/scenario-fixtures-capture-derived"]
 
 [workspace]
 members = [

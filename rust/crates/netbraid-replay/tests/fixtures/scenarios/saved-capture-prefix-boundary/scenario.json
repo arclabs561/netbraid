@@ -1,0 +1,240 @@
+{
+  "schema": "netbraid.scenario_bundle.v1",
+  "scenario_id": "saved-capture-prefix-boundary",
+  "license": "(MIT OR Unlicense) AND BSD-3-Clause",
+  "sensitivity": "PUBLIC_REVIEWED",
+  "disclosure_review": {
+    "retained_evidence_identifier_classes": [
+      "link_layer_address",
+      "network_name",
+      "packet_timestamp"
+    ],
+    "evidence_payload_handling": "omitted_from_ingestible_evidence_artifacts",
+    "summary": "The normalized evidence records retain public-upstream IEEE 802.11 link-layer addresses, the network name martinet3, and packet timestamps. Raw packet payload bytes are omitted from ingestible evidence artifacts. The separately classified legal notice is retained verbatim for redistribution compliance."
+  },
+  "provenance": {
+    "generator": "netbraid-maintainers",
+    "generator_version": "scenario-v1",
+    "description": "Two deterministic normalized prefixes of one admitted public libpcap capture exercise a packet-limit boundary where the seventh frame adds a deauthentication observation.",
+    "sources": [
+      {
+        "id": "libpcap.network-join-nokia-mobile",
+        "source_origin": "observed",
+        "derivation": "normalized_saved_capture",
+        "acquisition": "third_party_upstream",
+        "corpus_schema": "netmon.capture_fixture_corpus.v0",
+        "corpus_fixture_id": "libpcap.network-join-nokia-mobile",
+        "repository": "the-tcpdump-group/libpcap",
+        "revision": "9f37478bad2abafb626a0bf8921506569960d48d",
+        "source_path": "tests/filter/Network_Join_Nokia_Mobile.pcap",
+        "source_url": "https://raw.githubusercontent.com/the-tcpdump-group/libpcap/9f37478bad2abafb626a0bf8921506569960d48d/tests/filter/Network_Join_Nokia_Mobile.pcap",
+        "upstream_blob_sha1": "28997e70e3e584119286e54a4a7d0ebb3bd38e6b",
+        "content_sha256": "sha256:d66a40532f2a67d3dac9bb8c438b6dca59f5228f531087f781ec03858b63162e",
+        "size_bytes": 734,
+        "spdx_license_expression": "BSD-3-Clause",
+        "license_artifact": "libpcap-license"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "prefix-six",
+      "path": "prefix-6.jsonl",
+      "role": "saved_capture_jsonl",
+      "media_type": "application/x-ndjson",
+      "bytes": 3906,
+      "sha256": "sha256:a8e77598457cc88ecff17b2c2767e32e83fb3568ca0c92167b15f693b0782d7b"
+    },
+    {
+      "id": "prefix-seven",
+      "path": "prefix-7.jsonl",
+      "role": "saved_capture_jsonl",
+      "media_type": "application/x-ndjson",
+      "bytes": 4472,
+      "sha256": "sha256:043a2cf4b6648014dfa27e47646d10127def48df4ddf9815f2ef770763962af2"
+    },
+    {
+      "id": "libpcap-license",
+      "path": "LICENSE-libpcap-BSD-3-Clause.txt",
+      "role": "license_text",
+      "media_type": "text/plain",
+      "bytes": 868,
+      "sha256": "sha256:8a54594d257e14a5260ac770f1633516cb51e3fc28c40136ce2697014eda7afd"
+    }
+  ],
+  "timeline": [
+    {
+      "name": "prefix-six",
+      "at_ms": 0,
+      "ingest": [
+        "prefix-six#manifest",
+        "prefix-six#frame:1",
+        "prefix-six#frame:2",
+        "prefix-six#frame:3",
+        "prefix-six#frame:4",
+        "prefix-six#frame:5",
+        "prefix-six#frame:6"
+      ]
+    },
+    {
+      "name": "prefix-seven",
+      "at_ms": 1,
+      "ingest": [
+        "prefix-seven#manifest",
+        "prefix-seven#frame:1",
+        "prefix-seven#frame:2",
+        "prefix-seven#frame:3",
+        "prefix-seven#frame:4",
+        "prefix-seven#frame:5",
+        "prefix-seven#frame:6",
+        "prefix-seven#frame:7"
+      ]
+    }
+  ],
+  "expected": {
+    "source_coverage": [
+      {
+        "id": "saved-prefix-six",
+        "checkpoint": "prefix-six",
+        "source": "saved_capture_normalization",
+        "state": "partial",
+        "freshness": "current",
+        "evidence": ["prefix-six#manifest"],
+        "limitation": "Normalization stopped at packet limit 6 with later source packets outside this normalized stream; observer, acquisition policy, and acquisition coverage are unknown."
+      },
+      {
+        "id": "saved-prefix-seven",
+        "checkpoint": "prefix-seven",
+        "source": "saved_capture_normalization",
+        "state": "partial",
+        "freshness": "current",
+        "evidence": ["prefix-seven#manifest"],
+        "limitation": "Normalization stopped at packet limit 7; this remains a partial saved-artifact projection with unknown acquisition coverage."
+      }
+    ],
+    "conclusions": [
+      {
+        "id": "disconnect-not-observed-in-prefix",
+        "checkpoint": "prefix-six",
+        "question": "Is a WLAN deauthentication or disassociation frame observed in the normalized six-frame prefix?",
+        "disposition": "supported",
+        "conclusion": "No WLAN disconnect-management frame is observed among normalized frames 1 through 6.",
+        "evidence": [
+          "prefix-six#manifest",
+          "prefix-six#frame:1",
+          "prefix-six#frame:2",
+          "prefix-six#frame:3",
+          "prefix-six#frame:4",
+          "prefix-six#frame:5",
+          "prefix-six#frame:6"
+        ],
+        "coverage": ["saved-prefix-six"],
+        "limitations": ["This is a normalized-prefix statement, not a source-wide absence claim."]
+      },
+      {
+        "id": "source-wide-disconnect-absence",
+        "checkpoint": "prefix-six",
+        "question": "Does the six-frame prefix establish that the source capture contains no disconnect-management frame?",
+        "disposition": "abstained",
+        "conclusion": "Source-wide disconnect-frame absence is not established.",
+        "evidence": ["prefix-six#manifest"],
+        "coverage": ["saved-prefix-six"],
+        "limitations": ["The manifest says the packet limit was reached, so later source packets remain outside the normalized stream."],
+        "reason": "Absence within a partial normalized prefix cannot be promoted to absence in the source capture."
+      },
+      {
+        "id": "deauthentication-prefix-boundary",
+        "checkpoint": "prefix-seven",
+        "question": "What changes when normalization includes frame 7?",
+        "disposition": "supported",
+        "conclusion": "The first six packet records remain identical and frame 7 adds one observed IEEE 802.11 subtype-12 deauthentication frame.",
+        "evidence": [
+          "prefix-six#manifest",
+          "prefix-six#frame:1",
+          "prefix-six#frame:2",
+          "prefix-six#frame:3",
+          "prefix-six#frame:4",
+          "prefix-six#frame:5",
+          "prefix-six#frame:6",
+          "prefix-seven#manifest",
+          "prefix-seven#frame:1",
+          "prefix-seven#frame:2",
+          "prefix-seven#frame:3",
+          "prefix-seven#frame:4",
+          "prefix-seven#frame:5",
+          "prefix-seven#frame:6",
+          "prefix-seven#frame:7"
+        ],
+        "coverage": ["saved-prefix-six", "saved-prefix-seven"],
+        "limitations": ["The oracle requires an independent typed-record comparison; matching capture identity alone does not prove prefix equality."]
+      },
+      {
+        "id": "source-wide-frame-count",
+        "checkpoint": "prefix-seven",
+        "question": "Does the seven-frame normalized stream establish the source capture's total frame count?",
+        "disposition": "abstained",
+        "conclusion": "The source capture's total frame count is not established by this scenario stream.",
+        "evidence": ["prefix-seven#manifest"],
+        "coverage": ["saved-prefix-seven"],
+        "limitations": ["The receipt-free stream proves only that its packet limit was reached and later source packets exist."],
+        "reason": "A partial normalization manifest is not a complete source-file inventory."
+      },
+      {
+        "id": "attack-classification",
+        "checkpoint": "prefix-seven",
+        "question": "Does the observed deauthentication frame establish an attack?",
+        "disposition": "abstained",
+        "conclusion": "An attack is not established.",
+        "evidence": ["prefix-seven#frame:7"],
+        "coverage": ["saved-prefix-seven"],
+        "limitations": ["One management frame does not establish intent, authorization, sequence context, or outcome."],
+        "reason": "Frame classification is not actor-intent classification."
+      },
+      {
+        "id": "disconnect-causality",
+        "checkpoint": "prefix-seven",
+        "question": "Did frame 7 cause a station to disconnect?",
+        "disposition": "abstained",
+        "conclusion": "Disconnect causality and resulting station state are not established.",
+        "evidence": ["prefix-seven#frame:7"],
+        "coverage": ["saved-prefix-seven"],
+        "limitations": ["The normalized record carries no reason code, response sequence, station-state observation, or causal experiment."],
+        "reason": "An observed deauthentication frame does not prove receipt, effect, or cause."
+      },
+      {
+        "id": "actor-identity",
+        "checkpoint": "prefix-seven",
+        "question": "Who transmitted the deauthentication frame?",
+        "disposition": "abstained",
+        "conclusion": "Actor identity is not established.",
+        "evidence": ["prefix-seven#frame:7"],
+        "coverage": ["saved-prefix-seven"],
+        "limitations": ["Observed IEEE 802.11 addresses are link identifiers without authenticated actor binding."],
+        "reason": "A transmitter address is not person, process, or device identity."
+      },
+      {
+        "id": "access-point-identity",
+        "checkpoint": "prefix-seven",
+        "question": "Which managed access point or owner is represented by the observed BSSID?",
+        "disposition": "abstained",
+        "conclusion": "Managed access-point identity and ownership are not established.",
+        "evidence": ["prefix-seven#frame:7"],
+        "coverage": ["saved-prefix-seven"],
+        "limitations": ["No authenticated controller, enrollment, certificate, or operator assertion binds the BSSID to an asset or owner."],
+        "reason": "An observed BSSID is not an authenticated infrastructure identity."
+      },
+      {
+        "id": "radio-channel",
+        "checkpoint": "prefix-seven",
+        "question": "On which radio channel was frame 7 observed?",
+        "disposition": "abstained",
+        "conclusion": "Radio channel is not established.",
+        "evidence": ["prefix-seven#frame:7"],
+        "coverage": ["saved-prefix-seven"],
+        "limitations": ["The source uses raw IEEE 802.11 encapsulation without radiotap or normalized radio metadata."],
+        "reason": "Link-layer frame fields do not supply missing capture-radio context."
+      }
+    ],
+    "viewports": []
+  }
+}

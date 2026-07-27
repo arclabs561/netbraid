@@ -19,4 +19,5 @@ separate `netmon.*.v0` wire identifiers remain stable.
 netbraid-adapter-tshark = "0.3"
 ```
 
-License: MIT OR Unlicense.
+License: MIT OR Unlicense. The repository's separately licensed curated corpus
+and its workspace-only test are excluded from the published crate archive.

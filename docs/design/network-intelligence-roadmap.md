@@ -166,9 +166,10 @@ registry build passes.
 
 ## Phase 2: make scenarios exercise operator decisions
 
-Extend `netbraid.scenario_bundle.v0` only with existing strict source families
-and named false-positive risks. Fill the highest-value gaps from the evaluation
-corpus:
+Extend `netbraid.scenario_bundle.v0` with public-synthetic cases and
+`netbraid.scenario_bundle.v1` with separately gated, disclosure-reviewed
+capture-derived cases. Keep both contracts strict and admit only named
+false-positive risks. Fill the highest-value gaps from the evaluation corpus:
 
 - independently evidenced 802.11 roam/ESS continuity and unrelated-site
   variation beyond the implemented same-SSID BSSID attachment transition and
@@ -190,6 +191,15 @@ an observed same-SSID BSSID attachment change with a compatible host-path
 boundary from a later incompatible boundary that reuses the same label. It
 requires abstention on physical place, network owner, access-point identity,
 and whether the attachment change was an actual 802.11 roam.
+
+A first `PUBLIC_REVIEWED` capture-derived scenario now guards a saved-capture
+packet-limit boundary: six normalized IEEE 802.11 frames support only a
+prefix-scoped disconnect-frame `not_observed`, while a seventh frame adds one
+deauthentication observation without establishing attack intent, disconnect
+causality, actor identity, managed access-point identity, radio channel, or the
+source-wide frame count. Its observed/upstream/normalized lineage and BSD
+notice are closed over exact package bytes under a separate non-default
+feature; it does not widen the synthetic v0 contract.
 
 Consumer: Linktop product QA and Netbraid replay. Infra's multi-source Tier 4/5
 corpus remains separately sealed under its deployment and privacy authority.
