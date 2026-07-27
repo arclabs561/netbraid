@@ -151,7 +151,8 @@ future opt-in acquisition policy ---> Muxer
 
 Adapters produce evidence. Replay owns deterministic reduction and scenario
 loading. The CLI is an operator and integration surface, not a service
-dependency. Linktop imports released evidence/replay libraries. Infra may
+dependency. Linktop imports version-pinned evidence/replay libraries and keeps
+its exact Git revision until its registry migration gate passes. Infra may
 consume released libraries or the finite CLI at an explicit process boundary;
 it never depends on a sibling checkout.
 
