@@ -1,0 +1,140 @@
+{
+  "schema": "netbraid.scenario_bundle.v0",
+  "scenario_id": "vpn-overlay-transition",
+  "license": "MIT OR Unlicense",
+  "privacy": "PUBLIC_SYNTHETIC",
+  "provenance": {
+    "generator": "netbraid-maintainers",
+    "generator_version": "scenario-v0",
+    "description": "Synthetic passive route and interface transition into and out of an overlay while the observed Wi-Fi attachment label remains stable."
+  },
+  "artifacts": [
+    {
+      "id": "path",
+      "path": "host-path.jsonl",
+      "role": "host_path_jsonl",
+      "media_type": "application/x-ndjson",
+      "bytes": 2217,
+      "sha256": "sha256:41ddb16edec78bf1dbebe044959dc8792b45413563baa8438d489512f5e9e221"
+    },
+    {
+      "id": "final-view",
+      "path": "viewport.txt",
+      "role": "viewport_text",
+      "media_type": "text/plain",
+      "bytes": 224,
+      "sha256": "sha256:ba498c11bb2cce73aa657cce362a1e15b2abb4f4d5816eb4d150ef2e421f73c9"
+    }
+  ],
+  "timeline": [
+    {
+      "name": "underlay-baseline",
+      "at_ms": 0,
+      "ingest": ["path#underlay-before"]
+    },
+    {
+      "name": "overlay-entered",
+      "at_ms": 60000,
+      "ingest": ["path#overlay-active"]
+    },
+    {
+      "name": "overlay-exited",
+      "at_ms": 120000,
+      "ingest": ["path#underlay-after"]
+    }
+  ],
+  "expected": {
+    "source_coverage": [
+      {
+        "id": "route-baseline",
+        "checkpoint": "underlay-baseline",
+        "source": "passive_host_path",
+        "state": "partial",
+        "freshness": "current",
+        "evidence": ["path#underlay-before"],
+        "limitation": "Route provider and RF capture are unavailable."
+      },
+      {
+        "id": "route-overlay",
+        "checkpoint": "overlay-entered",
+        "source": "passive_host_path",
+        "state": "partial",
+        "freshness": "current",
+        "evidence": ["path#overlay-active"],
+        "limitation": "An overlay-shaped route is visible, but provider and operator intent are unavailable."
+      },
+      {
+        "id": "route-exit",
+        "checkpoint": "overlay-exited",
+        "source": "passive_host_path",
+        "state": "partial",
+        "freshness": "current",
+        "evidence": ["path#underlay-after"],
+        "limitation": "The observer sees the active route only; remote exit behavior is not measured."
+      }
+    ],
+    "conclusions": [
+      {
+        "id": "overlay-route-entered",
+        "checkpoint": "overlay-entered",
+        "question": "Did the active host path enter an overlay-shaped route?",
+        "disposition": "supported",
+        "conclusion": "The active interface, link type, next hop, resolver, and address prefix changed.",
+        "evidence": ["path#underlay-before", "path#overlay-active"],
+        "coverage": ["route-baseline", "route-overlay"],
+        "limitations": ["The route transition is observed without attributing a provider, product, or purpose."]
+      },
+      {
+        "id": "overlay-provider",
+        "checkpoint": "overlay-entered",
+        "question": "Which VPN or overlay provider is active?",
+        "disposition": "abstained",
+        "conclusion": "Overlay provider is not established.",
+        "evidence": ["path#overlay-active"],
+        "coverage": ["route-overlay"],
+        "limitations": ["No process attribution, configuration, control-plane record, or provider endpoint evidence is present."],
+        "reason": "Interface and route shape do not identify a provider."
+      },
+      {
+        "id": "overlay-intent",
+        "checkpoint": "overlay-entered",
+        "question": "Why did the operator enter the overlay?",
+        "disposition": "abstained",
+        "conclusion": "Operator intent is not established.",
+        "evidence": ["path#overlay-active"],
+        "coverage": ["route-overlay"],
+        "limitations": ["No user action, policy event, or authorized intent label is present."],
+        "reason": "Observed network state cannot establish human intent."
+      },
+      {
+        "id": "rf-condition",
+        "checkpoint": "overlay-entered",
+        "question": "Did RF conditions cause the route transition?",
+        "disposition": "abstained",
+        "conclusion": "RF causality is not established.",
+        "evidence": ["path#underlay-before", "path#overlay-active"],
+        "coverage": ["route-baseline", "route-overlay"],
+        "limitations": ["Radio capture is explicitly missing at both checkpoints."],
+        "reason": "No RF observation supports or rules out a radio condition."
+      },
+      {
+        "id": "overlay-route-exited",
+        "checkpoint": "overlay-exited",
+        "question": "Did the active host path leave the overlay-shaped route?",
+        "disposition": "supported",
+        "conclusion": "The active host path returned to the exact observer-scoped underlay context.",
+        "evidence": ["path#underlay-before", "path#overlay-active", "path#underlay-after"],
+        "coverage": ["route-baseline", "route-overlay", "route-exit"],
+        "limitations": ["This does not establish that all application flows stopped using an overlay."]
+      }
+    ],
+    "viewports": [
+      {
+        "checkpoint": "overlay-exited",
+        "artifact": "final-view",
+        "width": 48,
+        "height": 6
+      }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+PATH  en0 -> utun7 -> en0
+ROUTE next hop and resolver changed
+UNDERLAY attachment label remained observed
+ABSTAIN VPN provider and intent unknown
+ABSTAIN RF conditions not observed
+SOURCE passive host route; partial/current

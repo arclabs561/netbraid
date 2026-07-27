@@ -102,6 +102,13 @@ The oracle is not a screenshot alone: it states the supported diagnosis,
 required abstentions, source freshness/coverage, and the machine-readable
 records that justify the presentation.
 
+Those statements remain authored test oracles. The bundle validator rejects
+unknown or future evidence, contradictory coverage, current observed coverage
+without cited evidence, unsafe artifacts, and invalid viewport bytes; it does
+not infer the truth of arbitrary prose or execute Linktop. Each consumer's
+evaluation must produce an independent typed projection and compare it with the
+declared oracle and, for presentation cases, render the declared viewport.
+
 The first suite should allocate cases by risk, not claimed real-world
 prevalence:
 
@@ -117,6 +124,24 @@ prevalence:
 These are suite weights, not estimates of how often users encounter each class.
 One scenario earns admission only when it exposes a distinct operator decision
 or a known false-positive risk.
+
+The implemented `netbraid.scenario_bundle.v0` contract lives in
+`netbraid-replay`, not `netbraid-evidence`. A bundle is a closed directory:
+`scenario.json` plus an exact flat inventory of regular, non-symlink artifacts
+with byte counts and SHA-256 digests. Unix loaders bind file opens to a stable
+directory handle and use no-follow semantics. The manifest keeps coverage state
+separate from freshness, cites evidence as `artifact#record`, distinguishes
+supported conclusions from required abstentions, and constrains ASCII/ANSI-free
+viewport fixtures to declared cells. The exact manifest bytes produce an
+externally reported closure digest; the manifest does not contain its own
+digest.
+
+Three non-default `scenario-fixtures` built-ins establish the first admission
+slice: Wi-Fi/hotspot recurrence, overlay entry/exit, and a stale neighbor-cache
+gap. They use documentation addresses, locally administered MAC addresses, and
+fictional network names. These tiny synthetic cases prove the harness and named
+false-positive guards; they do not satisfy the full variation table or claim a
+representative usage distribution.
 
 ### Tier 3: differential-tool corpora
 
@@ -184,10 +209,11 @@ privacy boundaries.
 
 1. Keep Tier 1 admission and smoke checks in
    `netbraid-adapter-tshark`; add a fixture only with a named boundary.
-2. Define a versioned scenario manifest using existing Netbraid evidence records
-   and Linktop QA capture receipts before adding Tier 2 bytes.
-3. Build the first context-transition and route/overlay bundles from synthetic
-   documentation identifiers; run them at multiple terminal sizes.
+2. Extend the implemented scenario manifest only with an existing strict source
+   family and a named operator decision; do not add generic untyped event rows.
+3. Add the remaining context-transition, impairment, saved-artifact, and
+   presentation-pressure variations; have Linktop consume the same checkpoint
+   receipts at multiple terminal sizes.
 4. Add one version-pinned differential runner and one generated public capture
    before broadening protocol coverage.
 5. Use Infra shadow reads to export sealed Tier 4/5 manifests and aggregate
@@ -209,8 +235,6 @@ privacy boundaries.
 
 ## Open questions
 
-- Which repository or release owns the first content-addressed scenario bundle
-  without creating a speculative shared-data project?
 - What minimum sanitized aggregate can be published from private calibration
   while preserving useful error analysis?
 - Which exact Zeek, Suricata, and Arkime generated fixtures close the next

@@ -16,7 +16,8 @@ Netbraid currently contains four separate, buildable surfaces:
   JSONL log and distinguishes anchored exact recurrence from unanchored exact key
   matches and compatible/incomplete observations. Its `pcap` command normalizes a
   bounded saved capture through TShark and prints an operator summary or versioned
-  JSONL evidence.
+  JSONL evidence. Its offline `scenario` command validates and replays finite
+  evidence, abstention, and viewport test bundles.
 - `netbraid-adapter-tshark` is an experimental Rust process boundary for saved PCAP and
   PCAPNG artifacts. It stages a regular file, reads file-level facts through
   Capinfos, disables name resolution, selects an explicit first-occurrence TShark
@@ -39,7 +40,7 @@ repository's current charter.
 | --- | --- | --- |
 | Go capture CLI | Legacy compatibility | Acquire selected packet/RF observations as PCAP and JSONL |
 | Rust snapshot CLI | Compatibility reader | Interpret the latest saved netops audit snapshot |
-| Rust v0 libraries | Experimental | Record and replay evidence, compare host-path context, and reduce eligible packet envelopes into capture-wide conversations |
+| Rust v0 libraries | Experimental | Record and replay evidence, compare host-path context, validate finite operator scenarios, and reduce eligible packet envelopes into capture-wide conversations |
 | Rust Wireshark-tool adapter | Experimental | Normalize bounded saved captures into manifests, successful-run receipts, packet envelopes, and quarantines without live capture |
 | `swucb/` | Legacy, deletion-gated | Preserve no runtime behavior; remove after the Rust acquisition control proves receipt-bound attribution |
 | Broader multi-modal evidence families | Gated future | Add temporal, entity, episode, or fingerprint records only after representative fixtures and a concrete second consumer |
@@ -127,6 +128,8 @@ cargo build --manifest-path rust/Cargo.toml
 ./rust/target/debug/netbraid pcap ./incident.pcapng --json
 ./rust/target/debug/netbraid pcap ./incident.pcapng --jsonl
 ./rust/target/debug/netbraid pcap ./incident.pcapng --records-jsonl
+./rust/target/debug/netbraid scenario validate ./scenario --json
+./rust/target/debug/netbraid scenario replay ./scenario --checkpoint CHECKPOINT --json
 ```
 
 The Rust workspace requires Rust 1.88 or newer. The CLI and its three
@@ -185,6 +188,24 @@ content, writes each canonical record and its newline from one buffer, and inser
 separator before a valid final JSON record that lacked a newline. Appends are
 fail-closed around known corruption but are not cross-process locking: one writer owns
 each log.
+
+The `scenario` command is a finite, offline maintainer surface over
+`netbraid.scenario_bundle.v0`. `validate` checks the exact manifest and artifact
+inventory, hashes, safe paths, strict host-path or saved-capture streams, monotonic
+timeline references, coverage/freshness separation, supported conclusions, required
+abstentions, and ASCII viewport bounds. `replay` returns the source prefix and typed
+projection at one named checkpoint. The reported manifest SHA-256 closes over the
+exact `scenario.json` bytes and is not stored inside the manifest. Scenario
+expectations are authored test oracles, not source evidence, identity claims, or
+live collection instructions. Validation proves their references and structural
+preconditions; consumer tests must independently derive conclusions and render
+views before treating an oracle as passed.
+
+The normal library does not embed fixtures. Maintainer tests enable
+`netbraid-replay/scenario-fixtures` to expose three tiny `PUBLIC_SYNTHETIC` bundles
+covering Wi-Fi/hotspot recurrence, overlay attribution abstention, and a stale
+neighbor-cache gap. See
+[`docs/design/evaluation-corpus.md`](docs/design/evaluation-corpus.md).
 
 The `pcap` command is offline and non-interactive. Its text output leads with a
 bounded triage projection: normalization completeness and quarantine, the

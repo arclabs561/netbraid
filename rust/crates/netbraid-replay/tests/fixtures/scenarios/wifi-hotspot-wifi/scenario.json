@@ -1,0 +1,129 @@
+{
+  "schema": "netbraid.scenario_bundle.v0",
+  "scenario_id": "wifi-hotspot-wifi",
+  "license": "MIT OR Unlicense",
+  "privacy": "PUBLIC_SYNTHETIC",
+  "provenance": {
+    "generator": "netbraid-maintainers",
+    "generator_version": "scenario-v0",
+    "description": "Synthetic passive host-path attachment change and exact anchored recurrence using documentation addresses and fictional network names."
+  },
+  "artifacts": [
+    {
+      "id": "path",
+      "path": "host-path.jsonl",
+      "role": "host_path_jsonl",
+      "media_type": "application/x-ndjson",
+      "bytes": 2102,
+      "sha256": "sha256:7cf78e3c9b9ccf64b3ef8c030e605be56bbd55409de6510282cb4b5daa5d980d"
+    },
+    {
+      "id": "final-view",
+      "path": "viewport.txt",
+      "role": "viewport_text",
+      "media_type": "text/plain",
+      "bytes": 228,
+      "sha256": "sha256:13299674f9f39f59edf0eaa9cb262f6c645556dd71d6f798a15677c37c340bcf"
+    }
+  ],
+  "timeline": [
+    {
+      "name": "wifi-initial",
+      "at_ms": 0,
+      "ingest": ["path#wifi-primary-1"]
+    },
+    {
+      "name": "hotspot-attached",
+      "at_ms": 60000,
+      "ingest": ["path#wifi-hotspot-1"]
+    },
+    {
+      "name": "wifi-returned",
+      "at_ms": 120000,
+      "ingest": ["path#wifi-primary-2"]
+    }
+  ],
+  "expected": {
+    "source_coverage": [
+      {
+        "id": "path-initial",
+        "checkpoint": "wifi-initial",
+        "source": "passive_host_path",
+        "state": "complete",
+        "freshness": "current",
+        "evidence": ["path#wifi-primary-1"],
+        "limitation": "Host-local path evidence does not establish a physical place or network owner."
+      },
+      {
+        "id": "path-hotspot",
+        "checkpoint": "hotspot-attached",
+        "source": "passive_host_path",
+        "state": "complete",
+        "freshness": "current",
+        "evidence": ["path#wifi-hotspot-1"],
+        "limitation": "The observed network name is an attachment label, not verified ownership or location."
+      },
+      {
+        "id": "path-returned",
+        "checkpoint": "wifi-returned",
+        "source": "passive_host_path",
+        "state": "complete",
+        "freshness": "current",
+        "evidence": ["path#wifi-primary-2"],
+        "limitation": "Exact recurrence is observer-scoped and does not create a durable site identity."
+      }
+    ],
+    "conclusions": [
+      {
+        "id": "attachment-changed",
+        "checkpoint": "hotspot-attached",
+        "question": "Did the observed host path change attachments?",
+        "disposition": "supported",
+        "conclusion": "The observed Wi-Fi attachment, next hop, resolver, and address prefix changed.",
+        "evidence": ["path#wifi-primary-1", "path#wifi-hotspot-1"],
+        "coverage": ["path-initial", "path-hotspot"],
+        "limitations": ["Only the observer's host path is compared; no wider network or RF coverage is claimed."]
+      },
+      {
+        "id": "physical-location",
+        "checkpoint": "hotspot-attached",
+        "question": "What physical place is the host in?",
+        "disposition": "abstained",
+        "conclusion": "Physical place is not established.",
+        "evidence": ["path#wifi-hotspot-1"],
+        "coverage": ["path-hotspot"],
+        "limitations": ["No authorized location label, geolocation source, or observer placement is present."],
+        "reason": "Attachment evidence alone is not a physical-location observation."
+      },
+      {
+        "id": "network-owner",
+        "checkpoint": "hotspot-attached",
+        "question": "Who owns the observed network?",
+        "disposition": "abstained",
+        "conclusion": "Network ownership is not established.",
+        "evidence": ["path#wifi-hotspot-1"],
+        "coverage": ["path-hotspot"],
+        "limitations": ["A fictional SSID and locally administered BSSID are not owner identity."],
+        "reason": "No authenticated controller, enrollment, or owner binding is present."
+      },
+      {
+        "id": "anchored-recurrence",
+        "checkpoint": "wifi-returned",
+        "question": "Has this exact observer-scoped network context appeared before?",
+        "disposition": "supported",
+        "conclusion": "The final path exactly recurs with a previously observed gateway link address.",
+        "evidence": ["path#wifi-primary-1", "path#wifi-primary-2"],
+        "coverage": ["path-initial", "path-returned"],
+        "limitations": ["This is context recurrence, not place, owner, device, or person identity."]
+      }
+    ],
+    "viewports": [
+      {
+        "checkpoint": "wifi-returned",
+        "artifact": "final-view",
+        "width": 52,
+        "height": 6
+      }
+    ]
+  }
+}

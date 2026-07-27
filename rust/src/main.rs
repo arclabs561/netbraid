@@ -4,6 +4,7 @@
 // core.
 
 mod pcap;
+mod scenario;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -46,6 +47,8 @@ enum Cmd {
     },
     /// Normalize and summarize one saved PCAP or PCAPNG artifact through Wireshark tools.
     Pcap(pcap::PcapArgs),
+    /// Validate or replay a finite, offline scenario bundle.
+    Scenario(scenario::ScenarioArgs),
 }
 
 enum ClientMatch<'a> {
@@ -739,6 +742,7 @@ fn main() -> Result<()> {
     match &cli.cmd {
         Cmd::Evidence { log } => return cmd_evidence(log),
         Cmd::Pcap(args) => return pcap::run(args),
+        Cmd::Scenario(args) => return scenario::run(args),
         _ => {}
     }
     let loaded = load(cli.file)?;
@@ -748,6 +752,7 @@ fn main() -> Result<()> {
         Cmd::Here => cmd_here(&loaded.snapshot, &loaded.source),
         Cmd::Evidence { .. } => unreachable!("evidence command returned before snapshot loading"),
         Cmd::Pcap(_) => unreachable!("pcap command returned before snapshot loading"),
+        Cmd::Scenario(_) => unreachable!("scenario command returned before snapshot loading"),
     }
     Ok(())
 }

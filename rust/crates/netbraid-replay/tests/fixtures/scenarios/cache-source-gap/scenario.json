@@ -1,0 +1,114 @@
+{
+  "schema": "netbraid.scenario_bundle.v0",
+  "scenario_id": "cache-source-gap",
+  "license": "MIT OR Unlicense",
+  "privacy": "PUBLIC_SYNTHETIC",
+  "provenance": {
+    "generator": "netbraid-maintainers",
+    "generator_version": "scenario-v0",
+    "description": "Synthetic passive neighbor-cache source gap proving that prior cache evidence cannot become current presence or departure."
+  },
+  "artifacts": [
+    {
+      "id": "path",
+      "path": "host-path.jsonl",
+      "role": "host_path_jsonl",
+      "media_type": "application/x-ndjson",
+      "bytes": 757,
+      "sha256": "sha256:0e551949124a0e50e8e075b028be52608f20c0419b9fcbe6e2f0715d25ed2ba1"
+    },
+    {
+      "id": "stale-view",
+      "path": "viewport.txt",
+      "role": "viewport_text",
+      "media_type": "text/plain",
+      "bytes": 239,
+      "sha256": "sha256:f00f745b796a769223de783ddfbc88054fcf461aa032e27ecd1d22129629ac17"
+    }
+  ],
+  "timeline": [
+    {
+      "name": "cache-observed",
+      "at_ms": 0,
+      "ingest": ["path#cache-observed-once"]
+    },
+    {
+      "name": "cache-stale",
+      "at_ms": 300000,
+      "ingest": []
+    }
+  ],
+  "expected": {
+    "source_coverage": [
+      {
+        "id": "cache-current",
+        "checkpoint": "cache-observed",
+        "source": "neighbor_cache",
+        "state": "partial",
+        "freshness": "current",
+        "evidence": ["path#cache-observed-once"],
+        "limitation": "A cache observation records a prior local mapping, not endpoint liveness."
+      },
+      {
+        "id": "cache-stale-gap",
+        "checkpoint": "cache-stale",
+        "source": "neighbor_cache",
+        "state": "partial",
+        "freshness": "stale",
+        "evidence": ["path#cache-observed-once"],
+        "limitation": "No new cache acquisition occurred during the five-minute scenario interval."
+      },
+      {
+        "id": "controller-gap",
+        "checkpoint": "cache-stale",
+        "source": "controller",
+        "state": "unavailable",
+        "freshness": "not_observed",
+        "evidence": [],
+        "limitation": "No controller source artifact is present."
+      }
+    ],
+    "conclusions": [
+      {
+        "id": "present-now",
+        "checkpoint": "cache-observed",
+        "question": "Is the cached endpoint present now?",
+        "disposition": "abstained",
+        "conclusion": "Current endpoint presence is not established.",
+        "evidence": ["path#cache-observed-once"],
+        "coverage": ["cache-current"],
+        "limitations": ["Neighbor-cache retention and liveness semantics are not observed."],
+        "reason": "A passive cache entry is evidence of a prior mapping, not a current liveness probe."
+      },
+      {
+        "id": "departed",
+        "checkpoint": "cache-stale",
+        "question": "Did the endpoint depart after the cache observation?",
+        "disposition": "abstained",
+        "conclusion": "Endpoint departure is not established.",
+        "evidence": ["path#cache-observed-once"],
+        "coverage": ["cache-stale-gap", "controller-gap"],
+        "limitations": ["There is no current cache acquisition, controller observation, or packet capture."],
+        "reason": "Silence outside source coverage cannot establish departure."
+      },
+      {
+        "id": "stale-not-current",
+        "checkpoint": "cache-stale",
+        "question": "May the old cache observation be rendered as current presence?",
+        "disposition": "supported",
+        "conclusion": "The old cache observation must remain stale and must not be rendered as current presence.",
+        "evidence": ["path#cache-observed-once"],
+        "coverage": ["cache-stale-gap"],
+        "limitations": ["This guard says nothing about whether the endpoint is actually present or absent."]
+      }
+    ],
+    "viewports": [
+      {
+        "checkpoint": "cache-stale",
+        "artifact": "stale-view",
+        "width": 47,
+        "height": 6
+      }
+    ]
+  }
+}

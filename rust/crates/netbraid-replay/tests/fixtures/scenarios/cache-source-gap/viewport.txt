@@ -1,0 +1,6 @@
+CACHE one prior neighbor-cache observation
+FRESH stale; no current acquisition
+ABSTAIN endpoint present now: unknown
+ABSTAIN endpoint departed: unknown
+GUARD stale cache is not current liveness
+SOURCE controller and packet capture missing
