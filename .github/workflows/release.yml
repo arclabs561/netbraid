@@ -5,6 +5,15 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: Publish the current main version to crates.io before tagging
+        required: true
+        default: check-only
+        type: choice
+        options:
+          - check-only
+          - publish-crates
   push:
     tags:
       - "netbraid-v*"
@@ -32,6 +41,7 @@ jobs:
       - name: Validate workspace and release ref
         id: contract
         env:
+          RELEASE_CONFIRM: ${{ inputs.confirm }}
           RELEASE_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
@@ -43,8 +53,18 @@ jobs:
             .license == "MIT OR Unlicense" and
             .repository == "https://github.com/arclabs561/netbraid"
           )' <<<"$metadata" >/dev/null
+          release_tag="netbraid-v${version}"
+          if [[ "$RELEASE_REF" == refs/tags/* || "$RELEASE_CONFIRM" == publish-crates ]]; then
+            if tagged_commit="$(git rev-parse --verify --quiet "${release_tag}^{commit}")"; then
+              if [[ "$tagged_commit" != "$GITHUB_SHA" ]]; then
+                printf 'version %s is already owned by %s at %s; bump before release\n' \
+                  "$version" "$release_tag" "$tagged_commit" >&2
+                exit 1
+              fi
+            fi
+          fi
           if [[ "$RELEASE_REF" == refs/tags/* ]]; then
-            expected_ref="refs/tags/netbraid-v${version}"
+            expected_ref="refs/tags/${release_tag}"
             if [[ "$RELEASE_REF" != "$expected_ref" ]]; then
               printf 'release ref %s does not match workspace version %s\n' "$RELEASE_REF" "$version" >&2
               exit 1
@@ -152,12 +172,130 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  crates:
+    name: Publish crates.io packages
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'publish-crates') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/netbraid-v'))
+    needs:
+      - gate
+      - bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust 1.88
+        run: |
+          rustup set profile minimal
+          rustup toolchain install 1.88 --no-self-update
+      - name: Require current main and green CI before manual publication
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse refs/remotes/origin/main)" ]]; then
+            printf 'manual publication commit %s is not current origin/main %s\n' \
+              "$(git rev-parse HEAD)" \
+              "$(git rev-parse refs/remotes/origin/main)" >&2
+            exit 1
+          fi
+          conclusion="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow ci.yml \
+              --event push \
+              --commit "$GITHUB_SHA" \
+              --limit 1 \
+              --json conclusion \
+              --jq '.[0].conclusion // "missing"'
+          )"
+          if [[ "$conclusion" != success ]]; then
+            printf 'CI for %s is %s; refusing crates.io publication\n' \
+              "$GITHUB_SHA" "$conclusion" >&2
+            exit 1
+          fi
+      - uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+        if: github.event_name == 'workflow_dispatch'
+        id: auth
+      - name: Publish packages in dependency order
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          RELEASE_EVENT: ${{ github.event_name }}
+          RELEASE_VERSION: ${{ needs.gate.outputs.version }}
+        run: |
+          set -euo pipefail
+          registry_version_matches_release() {
+            local package="$1"
+            local metadata
+            metadata="$(
+              curl --fail --silent \
+                --user-agent 'netbraid-release-workflow (https://github.com/arclabs561/netbraid)' \
+                "https://crates.io/api/v1/crates/$package/$RELEASE_VERSION"
+            )" || return 1
+            printf '%s' "$metadata" | jq -e \
+              --arg package "$package" \
+              --arg version "$RELEASE_VERSION" \
+              '
+                .version.crate == $package and
+                .version.num == $version and
+                .version.repository == "https://github.com/arclabs561/netbraid" and
+                .version.yanked == false
+              ' >/dev/null || return 1
+            curl --fail --silent --location \
+              --user-agent 'netbraid-release-workflow (https://github.com/arclabs561/netbraid)' \
+              "https://crates.io/api/v1/crates/$package/$RELEASE_VERSION/download" |
+              tar -xzO "$package-$RELEASE_VERSION/.cargo_vcs_info.json" |
+              jq -e --arg sha "$GITHUB_SHA" \
+                '.git.sha1 == $sha and (.git.dirty // false) == false' >/dev/null
+          }
+          wait_for_registry_version() {
+            local package="$1"
+            for _ in {1..24}; do
+              if registry_version_matches_release "$package"; then
+                return 0
+              fi
+              sleep 5
+            done
+            printf 'published %s %s but crates.io did not expose it within 120 seconds\n' \
+              "$package" "$RELEASE_VERSION" >&2
+            return 1
+          }
+          for package in \
+            netbraid-evidence \
+            netbraid-replay \
+            netbraid-adapter-tshark \
+            netbraid
+          do
+            if registry_version_matches_release "$package"; then
+              printf '%s %s from this release commit is already present on crates.io\n' \
+                "$package" "$RELEASE_VERSION"
+              continue
+            fi
+            if [[ "$RELEASE_EVENT" != workflow_dispatch ]]; then
+              printf '%s %s is absent or does not match release commit %s\n' \
+                "$package" "$RELEASE_VERSION" "$GITHUB_SHA" >&2
+              printf 'publish with the confirmed manual workflow before pushing the tag\n' >&2
+              exit 1
+            fi
+            cargo +1.88 publish --locked --manifest-path rust/Cargo.toml -p "$package"
+            wait_for_registry_version "$package"
+          done
+
   publish:
     name: Publish GitHub release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/netbraid-v')
     needs:
       - gate
       - bundle
+      - crates
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
