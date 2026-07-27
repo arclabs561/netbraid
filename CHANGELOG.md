@@ -10,6 +10,13 @@ native binary releases remain available independently.
 
 ## [Unreleased]
 
+### Changed
+
+- Scenario artifact ingestion now retains typed host-path and saved-capture
+  sources behind a private family boundary. Replay, disclosure validation, and
+  checkpoint input projection reuse the validated saved-capture stream instead
+  of reparsing its bytes, without changing public schemas or APIs.
+
 ## [0.3.0] - 2026-07-27
 
 ### Added

@@ -5,8 +5,9 @@ use netbraid_evidence::{
     CaptureManifestV0, CaptureRunReceiptV0, PacketEnvelopeV0, PacketQuarantineV0,
 };
 use netbraid_replay::{
-    load_scenario_bundle_v0, replay_scenario_v0, ScenarioConclusionDispositionV0,
-    ScenarioCoverageFreshnessV0, ScenarioLimitsV0, ScenarioPrivacyV0, SCENARIO_REPLAY_SCHEMA_V0,
+    load_scenario_bundle_v0, parse_saved_capture_jsonl, replay_scenario_v0,
+    ScenarioConclusionDispositionV0, ScenarioCoverageFreshnessV0, ScenarioLimitsV0,
+    ScenarioPrivacyV0, SCENARIO_REPLAY_SCHEMA_V0,
 };
 use sha2::{Digest, Sha256};
 
@@ -469,6 +470,10 @@ fn saved_capture_records_are_ingested_atomically_and_projected() {
     assert!(inputs.host_path_records.is_empty());
     assert_eq!(inputs.saved_capture_streams.len(), 1);
     assert_eq!(inputs.saved_capture_streams[0].artifact, "capture");
+    assert_eq!(
+        inputs.saved_capture_streams[0].stream,
+        parse_saved_capture_jsonl(&capture).unwrap()
+    );
     assert_eq!(inputs.saved_capture_streams[0].stream.packets.len(), 1);
     assert_eq!(inputs.saved_capture_streams[0].stream.quarantines.len(), 1);
 

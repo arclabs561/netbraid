@@ -40,15 +40,14 @@ Linktop is a real external consumer of the evidence and replay libraries and
 can review normalized saved evidence without invoking the Netbraid CLI.
 
 The four Rust packages carry 0.3.0 workspace metadata but are not yet published
-on crates.io. That is not yet a final release identity: the latest
-capture-derived work is recorded under `Unreleased` after the current 0.3.0
-changelog boundary. Before publication, either fold that work into 0.3.0 or
-bump the workspace and changelog deliberately. The release workflow then
-enforces commit-owned versions, trusted publication, dependency order, package
-inventory, and registry verification. One valid scoped-token bootstrap is
-still required before trusted publishers can take over. The existing
-`netbraid-v0.2.0` tag identifies an earlier commit and must not be reused for
-newer package bytes.
+on crates.io. The release identity is reconciled: commit `df67497` is the
+immutable 0.3.0 candidate, the capture-derived work is included in its
+changelog boundary, public CI is green, and the non-publishing release workflow
+has built and bundled all three native targets. One valid scoped-token
+bootstrap is still required to establish the four crate names before trusted
+publishers can take over. Do not publish later `main` bytes as 0.3.0 or create
+the tag before registry verification. The existing `netbraid-v0.2.0` tag
+identifies an earlier commit and must not be reused.
 
 Package licensing follows the bytes Cargo actually distributes, not which
 features are enabled. `netbraid`, `netbraid-evidence`, and
@@ -166,10 +165,10 @@ cannot authorize acquisition or define evidence semantics.
 These are gated lanes, not one serial feature train. In particular, registry
 bootstrap does not block repository-only scenario or evaluation work.
 
-1. Reconcile the release boundary: either make the current capture-derived work
-   part of 0.3.0 or choose a new workspace version. With that identity fixed,
-   bootstrap the four registry names using one valid scoped credential,
-   configure trusted publishing, and revoke the bootstrap credential.
+1. Bootstrap the four 0.3.0 registry names from the clean `df67497` candidate
+   using one valid scoped credential, configure trusted publishing, revoke the
+   bootstrap credential, verify the registry packages, and only then tag that
+   exact commit. The version decision and release rehearsal are complete.
 2. Finish the operator-decision scenario matrix and Linktop presentation gate.
    Prioritize impairment localization, partial peer visibility, split-route
    behavior, and the smallest differential capture cases over corpus volume.
@@ -177,9 +176,10 @@ bootstrap does not block repository-only scenario or evaluation work.
    reusable embedded records and replay. Linktop owns the transaction,
    retention choice, completion marker, and sanitized export.
 4. Add one differential evidence family at a time from a named operator
-   question and immutable fixture. Refactor scenario internals around typed
-   source-family handlers before adding controller, Kismet, flow, or another
-   artifact family.
+   question and immutable fixture. The typed artifact-loading boundary is now
+   in place; use it rather than returning source-specific parsing to the
+   scenario orchestrator when controller, Kismet, flow, or another artifact
+   family is admitted.
 5. Promote episodes, baselines, fingerprint candidates, and optional live
    acquisition only after their later phase gates pass. Do not let the
    language migration or the ambitious product ceiling bypass evidence,
@@ -200,15 +200,15 @@ daemon, long baseline, or multi-modal schema.
 
 ## Phase 1: publish the Rust packages under one immutable identity
 
-The workspace currently says 0.3.0, while the changelog records the latest
-capture-derived work after that release boundary. First decide whether those
-bytes are 0.3.0 and fold the changelog accordingly, or bump the workspace and
-changelog together. From a clean clone of that intended release commit,
-bootstrap each crate name with a fresh scoped token, configure the GitHub
-trusted publisher, revoke the token, and let the pinned release workflow
-publish in dependency order. Verify each registry package's repository,
-version, VCS SHA, dirty state, and yanked state before creating the GitHub
-release.
+Commit `df67497` is the rehearsed 0.3.0 candidate. Its changelog includes the
+capture-derived work, its public CI is green, and the workflow's `check-only`
+path passed the release contract, dependency audit, three native builds,
+archive packaging, and checksum bundle. From a clean checkout of that exact
+commit, bootstrap each crate name with a fresh scoped token, configure the
+GitHub trusted publisher, revoke the token, and verify each registry package's
+repository, version, VCS SHA, dirty state, and yanked state before creating the
+tag and GitHub release. Later commits with unchanged manifest versions are not
+0.3.0 publication candidates.
 
 Do not move Linktop as part of this publication. Linktop ADR-0008 currently
 retains the exact Git revision until the crates it consumes exist on crates.io
@@ -274,6 +274,17 @@ bytes and aggregate licensing stay in replay or move to a separately versioned
 data distribution. Enabling the capture-derived fixture in Linktop fires
 ADR-0004's review trigger and requires a disclosure-aware consumer review; the
 current Linktop pin and feature set have not crossed that boundary.
+
+Scenario ingestion now has a private typed artifact-loading boundary.
+Host-path records and parsed saved-capture streams retain their family through
+bundle validation, replay projection, v1 disclosure checks, and checkpoint
+input resolution. Viewport bytes remain available only to dimension checks;
+license text is validated and classified but its payload is then discarded.
+This removes repeated saved-capture parsing and makes the loading and retained
+representation seam explicit before another source family is admitted, without
+claiming a plug-in replay architecture or changing either scenario schema or
+the public replay API. Raw saved-capture bytes are dropped after validation;
+the existing owned checkpoint-input API clones its bounded parsed stream.
 
 Consumer: Linktop product QA and Netbraid replay. Infra's multi-source Tier 4/5
 corpus remains separately sealed under its deployment and privacy authority.
