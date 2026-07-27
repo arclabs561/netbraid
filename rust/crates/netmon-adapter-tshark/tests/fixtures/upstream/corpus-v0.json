@@ -275,6 +275,40 @@
       }
     },
     {
+      "id": "rust-pcap.snaplen-65535",
+      "path": "upstream/rust-pcap-snaplen-65535.pcap.hex",
+      "purpose": "Pair the truncated snaplen-20 fixture with its complete 98-octet ICMP frame so capture completeness and transport exclusions stay distinct.",
+      "origin": {
+        "repository": "rust-pcap/pcap",
+        "revision": "23d1752b45accf20827c2dde80d8a36fcee16233",
+        "source_path": "tests/data/packet_snaplen_65535.pcap",
+        "source_url": "https://raw.githubusercontent.com/rust-pcap/pcap/23d1752b45accf20827c2dde80d8a36fcee16233/tests/data/packet_snaplen_65535.pcap",
+        "upstream_blob_sha1": "2bfadfb50d0ed085178558a3373ffa8d2277a6aa",
+        "license": "MIT",
+        "license_file": "third-party-licenses/rust-pcap-MIT.txt"
+      },
+      "content_sha256": "b5fca1f456100c09fa5144603e38dadaada081d334580d4e54e7a8091afd41ca",
+      "size_bytes": 138,
+      "expected": {
+        "file_type": "pcap",
+        "encapsulation": "ether",
+        "timestamp_precision": "microseconds",
+        "packet_count": 1,
+        "original_data_size_bytes": 98,
+        "packets_emitted": 1,
+        "packets_quarantined": 0,
+        "required_protocols": ["eth", "ip", "icmp"],
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 0,
+          "packet_envelopes_excluded": 1,
+          "conversations": 0,
+          "exclusions": [
+            {"reason": "ambiguous_transport_layer", "packet_envelopes": 1}
+          ]
+        }
+      }
+    },
+    {
       "id": "pcap-parser.ntp",
       "path": "upstream/pcap-parser-ntp.pcap.hex",
       "purpose": "Exercise multiple bidirectional UDP/NTP conversations over a nontrivial time span.",
