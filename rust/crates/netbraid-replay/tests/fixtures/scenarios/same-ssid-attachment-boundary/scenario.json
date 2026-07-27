@@ -1,0 +1,151 @@
+{
+  "schema": "netbraid.scenario_bundle.v0",
+  "scenario_id": "same-ssid-attachment-boundary",
+  "license": "MIT OR Unlicense",
+  "privacy": "PUBLIC_SYNTHETIC",
+  "provenance": {
+    "generator": "netbraid-maintainers",
+    "generator_version": "scenario-v0",
+    "description": "Synthetic passive host-path evidence for a same-SSID BSSID attachment transition followed by an unrelated network boundary reusing the same fictional network label."
+  },
+  "artifacts": [
+    {
+      "id": "path",
+      "path": "host-path.jsonl",
+      "role": "host_path_jsonl",
+      "media_type": "application/x-ndjson",
+      "bytes": 2111,
+      "sha256": "sha256:73d1c85d90aaa7635525cadc933b4b92ce5bb0a6a4b4703d0a8d3bcb0578449b"
+    },
+    {
+      "id": "final-view",
+      "path": "viewport.txt",
+      "role": "viewport_text",
+      "media_type": "text/plain",
+      "bytes": 277,
+      "sha256": "sha256:745785401e59e6cacee178373708b010730c9801720fe5fd7b2569eeeeb10c4b"
+    }
+  ],
+  "timeline": [
+    {
+      "name": "mesh-baseline",
+      "at_ms": 0,
+      "ingest": ["path#mesh-baseline"]
+    },
+    {
+      "name": "mesh-new-attachment",
+      "at_ms": 60000,
+      "ingest": ["path#bssid-transition"]
+    },
+    {
+      "name": "same-label-new-boundary",
+      "at_ms": 120000,
+      "ingest": ["path#same-label-new-boundary"]
+    }
+  ],
+  "expected": {
+    "source_coverage": [
+      {
+        "id": "path-baseline",
+        "checkpoint": "mesh-baseline",
+        "source": "passive_host_path",
+        "state": "complete",
+        "freshness": "current",
+        "evidence": ["path#mesh-baseline"],
+        "limitation": "Host-local path evidence does not establish a physical place, network owner, or access-point identity."
+      },
+      {
+        "id": "path-new-attachment",
+        "checkpoint": "mesh-new-attachment",
+        "source": "passive_host_path",
+        "state": "complete",
+        "freshness": "current",
+        "evidence": ["path#bssid-transition"],
+        "limitation": "A BSSID attachment changed while the observed gateway anchor and network boundary remained compatible."
+      },
+      {
+        "id": "path-new-boundary",
+        "checkpoint": "same-label-new-boundary",
+        "source": "passive_host_path",
+        "state": "complete",
+        "freshness": "current",
+        "evidence": ["path#same-label-new-boundary"],
+        "limitation": "The repeated network label does not make an incompatible gateway anchor, resolver, and address boundary the same context."
+      }
+    ],
+    "conclusions": [
+      {
+        "id": "bssid-transition",
+        "checkpoint": "mesh-new-attachment",
+        "question": "Did the associated BSSID change without a host-path context change?",
+        "disposition": "supported",
+        "conclusion": "The associated BSSID and association identifier changed while the observer-scoped gateway anchor, resolver, and address prefix remained compatible.",
+        "evidence": ["path#mesh-baseline", "path#bssid-transition"],
+        "coverage": ["path-baseline", "path-new-attachment"],
+        "limitations": ["This is a roam-shaped attachment transition, not proof of an 802.11 roam or that both BSSIDs belong to one managed site."]
+      },
+      {
+        "id": "physical-location",
+        "checkpoint": "mesh-new-attachment",
+        "question": "What physical place is the host in?",
+        "disposition": "abstained",
+        "conclusion": "Physical place is not established.",
+        "evidence": ["path#bssid-transition"],
+        "coverage": ["path-new-attachment"],
+        "limitations": ["No authorized place assertion, controller site record, geolocation source, or observer placement is present."],
+        "reason": "Compatible host-path recurrence does not establish physical location."
+      },
+      {
+        "id": "access-point-identity",
+        "checkpoint": "mesh-new-attachment",
+        "question": "Which managed access point supplied the attachment?",
+        "disposition": "abstained",
+        "conclusion": "Managed access-point identity is not established.",
+        "evidence": ["path#bssid-transition"],
+        "coverage": ["path-new-attachment"],
+        "limitations": ["A BSSID is an observed link identifier without an authenticated controller binding."],
+        "reason": "No controller, enrollment, certificate, or operator assertion binds the BSSID to an access-point identity."
+      },
+      {
+        "id": "actual-80211-roam",
+        "checkpoint": "mesh-new-attachment",
+        "question": "Was the attachment transition an 802.11 roam within one ESS?",
+        "disposition": "abstained",
+        "conclusion": "An 802.11 roam is not established.",
+        "evidence": ["path#mesh-baseline", "path#bssid-transition"],
+        "coverage": ["path-baseline", "path-new-attachment"],
+        "limitations": ["The host-path records do not contain an authenticated ESS binding, controller event, or qualifying 802.11 management-frame sequence."],
+        "reason": "A BSSID transition alone does not prove the mechanism or administrative boundary of the attachment change."
+      },
+      {
+        "id": "same-label-new-context",
+        "checkpoint": "same-label-new-boundary",
+        "question": "Does the repeated network label make the final path the same network context?",
+        "disposition": "supported",
+        "conclusion": "No. The final path is a new observer-scoped context because its gateway anchor, resolver, and address boundary are incompatible.",
+        "evidence": ["path#bssid-transition", "path#same-label-new-boundary"],
+        "coverage": ["path-new-attachment", "path-new-boundary"],
+        "limitations": ["The comparison does not establish physical site, network ownership, or whether the label reuse was intentional."]
+      },
+      {
+        "id": "network-owner",
+        "checkpoint": "same-label-new-boundary",
+        "question": "Who owns the final observed network?",
+        "disposition": "abstained",
+        "conclusion": "Network ownership is not established.",
+        "evidence": ["path#same-label-new-boundary"],
+        "coverage": ["path-new-boundary"],
+        "limitations": ["A fictional network label and locally administered identifiers are not owner identity."],
+        "reason": "No authenticated controller, enrollment, or owner binding is present."
+      }
+    ],
+    "viewports": [
+      {
+        "checkpoint": "same-label-new-boundary",
+        "artifact": "final-view",
+        "width": 58,
+        "height": 6
+      }
+    ]
+  }
+}
