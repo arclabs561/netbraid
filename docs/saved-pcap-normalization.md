@@ -4,7 +4,7 @@ Status: experimental
 
 ## Problem
 
-Netmon needs a reproducible way to turn a staged packet-capture artifact into
+Netbraid needs a reproducible way to turn a staged packet-capture artifact into
 versioned, policy-neutral evidence. Equal staged bytes, field registry, TShark
 build, and effective-configuration fingerprint must produce equal records. A
 capture is valuable for regression tests, incident handoff, and later reducers,
@@ -32,8 +32,8 @@ Sources:
 - [Wireshark configuration files](https://www.wireshark.org/docs/wsug_html_chunked/ChAppFilesConfigurationSection.html)
 - [Wireshark Lua startup](https://www.wireshark.org/docs/wsdg_html_chunked/wsluarm.html)
 
-Netmon already separates pure evidence records (`netmon-evidence`) from
-deterministic file/replay mechanics (`netmon-replay`). The process boundary has
+Netbraid already separates pure evidence records (`netbraid-evidence`) from
+deterministic file/replay mechanics (`netbraid-replay`). The process boundary has
 a different dependency and failure profile from either crate.
 
 Capinfos is part of the same Wireshark tool suite and reads the same capture
@@ -64,13 +64,13 @@ the normalizer.
 ### Expose raw `-T json` or `-T ek`
 
 This keeps implementation small but makes Wireshark's full, evolving dissector
-tree Netmon's de facto schema. Duplicate keys, repeated layers, and tool-version
+tree Netbraid's de facto schema. Duplicate keys, repeated layers, and tool-version
 differences would then leak into every consumer. Rejected.
 
 ### Decode packets directly in Rust
 
 This could remove the process dependency, but it duplicates mature capture-file
-and protocol-dissection work while expanding Netmon's security and maintenance
+and protocol-dissection work while expanding Netbraid's security and maintenance
 surface. Rejected.
 
 ### Keep the normalizer in the CLI package
@@ -82,7 +82,7 @@ a reusable process boundary independently of presentation. Rejected.
 
 ### Add an explicit TShark adapter crate
 
-`netmon-adapter-tshark` owns one offline process boundary. It invokes TShark
+`netbraid-adapter-tshark` owns one offline process boundary. It invokes TShark
 without a shell, uses a declared `-T fields` registry, enforces a deadline and
 output/input limits, records tool, registry, and effective-configuration
 versions, and returns typed records plus quarantined rows. Chosen.
@@ -102,7 +102,7 @@ machine contract. Rejected for the first schema.
 ### Parse a bounded Capinfos table
 
 Capinfos table mode supplies a header and one quoted CSV row per input file.
-Netmon selects a fixed metadata field set, suppresses free-form capture and
+Netbraid selects a fixed metadata field set, suppresses free-form capture and
 packet comments, maps known headers into a typed record, and ignores additional
 headers. This keeps file-level facts separate from packet normalization while
 reusing the same isolated Wireshark process boundary. Chosen.
@@ -112,16 +112,16 @@ reusing the same isolated Wireshark process boundary. Chosen.
 The dependency direction is:
 
 ```text
-netmon-evidence
+netbraid-evidence
     ^              ^
     |              |
-netmon-replay   netmon-adapter-tshark
+netbraid-replay   netbraid-adapter-tshark
                        ^
                        |
-                    netmon CLI
+                    netbraid CLI
 ```
 
-`netmon-evidence` owns four pure record families:
+`netbraid-evidence` owns four pure record families:
 
 - a capture manifest with content digest, byte length, observer provenance,
   extractor provenance, optional acquisition policy, and normalization
@@ -164,7 +164,7 @@ capinfos -T -R -m -Q -K -P -t -E -F -c -s -d -l -u -a -e -S INPUT
 `-K` and `-P` suppress capture and packet comments. The selected table fields
 describe the file container and its declared capture extent; they do not prove
 what traffic, interfaces, channels, or locations were observable when the file
-was acquired. Netmon parses quoted CSV using exact header names. Required
+was acquired. Netbraid parses quoted CSV using exact header names. Required
 file-level fields fail closed; optional snap-length and capture-application
 fields remain absent when the installed Capinfos does not report them.
 
@@ -175,7 +175,7 @@ format-detection, abort, and logging overrides, captures stdout/stderr without a
 shell, drains both concurrently, kills the process at the deadline, and rejects
 output beyond configured byte limits.
 
-The input must resolve to a regular file. Netmon copies it into a private
+The input must resolve to a regular file. Netbraid copies it into a private
 temporary directory while hashing those exact copied bytes, and TShark receives
 only the staged path. This prevents TShark's special `-r -` stdin behavior and
 ensures the manifest digest identifies the staged artifact TShark reads. The
@@ -283,7 +283,7 @@ unique content identities and immutable origin coordinates, decoded size, and
 digest without network access or Wireshark. The opt-in smoke suite additionally
 normalizes every admitted capture twice using installed Capinfos and TShark. It
 constructs the full occurrence-bearing JSONL and deterministic records JSONL in
-their canonical family order, parses both through `netmon-replay`, verifies that
+their canonical family order, parses both through `netbraid-replay`, verifies that
 the receipt binds the parser-recomputed digest, and proves equivalent runs
 produce byte-identical deterministic records and equal replayed evidence.
 Typed corpus expectations also run the replay crate's conservative conversation
@@ -296,7 +296,7 @@ Kismet, Hypha, rtl_433, Meshtastic, controller, or fusion adapters.
 
 ## Tradeoffs
 
-- TShark remains a runtime dependency for this command, but Netmon does not
+- TShark remains a runtime dependency for this command, but Netbraid does not
   inherit Wireshark's capture or dissector implementation.
 - First-occurrence fields are deliberately lossy for nested tunnels. The ordered
   protocol stack and explicit registry semantics prevent that loss from being
@@ -326,10 +326,10 @@ Kismet, Hypha, rtl_433, Meshtastic, controller, or fusion adapters.
 ## Implementation plan
 
 1. Add capture-manifest, packet-envelope, and quarantine records plus validation
-   to `netmon-evidence`.
-2. Add `netmon-adapter-tshark` with a fixed field registry, bounded process
+   to `netbraid-evidence`.
+2. Add `netbraid-adapter-tshark` with a fixed field registry, bounded process
    execution, exact timestamp parsing, artifact hashing, and row quarantine.
-3. Add `netmon pcap INPUT` with human text by default, `--jsonl` for a complete
+3. Add `netbraid pcap INPUT` with human text by default, `--jsonl` for a complete
    successful-run record, and `--records-jsonl` for the deterministic
    normalized-record stream.
 4. Add parser/golden tests and an opt-in smoke test against an installed TShark

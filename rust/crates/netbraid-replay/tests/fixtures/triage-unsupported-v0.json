@@ -1,0 +1,47 @@
+{
+  "schema": "netmon.saved_pcap_triage.v0",
+  "normalization": {
+    "state": "complete",
+    "completeness": "complete_capture",
+    "packet_rows_emitted": 1,
+    "packet_rows_quarantined": 0,
+    "packet_rows_inspected": 1,
+    "packet_limit": 10,
+    "packet_limit_reached": false,
+    "emitted_packet_window": {
+      "observations": 1,
+      "earliest_event_time_unix_ns": 1000,
+      "latest_event_time_unix_ns": 1000,
+      "observed_span_ns": 0
+    }
+  },
+  "quarantine": {
+    "rows": 0,
+    "distinct_reasons": 0,
+    "reasons_shown": 0,
+    "top_reasons": []
+  },
+  "wlan": {
+    "status": "unsupported",
+    "scope": "complete_capture",
+    "reason": "no_ieee80211_frame_evidence"
+  },
+  "top_capture_conversation": {
+    "status": "unsupported",
+    "scope": "complete_capture",
+    "reason": "no_eligible_ip_tcp_udp_packet_envelopes",
+    "packet_envelopes_seen": 1,
+    "packet_envelopes_excluded": 1,
+    "exclusions": [
+      {
+        "reason": "ambiguous_network_layer",
+        "packet_envelopes": 1
+      }
+    ]
+  },
+  "source": {
+    "capture_id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "field_registry": "netmon.tshark.packet_envelope.v1",
+    "normalized_records_sha256": "sha256:ec5c7c1a2869838bec39f811e760bed53834cb287834d7bbd2d60671a9478ce6"
+  }
+}

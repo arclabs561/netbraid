@@ -1,31 +1,34 @@
 [package]
-name = "netmon"
+name = "netbraid"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-description = "Inspect saved network evidence and compatibility snapshots"
+description = "Inspect and replay provenance-preserving network evidence"
 license.workspace = true
 repository.workspace = true
 publish.workspace = true
+readme = "../README.md"
+keywords = ["network-analysis", "pcap", "replay", "tshark"]
+categories = ["command-line-utilities", "network-programming"]
 
 [workspace]
 members = [
-    "crates/netmon-adapter-tshark",
-    "crates/netmon-evidence",
-    "crates/netmon-replay",
+    "crates/netbraid-adapter-tshark",
+    "crates/netbraid-evidence",
+    "crates/netbraid-replay",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.88"
 license = "MIT OR Unlicense"
-repository = "https://github.com/arclabs561/netmon"
-publish = false
+repository = "https://github.com/arclabs561/netbraid"
+publish = ["crates-io"]
 
 [[bin]]
-name = "netmon"
+name = "netbraid"
 path = "src/main.rs"
 
 [dependencies]
@@ -33,9 +36,9 @@ clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
-netmon-adapter-tshark = { path = "crates/netmon-adapter-tshark" }
-netmon-evidence = { path = "crates/netmon-evidence" }
-netmon-replay = { path = "crates/netmon-replay" }
+netbraid-adapter-tshark = { version = "0.2.0", path = "crates/netbraid-adapter-tshark" }
+netbraid-evidence = { version = "0.2.0", path = "crates/netbraid-evidence" }
+netbraid-replay = { version = "0.2.0", path = "crates/netbraid-replay" }
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,0 +1,10 @@
+# Architecture decisions
+
+This ledger records structural decisions that future contributors would
+otherwise re-derive or re-litigate. Implementation detail and one-change
+choices belong in code review, not here.
+
+| ADR | Decision | Status |
+| --- | --- | --- |
+| [0001](0001-adopt-netbraid-product-identity.md) | Adopt Netbraid as the product and package identity without renaming established wire identifiers | Accepted |
+| [0002](0002-publish-netbraid-crates.md) | Publish the real Netbraid CLI and libraries to crates.io while retaining GitHub binary releases | Accepted |

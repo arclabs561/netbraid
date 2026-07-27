@@ -1,11 +1,11 @@
-# netmon
+# netbraid
 
-Netmon is a versioned network-evidence and deterministic-replay workspace. Its Rust
+Netbraid is a versioned network-evidence and deterministic-replay workspace. Its Rust
 release normalizes immutable artifacts, preserves provenance, and replays typed
 evidence; the repository also retains a legacy Go capture tool and a disconnected
 acquisition-policy experiment while the dependency-ordered Rust cutover proceeds.
 
-Netmon currently contains four separate, buildable surfaces:
+Netbraid currently contains four separate, buildable surfaces:
 
 - The root Go CLI captures from one or more interfaces, optionally hops Wi-Fi
   channels, writes one PCAP per interface plus `events.jsonl`, and can print packets or
@@ -17,7 +17,7 @@ Netmon currently contains four separate, buildable surfaces:
   matches and compatible/incomplete observations. Its `pcap` command normalizes a
   bounded saved capture through TShark and prints an operator summary or versioned
   JSONL evidence.
-- `netmon-adapter-tshark` is an experimental Rust process boundary for saved PCAP and
+- `netbraid-adapter-tshark` is an experimental Rust process boundary for saved PCAP and
   PCAPNG artifacts. It stages a regular file, reads file-level facts through
   Capinfos, disables name resolution, selects an explicit first-occurrence TShark
   field registry, fingerprints effective TShark configuration, refuses personal
@@ -28,7 +28,7 @@ Netmon currently contains four separate, buildable surfaces:
   needed to delete the old Go acquisition tree.
 
 These surfaces share a repository, not one runtime or data model. Both CLIs currently
-build a binary named `netmon`; the commands below invoke them by build path rather than
+build a binary named `netbraid`; the commands below invoke them by build path rather than
 claiming they can be installed side by side. The Go module path
 `github.com/arclabs561/netwatch` is retained as a compatibility name, not as the
 repository's current charter.
@@ -60,10 +60,10 @@ the passive default path.
 
 The repository does not own:
 
-- host-path and link-quality diagnosis, which belongs to Linktop. Once netmon exposes
+- host-path and link-quality diagnosis, which belongs to Linktop. Once Netbraid exposes
   a stable policy-neutral Rust API, Linktop may move from its exact-revision v0
   dependency to that release; local diagnosis already remains usable without a
-  Netmon executable, store, controller, or deployment;
+  Netbraid executable, store, controller, or deployment;
 - deployed collectors, operational stores, retention, topology, runtime health,
   notifications, compatibility projections, or the current Python fusion service;
 - device aliases, assignments, enrolled anchors, consent, credentials, household
@@ -73,7 +73,7 @@ The repository does not own:
 
 The legacy capture and watcher code is not the foundation for the future core. New
 production capture belongs to the deployed Kismet path or mature capture tools; new
-netmon work must preserve source evidence rather than widening capture features.
+Netbraid work must preserve source evidence rather than widening capture features.
 
 ## Build and run the Go capture CLI
 
@@ -87,14 +87,14 @@ explicit interface, output directory, and terminal condition; do not install it
 beside the Rust binary.
 
 ```sh
-go build -o netmon .
-./netmon --help
+go build -o netbraid .
+./netbraid --help
 ```
 
 Capture one interface until interrupted, writing artifacts to the selected directory:
 
 ```sh
-sudo ./netmon -q -i en0 -o /tmp/netmon-capture
+sudo ./netbraid -q -i en0 -o /tmp/netbraid-capture
 ```
 
 `-i` accepts a Go regular expression as written; it is not implicitly anchored. Use
@@ -102,7 +102,7 @@ sudo ./netmon -q -i en0 -o /tmp/netmon-capture
 colon:
 
 ```sh
-sudo ./netmon -q -i 'wlp.*:h=static,b=2.4ghz' -o /tmp/netmon-capture
+sudo ./netbraid -q -i 'wlp.*:h=static,b=2.4ghz' -o /tmp/netbraid-capture
 ```
 
 `h=static|uniform|thompson` selects the hopping strategy and
@@ -117,42 +117,49 @@ Without `-q`, packet records go to stdout. `-S` selects the dynamic summary inst
 
 ```sh
 cargo build --manifest-path rust/Cargo.toml
-./rust/target/debug/netmon --version
-./rust/target/debug/netmon --help
-./rust/target/debug/netmon net
-./rust/target/debug/netmon device '<name, MAC, or IP substring>'
-./rust/target/debug/netmon here
-./rust/target/debug/netmon evidence ./host-path.jsonl
-./rust/target/debug/netmon pcap ./incident.pcap
-./rust/target/debug/netmon pcap ./incident.pcapng --json
-./rust/target/debug/netmon pcap ./incident.pcapng --jsonl
-./rust/target/debug/netmon pcap ./incident.pcapng --records-jsonl
+./rust/target/debug/netbraid --version
+./rust/target/debug/netbraid --help
+./rust/target/debug/netbraid net
+./rust/target/debug/netbraid device '<name, MAC, or IP substring>'
+./rust/target/debug/netbraid here
+./rust/target/debug/netbraid evidence ./host-path.jsonl
+./rust/target/debug/netbraid pcap ./incident.pcap
+./rust/target/debug/netbraid pcap ./incident.pcapng --json
+./rust/target/debug/netbraid pcap ./incident.pcapng --jsonl
+./rust/target/debug/netbraid pcap ./incident.pcapng --records-jsonl
 ```
 
-The Rust workspace requires Rust 1.88 or newer. It is a versioned GitHub binary
-release, not a crates.io package; every workspace package has `publish = false`.
+The Rust workspace requires Rust 1.88 or newer. The real CLI and its three
+libraries publish to crates.io; native archives remain available from GitHub.
+Install the operator CLI from crates.io:
+
+```sh
+cargo install netbraid --version 0.2.0
+netbraid --version
+```
+
 To install a source checkout into Cargo's binary directory:
 
 ```sh
 cargo +1.88 install --locked --path rust
-netmon --version
+netbraid --version
 ```
 
-Tagged releases use `netmon-vVERSION` and contain native archives for Linux
+Tagged releases use `netbraid-vVERSION` and contain native archives for Linux
 x86-64, Intel macOS, and Apple silicon macOS. Each archive contains the Rust
-`netmon` binary, README, both license files, and the canonical
-`schema-fixtures/v0` bundle. For example:
+`netbraid` binary, README, both license files, and the canonical
+`netbraid-evidence` v0 fixture bundle. For example:
 
 ```sh
-version=0.1.0
+version=0.2.0
 target=aarch64-apple-darwin
-asset="netmon-v${version}-${target}.tar.gz"
-gh release download "netmon-v${version}" --repo arclabs561/netmon \
+asset="netbraid-v${version}-${target}.tar.gz"
+gh release download "netbraid-v${version}" --repo arclabs561/netbraid \
   --pattern "$asset" --pattern SHA256SUMS
 grep "  ${asset}$" SHA256SUMS | shasum -a 256 --check
 tar -xzf "$asset"
 mkdir -p "$HOME/.local/bin"
-install -m 0755 "netmon-v${version}-${target}/netmon" "$HOME/.local/bin/netmon"
+install -m 0755 "netbraid-v${version}-${target}/netbraid" "$HOME/.local/bin/netbraid"
 ```
 
 Use `x86_64-apple-darwin` on an Intel Mac and
@@ -248,14 +255,14 @@ not invoke Wireshark tools.
 
 ## Promotion gates
 
-The future reusable core is narrower than “move fusion into netmon.” Each promoted
+The future reusable core is narrower than “move fusion into Netbraid.” Each promoted
 slice must normalize a named immutable source artifact, preserve observer and coverage
 evidence, replay deterministically, and explain why a conclusion was reached or why
 the evidence is insufficient.
 
 The long-term boundary is:
 
-- netmon: versioned evidence records, source/coverage provenance, canonical replay,
+- Netbraid: versioned evidence records, source/coverage provenance, canonical replay,
   reversible candidate mechanics, and explanations;
 - deployment consumers: collectors, operational stores, retention, topology,
   runtime health, compatibility rendering, and live projections;
@@ -267,13 +274,13 @@ The long-term boundary is:
 The future core is justified only if it can answer questions that a single live host
 view or raw packet table cannot answer reproducibly:
 
-| Operator circumstance | Netmon job | Linktop projection |
+| Operator circumstance | Netbraid job | Linktop projection |
 | --- | --- | --- |
 | A failure recurs across days or network contexts | replay source records into comparable path- or site-scoped episodes and baselines | show the relevant prior episode or baseline as optional cited evidence |
 | Sources disagree about an endpoint binding or role | retain every observation, coverage interval, conflict, and candidate lineage | show the contradiction without replacing the current host observation |
 | Encrypted traffic still needs coarse attribution | derive versioned application, service, stack, or role candidates from flow and handshake features, with alternatives and abstention | show a candidate only in a focused evidence view with source and window |
 | One host cannot distinguish local, controller, sensor, and remote symptoms | align event and acquisition time across observers and expose the earliest supported change | identify which vantage implicated a segment and what remains unseen |
-| An operator needs to hand off an intermittent incident | emit a deterministic, private evidence capsule and an explicitly sanitized projection | link the current session context to that capsule without requiring netmon |
+| An operator needs to hand off an intermittent incident | emit a deterministic, private evidence capsule and an explicitly sanitized projection | link the current session context to that capsule without requiring Netbraid |
 
 This is not a commitment to one daemon or dashboard. The first useful library slice
 is immutable records plus deterministic replay and explanation. Temporal reducers,
@@ -285,14 +292,14 @@ Linktop remains the immediate terminal instrument:
 
 - its default acquisition policy is passive host-local observation;
 - its active path probes are explicit, bounded, and independently useful;
-- switching a Linktop view never causes netmon or another source to collect more;
-- netmon evidence is optional, versioned, and provenance-preserving; and
+- switching a Linktop view never causes Netbraid or another source to collect more;
+- Netbraid evidence is optional, versioned, and provenance-preserving; and
 - multi-source durable fusion, cross-vantage baselines, identity policy, and
   advisory fingerprint mechanics do not move into Linktop. Its explicitly
-  configured v0 host-path JSONL is a narrow consumer of Netmon replay, not a
+  configured v0 host-path JSONL is a narrow consumer of Netbraid replay, not a
   second fusion plane.
 
-New Netmon-owned core implementation is Rust. The Go capture CLI remains
+New Netbraid-owned core implementation is Rust. The Go capture CLI remains
 compatibility code rather than a base to port feature by feature. Functionality,
 semantic correctness, and operator quality take precedence over language
 composition: mature specialists may remain subprocess or source boundaries, and
@@ -325,7 +332,7 @@ identity, human presence, or intent.
 
 Collection purpose, site, modality, retention, and export remain deployment policy.
 Aliases, assignments, enrolled anchors, consent, and credentials remain outside
-Netmon. Netmon does not automatically label people or maintain a global fingerprint
+Netbraid. Netbraid does not automatically label people or maintain a global fingerprint
 index over unknown devices.
 
 The terminology, native-extractor migration, episode, assessment, binding,
@@ -371,7 +378,7 @@ RARP, PPPoE discovery, severe snaplen truncation, NTP conversations, and
 big-endian PCAPNG. The upstream bytes remain text-reviewable hex; their manifest
 pins source commits, blob IDs, decoded digests, licenses, and stable normalization
 expectations. See the
-[fixture corpus](rust/crates/netmon-adapter-tshark/tests/fixtures/README.md).
+[fixture corpus](rust/crates/netbraid-adapter-tshark/tests/fixtures/README.md).
 `just pcap-smoke-show` prints the finite operator summary from the CLI fixture so
 presentation changes can be reviewed without preparing a local capture.
 `just rust-check-full` is the release-oriented Rust gate: build, tests, Clippy,

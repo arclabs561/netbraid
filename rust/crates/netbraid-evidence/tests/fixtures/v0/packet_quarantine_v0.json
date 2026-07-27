@@ -1,0 +1,8 @@
+{
+  "schema": "netmon.packet_quarantine.v0",
+  "capture_id": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "source_line": 2,
+  "frame_number_hint": 2,
+  "reason": "invalid frame.time_epoch: expected seconds.nanoseconds",
+  "raw_row": "2\tinvalid"
+}

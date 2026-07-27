@@ -1,7 +1,7 @@
 ---
 status: experimental
 consumers:
-  - netmon CLI
+  - netbraid CLI
 future-consumers:
   - Linktop focused evidence views
 ---
@@ -43,7 +43,7 @@ Sources:
 - [Zeek `conn.log` reference](https://docs.zeek.org/en/master/reference/logs/conn.html)
 - [RFC 5103: Bidirectional Flow Export Using IPFIX](https://datatracker.ietf.org/doc/html/rfc5103)
 
-Netmon will call this first aggregate a **capture conversation**, not a flow,
+Netbraid will call this first aggregate a **capture conversation**, not a flow,
 connection, session, or episode:
 
 - it spans one artifact rather than an idle/active timeout window;
@@ -71,18 +71,18 @@ connection, session, or episode:
 ### Parse TShark `-z conv` display output
 
 This would reuse Wireshark's aggregation but add another process, make a
-human-oriented table a machine contract, and hide why Netmon excluded a packet.
+human-oriented table a machine contract, and hide why Netbraid excluded a packet.
 It would also produce a second derivation path beside the packet-envelope
 records. Rejected.
 
-### Add a `netmon-flow` or reducer crate
+### Add a `netbraid-flow` or reducer crate
 
 A new crate would suggest a separately released dependency or dependency set
-that does not yet exist. `netmon-replay` already owns deterministic operations
+that does not yet exist. `netbraid-replay` already owns deterministic operations
 over evidence records and is already consumed by Linktop. Rejected until a real
 dependency or release boundary appears.
 
-### Reduce packet envelopes in `netmon-replay`
+### Reduce packet envelopes in `netbraid-replay`
 
 One pure reducer over versioned packet envelopes gives the same result to the
 CLI and a future consumer, adds no process or collection capability, and can
@@ -90,9 +90,9 @@ return explicit exclusion coverage. Chosen.
 
 ## Decision
 
-`netmon-replay` owns an experimental pure capture-conversation reducer.
-`netmon-evidence` remains unchanged because the result is not a normalized
-evidence record. The Netmon CLI uses the reducer in finite text output and in
+`netbraid-replay` owns an experimental pure capture-conversation reducer.
+`netbraid-evidence` remains unchanged because the result is not a normalized
+evidence record. The Netbraid CLI uses the reducer in finite text output and in
 the bounded, versioned `netmon.saved_pcap_triage.v0` operator projection. That
 projection binds to the deterministic normalized-record digest and carries only
 the top cumulative conversation plus coverage and candidate drill-down pivots.
@@ -197,6 +197,6 @@ timing without discarding the underlying event timestamps.
 - What idle/active timeout and TCP lifecycle policy would justify a true flow or
   connection record?
 - Does Linktop have a focused evidence view that needs this exact reducer, or is
-  the Netmon CLI the only real consumer?
+  the Netbraid CLI the only real consumer?
 - Which stable reduction receipt should bind future serialized conversation
   records to packet-envelope inputs and reducer version?

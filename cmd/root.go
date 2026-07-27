@@ -34,7 +34,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:          "netmon",
+	Use:          "netbraid",
 	Short:        "capture packet and RF-channel observations to PCAP and JSONL",
 	RunE:         rootRunE,
 	SilenceUsage: true,

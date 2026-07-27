@@ -6,14 +6,14 @@ use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use clap::{Args, ValueEnum};
-use netmon_adapter_tshark::{
+use netbraid_adapter_tshark::{
     normalize_saved_capture, NormalizationReport, NormalizeOptions, DEFAULT_MAX_INPUT_BYTES,
     DEFAULT_MAX_STDOUT_BYTES, DEFAULT_PACKET_LIMIT, DEFAULT_TIMEOUT,
 };
-use netmon_evidence::{
+use netbraid_evidence::{
     CollectionModeV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
 };
-use netmon_replay::{
+use netbraid_replay::{
     project_saved_pcap_triage, reduce_capture_conversations, CaptureConversationV0,
     ConversationDirectionV0, SavedCaptureRecordStreamV0, SavedPcapClaimScopeV0,
     SavedPcapCompletenessV0, SavedPcapConversationTriageV0, SavedPcapTopConversationV0,
@@ -581,7 +581,7 @@ fn claim_scope_label(scope: SavedPcapClaimScopeV0) -> &'static str {
     }
 }
 
-fn triage_event_window(window: &netmon_replay::SavedPcapEventWindowV0) -> String {
+fn triage_event_window(window: &netbraid_replay::SavedPcapEventWindowV0) -> String {
     format!(
         "{} .. {} / {} span",
         format_epoch_ns(window.earliest_event_time_unix_ns),
@@ -590,7 +590,7 @@ fn triage_event_window(window: &netmon_replay::SavedPcapEventWindowV0) -> String
     )
 }
 
-fn format_triage_endpoint(endpoint: &netmon_replay::SavedPcapConversationEndpointV0) -> String {
+fn format_triage_endpoint(endpoint: &netbraid_replay::SavedPcapConversationEndpointV0) -> String {
     match endpoint.address {
         std::net::IpAddr::V4(address) => format!("{address}:{}", endpoint.port),
         std::net::IpAddr::V6(address) => format!("[{address}]:{}", endpoint.port),
@@ -960,7 +960,7 @@ fn print_quarantines(report: &NormalizationReport) {
 
 fn count_by(
     report: &NormalizationReport,
-    key: impl Fn(&netmon_evidence::PacketEnvelopeV0) -> Option<String>,
+    key: impl Fn(&netbraid_evidence::PacketEnvelopeV0) -> Option<String>,
 ) -> BTreeMap<String, usize> {
     let mut counts = BTreeMap::new();
     for packet in &report.packets {
@@ -1146,7 +1146,7 @@ fn print_conversation_direction(label: &str, direction: &ConversationDirectionV0
     println!();
 }
 
-fn format_endpoint(endpoint: &netmon_replay::ConversationEndpointV0) -> String {
+fn format_endpoint(endpoint: &netbraid_replay::ConversationEndpointV0) -> String {
     match endpoint.address {
         std::net::IpAddr::V4(address) => format!("{address}:{}", endpoint.port),
         std::net::IpAddr::V6(address) => format!("[{address}]:{}", endpoint.port),
@@ -1238,7 +1238,7 @@ fn format_frame_extent(original_frame_octets: u64, captured_frame_octets: u64) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use netmon_evidence::{
+    use netbraid_evidence::{
         Ieee80211FieldsV0, PacketFrameV0, WlanRadioFieldsV0, PACKET_ENVELOPE_SCHEMA_V0,
     };
 

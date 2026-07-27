@@ -1,7 +1,7 @@
 ---
 status: implemented
 consumers:
-  - Netmon CLI
+  - Netbraid CLI
 future-consumers:
   - Linktop focused wireless-evidence view
 related:
@@ -17,7 +17,7 @@ related:
 The saved-capture adapter can normalize a radiotap capture without loss at the
 file or frame boundary, but its v0 packet field registry exposes only the
 ordered `radiotap:wlan_radio:wlan` protocol stack. An operator cannot answer the
-first useful wireless questions from Netmon records:
+first useful wireless questions from Netbraid records:
 
 - Which IEEE 802.11 frame types and subtypes dominate the artifact?
 - Which transmitter, receiver, and BSS identifiers were observed?
@@ -30,14 +30,14 @@ on Linux and 4.6.7 on macOS expose the same candidate fields.
 
 ## Context and constraints
 
-`PacketEnvelopeV0` is a released JSON schema and a Rust type in a
-`publish = false` experimental workspace. Normalized-record digests bind the
+`PacketEnvelopeV0` is a released JSON schema and a Rust type in the
+`netbraid-evidence` crates.io package. Normalized-record digests bind the
 manifest, its field-registry ID, and every packet record. Older Serde readers
 ignore unknown object fields, while new optional fields deserialize as absent
 from old records. Rust struct literals do not have that source-compatibility:
 adding a public field requires consumers to update when they repin.
 
-TShark remains the dissection owner. Netmon must select bounded scalar fields,
+TShark remains the dissection owner. Netbraid must select bounded scalar fields,
 use first-occurrence semantics consistently, preserve unknowns, and avoid
 free-form display text. Radio metadata describes what the capture supplied for
 one frame; it is not a calibrated RF measurement or evidence of complete
@@ -83,12 +83,12 @@ facts would be absent from JSONL, receipts, and deterministic replay. Rejected.
 Type and subtype are required together. Every address remains optional because
 the IEEE 802.11 header shape depends on frame class and distribution-system
 bits. Address validation uses the same canonical six-octet form as Ethernet
-fields. Empty or absent `wlan.ssid` output remains unknown; Netmon does not turn
+fields. Empty or absent `wlan.ssid` output remains unknown; Netbraid does not turn
 that ambiguity into a hidden-network assertion.
 
 `PacketEnvelopeV0.wlan_radio` contains optional channel number, center
 frequency in MHz, and signal power in dBm. The group is present when any of
-those fields is present. Netmon uses Wireshark's normalized `wlan_radio.*`
+those fields is present. Netbraid uses Wireshark's normalized `wlan_radio.*`
 fields instead of binding the schema to radiotap-specific duplicates.
 
 The ordered registry adds:
@@ -162,11 +162,11 @@ explicit and preferable to guessing.
 ## Implementation plan
 
 1. Add and validate optional IEEE 802.11 and normalized radio groups in
-   `netmon-evidence`.
+   `netbraid-evidence`.
 2. Extend the fixed TShark registry, bump its ID, and parse all-or-unknown field
    groups without changing process or acquisition behavior.
 3. Update the radiotap corpus expectations and schema fixtures.
-4. Add a bounded finite-text projection in the Netmon CLI.
+4. Add a bounded finite-text projection in the Netbraid CLI.
 5. Re-run the exact corpus on local Wireshark and Dratini's older Wireshark,
    then rebuild Linktop against the new exact Git revision before it repins.
 

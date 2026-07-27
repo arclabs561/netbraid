@@ -1,16 +1,22 @@
 # Changelog
 
-All notable changes to Netmon's versioned Rust workspace and binary release are
+All notable changes to Netbraid's versioned Rust workspace and binary release are
 documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Netmon uses a workspace release version but does not publish its private crates
-to crates.io.
+Netbraid uses one workspace release version. The CLI and three reusable
+libraries publish to crates.io in dependency order; GitHub native binary
+releases remain available.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-26
+
 ### Added
 
+- The `netbraid`, `netbraid-evidence`, `netbraid-replay`, and
+  `netbraid-adapter-tshark` crates.io packages, including self-contained
+  package documentation, licenses, fixtures, and tests.
 - A provenance-checked public saved-capture corpus spanning radiotap/802.11,
   RARP PCAPNG, PPPoE discovery, snaplen truncation, NTP conversations, and
   big-endian PCAPNG. Exact upstream bytes are stored as diffable hex beside
@@ -25,6 +31,17 @@ to crates.io.
   coverage, radio contexts, observed identifiers, and nonempty SSID elements.
 - A sixth canonical v0 schema fixture exercising the additive wireless packet
   envelope.
+
+### Changed
+
+- Renamed the product, Rust packages, operator binary, source tree, GitHub
+  release contract, and current Go CLI identity from Netmon to Netbraid.
+- New saved-capture records identify their producer as
+  `netbraid-adapter-tshark`; historical `netmon-adapter-tshark` records remain
+  readable.
+- Preserved every existing `netmon.*` schema, digest-profile,
+  environment-policy, field-registry, and corpus identifier as a stable wire
+  compatibility namespace.
 
 ## [0.1.0] - 2026-07-26
 
@@ -49,5 +66,6 @@ to crates.io.
 - Raw PCAP, PCAPNG, and CAP artifacts are ignored recursively; reviewed
   synthetic fixtures remain readable source encodings.
 
-[Unreleased]: https://github.com/arclabs561/netmon/compare/netmon-v0.1.0...HEAD
-[0.1.0]: https://github.com/arclabs561/netmon/releases/tag/netmon-v0.1.0
+[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.2.0...HEAD
+[0.2.0]: https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.2.0
+[0.1.0]: https://github.com/arclabs561/netbraid/releases/tag/netmon-v0.1.0
