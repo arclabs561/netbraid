@@ -276,8 +276,12 @@ Linktop remains the immediate terminal instrument:
   configured v0 host-path JSONL is a narrow consumer of Netmon replay, not a
   second fusion plane.
 
-New core implementation is Rust. The Go capture CLI remains compatibility code rather
-than a base to port feature by feature.
+New Netmon-owned core implementation is Rust. The Go capture CLI remains
+compatibility code rather than a base to port feature by feature. Functionality,
+semantic correctness, and operator quality take precedence over language
+composition: mature specialists may remain subprocess or source boundaries, and
+a native Rust extractor earns promotion only against the same evidence and
+failure-semantics gates.
 
 No typed multi-modal observation implementation starts before representative replay
 fixtures fix the minimum schema. A policy-neutral binding reducer moves here only if a
@@ -307,6 +311,10 @@ Collection purpose, site, modality, retention, and export remain deployment poli
 Aliases, assignments, enrolled anchors, consent, and credentials remain outside
 Netmon. Netmon does not automatically label people or maintain a global fingerprint
 index over unknown devices.
+
+The terminology, native-extractor migration, episode, assessment, binding,
+retention, and cross-surface contracts are detailed in
+[`docs/design/derived-intelligence-boundary.md`](docs/design/derived-intelligence-boundary.md).
 
 ## Limitations
 
