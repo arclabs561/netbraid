@@ -129,14 +129,11 @@ cargo build --manifest-path rust/Cargo.toml
 ./rust/target/debug/netbraid pcap ./incident.pcapng --records-jsonl
 ```
 
-The Rust workspace requires Rust 1.88 or newer. The real CLI and its three
-libraries publish to crates.io; native archives remain available from GitHub.
-Install the operator CLI from crates.io:
-
-```sh
-cargo install netbraid --version 0.2.0
-netbraid --version
-```
+The Rust workspace requires Rust 1.88 or newer. The CLI and its three
+libraries are packaged for crates.io, but the 0.2.0 registry publication is
+pending credential rotation. Until those packages are visible in the
+registry, install from a source checkout or a tagged GitHub archive rather
+than assuming `cargo install netbraid` is available.
 
 To install a source checkout into Cargo's binary directory:
 
