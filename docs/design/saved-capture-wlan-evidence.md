@@ -30,8 +30,8 @@ on Linux and 4.6.7 on macOS expose the same candidate fields.
 
 ## Context and constraints
 
-`PacketEnvelopeV0` is a released JSON schema and a Rust type in the
-`netbraid-evidence` crates.io package. Normalized-record digests bind the
+`PacketEnvelopeV0` is a versioned JSON schema and a Rust type in the
+publishable `netbraid-evidence` package. Normalized-record digests bind the
 manifest, its field-registry ID, and every packet record. Older Serde readers
 ignore unknown object fields, while new optional fields deserialize as absent
 from old records. Rust struct literals do not have that source-compatibility:

@@ -145,12 +145,13 @@ registry package's repository, version, VCS SHA, dirty state, and yanked state
 before creating the GitHub release.
 
 Do not move Linktop as part of this publication. Linktop ADR-0008 currently
-retains the exact Git revision until the same 0.2 packages exist on crates.io
-and the later multi-modal compatibility gate passes, while Netbraid ADR-0002
-correctly forbids reusing 0.2.0 for newer bytes. Linktop therefore keeps its
-Git pin until its accepted ADR is amended or superseded; this roadmap cannot
-silently relax that gate. Infra release consumers must pin a released artifact
-or semver contract, never a sibling path.
+retains the exact Git revision until the crates it consumes exist on crates.io
+at one compatible release identity and the later multi-modal compatibility
+gate passes, while Netbraid ADR-0002 correctly forbids reusing 0.2.0 for newer
+bytes. The bootstrap release therefore uses 0.3.0, and Linktop keeps its Git pin
+until its accepted ADR is amended or superseded; this roadmap cannot silently
+relax that gate. Infra release consumers must pin a released artifact or semver
+contract, never a sibling path.
 
 Consumer: fresh-clone users, future library consumers, and Infra admission
 gates.

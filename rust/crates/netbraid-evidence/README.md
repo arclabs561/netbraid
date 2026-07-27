@@ -15,7 +15,7 @@ the crate package.
 
 ```toml
 [dependencies]
-netbraid-evidence = "0.2"
+netbraid-evidence = "0.3"
 ```
 
 License: MIT OR Unlicense.

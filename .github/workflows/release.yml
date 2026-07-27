@@ -53,6 +53,19 @@ jobs:
             .license == "MIT OR Unlicense" and
             .repository == "https://github.com/arclabs561/netbraid"
           )' <<<"$metadata" >/dev/null
+          jq -e --arg version "$version" '
+            ["netbraid", "netbraid-adapter-tshark", "netbraid-evidence", "netbraid-replay"] as $internal |
+            ("^" + $version) as $requirement |
+            ([.packages[].name] | sort) == ($internal | sort) and
+            all(
+              .packages[];
+              all(
+                .dependencies[]
+                | select(.name as $name | $internal | index($name));
+                .req == $requirement
+              )
+            )
+          ' <<<"$metadata" >/dev/null
           release_tag="netbraid-v${version}"
           if [[ "$RELEASE_REF" == refs/tags/* || "$RELEASE_CONFIRM" == publish-crates ]]; then
             if tagged_commit="$(git rev-parse --verify --quiet "${release_tag}^{commit}")"; then
@@ -79,11 +92,12 @@ jobs:
         run: |
           cargo +1.88 install cargo-audit --locked --version 0.22.2
           cargo audit --file rust/Cargo.lock -D warnings
-      - name: Verify crates.io package inventories
+      - name: Verify crates.io package inventories and leaf package
         run: |
           for package in netbraid-evidence netbraid-replay netbraid-adapter-tshark netbraid; do
             cargo +1.88 package --locked --list --manifest-path rust/Cargo.toml -p "$package" >/dev/null
           done
+          cargo +1.88 package --locked --manifest-path rust/Cargo.toml -p netbraid-evidence
 
   build:
     name: Build ${{ matrix.target }}
@@ -285,6 +299,7 @@ jobs:
               printf 'publish with the confirmed manual workflow before pushing the tag\n' >&2
               exit 1
             fi
+            cargo +1.88 publish --locked --dry-run --manifest-path rust/Cargo.toml -p "$package"
             cargo +1.88 publish --locked --manifest-path rust/Cargo.toml -p "$package"
             wait_for_registry_version "$package"
           done

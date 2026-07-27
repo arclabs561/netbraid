@@ -10,6 +10,32 @@ native binary releases remain available independently.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-27
+
+### Added
+
+- Versioned, deterministic scenario bundles for offline consumer QA, including
+  Wi-Fi/hotspot recurrence, VPN-overlay attribution abstention, and a passive
+  neighbor-cache source gap. Bundles carry exact artifact inventories, hashes,
+  named checkpoints, required abstentions, coverage/freshness expectations,
+  bounded text viewports, and a receipt-bound accessor for the typed checkpoint
+  evidence that downstream consumers independently reduce.
+- Provenance-qualified trailing-interval analysis for saved captures. Positive
+  observations remain useful immediately, while negative conclusions require
+  complete normalization and corroborating occurrence-receipt packet bounds.
+- A manual, current-main-only crates.io publication gate with dependency-order
+  publication, Trusted Publishing support, registry metadata checks, and Cargo
+  VCS identity verification before a release tag can create a GitHub release.
+
+### Changed
+
+- CI now exercises all workspace features and verifies that public scenario
+  fixtures are present in the packaged `netbraid-replay` crate.
+- Saved-capture JSON triage is now `netmon.saved_pcap_triage.v1`, retaining the
+  validated capture manifest, optional occurrence receipt, normalized-record
+  digest, and optional trailing-window projection. The public v0 projection API
+  remains available for compatibility.
+
 ## [0.2.0] - 2026-07-26
 
 ### Added
@@ -67,6 +93,7 @@ native binary releases remain available independently.
 - Raw PCAP, PCAPNG, and CAP artifacts are ignored recursively; reviewed
   synthetic fixtures remain readable source encodings.
 
-[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.2.0...HEAD
+[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.0...HEAD
+[0.3.0]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.2.0...netbraid-v0.3.0
 [0.2.0]: https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.2.0
 [0.1.0]: https://github.com/arclabs561/netbraid/releases/tag/netmon-v0.1.0

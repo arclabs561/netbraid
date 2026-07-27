@@ -48,5 +48,5 @@
   "configuration_sha256": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "field_registry": "netmon.tshark.packet_envelope.v0",
   "normalized_records_digest_profile": "netmon.normalized_records_digest.v0",
-  "normalized_records_sha256": "sha256:654cf1daa95a56dd42ae9aa133528bd7a7e840edbde60daecd77ed553b52b635"
+  "normalized_records_sha256": "sha256:96a8de1e2ab5512a8838d1e4b948c0cab705e73eb075db2c69c0b42195bcbabe"
 }
