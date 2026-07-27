@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::net::IpAddr;
 
-use netbraid_evidence::{NormalizationStateV0, PacketEnvelopeV0, PacketQuarantineV0};
+use netbraid_evidence::{
+    CaptureManifestV0, CaptureRunReceiptV0, NormalizationStateV0, PacketEnvelopeV0,
+    PacketQuarantineV0,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::saved_capture::recompute_normalized_records_sha256;
@@ -12,6 +15,7 @@ use crate::{
 };
 
 pub const SAVED_PCAP_TRIAGE_SCHEMA_V0: &str = "netmon.saved_pcap_triage.v0";
+pub const SAVED_PCAP_TRIAGE_SCHEMA_V1: &str = "netmon.saved_pcap_triage.v1";
 const QUARANTINE_REASON_LIMIT: usize = 8;
 
 /// A bounded derived projection over one validated saved-capture record stream.
@@ -29,10 +33,42 @@ pub struct SavedPcapTriageV0 {
     pub source: SavedPcapTriageSourceV0,
 }
 
+/// The provenance-complete operator projection used by the 0.3 CLI.
+///
+/// V1 preserves the full validated source manifest and optional
+/// occurrence-specific receipt. Its optional trailing analysis is derived
+/// output, never a claim that normalized packet timestamps prove acquisition
+/// continuity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedPcapTriageV1 {
+    pub schema: String,
+    pub normalization: SavedPcapNormalizationTriageV0,
+    pub quarantine: SavedPcapQuarantineTriageV0,
+    pub wlan: SavedPcapWlanTriageV0,
+    pub top_capture_conversation: SavedPcapConversationTriageV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trailing_window: Option<SavedPcapTrailingWindowTriageV1>,
+    pub source: SavedPcapTriageSourceV1,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SavedPcapTriageOptionsV1 {
+    /// Trailing artifact interval duration, in nanoseconds.
+    pub tail_window_ns: Option<u64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SavedPcapTriageSourceV0 {
     pub capture_id: String,
     pub field_registry: String,
+    pub normalized_records_sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedPcapTriageSourceV1 {
+    pub manifest: CaptureManifestV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub receipt: Option<CaptureRunReceiptV0>,
     pub normalized_records_sha256: String,
 }
 
@@ -83,6 +119,116 @@ pub struct SavedPcapEventWindowV0 {
     pub earliest_event_time_unix_ns: i64,
     pub latest_event_time_unix_ns: i64,
     pub observed_span_ns: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedPcapTrailingWindowTriageV1 {
+    pub requested_duration_ns: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_interval: Option<SavedPcapPacketTimeBoundsV1>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_artifact_packet_extent: Option<SavedPcapPacketTimeBoundsV1>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalized_packet_artifact_extent: Option<SavedPcapEventWindowV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interval_anchor: Option<SavedPcapTrailingIntervalAnchorV1>,
+    pub negative_claim_qualification: SavedPcapNegativeClaimQualificationV1,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_packet_extent: Option<SavedPcapEventWindowV0>,
+    pub top_conversation: SavedPcapTrailingConversationTriageV1,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedPcapPacketTimeBoundsV1 {
+    pub start_event_time_unix_ns: i64,
+    pub end_event_time_unix_ns: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SavedPcapTrailingIntervalAnchorV1 {
+    SourceArtifactLatestPacketTime,
+    LatestNormalizedPacketEventTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum SavedPcapNegativeClaimQualificationV1 {
+    Qualified {
+        basis: SavedPcapNegativeClaimBasisV1,
+    },
+    Abstained {
+        reasons: Vec<SavedPcapNegativeClaimAbstentionReasonV1>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SavedPcapNegativeClaimBasisV1 {
+    CompleteNormalizationAndOccurrenceFilePacketExtent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SavedPcapNegativeClaimAbstentionReasonV1 {
+    NoNormalizedPacketEnvelopes,
+    PartialNormalization,
+    MissingOccurrenceReceipt,
+    MissingReceiptFilePacketTimeBounds,
+    SourceArtifactExtentDoesNotSpanRequestedInterval,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum SavedPcapTrailingConversationTriageV1 {
+    Abstained {
+        packet_envelopes_seen: u64,
+        packet_envelopes_excluded: u64,
+        exclusions: Vec<SavedPcapConversationExclusionCountV0>,
+    },
+    NotObserved {
+        packet_envelopes_seen: u64,
+        packet_envelopes_excluded: u64,
+        exclusions: Vec<SavedPcapConversationExclusionCountV0>,
+    },
+    Observed {
+        packet_envelopes_seen: u64,
+        packet_envelopes_grouped: u64,
+        packet_envelopes_excluded: u64,
+        exclusions: Vec<SavedPcapConversationExclusionCountV0>,
+        conversation: Box<SavedPcapTrailingTopConversationV1>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedPcapTrailingTopConversationV1 {
+    pub aggregation: SavedPcapTrailingConversationAggregationV1,
+    pub temporal_basis: SavedPcapTrailingConversationTemporalBasisV1,
+    pub transport: SavedPcapTransportProtocolV0,
+    pub endpoint_a: SavedPcapConversationEndpointV0,
+    pub endpoint_b: SavedPcapConversationEndpointV0,
+    pub observation_point: SavedPcapObservationPointV0,
+    pub total_frames: u64,
+    pub total_original_frame_octets: u64,
+    pub total_captured_frame_octets: u64,
+    pub a_to_b: SavedPcapConversationDirectionV0,
+    pub b_to_a: SavedPcapConversationDirectionV0,
+    pub earliest_event_time_unix_ns: i64,
+    pub latest_event_time_unix_ns: i64,
+    pub observed_span_ns: u64,
+    pub tshark_candidate_display_filter: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SavedPcapTrailingConversationAggregationV1 {
+    CumulativeWithinRequestedInterval,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SavedPcapTrailingConversationTemporalBasisV1 {
+    PacketEventTime,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -278,6 +424,23 @@ pub enum SavedPcapTriageProjectionError {
     },
     NormalizedRecordsDigestRecomputationFailed,
     ReceiptDigestMismatch,
+    InvalidTrailingWindowDuration {
+        requested_duration_ns: u64,
+    },
+    TrailingWindowStartOutOfRange {
+        latest_event_time_unix_ns: i64,
+        requested_duration_ns: u64,
+    },
+    ReceiptFilePacketExtentInconsistent {
+        earliest_packet_time_unix_ns: i64,
+        latest_packet_time_unix_ns: i64,
+    },
+    NormalizedPacketExtentOutsideReceiptFileExtent {
+        normalized_earliest_event_time_unix_ns: i64,
+        normalized_latest_event_time_unix_ns: i64,
+        receipt_earliest_packet_time_unix_ns: i64,
+        receipt_latest_packet_time_unix_ns: i64,
+    },
 }
 
 impl fmt::Display for SavedPcapTriageProjectionError {
@@ -306,6 +469,41 @@ impl fmt::Display for SavedPcapTriageProjectionError {
             }
             Self::ReceiptDigestMismatch => formatter
                 .write_str("receipt digest differs from the validated record-stream digest"),
+            Self::InvalidTrailingWindowDuration {
+                requested_duration_ns,
+            } => write!(
+                formatter,
+                "trailing-window duration must be between 1 and {} nanoseconds, got {requested_duration_ns}",
+                i64::MAX
+            ),
+            Self::TrailingWindowStartOutOfRange {
+                latest_event_time_unix_ns,
+                requested_duration_ns,
+            } => write!(
+                formatter,
+                "trailing-window start precedes the representable event-time range: \
+                 latest={latest_event_time_unix_ns}, duration={requested_duration_ns}ns"
+            ),
+            Self::ReceiptFilePacketExtentInconsistent {
+                earliest_packet_time_unix_ns,
+                latest_packet_time_unix_ns,
+            } => write!(
+                formatter,
+                "receipt file packet extent is inconsistent: earliest={earliest_packet_time_unix_ns}, \
+                 latest={latest_packet_time_unix_ns}"
+            ),
+            Self::NormalizedPacketExtentOutsideReceiptFileExtent {
+                normalized_earliest_event_time_unix_ns,
+                normalized_latest_event_time_unix_ns,
+                receipt_earliest_packet_time_unix_ns,
+                receipt_latest_packet_time_unix_ns,
+            } => write!(
+                formatter,
+                "normalized packet artifact extent \
+                 {normalized_earliest_event_time_unix_ns}..{normalized_latest_event_time_unix_ns} \
+                 falls outside receipt file packet extent \
+                 {receipt_earliest_packet_time_unix_ns}..{receipt_latest_packet_time_unix_ns}"
+            ),
         }
     }
 }
@@ -346,6 +544,31 @@ pub fn project_saved_pcap_triage(
         source: SavedPcapTriageSourceV0 {
             capture_id: manifest.capture_id.clone(),
             field_registry: manifest.extractor.field_registry.clone(),
+            normalized_records_sha256: records.normalized_records_sha256.clone(),
+        },
+    })
+}
+
+pub fn project_saved_pcap_triage_v1(
+    records: &SavedCaptureRecordStreamV0,
+    options: SavedPcapTriageOptionsV1,
+) -> Result<SavedPcapTriageV1, SavedPcapTriageProjectionError> {
+    let v0 = project_saved_pcap_triage(records)?;
+    let trailing_window = options
+        .tail_window_ns
+        .map(|requested_duration_ns| trailing_window_triage(records, requested_duration_ns))
+        .transpose()?;
+
+    Ok(SavedPcapTriageV1 {
+        schema: SAVED_PCAP_TRIAGE_SCHEMA_V1.into(),
+        normalization: v0.normalization,
+        quarantine: v0.quarantine,
+        wlan: v0.wlan,
+        top_capture_conversation: v0.top_capture_conversation,
+        trailing_window,
+        source: SavedPcapTriageSourceV1 {
+            manifest: records.manifest.clone(),
+            receipt: records.receipt.clone(),
             normalized_records_sha256: records.normalized_records_sha256.clone(),
         },
     })
@@ -533,16 +756,7 @@ fn conversation_triage(
 ) -> SavedPcapConversationTriageV0 {
     let scope = claim_scope(completeness);
     let report = reduce_capture_conversations(packets);
-    let exclusions = report
-        .exclusions
-        .iter()
-        .map(
-            |(reason, packet_envelopes)| SavedPcapConversationExclusionCountV0 {
-                reason: (*reason).into(),
-                packet_envelopes: *packet_envelopes,
-            },
-        )
-        .collect();
+    let exclusions = conversation_exclusions(&report.exclusions);
     let Some(conversation) = report.conversations.first() else {
         return match completeness {
             SavedPcapCompletenessV0::CompleteCapture => {
@@ -558,7 +772,8 @@ fn conversation_triage(
             SavedPcapCompletenessV0::PartialPacketSubset => {
                 SavedPcapConversationTriageV0::Insufficient {
                     scope,
-                    reason: SavedPcapConversationInsufficientReasonV0::PartialNormalizationWithoutEligibleIpTcpUdpPacketEnvelopes,
+                    reason:
+                        SavedPcapConversationInsufficientReasonV0::PartialNormalizationWithoutEligibleIpTcpUdpPacketEnvelopes,
                     packet_envelopes_seen: report.packet_envelopes_seen,
                     packet_envelopes_excluded: report.packet_envelopes_excluded,
                     exclusions,
@@ -575,6 +790,216 @@ fn conversation_triage(
         exclusions,
         conversation: Box::new(top_conversation(conversation)),
     }
+}
+
+fn conversation_exclusions(
+    exclusions: &BTreeMap<ConversationExclusionReasonV0, u64>,
+) -> Vec<SavedPcapConversationExclusionCountV0> {
+    exclusions
+        .iter()
+        .map(
+            |(reason, packet_envelopes)| SavedPcapConversationExclusionCountV0 {
+                reason: (*reason).into(),
+                packet_envelopes: *packet_envelopes,
+            },
+        )
+        .collect()
+}
+
+fn trailing_conversation_triage(
+    packets: &[PacketEnvelopeV0],
+    negative_claim_qualified: bool,
+    requested_interval: Option<&SavedPcapPacketTimeBoundsV1>,
+) -> SavedPcapTrailingConversationTriageV1 {
+    let report = reduce_capture_conversations(packets);
+    let exclusions = conversation_exclusions(&report.exclusions);
+    let Some(conversation) = report.conversations.first() else {
+        return if negative_claim_qualified {
+            SavedPcapTrailingConversationTriageV1::NotObserved {
+                packet_envelopes_seen: report.packet_envelopes_seen,
+                packet_envelopes_excluded: report.packet_envelopes_excluded,
+                exclusions,
+            }
+        } else {
+            SavedPcapTrailingConversationTriageV1::Abstained {
+                packet_envelopes_seen: report.packet_envelopes_seen,
+                packet_envelopes_excluded: report.packet_envelopes_excluded,
+                exclusions,
+            }
+        };
+    };
+
+    SavedPcapTrailingConversationTriageV1::Observed {
+        packet_envelopes_seen: report.packet_envelopes_seen,
+        packet_envelopes_grouped: report.packet_envelopes_grouped,
+        packet_envelopes_excluded: report.packet_envelopes_excluded,
+        exclusions,
+        conversation: Box::new(trailing_top_conversation(conversation, requested_interval)),
+    }
+}
+
+fn trailing_window_triage(
+    records: &SavedCaptureRecordStreamV0,
+    requested_duration_ns: u64,
+) -> Result<SavedPcapTrailingWindowTriageV1, SavedPcapTriageProjectionError> {
+    let duration = i64::try_from(requested_duration_ns)
+        .ok()
+        .filter(|duration| *duration > 0)
+        .ok_or(
+            SavedPcapTriageProjectionError::InvalidTrailingWindowDuration {
+                requested_duration_ns,
+            },
+        )?;
+    let normalized_packet_artifact_extent = event_window(records.packets.iter());
+    let source_artifact_packet_extent = receipt_file_packet_extent(records.receipt.as_ref())?;
+    validate_normalized_extent_against_receipt(
+        normalized_packet_artifact_extent.as_ref(),
+        source_artifact_packet_extent.as_ref(),
+    )?;
+
+    let (interval_anchor, latest_event_time_unix_ns) =
+        if let Some(extent) = &source_artifact_packet_extent {
+            (
+                Some(SavedPcapTrailingIntervalAnchorV1::SourceArtifactLatestPacketTime),
+                Some(extent.end_event_time_unix_ns),
+            )
+        } else if let Some(extent) = &normalized_packet_artifact_extent {
+            (
+                Some(SavedPcapTrailingIntervalAnchorV1::LatestNormalizedPacketEventTime),
+                Some(extent.latest_event_time_unix_ns),
+            )
+        } else {
+            (None, None)
+        };
+    let requested_interval = latest_event_time_unix_ns
+        .map(|latest_event_time_unix_ns| {
+            let start_event_time_unix_ns = latest_event_time_unix_ns.checked_sub(duration).ok_or(
+                SavedPcapTriageProjectionError::TrailingWindowStartOutOfRange {
+                    latest_event_time_unix_ns,
+                    requested_duration_ns,
+                },
+            )?;
+            Ok(SavedPcapPacketTimeBoundsV1 {
+                start_event_time_unix_ns,
+                end_event_time_unix_ns: latest_event_time_unix_ns,
+            })
+        })
+        .transpose()?;
+
+    let mut abstention_reasons = Vec::new();
+    if normalized_packet_artifact_extent.is_none() {
+        abstention_reasons
+            .push(SavedPcapNegativeClaimAbstentionReasonV1::NoNormalizedPacketEnvelopes);
+    }
+    if records.manifest.normalization.state == NormalizationStateV0::Partial {
+        abstention_reasons.push(SavedPcapNegativeClaimAbstentionReasonV1::PartialNormalization);
+    }
+    match (&records.receipt, &source_artifact_packet_extent) {
+        (None, _) => abstention_reasons
+            .push(SavedPcapNegativeClaimAbstentionReasonV1::MissingOccurrenceReceipt),
+        (Some(_), None) => abstention_reasons
+            .push(SavedPcapNegativeClaimAbstentionReasonV1::MissingReceiptFilePacketTimeBounds),
+        (Some(_), Some(source_extent)) => {
+            if requested_interval.as_ref().is_some_and(|requested| {
+                source_extent.start_event_time_unix_ns > requested.start_event_time_unix_ns
+                    || source_extent.end_event_time_unix_ns < requested.end_event_time_unix_ns
+            }) {
+                abstention_reasons.push(
+                    SavedPcapNegativeClaimAbstentionReasonV1::SourceArtifactExtentDoesNotSpanRequestedInterval,
+                );
+            }
+        }
+    }
+    let negative_claim_qualified = abstention_reasons.is_empty();
+    let negative_claim_qualification = if negative_claim_qualified {
+        SavedPcapNegativeClaimQualificationV1::Qualified {
+            basis:
+                SavedPcapNegativeClaimBasisV1::CompleteNormalizationAndOccurrenceFilePacketExtent,
+        }
+    } else {
+        SavedPcapNegativeClaimQualificationV1::Abstained {
+            reasons: abstention_reasons,
+        }
+    };
+
+    let selected_packets = requested_interval
+        .as_ref()
+        .map(|bounds| {
+            records
+                .packets
+                .iter()
+                .filter(|packet| {
+                    let event_time = packet.frame.event_time_unix_ns;
+                    event_time >= bounds.start_event_time_unix_ns
+                        && event_time <= bounds.end_event_time_unix_ns
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    Ok(SavedPcapTrailingWindowTriageV1 {
+        requested_duration_ns,
+        requested_interval: requested_interval.clone(),
+        source_artifact_packet_extent,
+        normalized_packet_artifact_extent,
+        interval_anchor,
+        negative_claim_qualification,
+        selected_packet_extent: event_window(selected_packets.iter()),
+        top_conversation: trailing_conversation_triage(
+            &selected_packets,
+            negative_claim_qualified,
+            requested_interval.as_ref(),
+        ),
+    })
+}
+
+fn receipt_file_packet_extent(
+    receipt: Option<&CaptureRunReceiptV0>,
+) -> Result<Option<SavedPcapPacketTimeBoundsV1>, SavedPcapTriageProjectionError> {
+    let Some(receipt) = receipt else {
+        return Ok(None);
+    };
+    let (Some(earliest), Some(latest)) = (
+        receipt.file.earliest_packet_time_unix_ns,
+        receipt.file.latest_packet_time_unix_ns,
+    ) else {
+        return Ok(None);
+    };
+    if earliest > latest {
+        return Err(
+            SavedPcapTriageProjectionError::ReceiptFilePacketExtentInconsistent {
+                earliest_packet_time_unix_ns: earliest,
+                latest_packet_time_unix_ns: latest,
+            },
+        );
+    }
+    Ok(Some(SavedPcapPacketTimeBoundsV1 {
+        start_event_time_unix_ns: earliest,
+        end_event_time_unix_ns: latest,
+    }))
+}
+
+fn validate_normalized_extent_against_receipt(
+    normalized: Option<&SavedPcapEventWindowV0>,
+    receipt: Option<&SavedPcapPacketTimeBoundsV1>,
+) -> Result<(), SavedPcapTriageProjectionError> {
+    let (Some(normalized), Some(receipt)) = (normalized, receipt) else {
+        return Ok(());
+    };
+    if normalized.earliest_event_time_unix_ns < receipt.start_event_time_unix_ns
+        || normalized.latest_event_time_unix_ns > receipt.end_event_time_unix_ns
+    {
+        return Err(
+            SavedPcapTriageProjectionError::NormalizedPacketExtentOutsideReceiptFileExtent {
+                normalized_earliest_event_time_unix_ns: normalized.earliest_event_time_unix_ns,
+                normalized_latest_event_time_unix_ns: normalized.latest_event_time_unix_ns,
+                receipt_earliest_packet_time_unix_ns: receipt.start_event_time_unix_ns,
+                receipt_latest_packet_time_unix_ns: receipt.end_event_time_unix_ns,
+            },
+        );
+    }
+    Ok(())
 }
 
 fn top_conversation(conversation: &CaptureConversationV0) -> SavedPcapTopConversationV0 {
@@ -608,7 +1033,48 @@ fn top_conversation(conversation: &CaptureConversationV0) -> SavedPcapTopConvers
                 .saturating_sub(conversation.earliest_event_time_unix_ns),
         )
         .unwrap_or(u64::MAX),
-        tshark_candidate_display_filter: conversation_candidate_display_filter(conversation),
+        tshark_candidate_display_filter: conversation_candidate_display_filter(conversation, None),
+    }
+}
+
+fn trailing_top_conversation(
+    conversation: &CaptureConversationV0,
+    requested_interval: Option<&SavedPcapPacketTimeBoundsV1>,
+) -> SavedPcapTrailingTopConversationV1 {
+    SavedPcapTrailingTopConversationV1 {
+        aggregation: SavedPcapTrailingConversationAggregationV1::CumulativeWithinRequestedInterval,
+        temporal_basis: SavedPcapTrailingConversationTemporalBasisV1::PacketEventTime,
+        transport: conversation.key.transport.into(),
+        endpoint_a: SavedPcapConversationEndpointV0 {
+            address: conversation.key.endpoint_a.address,
+            port: conversation.key.endpoint_a.port,
+        },
+        endpoint_b: SavedPcapConversationEndpointV0 {
+            address: conversation.key.endpoint_b.address,
+            port: conversation.key.endpoint_b.port,
+        },
+        observation_point: SavedPcapObservationPointV0 {
+            section_number: conversation.key.observation_point.section_number,
+            interface_id: conversation.key.observation_point.interface_id,
+            encapsulation_type: conversation.key.observation_point.encapsulation_type,
+        },
+        total_frames: conversation.total_frames(),
+        total_original_frame_octets: conversation.total_original_frame_octets(),
+        total_captured_frame_octets: conversation.total_captured_frame_octets(),
+        a_to_b: direction(&conversation.a_to_b),
+        b_to_a: direction(&conversation.b_to_a),
+        earliest_event_time_unix_ns: conversation.earliest_event_time_unix_ns,
+        latest_event_time_unix_ns: conversation.latest_event_time_unix_ns,
+        observed_span_ns: u64::try_from(
+            conversation
+                .latest_event_time_unix_ns
+                .saturating_sub(conversation.earliest_event_time_unix_ns),
+        )
+        .unwrap_or(u64::MAX),
+        tshark_candidate_display_filter: conversation_candidate_display_filter(
+            conversation,
+            requested_interval,
+        ),
     }
 }
 
@@ -638,7 +1104,10 @@ fn direction(direction: &ConversationDirectionV0) -> SavedPcapConversationDirect
     }
 }
 
-fn conversation_candidate_display_filter(conversation: &CaptureConversationV0) -> String {
+fn conversation_candidate_display_filter(
+    conversation: &CaptureConversationV0,
+    trailing_bounds: Option<&SavedPcapPacketTimeBoundsV1>,
+) -> String {
     let transport = match conversation.key.transport {
         TransportProtocolV0::Tcp => "tcp",
         TransportProtocolV0::Udp => "udp",
@@ -659,6 +1128,13 @@ fn conversation_candidate_display_filter(conversation: &CaptureConversationV0) -
     if let Some(encapsulation) = conversation.key.observation_point.encapsulation_type {
         clauses.push(format!("frame.encap_type == {encapsulation}"));
     }
+    if let Some(bounds) = trailing_bounds {
+        clauses.push(format!(
+            "frame.time_epoch >= {} && frame.time_epoch <= {}",
+            tshark_epoch_seconds(bounds.start_event_time_unix_ns),
+            tshark_epoch_seconds(bounds.end_event_time_unix_ns)
+        ));
+    }
     clauses.push(format!(
         "{transport} && (({network}.src == {} && {transport}.srcport == {} && \
          {network}.dst == {} && {transport}.dstport == {}) || \
@@ -678,6 +1154,14 @@ fn conversation_candidate_display_filter(conversation: &CaptureConversationV0) -
         .map(|clause| format!("({clause})"))
         .collect::<Vec<_>>()
         .join(" && ")
+}
+
+fn tshark_epoch_seconds(unix_ns: i64) -> String {
+    let negative = unix_ns.is_negative();
+    let magnitude = i128::from(unix_ns).abs();
+    let seconds = magnitude / 1_000_000_000;
+    let nanos = magnitude % 1_000_000_000;
+    format!("{}{seconds}.{nanos:09}", if negative { "-" } else { "" })
 }
 
 impl From<TransportProtocolV0> for SavedPcapTransportProtocolV0 {

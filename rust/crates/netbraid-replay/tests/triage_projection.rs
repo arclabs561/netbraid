@@ -1,13 +1,17 @@
 use netbraid_evidence::{
-    CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureManifestV0, CaptureNormalizationV0,
-    EthernetFieldsV0, Ieee80211FieldsV0, Ipv4FieldsV0, NormalizationStateV0, PacketEnvelopeV0,
-    PacketFrameV0, PacketQuarantineV0, TcpFieldsV0, CAPTURE_MANIFEST_SCHEMA_V0,
-    PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
+    CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureFileMetadataV0, CaptureManifestV0,
+    CaptureNormalizationV0, CaptureRunReceiptV0, EthernetFieldsV0, Ieee80211FieldsV0, Ipv4FieldsV0,
+    NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0, PacketQuarantineV0, TcpFieldsV0,
+    ToolRunReceiptV0, UdpFieldsV0, CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
+    NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
 };
 use netbraid_replay::{
-    parse_saved_capture_jsonl, project_saved_pcap_triage, SavedPcapClaimScopeV0,
-    SavedPcapConversationTriageV0, SavedPcapTriageProjectionError, SavedPcapWlanDisconnectKindV0,
-    SavedPcapWlanTriageV0,
+    parse_saved_capture_jsonl, project_saved_pcap_triage, project_saved_pcap_triage_v1,
+    SavedPcapClaimScopeV0, SavedPcapConversationAggregationV0, SavedPcapConversationTriageV0,
+    SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
+    SavedPcapTrailingConversationAggregationV1, SavedPcapTrailingConversationTriageV1,
+    SavedPcapTrailingIntervalAnchorV1, SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1,
+    SavedPcapTriageProjectionError, SavedPcapWlanDisconnectKindV0, SavedPcapWlanTriageV0,
 };
 
 const CAPTURE_ID: &str = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
@@ -94,6 +98,358 @@ fn unsupported_triage_projection_matches_contract_golden() {
     let triage = project_saved_pcap_triage(&records).unwrap();
 
     assert_golden(&triage, include_str!("fixtures/triage-unsupported-v0.json"));
+}
+
+#[test]
+fn v0_projection_preserves_its_exact_wire_shape_while_v1_retains_provenance() {
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Complete, 1, 0),
+        vec![tcp_packet(
+            1,
+            "192.0.2.1",
+            40_000,
+            "198.51.100.2",
+            443,
+            0x0002,
+        )],
+        vec![],
+    );
+
+    let v0 = project_saved_pcap_triage(&records).unwrap();
+    let v0_json = serde_json::to_value(&v0).unwrap();
+    assert!(
+        v0_json.get("trailing_window").is_none(),
+        "v0 must not grow v1 tail-analysis fields"
+    );
+
+    let v1 = project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1::default()).unwrap();
+    assert_eq!(v1.schema, "netmon.saved_pcap_triage.v1");
+    assert!(v1.trailing_window.is_none());
+    assert_eq!(v1.source.manifest, records.manifest);
+    assert_eq!(v1.source.receipt, records.receipt);
+    assert_eq!(
+        v1.source.normalized_records_sha256,
+        records.normalized_records_sha256
+    );
+}
+
+#[test]
+fn trailing_window_selects_late_dns_while_cumulative_top_remains_https() {
+    let packets = vec![
+        tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+        tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+        tcp_packet(3, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0010),
+        tcp_packet(4, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0001),
+        udp_packet(9, "203.0.113.10", 53_000, "203.0.113.53", 53),
+        udp_packet(10, "203.0.113.53", 53, "203.0.113.10", 53_000),
+    ];
+    let records = validated_stream_with_receipt(
+        manifest(NormalizationStateV0::Complete, 6, 0),
+        packets,
+        vec![],
+        1_000,
+        10_000,
+    );
+
+    let triage = project_saved_pcap_triage_v1(
+        &records,
+        SavedPcapTriageOptionsV1 {
+            tail_window_ns: Some(2_000),
+        },
+    )
+    .unwrap();
+
+    let SavedPcapConversationTriageV0::Observed {
+        conversation: cumulative,
+        ..
+    } = triage.top_capture_conversation
+    else {
+        panic!("the four-frame HTTPS conversation should remain the cumulative top");
+    };
+    assert_eq!(cumulative.transport, SavedPcapTransportProtocolV0::Tcp);
+    assert_eq!(
+        cumulative.aggregation,
+        SavedPcapConversationAggregationV0::CumulativeAcrossClaimScope
+    );
+
+    let trailing = triage.trailing_window.unwrap();
+    assert_eq!(
+        trailing.interval_anchor,
+        Some(SavedPcapTrailingIntervalAnchorV1::SourceArtifactLatestPacketTime)
+    );
+    assert!(matches!(
+        trailing.negative_claim_qualification,
+        SavedPcapNegativeClaimQualificationV1::Qualified { .. }
+    ));
+    let bounds = trailing.requested_interval.unwrap();
+    assert_eq!(bounds.start_event_time_unix_ns, 8_000);
+    assert_eq!(bounds.end_event_time_unix_ns, 10_000);
+    assert_eq!(trailing.selected_packet_extent.unwrap().observations, 2);
+    let SavedPcapTrailingConversationTriageV1::Observed {
+        packet_envelopes_seen,
+        packet_envelopes_grouped,
+        packet_envelopes_excluded,
+        conversation,
+        ..
+    } = trailing.top_conversation
+    else {
+        panic!("the late DNS exchange should be the trailing-window top");
+    };
+    assert_eq!(packet_envelopes_seen, 2);
+    assert_eq!(packet_envelopes_grouped, 2);
+    assert_eq!(packet_envelopes_excluded, 0);
+    assert_eq!(conversation.transport, SavedPcapTransportProtocolV0::Udp);
+    assert_eq!(
+        conversation.aggregation,
+        SavedPcapTrailingConversationAggregationV1::CumulativeWithinRequestedInterval
+    );
+    assert!(conversation
+        .tshark_candidate_display_filter
+        .contains("frame.time_epoch >= 0.000008000 && frame.time_epoch <= 0.000010000"));
+    assert!(conversation
+        .tshark_candidate_display_filter
+        .contains("udp.srcport == 53000"));
+}
+
+#[test]
+fn trailing_window_projection_is_invariant_to_packet_input_order() {
+    let packets = vec![
+        tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+        tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+        udp_packet(9, "203.0.113.10", 53_000, "203.0.113.53", 53),
+        udp_packet(10, "203.0.113.53", 53, "203.0.113.10", 53_000),
+    ];
+    let forward = validated_stream_with_receipt(
+        manifest(NormalizationStateV0::Complete, 4, 0),
+        packets.clone(),
+        vec![],
+        1_000,
+        10_000,
+    );
+    let reverse_packets = packets
+        .into_iter()
+        .rev()
+        .enumerate()
+        .map(|(index, mut packet)| {
+            let frame_number = u64::try_from(index).unwrap() + 1;
+            packet.frame.number = frame_number;
+            packet.record_id = format!("{CAPTURE_ID}:frame:{frame_number}");
+            packet
+        })
+        .collect();
+    let reverse = validated_stream_with_receipt(
+        manifest(NormalizationStateV0::Complete, 4, 0),
+        reverse_packets,
+        vec![],
+        1_000,
+        10_000,
+    );
+    let options = SavedPcapTriageOptionsV1 {
+        tail_window_ns: Some(2_000),
+    };
+
+    let forward = project_saved_pcap_triage_v1(&forward, options)
+        .unwrap()
+        .trailing_window;
+    let reverse = project_saved_pcap_triage_v1(&reverse, options)
+        .unwrap()
+        .trailing_window;
+
+    assert_eq!(forward, reverse);
+}
+
+#[test]
+fn trailing_window_includes_packets_on_both_requested_boundaries() {
+    let packets = vec![
+        tcp_packet(7, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+        tcp_packet(8, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0010),
+        tcp_packet(10, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+    ];
+    let records = validated_stream_with_receipt(
+        manifest(NormalizationStateV0::Complete, 3, 0),
+        packets,
+        vec![],
+        7_000,
+        10_000,
+    );
+
+    let trailing = project_saved_pcap_triage_v1(
+        &records,
+        SavedPcapTriageOptionsV1 {
+            tail_window_ns: Some(2_000),
+        },
+    )
+    .unwrap()
+    .trailing_window
+    .unwrap();
+
+    let observed = trailing.selected_packet_extent.unwrap();
+    assert_eq!(observed.observations, 2);
+    assert_eq!(observed.earliest_event_time_unix_ns, 8_000);
+    assert_eq!(observed.latest_event_time_unix_ns, 10_000);
+    let SavedPcapTrailingConversationTriageV1::Observed {
+        packet_envelopes_seen,
+        conversation,
+        ..
+    } = trailing.top_conversation
+    else {
+        panic!("both boundary packets should remain eligible");
+    };
+    assert_eq!(packet_envelopes_seen, 2);
+    assert_eq!(conversation.total_frames, 2);
+}
+
+#[test]
+fn receiptless_partial_tail_keeps_positive_selection_but_abstains_on_negatives() {
+    let packets = vec![
+        tcp_packet(9, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+        tcp_packet(10, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+    ];
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Partial, 2, 0),
+        packets,
+        vec![],
+    );
+
+    let trailing = project_saved_pcap_triage_v1(
+        &records,
+        SavedPcapTriageOptionsV1 {
+            tail_window_ns: Some(20_000),
+        },
+    )
+    .unwrap()
+    .trailing_window
+    .unwrap();
+
+    assert_eq!(
+        trailing.negative_claim_qualification,
+        SavedPcapNegativeClaimQualificationV1::Abstained {
+            reasons: vec![
+                SavedPcapNegativeClaimAbstentionReasonV1::PartialNormalization,
+                SavedPcapNegativeClaimAbstentionReasonV1::MissingOccurrenceReceipt,
+            ],
+        }
+    );
+    assert_eq!(
+        trailing.interval_anchor,
+        Some(SavedPcapTrailingIntervalAnchorV1::LatestNormalizedPacketEventTime)
+    );
+    let SavedPcapTrailingConversationTriageV1::Observed { .. } = trailing.top_conversation else {
+        panic!("an abstained negative still preserves the positive conversation selection");
+    };
+}
+
+#[test]
+fn trailing_window_without_an_eligible_conversation_preserves_exclusion_counts() {
+    let packets = vec![
+        tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+        wlan_packet(9, 8),
+        wlan_packet(10, 12),
+    ];
+    let records = validated_stream_with_receipt(
+        manifest(NormalizationStateV0::Complete, 3, 0),
+        packets,
+        vec![],
+        1_000,
+        10_000,
+    );
+
+    let trailing = project_saved_pcap_triage_v1(
+        &records,
+        SavedPcapTriageOptionsV1 {
+            tail_window_ns: Some(2_000),
+        },
+    )
+    .unwrap()
+    .trailing_window
+    .unwrap();
+
+    let SavedPcapTrailingConversationTriageV1::NotObserved {
+        packet_envelopes_seen,
+        packet_envelopes_excluded,
+        exclusions,
+        ..
+    } = trailing.top_conversation
+    else {
+        panic!("receipt-backed artifact extent supports a scoped not-observed result");
+    };
+    assert_eq!(packet_envelopes_seen, 2);
+    assert_eq!(packet_envelopes_excluded, 2);
+    assert_eq!(
+        exclusions
+            .iter()
+            .map(|exclusion| exclusion.packet_envelopes)
+            .sum::<u64>(),
+        2
+    );
+}
+
+#[test]
+fn source_artifact_extent_that_does_not_span_the_interval_forces_negative_abstention() {
+    let records = validated_stream_with_receipt(
+        manifest(NormalizationStateV0::Complete, 2, 0),
+        vec![
+            tcp_packet(9, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+            tcp_packet(10, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+        ],
+        vec![],
+        9_000,
+        10_000,
+    );
+
+    let trailing = project_saved_pcap_triage_v1(
+        &records,
+        SavedPcapTriageOptionsV1 {
+            tail_window_ns: Some(20_000),
+        },
+    )
+    .unwrap()
+    .trailing_window
+    .unwrap();
+
+    assert_eq!(
+        trailing.negative_claim_qualification,
+        SavedPcapNegativeClaimQualificationV1::Abstained {
+            reasons: vec![
+                SavedPcapNegativeClaimAbstentionReasonV1::SourceArtifactExtentDoesNotSpanRequestedInterval,
+            ],
+        }
+    );
+    assert!(matches!(
+        trailing.top_conversation,
+        SavedPcapTrailingConversationTriageV1::Observed { .. }
+    ));
+}
+
+#[test]
+fn normalized_future_timestamp_outside_receipt_file_extent_is_rejected() {
+    let records = validated_stream_with_receipt(
+        manifest(NormalizationStateV0::Complete, 2, 0),
+        vec![
+            tcp_packet(9, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+            tcp_packet(10, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+        ],
+        vec![],
+        1_000,
+        9_000,
+    );
+
+    assert_eq!(
+        project_saved_pcap_triage_v1(
+            &records,
+            SavedPcapTriageOptionsV1 {
+                tail_window_ns: Some(2_000),
+            },
+        ),
+        Err(
+            SavedPcapTriageProjectionError::NormalizedPacketExtentOutsideReceiptFileExtent {
+                normalized_earliest_event_time_unix_ns: 9_000,
+                normalized_latest_event_time_unix_ns: 10_000,
+                receipt_earliest_packet_time_unix_ns: 1_000,
+                receipt_latest_packet_time_unix_ns: 9_000,
+            }
+        )
+    );
 }
 
 #[test]
@@ -323,6 +679,79 @@ fn validated_stream(
     parse_saved_capture_jsonl(&jsonl).unwrap()
 }
 
+fn validated_stream_with_receipt(
+    manifest: CaptureManifestV0,
+    packets: Vec<PacketEnvelopeV0>,
+    quarantines: Vec<PacketQuarantineV0>,
+    earliest_packet_time_unix_ns: i64,
+    latest_packet_time_unix_ns: i64,
+) -> netbraid_replay::SavedCaptureRecordStreamV0 {
+    let records = validated_stream(manifest, packets, quarantines);
+    let receipt = CaptureRunReceiptV0 {
+        schema: CAPTURE_RUN_RECEIPT_SCHEMA_V0.into(),
+        run_id: "run:1111111111111111111111111111111111111111111111111111111111111111".into(),
+        capture_id: records.manifest.capture_id.clone(),
+        started_time_unix_ns: 20_000,
+        finished_time_unix_ns: 30_000,
+        elapsed_ns: 10_000,
+        file: CaptureFileMetadataV0 {
+            file_type: "pcap".into(),
+            encapsulation: "ether".into(),
+            timestamp_precision: "nanoseconds".into(),
+            packet_count: records
+                .manifest
+                .normalization
+                .packet_rows_emitted
+                .saturating_add(records.manifest.normalization.packet_rows_quarantined),
+            file_size_bytes: records.manifest.artifact.size_bytes,
+            original_data_size_bytes: 100,
+            snaplen: Some(65_535),
+            inferred_snaplen_min: None,
+            inferred_snaplen_max: None,
+            duration_ns: Some(
+                u64::try_from(
+                    latest_packet_time_unix_ns.saturating_sub(earliest_packet_time_unix_ns),
+                )
+                .unwrap(),
+            ),
+            earliest_packet_time_unix_ns: Some(earliest_packet_time_unix_ns),
+            latest_packet_time_unix_ns: Some(latest_packet_time_unix_ns),
+            capture_hardware: None,
+            capture_operating_system: None,
+            capture_application: None,
+        },
+        capinfos: successful_tool_receipt("capinfos"),
+        tshark: successful_tool_receipt("tshark"),
+        configuration_sha256: records.manifest.extractor.configuration_sha256.clone(),
+        field_registry: records.manifest.extractor.field_registry.clone(),
+        normalized_records_digest_profile: NORMALIZED_RECORDS_DIGEST_PROFILE_V0.into(),
+        normalized_records_sha256: records.normalized_records_sha256.clone(),
+    };
+    let mut jsonl = Vec::new();
+    push_record(&mut jsonl, &records.manifest);
+    push_record(&mut jsonl, &receipt);
+    for packet in records.packets {
+        push_record(&mut jsonl, &packet);
+    }
+    for quarantine in records.quarantines {
+        push_record(&mut jsonl, &quarantine);
+    }
+    parse_saved_capture_jsonl(&jsonl).unwrap()
+}
+
+fn successful_tool_receipt(tool: &str) -> ToolRunReceiptV0 {
+    ToolRunReceiptV0 {
+        tool: tool.into(),
+        configured_executable: tool.into(),
+        tool_version: format!("{tool} 4.6.7"),
+        argument_template: vec!["-r".into(), "$STAGED_CAPTURE".into()],
+        environment_policy: "netmon.wireshark.environment.v0".into(),
+        exit_code: 0,
+        stdout_sha256: RECORDS_DIGEST.into(),
+        stderr_sha256: RECORDS_DIGEST.into(),
+    }
+}
+
 fn push_record(output: &mut Vec<u8>, record: &impl serde::Serialize) {
     serde_json::to_writer(&mut *output, record).unwrap();
     output.push(b'\n');
@@ -369,6 +798,31 @@ fn tcp_packet(
         ieee80211: None,
         wlan_radio: None,
     }
+}
+
+fn udp_packet(
+    frame_number: u64,
+    source: &str,
+    source_port: u16,
+    destination: &str,
+    destination_port: u16,
+) -> PacketEnvelopeV0 {
+    let mut packet = tcp_packet(
+        frame_number,
+        source,
+        source_port,
+        destination,
+        destination_port,
+        0,
+    );
+    packet.frame.protocols = vec!["eth".into(), "ethertype".into(), "ip".into(), "udp".into()];
+    packet.ipv4.as_mut().unwrap().protocol = 17;
+    packet.tcp = None;
+    packet.udp = Some(UdpFieldsV0 {
+        source_port,
+        destination_port,
+    });
+    packet
 }
 
 fn wlan_packet(frame_number: u64, frame_subtype: u8) -> PacketEnvelopeV0 {

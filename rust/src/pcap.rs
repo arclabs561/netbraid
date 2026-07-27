@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
@@ -14,14 +15,65 @@ use netbraid_evidence::{
     CollectionModeV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
 };
 use netbraid_replay::{
-    project_saved_pcap_triage, reduce_capture_conversations, CaptureConversationV0,
+    project_saved_pcap_triage_v1, reduce_capture_conversations, CaptureConversationV0,
     ConversationDirectionV0, SavedCaptureRecordStreamV0, SavedPcapClaimScopeV0,
-    SavedPcapCompletenessV0, SavedPcapConversationTriageV0, SavedPcapTopConversationV0,
-    SavedPcapTransportProtocolV0, SavedPcapTriageV0, SavedPcapWlanDisconnectKindV0,
-    SavedPcapWlanTriageV0, TransportProtocolV0,
+    SavedPcapCompletenessV0, SavedPcapConversationTriageV0,
+    SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
+    SavedPcapTopConversationV0, SavedPcapTrailingConversationTriageV1,
+    SavedPcapTrailingIntervalAnchorV1, SavedPcapTrailingTopConversationV1,
+    SavedPcapTrailingWindowTriageV1, SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1,
+    SavedPcapTriageV1, SavedPcapWlanDisconnectKindV0, SavedPcapWlanTriageV0, TransportProtocolV0,
 };
 
 const MIB: u64 = 1024 * 1024;
+const NANOS_PER_SECOND: u64 = 1_000_000_000;
+
+#[derive(Debug, Clone, Copy)]
+pub struct TailSecondsArg {
+    nanoseconds: u64,
+}
+
+impl FromStr for TailSecondsArg {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let (whole, fractional) = value.split_once('.').unwrap_or((value, ""));
+        if whole.is_empty()
+            || !whole.bytes().all(|byte| byte.is_ascii_digit())
+            || !fractional.bytes().all(|byte| byte.is_ascii_digit())
+            || fractional.len() > 9
+        {
+            return Err(
+                "must be a positive decimal number of seconds with at most 9 fractional digits"
+                    .into(),
+            );
+        }
+        let whole = whole
+            .parse::<u64>()
+            .map_err(|_| "tail duration is too large".to_string())?;
+        let fractional_ns = if fractional.is_empty() {
+            0
+        } else {
+            let digits = fractional
+                .parse::<u64>()
+                .map_err(|_| "tail duration is too large".to_string())?;
+            digits
+                .checked_mul(10_u64.pow(u32::try_from(9 - fractional.len()).unwrap()))
+                .ok_or_else(|| "tail duration is too large".to_string())?
+        };
+        let nanoseconds = whole
+            .checked_mul(NANOS_PER_SECOND)
+            .and_then(|value| value.checked_add(fractional_ns))
+            .filter(|value| *value > 0 && *value <= i64::MAX as u64)
+            .ok_or_else(|| {
+                format!(
+                    "must be between 0.000000001 and {} seconds",
+                    i64::MAX as u64 / NANOS_PER_SECOND
+                )
+            })?;
+        Ok(Self { nanoseconds })
+    }
+}
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum AcquisitionModeArg {
@@ -50,7 +102,7 @@ pub struct PcapArgs {
     #[arg(long, requires = "acquisition_mode")]
     pub active_action: Vec<String>,
 
-    /// Emit one finite, versioned saved-PCAP triage document as JSON.
+    /// Emit one finite, provenance-complete saved-PCAP triage v1 document as JSON.
     #[arg(long, conflicts_with_all = ["jsonl", "records_jsonl"])]
     pub json: bool,
 
@@ -61,6 +113,10 @@ pub struct PcapArgs {
     /// Emit only deterministic manifest, packet, and quarantine records as JSONL.
     #[arg(long, conflicts_with_all = ["json", "jsonl"])]
     pub records_jsonl: bool,
+
+    /// Analyze a source-artifact trailing interval; decimal seconds are accepted.
+    #[arg(long, conflicts_with_all = ["jsonl", "records_jsonl"], value_name = "SECONDS")]
+    pub tail_seconds: Option<TailSecondsArg>,
 
     /// Maximum packets TShark may read. A longer file makes normalization partial.
     #[arg(long, default_value_t = DEFAULT_PACKET_LIMIT)]
@@ -93,6 +149,7 @@ pub struct PcapArgs {
 
 pub fn run(args: &PcapArgs) -> Result<()> {
     let acquisition_policy = acquisition_policy(args)?;
+    let tail_window_ns = args.tail_seconds.map(|duration| duration.nanoseconds);
     let max_input_bytes = args
         .max_input_mib
         .checked_mul(MIB)
@@ -121,10 +178,10 @@ pub fn run(args: &PcapArgs) -> Result<()> {
     .with_context(|| format!("normalizing {}", args.input.display()))?;
 
     match (args.json, args.jsonl, args.records_jsonl) {
-        (true, false, false) => print_triage_json(&report),
+        (true, false, false) => print_triage_json(&report, tail_window_ns),
         (false, true, false) => print_jsonl(&report, true),
         (false, false, true) => print_jsonl(&report, false),
-        (false, false, false) => print_summary(&args.input, &report),
+        (false, false, false) => print_summary(&args.input, &report, tail_window_ns),
         _ => unreachable!("clap rejects conflicting output modes"),
     }
 }
@@ -176,8 +233,8 @@ fn print_jsonl(report: &NormalizationReport, include_receipt: bool) -> Result<()
     Ok(())
 }
 
-fn print_triage_json(report: &NormalizationReport) -> Result<()> {
-    let triage = triage_for_report(report)?;
+fn print_triage_json(report: &NormalizationReport, tail_window_ns: Option<u64>) -> Result<()> {
+    let triage = triage_for_report(report, tail_window_ns)?;
     let mut output = BufWriter::new(io::stdout().lock());
     serde_json::to_writer(&mut output, &triage).context("writing saved-PCAP triage projection")?;
     output.write_all(b"\n")?;
@@ -185,7 +242,10 @@ fn print_triage_json(report: &NormalizationReport) -> Result<()> {
     Ok(())
 }
 
-fn triage_for_report(report: &NormalizationReport) -> Result<SavedPcapTriageV0> {
+fn triage_for_report(
+    report: &NormalizationReport,
+    tail_window_ns: Option<u64>,
+) -> Result<SavedPcapTriageV1> {
     let records = SavedCaptureRecordStreamV0 {
         manifest: report.manifest.clone(),
         receipt: Some(report.receipt.clone()),
@@ -193,11 +253,19 @@ fn triage_for_report(report: &NormalizationReport) -> Result<SavedPcapTriageV0> 
         quarantines: report.quarantines.clone(),
         normalized_records_sha256: report.receipt.normalized_records_sha256.clone(),
     };
-    project_saved_pcap_triage(&records).context("projecting validated saved-PCAP triage")
+    project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1 { tail_window_ns })
+        .context("projecting validated saved-PCAP triage")
 }
 
-fn print_summary(input: &Path, report: &NormalizationReport) -> Result<()> {
-    print!("{}", render_triage(&triage_for_report(report)?));
+fn print_summary(
+    input: &Path,
+    report: &NormalizationReport,
+    tail_window_ns: Option<u64>,
+) -> Result<()> {
+    print!(
+        "{}",
+        render_triage(&triage_for_report(report, tail_window_ns)?)
+    );
 
     let manifest = &report.manifest;
     println!("\ncapture");
@@ -352,7 +420,7 @@ fn print_summary(input: &Path, report: &NormalizationReport) -> Result<()> {
     Ok(())
 }
 
-fn render_triage(triage: &SavedPcapTriageV0) -> String {
+fn render_triage(triage: &SavedPcapTriageV1) -> String {
     let mut output = String::new();
     writeln!(output, "triage").unwrap();
     writeln!(
@@ -379,7 +447,7 @@ fn render_triage(triage: &SavedPcapTriageV0) -> String {
     if let Some(window) = &triage.normalization.emitted_packet_window {
         writeln!(
             output,
-            "  observed span {} emitted packets / {}",
+            "  normalized packet artifact extent  {} packet envelopes / {}",
             window.observations,
             triage_event_window(window)
         )
@@ -520,6 +588,9 @@ fn render_triage(triage: &SavedPcapTriageV0) -> String {
             );
         }
     }
+    if let Some(trailing_window) = &triage.trailing_window {
+        write_trailing_window(&mut output, trailing_window);
+    }
     output
 }
 
@@ -565,6 +636,210 @@ fn write_top_conversation(
         "                  candidate pivot may also select packets excluded by reducer eligibility rules"
     )
     .unwrap();
+}
+
+fn write_trailing_window(output: &mut String, trailing_window: &SavedPcapTrailingWindowTriageV1) {
+    writeln!(
+        output,
+        "  trailing interval  requested {}",
+        format_u64_duration_ns(trailing_window.requested_duration_ns)
+    )
+    .unwrap();
+    match trailing_window.interval_anchor {
+        Some(SavedPcapTrailingIntervalAnchorV1::SourceArtifactLatestPacketTime) => writeln!(
+            output,
+            "                  anchored at the occurrence receipt's latest source-artifact packet time"
+        )
+        .unwrap(),
+        Some(SavedPcapTrailingIntervalAnchorV1::LatestNormalizedPacketEventTime) => writeln!(
+            output,
+            "                  anchored at the latest normalized packet event time; no receipt file extent"
+        )
+        .unwrap(),
+        None => writeln!(output, "                  no packet-time anchor available").unwrap(),
+    }
+    match &trailing_window.requested_interval {
+        Some(bounds) => writeln!(
+            output,
+            "                  requested packet-time interval {} .. {} (inclusive)",
+            format_epoch_ns(bounds.start_event_time_unix_ns),
+            format_epoch_ns(bounds.end_event_time_unix_ns)
+        )
+        .unwrap(),
+        None => writeln!(
+            output,
+            "                  requested packet-time interval unavailable"
+        )
+        .unwrap(),
+    }
+    match &trailing_window.source_artifact_packet_extent {
+        Some(bounds) => writeln!(
+            output,
+            "  source artifact packet extent  {} .. {}",
+            format_epoch_ns(bounds.start_event_time_unix_ns),
+            format_epoch_ns(bounds.end_event_time_unix_ns)
+        )
+        .unwrap(),
+        None => writeln!(
+            output,
+            "  source artifact packet extent  unavailable from occurrence receipt"
+        )
+        .unwrap(),
+    }
+    match &trailing_window.normalized_packet_artifact_extent {
+        Some(extent) => writeln!(
+            output,
+            "  normalized packet artifact extent  {} packet envelopes / {}",
+            extent.observations,
+            triage_event_window(extent)
+        )
+        .unwrap(),
+        None => writeln!(
+            output,
+            "  normalized packet artifact extent  no packet envelopes"
+        )
+        .unwrap(),
+    }
+    match &trailing_window.negative_claim_qualification {
+        SavedPcapNegativeClaimQualificationV1::Qualified { .. } => writeln!(
+            output,
+            "  negative claims  qualified by complete normalization plus occurrence file packet extent"
+        )
+        .unwrap(),
+        SavedPcapNegativeClaimQualificationV1::Abstained { reasons } => {
+            writeln!(
+                output,
+                "  negative claims  abstained: {}",
+                reasons
+                    .iter()
+                    .map(|reason| negative_claim_abstention_label(*reason))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            )
+            .unwrap();
+        }
+    }
+    match &trailing_window.selected_packet_extent {
+        Some(window) => writeln!(
+            output,
+            "  selected extent  {} packet envelopes / {}",
+            window.observations,
+            triage_event_window(window)
+        )
+        .unwrap(),
+        None => writeln!(output, "  selected extent  no packet envelopes").unwrap(),
+    }
+
+    match &trailing_window.top_conversation {
+        SavedPcapTrailingConversationTriageV1::Abstained {
+            packet_envelopes_seen,
+            packet_envelopes_excluded,
+            ..
+        } => {
+            writeln!(
+                output,
+                "  top trailing  abstained: no eligible IP/TCP/UDP conversation in the selected \
+                 packet subset ({packet_envelopes_excluded}/{packet_envelopes_seen} excluded); \
+                 source evidence does not qualify a negative claim"
+            )
+            .unwrap();
+        }
+        SavedPcapTrailingConversationTriageV1::NotObserved {
+            packet_envelopes_seen,
+            packet_envelopes_excluded,
+            ..
+        } => {
+            writeln!(
+                output,
+                "  top trailing  not observed in the qualified requested interval: no eligible \
+                 IP/TCP/UDP conversation ({packet_envelopes_excluded}/{packet_envelopes_seen} \
+                 packet envelopes excluded)"
+            )
+            .unwrap();
+        }
+        SavedPcapTrailingConversationTriageV1::Observed {
+            packet_envelopes_seen,
+            packet_envelopes_grouped,
+            packet_envelopes_excluded,
+            conversation,
+            ..
+        } => {
+            write_trailing_top_conversation(
+                output,
+                *packet_envelopes_grouped,
+                *packet_envelopes_seen,
+                *packet_envelopes_excluded,
+                conversation,
+            );
+        }
+    }
+}
+
+fn write_trailing_top_conversation(
+    output: &mut String,
+    packet_envelopes_grouped: u64,
+    packet_envelopes_seen: u64,
+    packet_envelopes_excluded: u64,
+    conversation: &SavedPcapTrailingTopConversationV1,
+) {
+    let protocol = match conversation.transport {
+        SavedPcapTransportProtocolV0::Tcp => "TCP",
+        SavedPcapTransportProtocolV0::Udp => "UDP",
+    };
+    writeln!(
+        output,
+        "  top trailing  cumulative within requested packet-time interval by original frame \
+         octets; not a flow, session, or episode"
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "                  {protocol} {} ↔ {} / {} frames / {} original frame octets",
+        format_triage_endpoint(&conversation.endpoint_a),
+        format_triage_endpoint(&conversation.endpoint_b),
+        conversation.total_frames,
+        conversation.total_original_frame_octets,
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "                  reduction coverage {packet_envelopes_grouped}/{packet_envelopes_seen} \
+         emitted packet envelopes / {packet_envelopes_excluded} excluded"
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "  trailing pivot  tshark display filter: {}",
+        conversation.tshark_candidate_display_filter
+    )
+    .unwrap();
+    writeln!(
+        output,
+        "                  candidate pivot may also select packets excluded by reducer eligibility rules"
+    )
+    .unwrap();
+}
+
+fn negative_claim_abstention_label(
+    reason: SavedPcapNegativeClaimAbstentionReasonV1,
+) -> &'static str {
+    match reason {
+        SavedPcapNegativeClaimAbstentionReasonV1::NoNormalizedPacketEnvelopes => {
+            "no normalized packet envelopes"
+        }
+        SavedPcapNegativeClaimAbstentionReasonV1::PartialNormalization => {
+            "normalization is partial"
+        }
+        SavedPcapNegativeClaimAbstentionReasonV1::MissingOccurrenceReceipt => {
+            "occurrence receipt is absent"
+        }
+        SavedPcapNegativeClaimAbstentionReasonV1::MissingReceiptFilePacketTimeBounds => {
+            "occurrence receipt has no file packet-time bounds"
+        }
+        SavedPcapNegativeClaimAbstentionReasonV1::SourceArtifactExtentDoesNotSpanRequestedInterval => {
+            "source-artifact packet extent does not span the requested interval"
+        }
+    }
 }
 
 fn wlan_disconnect_label(kind: SavedPcapWlanDisconnectKindV0) -> &'static str {
@@ -1244,6 +1519,24 @@ mod tests {
 
     const CAPTURE_ID: &str =
         "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    #[test]
+    fn tail_seconds_are_parsed_exactly_and_reject_unrepresentable_windows() {
+        assert_eq!(
+            TailSecondsArg::from_str("0.15").unwrap().nanoseconds,
+            150_000_000
+        );
+        assert_eq!(
+            TailSecondsArg::from_str("2.000000001").unwrap().nanoseconds,
+            2_000_000_001
+        );
+        for invalid in ["0", "0.000000000", ".5", "1.0000000001", "-1"] {
+            assert!(
+                TailSecondsArg::from_str(invalid).is_err(),
+                "{invalid:?} must not be accepted"
+            );
+        }
+    }
 
     fn wireless_packet(
         frame: u64,
