@@ -25,17 +25,24 @@ pub use saved_capture::{
     SavedCaptureRecordFamilyV0, SavedCaptureRecordStreamV0,
 };
 pub use triage::{
-    project_saved_pcap_triage, SavedPcapClaimScopeV0, SavedPcapCompletenessV0,
-    SavedPcapConversationAggregationV0, SavedPcapConversationDirectionV0,
+    project_saved_pcap_triage, project_saved_pcap_triage_v1, SavedPcapClaimScopeV0,
+    SavedPcapCompletenessV0, SavedPcapConversationAggregationV0, SavedPcapConversationDirectionV0,
     SavedPcapConversationEndpointV0, SavedPcapConversationExclusionCountV0,
     SavedPcapConversationExclusionReasonV0, SavedPcapConversationInsufficientReasonV0,
     SavedPcapConversationTriageV0, SavedPcapConversationUnsupportedReasonV0,
-    SavedPcapEventWindowV0, SavedPcapNormalizationTriageV0, SavedPcapObservationPointV0,
+    SavedPcapEventWindowV0, SavedPcapNegativeClaimAbstentionReasonV1,
+    SavedPcapNegativeClaimBasisV1, SavedPcapNegativeClaimQualificationV1,
+    SavedPcapNormalizationTriageV0, SavedPcapObservationPointV0, SavedPcapPacketTimeBoundsV1,
     SavedPcapQuarantineReasonV0, SavedPcapQuarantineTriageV0, SavedPcapTcpFlagCountsV0,
-    SavedPcapTemporalRelevanceV0, SavedPcapTopConversationV0, SavedPcapTransportProtocolV0,
-    SavedPcapTriageProjectionError, SavedPcapTriageSourceV0, SavedPcapTriageV0,
+    SavedPcapTemporalRelevanceV0, SavedPcapTopConversationV0,
+    SavedPcapTrailingConversationAggregationV1, SavedPcapTrailingConversationTemporalBasisV1,
+    SavedPcapTrailingConversationTriageV1, SavedPcapTrailingIntervalAnchorV1,
+    SavedPcapTrailingTopConversationV1, SavedPcapTrailingWindowTriageV1,
+    SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1, SavedPcapTriageProjectionError,
+    SavedPcapTriageSourceV0, SavedPcapTriageSourceV1, SavedPcapTriageV0, SavedPcapTriageV1,
     SavedPcapWlanDisconnectKindV0, SavedPcapWlanDisconnectV0, SavedPcapWlanInsufficientReasonV0,
     SavedPcapWlanTriageV0, SavedPcapWlanUnsupportedReasonV0, SAVED_PCAP_TRIAGE_SCHEMA_V0,
+    SAVED_PCAP_TRIAGE_SCHEMA_V1,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

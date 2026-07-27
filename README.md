@@ -202,6 +202,24 @@ session. The top conversation is cumulative across the named claim scope, not
 a recent or time-local ranking; excluded packet-envelope coverage remains
 explicit by typed reason.
 
+`--tail-seconds SECONDS` adds an explicit source-artifact trailing-interval
+analysis to text or `--json` triage while preserving that cumulative result.
+Decimal seconds down to nanosecond precision are accepted. The requested
+interval ends at the occurrence receipt's latest source-artifact packet time
+when that extent is available, otherwise it falls back to the latest normalized
+packet event time. Both boundaries are inclusive. Output distinguishes the
+source-artifact packet extent, normalized packet artifact extent, requested
+interval, selected packet extent, packet/exclusion counts, largest selected
+conversation, and time-bounded TShark candidate pivot. Positive selection
+remains useful immediately. A negative conclusion is qualified only when
+normalization is complete and an occurrence receipt supplies file packet-time
+bounds consistent with the normalized packet extrema and spanning the requested
+interval; otherwise output abstains with typed reasons. Packet timestamps do
+not prove continuous acquisition coverage. This interval does not sessionize
+tuple reuse or infer an episode. The option is analysis-only and conflicts
+with `--jsonl` and `--records-jsonl`, so normalized evidence output remains
+unchanged.
+
 When independently known, `--acquisition-mode passive-host-local` records that
 the original artifact was acquired passively from the host. An
 `active-bounded` acquisition may also repeat `--active-action ACTION`.
@@ -217,10 +235,14 @@ These are artifact observations, not claims about complete channel coverage,
 device identity, role, presence, or intent. See
 [`docs/design/saved-capture-wlan-evidence.md`](docs/design/saved-capture-wlan-evidence.md).
 
-`--json` emits one finite `netmon.saved_pcap_triage.v0` JSON document. The
-typed projection is bound to the capture ID, field registry, and deterministic
-normalized-record digest; it is derived operator output, not a new normalized
-evidence record or an identity, flow, session, or time-local assessment.
+`--json` emits one finite `netmon.saved_pcap_triage.v1` JSON document. Its
+`source` retains the full validated `CaptureManifestV0`, optional
+occurrence-specific `CaptureRunReceiptV0`, and deterministic normalized-record
+digest. It is derived operator output, not a new normalized evidence record or
+an identity, flow, session, or episode assessment. Without `--tail-seconds`,
+the optional `trailing_window` member is omitted. The public Rust
+`project_saved_pcap_triage` API continues to emit the unchanged v0 projection
+for compatibility; v1 is a separate projection.
 Positive disconnect-frame and conversation observations are useful from the
 first supporting normalized packet. Negative WLAN observations are scoped to
 the complete capture or normalized packet subset; a partial subset with no

@@ -162,8 +162,16 @@ timing without discarding the underlying event timestamps.
   also span a network-context change on the same interface; without aligned
   context evidence, the reducer cannot split that boundary. The selected top
   conversation is cumulative across the claim scope and does not imply recent
-  or time-local relevance. A recent-window ranking remains a future reducer,
-  not an implicit warm-up threshold.
+  or time-local relevance. An operator may request a separate explicit
+  source-artifact trailing interval with `--tail-seconds`; it never replaces
+  the cumulative result or introduces an implicit warm-up threshold. The
+  interval is anchored to occurrence-receipt file packet times when available,
+  falls back explicitly to normalized packet event time otherwise, and includes
+  both boundaries. Source-artifact packet extent, normalized packet artifact
+  extent, and selected packet extent remain distinct. Negative conclusions are
+  qualified only by complete normalization plus consistent occurrence file
+  bounds spanning the requested interval; otherwise the projection abstains.
+  Packet timestamp extrema do not establish continuous acquisition coverage.
 - The reducer counts L2 frame octets because that is what the packet envelope
   records. Payload and IP-octet counters require additional explicit fields.
 
@@ -183,12 +191,17 @@ timing without discarding the underlying event timestamps.
 - Original and captured octets remain separately named and tested.
 - TCP flag counters distinguish SYN without ACK from SYN-ACK.
 - The CLI states grouped/excluded coverage and capture-wide scope.
+- Explicit trailing-interval selection is input-order invariant, includes both
+  requested time boundaries, preserves cumulative output when absent, emits a
+  candidate pivot bounded to the requested packet-time interval, and rejects a
+  normalized timestamp outside receipt file bounds.
 - Raw evidence JSONL output remains unchanged. A finite derived operator
   projection must use its own schema, bind to the normalized-record digest, and
-  preserve capture-conversation scope and exclusions. Its source reference is
-  constructed from a validated saved-capture record stream, and its public
-  projection path rejects count, capture-ID, or receipt-digest inconsistencies.
-  It is not appended to the normalized evidence stream.
+  preserve capture-conversation scope and exclusions. V1 retains the complete
+  validated manifest and optional occurrence receipt, while the v0 projection
+  remains wire-compatible. The public projection paths reject count,
+  capture-ID, receipt-digest, and receipt/normalized-time inconsistencies. The
+  projection is not appended to the normalized evidence stream.
 
 ## Promotion questions
 

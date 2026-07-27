@@ -211,12 +211,24 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         "finite triage JSON must be one object, not a record stream"
     );
     let triage: serde_json::Value = serde_json::from_slice(&triage.stdout).unwrap();
-    assert_eq!(triage["schema"], "netmon.saved_pcap_triage.v0");
+    assert_eq!(triage["schema"], "netmon.saved_pcap_triage.v1");
+    assert_eq!(
+        triage["source"]["manifest"]["schema"],
+        "netmon.capture_manifest.v0"
+    );
+    assert_eq!(
+        triage["source"]["receipt"]["schema"],
+        "netmon.capture_run_receipt.v0"
+    );
     assert_eq!(triage["normalization"]["completeness"], "complete_capture");
     assert_eq!(triage["top_capture_conversation"]["status"], "observed");
     assert_eq!(
         triage["top_capture_conversation"]["conversation"]["transport"],
         "tcp"
+    );
+    assert!(
+        triage.get("trailing_window").is_none(),
+        "the v1 no-option projection must omit tail analysis"
     );
     let traffic_filter = triage["top_capture_conversation"]["conversation"]
         ["tshark_candidate_display_filter"]
@@ -247,6 +259,110 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         4,
         "this fixture's candidate pivot should select its four matching frames"
     );
+
+    let trailing = Command::new(binary)
+        .args([
+            "pcap",
+            input.to_str().unwrap(),
+            "--packet-limit",
+            "10",
+            "--tail-seconds",
+            "0.15",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        trailing.status.success(),
+        "{}",
+        String::from_utf8_lossy(&trailing.stderr)
+    );
+    let trailing: serde_json::Value = serde_json::from_slice(&trailing.stdout).unwrap();
+    assert_eq!(
+        trailing["top_capture_conversation"]["conversation"]["transport"], "tcp",
+        "opting into a trailing window must not replace the cumulative result"
+    );
+    assert_eq!(
+        trailing["trailing_window"]["negative_claim_qualification"]["status"],
+        "qualified"
+    );
+    assert_eq!(
+        trailing["trailing_window"]["requested_interval"]["start_event_time_unix_ns"],
+        1_700_000_000_473_456_000_i64
+    );
+    assert_eq!(
+        trailing["trailing_window"]["requested_interval"]["end_event_time_unix_ns"],
+        1_700_000_000_623_456_000_i64
+    );
+    assert_eq!(
+        trailing["trailing_window"]["selected_packet_extent"]["observations"],
+        2
+    );
+    assert_eq!(
+        trailing["trailing_window"]["top_conversation"]["conversation"]["transport"],
+        "udp"
+    );
+    let trailing_filter = trailing["trailing_window"]["top_conversation"]["conversation"]
+        ["tshark_candidate_display_filter"]
+        .as_str()
+        .unwrap();
+    assert!(trailing_filter.contains(
+        "frame.time_epoch >= 1700000000.473456000 && \
+         frame.time_epoch <= 1700000000.623456000"
+    ));
+    let trailing_pivot = Command::new("tshark")
+        .args([
+            "-n",
+            "-r",
+            input.to_str().unwrap(),
+            "-Y",
+            trailing_filter,
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        trailing_pivot.status.success(),
+        "{}",
+        String::from_utf8_lossy(&trailing_pivot.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(trailing_pivot.stdout)
+            .unwrap()
+            .lines()
+            .count(),
+        2,
+        "the time-bounded trailing pivot should select only the late DNS exchange"
+    );
+
+    let trailing_text = Command::new(binary)
+        .args([
+            "pcap",
+            input.to_str().unwrap(),
+            "--packet-limit",
+            "10",
+            "--tail-seconds",
+            "0.15",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        trailing_text.status.success(),
+        "{}",
+        String::from_utf8_lossy(&trailing_text.stderr)
+    );
+    let trailing_text = String::from_utf8(trailing_text.stdout).unwrap();
+    assert!(trailing_text.contains("trailing interval  requested 150.000 ms"));
+    assert!(trailing_text.contains(
+        "negative claims  qualified by complete normalization plus occurrence file packet extent"
+    ));
+    assert!(
+        trailing_text.contains("top trailing  cumulative within requested packet-time interval")
+    );
+    assert!(trailing_text.contains("UDP 203.0.113.10:53000 ↔ 203.0.113.53:53"));
 }
 
 #[test]
@@ -376,6 +492,29 @@ fn pcap_jsonl_modes_are_mutually_exclusive() {
     assert!(stderr.contains("--jsonl"));
     assert!(stderr.contains("--records-jsonl"));
     assert!(stderr.contains("cannot be used with"));
+}
+
+#[test]
+fn pcap_tail_analysis_is_not_applied_to_raw_jsonl_modes() {
+    for raw_mode in ["--jsonl", "--records-jsonl"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+            .args([
+                "pcap",
+                "does-not-need-to-exist.pcap",
+                raw_mode,
+                "--tail-seconds",
+                "1",
+            ])
+            .output()
+            .unwrap();
+
+        assert!(!output.status.success());
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(stderr.contains("--tail-seconds"));
+        assert!(stderr.contains(raw_mode));
+        assert!(stderr.contains("cannot be used with"));
+        assert!(!stderr.contains("normalizing does-not-need-to-exist.pcap"));
+    }
 }
 
 #[test]
