@@ -1547,6 +1547,7 @@ fn artifact_error(artifact: &ScenarioArtifactV0, detail: impl Into<String>) -> S
 pub fn builtin_scenario_ids_v0() -> &'static [&'static str] {
     &[
         "wifi-hotspot-wifi",
+        "same-ssid-attachment-boundary",
         "vpn-overlay-transition",
         "cache-source-gap",
     ]
@@ -1565,6 +1566,25 @@ pub fn builtin_scenario_v0(id: &str) -> Result<ScenarioBundleV0, ScenarioError> 
                 (
                     "viewport.txt",
                     include_bytes!("../tests/fixtures/scenarios/wifi-hotspot-wifi/viewport.txt"),
+                ),
+            ],
+        ),
+        "same-ssid-attachment-boundary" => (
+            include_bytes!(
+                "../tests/fixtures/scenarios/same-ssid-attachment-boundary/scenario.json"
+            ),
+            &[
+                (
+                    "host-path.jsonl",
+                    include_bytes!(
+                        "../tests/fixtures/scenarios/same-ssid-attachment-boundary/host-path.jsonl"
+                    ),
+                ),
+                (
+                    "viewport.txt",
+                    include_bytes!(
+                        "../tests/fixtures/scenarios/same-ssid-attachment-boundary/viewport.txt"
+                    ),
                 ),
             ],
         ),

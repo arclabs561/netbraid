@@ -136,12 +136,13 @@ viewport fixtures to declared cells. The exact manifest bytes produce an
 externally reported closure digest; the manifest does not contain its own
 digest.
 
-Three non-default `scenario-fixtures` built-ins establish the first admission
-slice: Wi-Fi/hotspot recurrence, overlay entry/exit, and a stale neighbor-cache
-gap. They use documentation addresses, locally administered MAC addresses, and
-fictional network names. These tiny synthetic cases prove the harness and named
-false-positive guards; they do not satisfy the full variation table or claim a
-representative usage distribution.
+Four non-default `scenario-fixtures` built-ins establish the first admission
+slice: Wi-Fi/hotspot recurrence; a same-SSID BSSID attachment transition
+followed by an incompatible reused-label boundary; overlay entry/exit; and a
+stale neighbor-cache gap. They use documentation addresses, locally
+administered MAC addresses, and fictional network names. These tiny synthetic
+cases prove the harness and named false-positive guards; they do not satisfy
+the full variation table or claim a representative usage distribution.
 
 ### Tier 3: differential-tool corpora
 

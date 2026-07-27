@@ -30,6 +30,9 @@ scenario-check:
     @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/wifi-hotspot-wifi/scenario.json'
     @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/vpn-overlay-transition/scenario.json'
     @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/cache-source-gap/scenario.json'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/scenario.json'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/host-path.jsonl'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/viewport.txt'
 
 pcap-smoke:
     cargo test --locked --manifest-path rust/Cargo.toml -p netbraid-adapter-tshark --tests -- --ignored

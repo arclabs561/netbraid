@@ -29,7 +29,7 @@ intelligence stack. Its Rust workspace currently provides:
 
 The implemented slices cover host-path recurrence, deterministic saved-PCAP
 normalization, WLAN evidence, capture conversations, provenance-qualified
-trailing triage, and three small `PUBLIC_SYNTHETIC` operator scenarios. Linktop
+trailing triage, and four small `PUBLIC_SYNTHETIC` operator scenarios. Linktop
 is a real external consumer of the evidence and replay libraries and can review
 normalized saved evidence without invoking the Netbraid CLI.
 
@@ -170,7 +170,9 @@ Extend `netbraid.scenario_bundle.v0` only with existing strict source families
 and named false-positive risks. Fill the highest-value gaps from the evaluation
 corpus:
 
-- same-SSID BSSID roam and an unrelated network or site;
+- independently evidenced 802.11 roam/ESS continuity and unrelated-site
+  variation beyond the implemented same-SSID BSSID attachment transition and
+  incompatible reused-label network boundary;
 - split routes and overlay changes without attachment changes;
 - gateway, resolver, and remote-edge impairment localization;
 - partial and stale peer visibility;
@@ -182,6 +184,12 @@ corpus:
 The manifest's prose remains an authored evaluation oracle. Each consumer must
 independently derive its typed result and render its own output; validation
 does not turn prose into a proved network fact.
+
+Checkpoint (2026-07-27): a fourth public synthetic scenario now distinguishes
+an observed same-SSID BSSID attachment change with a compatible host-path
+boundary from a later incompatible boundary that reuses the same label. It
+requires abstention on physical place, network owner, access-point identity,
+and whether the attachment change was an actual 802.11 roam.
 
 Consumer: Linktop product QA and Netbraid replay. Infra's multi-source Tier 4/5
 corpus remains separately sealed under its deployment and privacy authority.

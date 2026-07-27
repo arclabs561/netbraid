@@ -203,9 +203,10 @@ preconditions; consumer tests must independently derive conclusions and render
 views before treating an oracle as passed.
 
 The normal library does not embed fixtures. Maintainer tests enable
-`netbraid-replay/scenario-fixtures` to expose three tiny `PUBLIC_SYNTHETIC` bundles
-covering Wi-Fi/hotspot recurrence, overlay attribution abstention, and a stale
-neighbor-cache gap. See
+`netbraid-replay/scenario-fixtures` to expose four tiny `PUBLIC_SYNTHETIC`
+bundles covering Wi-Fi/hotspot recurrence, a same-SSID BSSID attachment
+transition followed by an incompatible reused-label boundary, overlay
+attribution abstention, and a stale neighbor-cache gap. See
 [`docs/design/evaluation-corpus.md`](docs/design/evaluation-corpus.md).
 
 The `pcap` command is offline and non-interactive. Its text output leads with a

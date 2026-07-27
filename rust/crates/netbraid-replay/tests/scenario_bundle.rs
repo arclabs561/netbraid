@@ -45,6 +45,7 @@ fn replace_artifact(directory: &Path, artifact_id: &str, bytes: &[u8]) {
 fn all_directory_bundles_validate_and_close_over_exact_manifest_bytes() {
     for name in [
         "wifi-hotspot-wifi",
+        "same-ssid-attachment-boundary",
         "vpn-overlay-transition",
         "cache-source-gap",
     ] {
@@ -100,6 +101,121 @@ fn wifi_hotspot_wifi_replay_reports_change_recurrence_and_abstentions() {
         .iter()
         .any(|conclusion| conclusion.id == "network-owner"
             && conclusion.disposition == ScenarioConclusionDispositionV0::Abstained));
+}
+
+#[test]
+fn same_ssid_attachment_preserves_boundary_evidence_before_label_reuse_diverges() {
+    let bundle = load_scenario_bundle_v0(
+        fixture("same-ssid-attachment-boundary"),
+        ScenarioLimitsV0::default(),
+    )
+    .unwrap();
+    let new_attachment = replay_scenario_v0(&bundle, "mesh-new-attachment").unwrap();
+    let new_attachment_inputs = bundle.checkpoint_inputs_v0(&new_attachment).unwrap();
+    assert!(new_attachment_inputs.saved_capture_streams.is_empty());
+    let records = &new_attachment_inputs.host_path_records;
+
+    assert_eq!(records.len(), 2);
+    assert!(records.iter().all(|record| {
+        record.policy.is_passive()
+            && record.coverage.observed_sources == ["host_route", "wifi_association"]
+            && record.coverage.missing_sources.is_empty()
+    }));
+    assert_eq!(records[0].path.network_name, records[1].path.network_name);
+    assert_ne!(
+        records[0].path.associated_bssid,
+        records[1].path.associated_bssid
+    );
+    assert_eq!(
+        records[0].path.next_hop_link_address,
+        records[1].path.next_hop_link_address
+    );
+    let attachment_change = netbraid_replay::compare_contexts(Some(&records[0]), &records[1]);
+    assert_eq!(
+        attachment_change.relation,
+        netbraid_replay::ContextRelationV0::SameContext
+    );
+    assert_eq!(
+        attachment_change.changed_dimensions,
+        ["association", "associated_bssid"]
+    );
+    let recurrence = netbraid_replay::summarize_context_recurrence(records, &records[1]);
+    assert_eq!(
+        recurrence.exact_context_match,
+        netbraid_replay::ExactContextMatchV0::AnchoredExactRecurrence
+    );
+    assert_eq!(
+        recurrence.attachment_corroboration,
+        netbraid_replay::AttachmentCorroborationV0::NotSeenBefore
+    );
+    // These are the authored abstention oracles. Downstream consumer tests must
+    // independently derive that this host-path-only evidence cannot establish
+    // place, managed AP identity, or an actual 802.11 roam.
+    assert!(new_attachment
+        .expected_conclusions
+        .iter()
+        .any(|conclusion| {
+            conclusion.id == "bssid-transition"
+                && conclusion.disposition == ScenarioConclusionDispositionV0::Supported
+        }));
+    assert!(new_attachment
+        .expected_conclusions
+        .iter()
+        .any(|conclusion| {
+            conclusion.id == "physical-location"
+                && conclusion.disposition == ScenarioConclusionDispositionV0::Abstained
+        }));
+    assert!(new_attachment
+        .expected_conclusions
+        .iter()
+        .any(|conclusion| {
+            conclusion.id == "access-point-identity"
+                && conclusion.disposition == ScenarioConclusionDispositionV0::Abstained
+        }));
+    assert!(new_attachment
+        .expected_conclusions
+        .iter()
+        .any(|conclusion| {
+            conclusion.id == "actual-80211-roam"
+                && conclusion.disposition == ScenarioConclusionDispositionV0::Abstained
+        }));
+
+    let diverged = replay_scenario_v0(&bundle, "same-label-new-boundary").unwrap();
+    let diverged_inputs = bundle.checkpoint_inputs_v0(&diverged).unwrap();
+    assert!(diverged_inputs.saved_capture_streams.is_empty());
+    let records = &diverged_inputs.host_path_records;
+
+    assert_eq!(records.len(), 3);
+    assert_eq!(records[1].path.network_name, records[2].path.network_name);
+    assert_ne!(
+        records[1].path.next_hop_link_address,
+        records[2].path.next_hop_link_address
+    );
+    assert_ne!(records[1].path.resolvers, records[2].path.resolvers);
+    assert_ne!(
+        records[1].path.address_prefixes,
+        records[2].path.address_prefixes
+    );
+    let boundary_change = netbraid_replay::compare_contexts(Some(&records[1]), &records[2]);
+    assert_eq!(
+        boundary_change.relation,
+        netbraid_replay::ContextRelationV0::ContextChanged
+    );
+    assert!(boundary_change
+        .changed_dimensions
+        .contains(&"next_hop_link_address"));
+    assert!(boundary_change.changed_dimensions.contains(&"resolvers"));
+    assert!(boundary_change
+        .changed_dimensions
+        .contains(&"address_prefixes"));
+    assert!(diverged.expected_conclusions.iter().any(|conclusion| {
+        conclusion.id == "same-label-new-context"
+            && conclusion.disposition == ScenarioConclusionDispositionV0::Supported
+    }));
+    assert!(diverged.expected_conclusions.iter().any(|conclusion| {
+        conclusion.id == "network-owner"
+            && conclusion.disposition == ScenarioConclusionDispositionV0::Abstained
+    }));
 }
 
 #[test]
@@ -381,6 +497,7 @@ fn builtins_use_the_same_validation_and_replay_api() {
         netbraid_replay::builtin_scenario_ids_v0(),
         [
             "wifi-hotspot-wifi",
+            "same-ssid-attachment-boundary",
             "vpn-overlay-transition",
             "cache-source-gap"
         ]

@@ -1,0 +1,6 @@
+PATH  same SSID, different network boundary
+NOW   Northstar Mesh via 198.51.100.1
+CHANGE gateway binding, resolver, and prefix changed
+GUARD label equality did not merge contexts
+ABSTAIN physical place, owner, and AP identity unknown
+SOURCE passive host path; complete/current

@@ -15,11 +15,13 @@ native binary releases remain available independently.
 ### Added
 
 - Versioned, deterministic scenario bundles for offline consumer QA, including
-  Wi-Fi/hotspot recurrence, VPN-overlay attribution abstention, and a passive
-  neighbor-cache source gap. Bundles carry exact artifact inventories, hashes,
-  named checkpoints, required abstentions, coverage/freshness expectations,
-  bounded text viewports, and a receipt-bound accessor for the typed checkpoint
-  evidence that downstream consumers independently reduce.
+  Wi-Fi/hotspot recurrence, a same-SSID BSSID attachment transition followed by
+  an incompatible reused-label boundary, VPN-overlay attribution abstention,
+  and a passive neighbor-cache source gap. Bundles carry exact artifact
+  inventories, hashes, named checkpoints, required abstentions,
+  coverage/freshness expectations, bounded text viewports, and a receipt-bound
+  accessor for the typed checkpoint evidence that downstream consumers
+  independently reduce.
 - Provenance-qualified trailing-interval analysis for saved captures. Positive
   observations remain useful immediately, while negative conclusions require
   complete normalization and corroborating occurrence-receipt packet bounds.

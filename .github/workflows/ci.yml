@@ -55,6 +55,9 @@ jobs:
           done
           cargo package --locked --list -p netbraid-replay >"$RUNNER_TEMP/netbraid-replay-package.txt"
           grep -Fqx 'tests/fixtures/scenarios/wifi-hotspot-wifi/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/host-path.jsonl' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/viewport.txt' "$RUNNER_TEMP/netbraid-replay-package.txt"
           grep -Fqx 'tests/fixtures/scenarios/vpn-overlay-transition/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
           grep -Fqx 'tests/fixtures/scenarios/cache-source-gap/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
       - run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
