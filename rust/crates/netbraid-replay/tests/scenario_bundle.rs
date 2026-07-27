@@ -76,6 +76,7 @@ fn wifi_hotspot_wifi_replay_reports_change_recurrence_and_abstentions() {
     let bundle =
         load_scenario_bundle_v0(fixture("wifi-hotspot-wifi"), ScenarioLimitsV0::default()).unwrap();
     let replay = replay_scenario_v0(&bundle, "wifi-returned").unwrap();
+    let inputs = bundle.checkpoint_inputs_v0(&replay).unwrap();
     let host = replay.projection.host_path.unwrap();
 
     assert_eq!(replay.schema, SCENARIO_REPLAY_SCHEMA_V0);
@@ -83,6 +84,8 @@ fn wifi_hotspot_wifi_replay_reports_change_recurrence_and_abstentions() {
     assert_eq!(host.exact_context_keys, 2);
     assert_eq!(host.confirmed_context_transitions, 2);
     assert_eq!(host.latest_record_id, "wifi-primary-2");
+    assert_eq!(inputs.host_path_records.len(), 3);
+    assert!(inputs.saved_capture_streams.is_empty());
     assert!(bundle
         .manifest()
         .expected
@@ -343,9 +346,15 @@ fn saved_capture_records_are_ingested_atomically_and_projected() {
 
     let bundle = load_scenario_bundle_v0(temporary.path(), ScenarioLimitsV0::default()).unwrap();
     let receipt = replay_scenario_v0(&bundle, "capture-loaded").unwrap();
+    let inputs = bundle.checkpoint_inputs_v0(&receipt).unwrap();
     assert_eq!(receipt.projection.saved_captures.len(), 1);
     assert_eq!(receipt.projection.saved_captures[0].packet_records, 1);
     assert_eq!(receipt.projection.saved_captures[0].quarantine_records, 1);
+    assert!(inputs.host_path_records.is_empty());
+    assert_eq!(inputs.saved_capture_streams.len(), 1);
+    assert_eq!(inputs.saved_capture_streams[0].artifact, "capture");
+    assert_eq!(inputs.saved_capture_streams[0].stream.packets.len(), 1);
+    assert_eq!(inputs.saved_capture_streams[0].stream.quarantines.len(), 1);
 
     let all_records = manifest["timeline"][0]["ingest"].take();
     manifest["timeline"] = serde_json::json!([
@@ -381,5 +390,30 @@ fn builtins_use_the_same_validation_and_replay_api() {
         let checkpoint = bundle.manifest().timeline.last().unwrap().name.clone();
         let replay = replay_scenario_v0(&bundle, &checkpoint).unwrap();
         assert_eq!(replay.scenario_id, *id);
+        let inputs = bundle.checkpoint_inputs_v0(&replay).unwrap();
+        assert_eq!(
+            inputs.host_path_records.len(),
+            replay
+                .projection
+                .host_path
+                .as_ref()
+                .map_or(0, |host| usize::try_from(host.records).unwrap())
+        );
     }
+}
+
+#[cfg(feature = "scenario-fixtures")]
+#[test]
+fn checkpoint_inputs_reject_a_receipt_from_another_bundle() {
+    let first = netbraid_replay::builtin_scenario_v0("wifi-hotspot-wifi").unwrap();
+    let second = netbraid_replay::builtin_scenario_v0("vpn-overlay-transition").unwrap();
+    let receipt = replay_scenario_v0(&first, "wifi-returned").unwrap();
+
+    let error = second.checkpoint_inputs_v0(&receipt).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("does not match this bundle and checkpoint")
+            || error.to_string().contains("unknown scenario checkpoint")
+    );
 }

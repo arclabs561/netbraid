@@ -10,7 +10,7 @@ are deterministic.
 
 ```toml
 [dependencies]
-netbraid-replay = "0.2"
+netbraid-replay = "0.3"
 ```
 
 License: MIT OR Unlicense.

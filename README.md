@@ -133,10 +133,11 @@ cargo build --manifest-path rust/Cargo.toml
 ```
 
 The Rust workspace requires Rust 1.88 or newer. The CLI and its three
-libraries are packaged for crates.io, but the 0.2.0 registry publication is
-pending credential rotation. Until those packages are visible in the
-registry, install from a source checkout or a tagged GitHub archive rather
-than assuming `cargo install netbraid` is available.
+libraries are released together at one version; the first registry release
+identity is 0.3.0 because the earlier 0.2.0 Git tag already names immutable
+bytes. Check crates.io for registry availability. Before a version is visible
+there, install from a source checkout or its tagged GitHub archive rather than
+assuming `cargo install netbraid` is available.
 
 To install a source checkout into Cargo's binary directory:
 
@@ -151,7 +152,7 @@ x86-64, Intel macOS, and Apple silicon macOS. Each archive contains the Rust
 `netbraid-evidence` v0 fixture bundle. For example:
 
 ```sh
-version=0.2.0
+version=0.3.0
 target=aarch64-apple-darwin
 asset="netbraid-v${version}-${target}.tar.gz"
 gh release download "netbraid-v${version}" --repo arclabs561/netbraid \

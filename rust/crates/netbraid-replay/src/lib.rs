@@ -29,12 +29,13 @@ pub use saved_capture::{
 pub use scenario::{builtin_scenario_ids_v0, builtin_scenario_v0};
 pub use scenario::{
     load_scenario_bundle_v0, replay_scenario_v0, ScenarioArtifactRoleV0, ScenarioArtifactV0,
-    ScenarioBundleV0, ScenarioConclusionDispositionV0, ScenarioConclusionV0,
-    ScenarioCoverageFreshnessV0, ScenarioCoverageStateV0, ScenarioError, ScenarioExpectedV0,
-    ScenarioLimitsV0, ScenarioManifestV0, ScenarioPrivacyV0, ScenarioProvenanceV0,
-    ScenarioReplayHostPathV0, ScenarioReplayProjectionV0, ScenarioReplayReceiptV0,
-    ScenarioSavedCaptureProjectionV0, ScenarioSourceCoverageV0, ScenarioTimelineCheckpointV0,
-    ScenarioViewportAssertionV0, SCENARIO_BUNDLE_SCHEMA_V0, SCENARIO_REPLAY_SCHEMA_V0,
+    ScenarioBundleV0, ScenarioCheckpointInputsV0, ScenarioConclusionDispositionV0,
+    ScenarioConclusionV0, ScenarioCoverageFreshnessV0, ScenarioCoverageStateV0, ScenarioError,
+    ScenarioExpectedV0, ScenarioLimitsV0, ScenarioManifestV0, ScenarioPrivacyV0,
+    ScenarioProvenanceV0, ScenarioReplayHostPathV0, ScenarioReplayProjectionV0,
+    ScenarioReplayReceiptV0, ScenarioSavedCaptureInputV0, ScenarioSavedCaptureProjectionV0,
+    ScenarioSourceCoverageV0, ScenarioTimelineCheckpointV0, ScenarioViewportAssertionV0,
+    SCENARIO_BUNDLE_SCHEMA_V0, SCENARIO_REPLAY_SCHEMA_V0,
 };
 pub use triage::{
     project_saved_pcap_triage, project_saved_pcap_triage_v1, SavedPcapClaimScopeV0,

@@ -185,6 +185,63 @@ impl ScenarioBundleV0 {
     pub fn manifest_sha256(&self) -> &str {
         &self.manifest_sha256
     }
+
+    /// Resolves the validated, typed evidence ingested through one replay receipt.
+    ///
+    /// The receipt must match this exact bundle and a receipt that
+    /// [`replay_scenario_v0`] would produce for its named checkpoint. Authored
+    /// conclusions and viewport text remain test oracles; they are not returned as
+    /// consumer input.
+    pub fn checkpoint_inputs_v0(
+        &self,
+        receipt: &ScenarioReplayReceiptV0,
+    ) -> Result<ScenarioCheckpointInputsV0, ScenarioError> {
+        let expected = replay_scenario_v0(self, &receipt.checkpoint)?;
+        if expected != *receipt {
+            return Err(ScenarioError::Invalid(
+                "scenario replay receipt does not match this bundle and checkpoint".into(),
+            ));
+        }
+
+        let mut host_path_records = Vec::new();
+        let mut saved_capture_streams = Vec::new();
+        let mut loaded_saved_artifacts = BTreeSet::new();
+        for reference in &receipt.ingested_record_refs {
+            let (artifact_id, record_id) = split_record_ref(reference)?;
+            let artifact = self
+                .artifacts
+                .get(artifact_id)
+                .expect("receipt references were validated during replay");
+            match artifact.records.get(record_id) {
+                Some(LoadedRecordV0::HostPath(record)) => {
+                    host_path_records.push(record.as_ref().clone());
+                }
+                Some(LoadedRecordV0::SavedCapture)
+                    if loaded_saved_artifacts.insert(artifact_id.to_owned()) =>
+                {
+                    let stream = parse_saved_capture_jsonl(&artifact.bytes).map_err(|error| {
+                        ScenarioError::Artifact {
+                            artifact: artifact_id.to_owned(),
+                            detail: format!(
+                                "validated saved-capture stream could not be resolved: {error}"
+                            ),
+                        }
+                    })?;
+                    saved_capture_streams.push(ScenarioSavedCaptureInputV0 {
+                        artifact: artifact_id.to_owned(),
+                        stream,
+                    });
+                }
+                Some(LoadedRecordV0::SavedCapture) => {}
+                None => unreachable!("receipt references were validated during replay"),
+            }
+        }
+
+        Ok(ScenarioCheckpointInputsV0 {
+            host_path_records,
+            saved_capture_streams,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -212,6 +269,24 @@ pub struct ScenarioReplayReceiptV0 {
     pub source_coverage: Vec<ScenarioSourceCoverageV0>,
     pub expected_conclusions: Vec<ScenarioConclusionV0>,
     pub viewport_assertions: Vec<ScenarioViewportAssertionV0>,
+}
+
+/// Validated typed evidence available to a consumer at one scenario checkpoint.
+///
+/// This is an in-process test/evaluation input, not an additional serialized
+/// scenario schema.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ScenarioCheckpointInputsV0 {
+    pub host_path_records: Vec<crate::HostPathObservationV0>,
+    pub saved_capture_streams: Vec<ScenarioSavedCaptureInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ScenarioSavedCaptureInputV0 {
+    pub artifact: String,
+    pub stream: SavedCaptureRecordStreamV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

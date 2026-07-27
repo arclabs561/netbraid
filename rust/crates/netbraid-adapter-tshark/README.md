@@ -16,7 +16,7 @@ separate `netmon.*.v0` wire identifiers remain stable.
 
 ```toml
 [dependencies]
-netbraid-adapter-tshark = "0.2"
+netbraid-adapter-tshark = "0.3"
 ```
 
 License: MIT OR Unlicense.

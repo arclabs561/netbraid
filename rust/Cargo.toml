@@ -24,7 +24,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.88"
 license = "MIT OR Unlicense"
@@ -40,9 +40,9 @@ clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
-netbraid-adapter-tshark = { version = "0.2.0", path = "crates/netbraid-adapter-tshark" }
-netbraid-evidence = { version = "0.2.0", path = "crates/netbraid-evidence" }
-netbraid-replay = { version = "0.2.0", path = "crates/netbraid-replay" }
+netbraid-adapter-tshark = { version = "0.3.0", path = "crates/netbraid-adapter-tshark" }
+netbraid-evidence = { version = "0.3.0", path = "crates/netbraid-evidence" }
+netbraid-replay = { version = "0.3.0", path = "crates/netbraid-replay" }
 
 [dev-dependencies]
 tempfile = "3"
