@@ -1,0 +1,52 @@
+{
+  "schema": "netmon.capture_run_receipt.v0",
+  "run_id": "run:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  "capture_id": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "started_time_unix_ns": 1700000001000000000,
+  "finished_time_unix_ns": 1700000001250000000,
+  "elapsed_ns": 250000000,
+  "file": {
+    "file_type": "pcapng",
+    "encapsulation": "ether",
+    "timestamp_precision": "nanoseconds",
+    "packet_count": 2,
+    "file_size_bytes": 136,
+    "original_data_size_bytes": 128,
+    "duration_ns": 100000000,
+    "earliest_packet_time_unix_ns": 1700000000123456789,
+    "latest_packet_time_unix_ns": 1700000000223456789,
+    "capture_hardware": "sensor-a",
+    "capture_operating_system": "NetBSD",
+    "capture_application": "dumpcap"
+  },
+  "capinfos": {
+    "tool": "capinfos",
+    "configured_executable": "capinfos",
+    "tool_version": "capinfos (Wireshark) 4.6.7",
+    "argument_template": [
+      "-r",
+      "$STAGED_CAPTURE"
+    ],
+    "environment_policy": "netmon.wireshark.environment.v0",
+    "exit_code": 0,
+    "stdout_sha256": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "stderr_sha256": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "tshark": {
+    "tool": "tshark",
+    "configured_executable": "tshark",
+    "tool_version": "tshark (Wireshark) 4.6.7",
+    "argument_template": [
+      "-r",
+      "$STAGED_CAPTURE"
+    ],
+    "environment_policy": "netmon.wireshark.environment.v0",
+    "exit_code": 0,
+    "stdout_sha256": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "stderr_sha256": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "configuration_sha256": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "field_registry": "netmon.tshark.packet_envelope.v0",
+  "normalized_records_digest_profile": "netmon.normalized_records_digest.v0",
+  "normalized_records_sha256": "sha256:654cf1daa95a56dd42ae9aa133528bd7a7e840edbde60daecd77ed553b52b635"
+}

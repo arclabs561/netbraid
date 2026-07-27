@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - "netmon-v*"
+      - "netbraid-v*"
 
 concurrency:
   group: release-${{ github.ref }}
@@ -38,13 +38,13 @@ jobs:
           metadata="$(cargo +1.88 metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1)"
           version="$(jq -er '([.packages[].version] | unique) as $versions | if ($versions | length) == 1 then $versions[0] else error("workspace versions differ") end' <<<"$metadata")"
           jq -e 'all(.packages[];
-            .publish == [] and
+            .publish == ["crates-io"] and
             .rust_version == "1.88" and
             .license == "MIT OR Unlicense" and
-            .repository == "https://github.com/arclabs561/netmon"
+            .repository == "https://github.com/arclabs561/netbraid"
           )' <<<"$metadata" >/dev/null
           if [[ "$RELEASE_REF" == refs/tags/* ]]; then
-            expected_ref="refs/tags/netmon-v${version}"
+            expected_ref="refs/tags/netbraid-v${version}"
             if [[ "$RELEASE_REF" != "$expected_ref" ]]; then
               printf 'release ref %s does not match workspace version %s\n' "$RELEASE_REF" "$version" >&2
               exit 1
@@ -59,6 +59,11 @@ jobs:
         run: |
           cargo +1.88 install cargo-audit --locked --version 0.22.2
           cargo audit --file rust/Cargo.lock -D warnings
+      - name: Verify crates.io package inventories
+        run: |
+          for package in netbraid-evidence netbraid-replay netbraid-adapter-tshark netbraid; do
+            cargo +1.88 package --locked --list --manifest-path rust/Cargo.toml -p "$package" >/dev/null
+          done
 
   build:
     name: Build ${{ matrix.target }}
@@ -94,26 +99,27 @@ jobs:
             exit 1
           fi
       - name: Build locked release binary
-        run: cargo +1.88 build --locked --manifest-path rust/Cargo.toml --release --bin netmon
+        run: cargo +1.88 build --locked --manifest-path rust/Cargo.toml --release --bin netbraid
       - name: Package release
         env:
           RELEASE_VERSION: ${{ needs.gate.outputs.version }}
           RELEASE_TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          package="netmon-v${RELEASE_VERSION}-${RELEASE_TARGET}"
+          package="netbraid-v${RELEASE_VERSION}-${RELEASE_TARGET}"
           mkdir -p "dist/${package}/schema-fixtures"
-          cp rust/target/release/netmon "dist/${package}/netmon"
+          cp rust/target/release/netbraid "dist/${package}/netbraid"
           cp README.md LICENSE-MIT UNLICENSE "dist/${package}/"
-          cp -R rust/schema-fixtures/v0 "dist/${package}/schema-fixtures/"
+          cp -R rust/crates/netbraid-evidence/tests/fixtures/v0 \
+            "dist/${package}/schema-fixtures/"
           tar -czf "dist/${package}.tar.gz" -C dist "$package"
           mkdir -p verify
           tar -xzf "dist/${package}.tar.gz" -C verify
-          "verify/${package}/netmon" --version
-          "verify/${package}/netmon" --help >/dev/null
+          "verify/${package}/netbraid" --version
+          "verify/${package}/netbraid" --help >/dev/null
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: netmon-release-${{ matrix.target }}
+          name: netbraid-release-${{ matrix.target }}
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 14
@@ -128,27 +134,27 @@ jobs:
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: netmon-release-*
+          pattern: netbraid-release-*
           path: dist
           merge-multiple: true
       - name: Generate and verify checksums
         run: |
           set -euo pipefail
           cd dist
-          shasum -a 256 netmon-v*.tar.gz >SHA256SUMS
+          shasum -a 256 netbraid-v*.tar.gz >SHA256SUMS
           shasum -a 256 --check SHA256SUMS
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: netmon-release-assets
+          name: netbraid-release-assets
           path: |
-            dist/netmon-v*.tar.gz
+            dist/netbraid-v*.tar.gz
             dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 14
 
   publish:
     name: Publish GitHub release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/netmon-v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/netbraid-v')
     needs:
       - gate
       - bundle
@@ -165,7 +171,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: netmon-release-assets
+          name: netbraid-release-assets
           path: dist
       - name: Revalidate tag and checksums
         env:
@@ -173,7 +179,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.gate.outputs.version }}
         run: |
           set -euo pipefail
-          if [[ "$RELEASE_TAG" != "netmon-v${RELEASE_VERSION}" ]]; then
+          if [[ "$RELEASE_TAG" != "netbraid-v${RELEASE_VERSION}" ]]; then
             printf 'release tag %s does not match workspace version %s\n' "$RELEASE_TAG" "$RELEASE_VERSION" >&2
             exit 1
           fi
@@ -201,5 +207,5 @@ jobs:
           gh release create "$RELEASE_TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
-            --title "Netmon ${RELEASE_VERSION}" \
+            --title "Netbraid ${RELEASE_VERSION}" \
             --generate-notes

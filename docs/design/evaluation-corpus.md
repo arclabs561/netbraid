@@ -1,7 +1,7 @@
 ---
 status: proposed
 consumers:
-  - Netmon evidence, replay, and adapter promotion
+  - Netbraid evidence, replay, and adapter promotion
   - Linktop deterministic output and operator-scenario QA
   - Infra fusion shadow-parity and cutover gates
 related:
@@ -39,7 +39,7 @@ encapsulation.
 That is strong adapter-boundary coverage for its size. It is not a representative
 sample of networks or security incidents. Linktop separately has schema/output
 goldens and extensive in-module deterministic TUI tests, but no shared,
-multi-artifact context-transition corpus. Infra has one Netmon release-boundary
+multi-artifact context-transition corpus. Infra has one Netbraid release-boundary
 fixture; its deployed Kismet, BLE, rtl_433, Meshtastic, UniFi, and Home Assistant
 sources do not yet have one replayable, cross-source parity bundle.
 
@@ -122,7 +122,7 @@ or a known false-positive risk.
 
 Run the same immutable capture through bounded, version-pinned adapters for
 TShark, Zeek, Suricata, and, when fingerprint work begins, nDPI. A native
-Netmon extractor enters this tier before it can replace any TShark-backed
+Netbraid extractor enters this tier before it can replace any TShark-backed
 semantic family. Compare facts at explicit semantic boundaries: packet extent,
 endpoint tuple, protocol stack, reconstruction gap, handshake contribution,
 application candidate, parser warning, and abstention reason. Differences are
@@ -183,8 +183,8 @@ privacy boundaries.
 ## Implementation plan
 
 1. Keep Tier 1 admission and smoke checks in
-   `netmon-adapter-tshark`; add a fixture only with a named boundary.
-2. Define a versioned scenario manifest using existing Netmon evidence records
+   `netbraid-adapter-tshark`; add a fixture only with a named boundary.
+2. Define a versioned scenario manifest using existing Netbraid evidence records
    and Linktop QA capture receipts before adding Tier 2 bytes.
 3. Build the first context-transition and route/overlay bundles from synthetic
    documentation identifiers; run them at multiple terminal sizes.

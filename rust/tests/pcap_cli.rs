@@ -8,13 +8,11 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
     let input = directory.path().join("synthetic.pcap");
     fs::write(
         &input,
-        decode_hex(include_str!(
-            "../crates/netmon-adapter-tshark/tests/fixtures/ethernet_mixed_conversations.hex"
-        )),
+        decode_hex(include_str!("fixtures/ethernet_mixed_conversations.hex")),
     )
     .unwrap();
 
-    let binary = env!("CARGO_BIN_EXE_netmon");
+    let binary = env!("CARGO_BIN_EXE_netbraid");
     let text = Command::new(binary)
         .args(["pcap", input.to_str().unwrap(), "--packet-limit", "10"])
         .output()
@@ -25,7 +23,7 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         String::from_utf8_lossy(&text.stderr)
     );
     let stdout = String::from_utf8(text.stdout).unwrap();
-    if std::env::var_os("NETMON_SMOKE_SHOW_OUTPUT").is_some() {
+    if std::env::var_os("NETBRAID_SMOKE_SHOW_OUTPUT").is_some() {
         eprintln!("{stdout}");
     }
     assert!(stdout
@@ -99,7 +97,7 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         "{}",
         String::from_utf8_lossy(&jsonl.stderr)
     );
-    let parsed_stream = netmon_replay::parse_saved_capture_jsonl(&jsonl.stdout).unwrap();
+    let parsed_stream = netbraid_replay::parse_saved_capture_jsonl(&jsonl.stdout).unwrap();
     assert!(parsed_stream.receipt.is_some());
     assert_eq!(parsed_stream.packets.len(), 6);
     assert!(parsed_stream.quarantines.is_empty());
@@ -170,7 +168,7 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         first_records.stdout, second_records.stdout,
         "normalized-record JSONL must be byte-identical for the same artifact and configuration"
     );
-    let parsed_records = netmon_replay::parse_saved_capture_jsonl(&first_records.stdout).unwrap();
+    let parsed_records = netbraid_replay::parse_saved_capture_jsonl(&first_records.stdout).unwrap();
     assert!(parsed_records.receipt.is_none());
     assert_eq!(parsed_records.packets.len(), 6);
     assert!(parsed_records.quarantines.is_empty());
@@ -258,13 +256,11 @@ fn pcap_command_surfaces_bounded_wireless_operator_evidence() {
     let input = directory.path().join("ieee80211-radiotap.pcap");
     fs::write(
         &input,
-        decode_hex(include_str!(
-            "../crates/netmon-adapter-tshark/tests/fixtures/upstream/libpcap-ieee80211-exthdr.pcap.hex"
-        )),
+        decode_hex(include_str!("fixtures/libpcap-ieee80211-exthdr.pcap.hex")),
     )
     .unwrap();
 
-    let output = Command::new(env!("CARGO_BIN_EXE_netmon"))
+    let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
         .args(["pcap", input.to_str().unwrap(), "--packet-limit", "100"])
         .output()
         .unwrap();
@@ -274,7 +270,7 @@ fn pcap_command_surfaces_bounded_wireless_operator_evidence() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout).unwrap();
-    if std::env::var_os("NETMON_SMOKE_SHOW_OUTPUT").is_some() {
+    if std::env::var_os("NETBRAID_SMOKE_SHOW_OUTPUT").is_some() {
         eprintln!("{stdout}");
     }
 
@@ -303,12 +299,12 @@ fn pcap_triage_surfaces_observed_wlan_disconnect_frames_without_attack_claims() 
     fs::write(
         &input,
         decode_hex(include_str!(
-            "../crates/netmon-adapter-tshark/tests/fixtures/upstream/libpcap-network-join-nokia-mobile.pcap.hex"
+            "fixtures/libpcap-network-join-nokia-mobile.pcap.hex"
         )),
     )
     .unwrap();
 
-    let output = Command::new(env!("CARGO_BIN_EXE_netmon"))
+    let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
         .args([
             "pcap",
             input.to_str().unwrap(),
@@ -365,7 +361,7 @@ fn pcap_triage_surfaces_observed_wlan_disconnect_frames_without_attack_claims() 
 
 #[test]
 fn pcap_jsonl_modes_are_mutually_exclusive() {
-    let output = Command::new(env!("CARGO_BIN_EXE_netmon"))
+    let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
         .args([
             "pcap",
             "does-not-need-to-exist.pcap",
@@ -384,7 +380,7 @@ fn pcap_jsonl_modes_are_mutually_exclusive() {
 
 #[test]
 fn pcap_rejects_active_actions_under_a_passive_acquisition_policy() {
-    let output = Command::new(env!("CARGO_BIN_EXE_netmon"))
+    let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
         .args([
             "pcap",
             "does-not-need-to-exist.pcap",

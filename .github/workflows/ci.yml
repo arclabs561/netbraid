@@ -40,8 +40,13 @@ jobs:
       - run: cargo test --locked --workspace
       - name: Exercise installed Wireshark tools and CLI projections
         run: |
-          cargo test --locked -p netmon-adapter-tshark --tests -- --ignored
-          cargo test --locked -p netmon --test pcap_cli -- --ignored
+          cargo test --locked -p netbraid-adapter-tshark --tests -- --ignored
+          cargo test --locked -p netbraid --test pcap_cli -- --ignored
+      - name: Verify crates.io package inventories
+        run: |
+          for package in netbraid-evidence netbraid-replay netbraid-adapter-tshark netbraid; do
+            cargo package --locked --list -p "$package" >/dev/null
+          done
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo doc --locked --workspace --no-deps
         env:

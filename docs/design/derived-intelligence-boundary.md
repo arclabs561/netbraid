@@ -1,7 +1,7 @@
 ---
 status: proposed
 consumers:
-  - Netmon evidence, replay, adapters, and CLI
+  - Netbraid evidence, replay, adapters, and CLI
   - Linktop focused evidence projections
   - Infra shadow replay and private fusion
 related:
@@ -54,7 +54,7 @@ Use these terms consistently in schemas, text, and the TUI:
 - **projection**: one human or machine view over those objects.
 
 “Tracking” alone is avoided. Linktop tracks one process-local path generation;
-Netmon may construct typed episodes; Infra may maintain authorized private
+Netbraid may construct typed episodes; Infra may maintain authorized private
 bindings. None of those permits a global longitudinal index over unknown
 devices.
 
@@ -62,9 +62,9 @@ devices.
 
 The implemented Rust core is intentionally narrower than this target:
 
-- `netmon-evidence` serializes experimental host-path and saved-capture
+- `netbraid-evidence` serializes experimental host-path and saved-capture
   observations plus source, policy, coverage, extractor, and run receipts.
-- `netmon-replay` performs deterministic JSONL replay, host-path comparison,
+- `netbraid-replay` performs deterministic JSONL replay, host-path comparison,
   and a non-serialized capture-conversation reduction.
 - The TShark adapter normalizes one declared field registry from an immutable
   saved capture. It reports normalization completeness, not capture-wide,
@@ -73,10 +73,10 @@ The implemented Rust core is intentionally narrower than this target:
   process-local path and peer dwell are not durable cross-source episodes.
 - Infra remains the sole deployed observation/fusion plane and production
   writer. Its source tables, topology, placement, retention, device
-  assignments, consent, and person projections do not move into Netmon.
+  assignments, consent, and person projections do not move into Netbraid.
 
 There is no stable multi-modal schema, serialized episode, fingerprint
-candidate, live Netmon daemon, or production Rust fusion writer today.
+candidate, live Netbraid daemon, or production Rust fusion writer today.
 
 ## Decision
 
@@ -87,7 +87,7 @@ and KismetDB semantics. Wireshark/TShark owns deep packet dissection. Zeek,
 Suricata, nDPI, controllers, DHCP servers, resolvers, and flow exporters own
 their source-native records and interpretations.
 
-Netmon adds an adapter only when it can preserve:
+Netbraid adds an adapter only when it can preserve:
 
 - immutable source identity or a durable live cursor;
 - observer and observation-point identity;
@@ -125,7 +125,7 @@ met this design's libwireshark-equivalent breadth:
 - [`etherparse`](https://github.com/JulianSchmid/etherparse) provides a
   well-tested, allocation-free Ethernet, VLAN, ARP, IP, extension-header, TCP,
   UDP, ICMP, and Linux-SLL decoder. Its optional IP defragmentation needs
-  Netmon-owned global context, byte, and timeout bounds before use.
+  Netbraid-owned global context, byte, and timeout bounds before use.
 - [`rustnet-core`](https://github.com/domcyrus/rustnet/tree/main/crates/rustnet-core)
   demonstrates a reusable capture-independent packet/connection core and
   source-local DPI. Its current TCP application detection operates on packet
@@ -142,7 +142,7 @@ met this design's libwireshark-equivalent breadth:
   registered application parsers and operator contract are much narrower than
   Wireshark's dissector surface.
 - Finished tools such as [`RustNet`](https://github.com/domcyrus/rustnet) are
-  valuable implementation references and possible source adapters. Netmon
+  valuable implementation references and possible source adapters. Netbraid
   imports a published library only when the library boundary, failure
   semantics, maintenance, license, and differential fixtures are better than
   copying a small stable primitive or executing the stronger specialist.
@@ -155,7 +155,7 @@ immutable capture
   -> link/network/transport decode
   -> IP fragment and transport-stream reconstruction
   -> handshake or transaction-local protocol decode
-  -> typed Netmon evidence plus receipt
+  -> typed Netbraid evidence plus receipt
 ```
 
 The first candidate slice stops after link/network/transport decode and targets
@@ -163,7 +163,7 @@ only the existing narrow Ethernet/Linux-SLL packet-envelope fields. It uses
 `pcap-parser` plus `etherparse`, emits explicit unsupported-linktype results,
 and does not add IP defragmentation, TCP reconstruction, TLS, QUIC, or
 application sessions. No evaluated native composition currently preserves
-Netmon's radiotap/IEEE 802.11 contract, so TShark remains authoritative for
+Netbraid's radiotap/IEEE 802.11 contract, so TShark remains authoritative for
 that evidence and the long encapsulation tail.
 
 Later layers are added only for a concrete operator question. Each preserves
@@ -190,11 +190,11 @@ is more complete or trustworthy. Native promotion requires:
 - one operator projection that uses the promoted evidence without claiming
   broader dissector parity.
 
-One capture/interface uses one extractor profile. Netmon does not silently
+One capture/interface uses one extractor profile. Netbraid does not silently
 combine TShark fields and native fields into a row whose semantic authority
 cannot be reconstructed.
 
-This avoids both extremes: binding Netmon to Wireshark internals unnecessarily
+This avoids both extremes: binding Netbraid to Wireshark internals unnecessarily
 and rewriting mature dissection breadth before a concrete operator question
 needs it.
 
@@ -203,15 +203,15 @@ needs it.
 1. **Source-preserving ingestion** stores adjacent observations and receipts.
    It is not an identity conclusion.
 2. **Evidence alignment and assessment** is policy-neutral, deterministic, and
-   replayable. These mechanics may be promoted into Netmon when fixtures and a
+   replayable. These mechanics may be promoted into Netbraid when fixtures and a
    second consumer justify them.
 3. **Identity fusion and publication** applies private bindings, placement,
    consent, purpose, retention, and writer authority. Infra/private owns it.
 
-Netmon never depends on Infra or private policy. Infra may consume released
-Netmon crates or artifacts for shadow replay; it does not depend on a sibling
+Netbraid never depends on Infra or private policy. Infra may consume released
+Netbraid crates or artifacts for shadow replay; it does not depend on a sibling
 checkout path. Linktop depends on pinned evidence/replay libraries, never the
-Netmon CLI or an Infra service.
+Netbraid CLI or an Infra service.
 
 ### Model episodes before longitudinal identity
 
@@ -313,7 +313,7 @@ Showing only either layer prevents an operator from localizing the fault.
 
 ## Session and packet retention
 
-Ordinary Linktop and Netmon operation creates no durable session artifact
+Ordinary Linktop and Netbraid operation creates no durable session artifact
 unless the operator names one. Normal exit says what the process itself wrote
 and whether packet capture was enabled. It cannot claim that shell
 redirection, terminal scrollback, or another process retained nothing.
@@ -340,7 +340,7 @@ capture owner, interface/observation point, duration or other hard bound,
 snaplen, acquisition filter, promiscuous/rfmon state, channel plan when
 applicable, output path, loss/drop counters, and retention intent. Linktop may
 recommend or orchestrate a specialist capture only through an explicit
-operator action. Netmon may normalize the completed artifact; it does not
+operator action. Netbraid may normalize the completed artifact; it does not
 silently start capture.
 
 When an overlay is active, a packet-capture recommendation distinguishes inner
@@ -404,9 +404,9 @@ claim.
 
 - One generic `Fingerprint` record containing raw features and a label.
 - One generic feature map shared by unrelated protocols and modalities.
-- A `netmon-fingerprint`, `netmon-fusion`, or third shared repository before an
+- A `netbraid-fingerprint`, `netbraid-fusion`, or third shared repository before an
   independent release or dependency boundary exists.
-- A Linktop privileged packet engine or mandatory Netmon daemon.
+- A Linktop privileged packet engine or mandatory Netbraid daemon.
 - Porting the legacy Go capture architecture feature for feature.
 - Claiming complete Kismet, Wireshark, Zeek, Suricata, nDPI, or Nmap parity.
 - Hiding a native-Rust extractor behind the TShark field-registry identity.

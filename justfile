@@ -1,4 +1,4 @@
-image := "arclabs561/netmon"
+image := "arclabs561/netbraid"
 
 docker: lint test docker-bare
 
@@ -24,10 +24,10 @@ rust-check:
     RUSTDOCFLAGS="-D warnings" cargo doc --locked --manifest-path rust/Cargo.toml --workspace --no-deps
 
 pcap-smoke:
-    cargo test --locked --manifest-path rust/Cargo.toml -p netmon-adapter-tshark --tests -- --ignored
-    cargo test --locked --manifest-path rust/Cargo.toml -p netmon --test pcap_cli -- --ignored
+    cargo test --locked --manifest-path rust/Cargo.toml -p netbraid-adapter-tshark --tests -- --ignored
+    cargo test --locked --manifest-path rust/Cargo.toml -p netbraid --test pcap_cli -- --ignored
 
 rust-check-full: rust-check pcap-smoke
 
 pcap-smoke-show:
-    NETMON_SMOKE_SHOW_OUTPUT=1 cargo test --locked --manifest-path rust/Cargo.toml -p netmon --test pcap_cli -- --ignored --nocapture
+    NETBRAID_SMOKE_SHOW_OUTPUT=1 cargo test --locked --manifest-path rust/Cargo.toml -p netbraid --test pcap_cli -- --ignored --nocapture

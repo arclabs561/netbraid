@@ -1,7 +1,7 @@
 ---
 status: experimental
 consumers:
-  - netmon CLI
+  - netbraid CLI
   - Linktop
 ---
 
@@ -9,7 +9,7 @@ consumers:
 
 ## Problem
 
-Netmon and host-facing tools need to exchange policy-neutral network evidence
+Netbraid and host-facing tools need to exchange policy-neutral network evidence
 without making one CLI invoke another or copying comparison semantics between
 repositories. The shared contract must remain useful without a daemon,
 controller, operational store, or particular workstation layout.
@@ -21,49 +21,46 @@ identity, traffic fingerprinting, or live fusion is settled.
 
 ## Decision
 
-Netmon exposes three Rust libraries beside its operator CLI:
+Netbraid exposes three Rust libraries beside its operator CLI:
 
 ```text
-                         netmon-evidence
+                         netbraid-evidence
                     /          |          \
-          netmon-replay        |      netmon-adapter-tshark
+          netbraid-replay      |      netbraid-adapter-tshark
                  \             |             /
-                  Linktop CLI/TUI       netmon CLI
+                  Linktop CLI/TUI       netbraid CLI
 ```
 
-`netmon-evidence` owns serialized, versioned record types and their local
+`netbraid-evidence` owns serialized, versioned record types and their local
 invariants. It has no collectors, renderer, wall-clock reads, filesystem
 access, networking, controller client, or deployment policy.
 
-`netmon-replay` owns deterministic operations over those records: JSONL
+`netbraid-replay` owns deterministic operations over those records: JSONL
 decoding, append validation, ordering, context comparison, recurrence, and
 replay summaries, plus pure capture-conversation reduction over packet
 envelopes. It may perform explicit file I/O, but it is not a daemon or generic
 storage framework. The same records, ordering inputs, and cutoff must produce
 the same state.
 
-`netmon-adapter-tshark` owns the offline saved-capture process and provenance
-boundary. It returns `netmon-evidence` records; it does not capture live traffic
+`netbraid-adapter-tshark` owns the offline saved-capture process and provenance
+boundary. It returns `netbraid-evidence` records; it does not capture live traffic
 or infer acquisition coverage.
 
-The `netmon` package remains an operator CLI. It may import the libraries as
+The `netbraid` package remains an operator CLI. It may import the libraries as
 commands earn concrete use cases. The legacy Go CLI remains compatibility capture
 code and is not a library foundation.
 
 Linktop imports the libraries directly for optional prior-context comparison.
-It remains usable with no history path and no Netmon executable, service, or
+It remains usable with no history path and no Netbraid executable, service, or
 store. Imported libraries may not initiate network activity.
 
 ## Dependency and release policy
 
-Within the Netmon workspace, packages use local path dependencies. Across
-repositories, experimental consumers use an HTTPS Git dependency pinned to one
-exact commit. Floating branches and cross-repository filesystem paths are
-forbidden.
-
-An exact Git revision is reproducible but makes source download part of a fresh
-consumer build. Once the API passes its freeze gates, normal semver releases
-replace the Git pins. Published workspace edges use both `path` and `version`.
+Within the Netbraid workspace, packages use local `path` plus exact workspace
+`version` dependencies. Across repositories, consumers use crates.io semver
+releases and a lockfile. Cross-repository filesystem paths and floating Git
+branches are forbidden; an exact Git revision is reserved for a deliberate
+unreleased compatibility trial.
 
 The current mixed Go/Rust repository keeps its Rust application under `rust/`
 while the root Go CLI remains a compatibility surface. At the all-Rust cutover,
@@ -73,17 +70,17 @@ the intended shape is a root virtual Cargo workspace with a tracked lockfile:
 Cargo.toml
 Cargo.lock
 crates/
-  netmon/             # operator application, publish = false
-  netmon-adapter-tshark/
-  netmon-evidence/    # versioned records and invariants
-  netmon-replay/      # deterministic replay and explicit file I/O
+  netbraid/             # operator application
+  netbraid-adapter-tshark/
+  netbraid-evidence/    # versioned records and invariants
+  netbraid-replay/      # deterministic replay and explicit file I/O
 ```
 
 Do not add `core`, `model`, `store`, `fusion`, `runtime`, or daemon crates in
 anticipation of future work. A package boundary must isolate a real dependency
 set, reusable API, independently released artifact, or second consumer.
 
-`netmon-adapter-tshark` earns its process boundary by owning bounded shell-free
+`netbraid-adapter-tshark` earns its process boundary by owning bounded shell-free
 offline invocation, subprocess deadlines, private input staging, tool and
 effective-configuration provenance, a declared first-occurrence field registry,
 exact timestamp parsing, canonicalization, quarantine, and normalization
@@ -152,7 +149,7 @@ durability guarantee.
 
 - No live collection, controller access, active discovery, or packet capture in
   the evidence or replay libraries.
-- No host-facing diagnosis, rendering, or interaction in Netmon libraries.
+- No host-facing diagnosis, rendering, or interaction in Netbraid libraries.
 - No default durable history in a consumer.
 - No multi-modal identity, person presence, consent, or credential policy.
 - No reimplementation of Kismet, TShark, Zeek, Nmap, or controller acquisition.
@@ -167,7 +164,7 @@ durability guarantee.
 - Compatible missing evidence never becomes a transition or recurrence claim.
 - Interrupted-tail recovery is warning-bearing and read-only at the consumer.
 - Append never writes behind known corruption.
-- A consumer builds from a fresh checkout without a sibling Netmon checkout.
+- A consumer builds from crates.io without a sibling Netbraid checkout.
 - Shared crates contain no collection, controller, actuation, or identity
   policy.
 - Capture conversations keep observation points separate, use canonical

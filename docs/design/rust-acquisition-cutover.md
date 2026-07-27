@@ -1,7 +1,7 @@
 ---
 status: proposed
 consumers:
-  - Netmon
+  - Netbraid
   - Infra
   - Linktop
 related:
@@ -14,7 +14,7 @@ related:
 
 ## Problem
 
-Netmon has a policy-neutral Rust evidence and replay core, an offline TShark
+Netbraid has a policy-neutral Rust evidence and replay core, an offline TShark
 adapter, a legacy Go live-capture CLI, and a retained but unused Go
 sliding-window UCB experiment. The Go CLI defaults to uniform hopping; its
 optional adaptive hopper uses a separate Gamma/raw-count Thompson sampler.
@@ -31,7 +31,7 @@ replay deterministically, and shadow the existing projections would combine a
 language migration with a schema migration and an operational cutover.
 
 The package graph must also answer where reusable personal crates belong. In
-particular, Muxer already owns bandit selection and drift primitives; Netmon
+particular, Muxer already owns bandit selection and drift primitives; Netbraid
 should not grow a second adaptive-selection implementation merely because the
 legacy Go tree contains `swucb`.
 
@@ -39,7 +39,7 @@ legacy Go tree contains `swucb`.
 
 The cutover is successful when:
 
-1. a released Netmon artifact can normalize and replay representative sealed
+1. a released Netbraid artifact can normalize and replay representative sealed
    network evidence with deterministic, receipt-bound output;
 2. Infra can invoke or embed that release without a sibling checkout;
 3. a Rust shadow path agrees with the existing live plane or abstains for an
@@ -53,7 +53,7 @@ The cutover is successful when:
 
 - Moving Pulumi, launchd or systemd units, credentials, site placement,
   retention policy, private identity bindings, or Home Assistant policy into
-  Netmon.
+  Netbraid.
 - Making Linktop a packet-capture process or a frontend for raw PCAP.
 - Adding speculative `core`, `fusion`, `runtime`, `store`, or scheduler crates
   before a real consumer gives them a distinct dependency or release boundary.
@@ -70,7 +70,7 @@ though Muxer already owns a stronger reusable policy surface. Rejected.
 
 ### Replace the live Infra plane first
 
-This targets the largest visible Python surface, but Netmon cannot yet represent
+This targets the largest visible Python surface, but Netbraid cannot yet represent
 Kismet Wi-Fi observations, Hypha BLE aggregates, rtl_433, Meshtastic, UniFi,
 presence projections, site placement, or durable source offsets. Rejected until
 sealed-artifact parity and shadow reconciliation exist.
@@ -100,14 +100,14 @@ actual deployment boundary.
   [Kismet channel hopping](https://www.kismetwireless.net/docs/readme/datasources/channelhop/).
 - Li et al. establish offline evaluation from uniformly randomized logging
   under explicit event and action assumptions:
-  [unbiased offline evaluation](https://arxiv.org/abs/1003.5956). Netmon
+  [unbiased offline evaluation](https://arxiv.org/abs/1003.5956). Netbraid
   chooses a seeded randomized schedule as its reproducible control; the seed
-  and RF hopping adaptation are Netmon design choices, not claims from that
+  and RF hopping adaptation are Netbraid design choices, not claims from that
   paper.
 - Sliding-window and discounted UCB are useful piecewise-stationary comparison
   policies, not reasons to preserve the current Go implementation:
   [Garivier and Moulines](https://arxiv.org/abs/0805.3415).
-- CUSUM-UCB needs deliberate exploration to feed its detectors. Netmon should
+- CUSUM-UCB needs deliberate exploration to feed its detectors. Netbraid should
   use known radio, regulatory, network, and location changes as explicit epoch
   boundaries and reserve drift detection for unannounced changes within an
   epoch:
@@ -116,7 +116,7 @@ actual deployment boundary.
   but its comparator is the best fixed arm and it does not own radio retune
   cost:
   [Neu](https://arxiv.org/abs/1506.03271). Batching a decision into a bounded
-  dwell is therefore part of Netmon's execution contract, consistent with the
+  dwell is therefore part of Netbraid's execution contract, consistent with the
   switching-cost treatment in
   [SpecWatch](https://arxiv.org/abs/1710.05981).
 
@@ -129,20 +129,20 @@ actual deployment boundary.
                          |
              future opt-in acquisition policy
                          |
-netmon-adapter-* --> netmon-evidence <-- netmon-replay
+netbraid-adapter-* --> netbraid-evidence <-- netbraid-replay
           \               |                 /
-           \-------------- netmon CLI -----/
+           \-------------- netbraid CLI -----/
                             |
                    released artifact/API
                             |
                            Infra
 
-Linktop --> released netmon-evidence + netmon-replay
+Linktop --> released netbraid-evidence + netbraid-replay
 ```
 
-`netmon-evidence` remains the lowest policy-neutral contract. `netmon-replay`
+`netbraid-evidence` remains the lowest policy-neutral contract. `netbraid-replay`
 owns deterministic reducers. Acquisition adapters produce evidence but do not
-own deployment. The Netmon CLI is an operator and integration surface, not a
+own deployment. The Netbraid CLI is an operator and integration surface, not a
 service dependency.
 
 Infra owns deployed transports, sealed intervals, operational stores,
@@ -150,15 +150,15 @@ retention, health, operational site and sensor placement, and compatibility
 projections. The sibling-private repository owns physical-device aliases,
 assignments, scoped identifiers, and desired bindings. `household.toml` owns
 people, roles, access capability, consent, and allowed-purpose policy. Infra may
-consume a released Netmon CLI or libraries; it must not depend on a sibling path
-or on Netmon's human-readable prose.
+consume a released Netbraid CLI or libraries; it must not depend on a sibling path
+or on Netbraid's human-readable prose.
 
 Linktop consumes released evidence/replay libraries for host-facing diagnosis.
 Imported evidence must be explicitly associated with a Linktop path generation
 by observer and acquisition interval. Linktop does not parse raw PCAP or inherit
 TShark as a runtime dependency.
 
-### Muxer replaces adaptive selection, not Netmon semantics
+### Muxer replaces adaptive selection, not Netbraid semantics
 
 The Go `swucb` package has no live consumer and has no place in the final Rust
 graph. The actual live Go hopper uses a different Thompson sampler and is not a
@@ -173,24 +173,24 @@ before adaptation can obscure an acquisition error.
 
 When a concrete adaptive acquisition consumer exists, its Rust implementation
 may depend on Muxer's domain-neutral arm-selection policy. The first experiment
-uses EXP3-IX over a stable ordered arm universe within one policy epoch. Netmon
+uses EXP3-IX over a stable ordered arm universe within one policy epoch. Netbraid
 first validates that the full universe and current eligible subset are nonempty
 and duplicate-free, that every eligible member belongs to the full universe,
 and that the universe's ordering is stable. It then passes the subset and a
 logged decision seed and records the exact selection probability used to update
-the policy. Muxer's current API does not enforce these invariants for Netmon. A
+the policy. Muxer's current API does not enforce these invariants for Netbraid. A
 regulatory-domain, radio, hardware, or materially different location transition
 starts a new epoch. Transient cooldown or capability changes only change the
 eligible subset.
 
 That dependency belongs only in the acquisition package or module that owns the
-consumer. It does not belong in `netmon-evidence`, `netmon-replay`, Linktop, or
+consumer. It does not belong in `netbraid-evidence`, `netbraid-replay`, Linktop, or
 the passive default path.
 
 The dependency is not added until that consumer exists. Published Muxer 0.5.3
 does not yet satisfy the receipt-grade propensity gate: deterministic
 explore-first selection reports a renormalized base distribution instead of the
-point mass that actually selected the first unseen arm. Netmon must use the
+point mass that actually selected the first unseen arm. Netbraid must use the
 first released version containing that correction, or an exact separately
 verified Git revision, and pin it exactly. The eventual declaration has this
 shape:
@@ -200,10 +200,10 @@ muxer = { version = "=<verified-version>", default-features = false, features = 
 ```
 
 This exposes EXP3-IX and serializable policy state without enabling contextual
-or Boltzmann policies. Netmon does not depend directly on Muxer's `pare`,
+or Boltzmann policies. Netbraid does not depend directly on Muxer's `pare`,
 `logp`, or optional `drawset` implementation dependencies.
 
-Netmon remains responsible for:
+Netbraid remains responsible for:
 
 - constructing the eligible channel or sensor arms from hardware, regulatory,
   operator, and collection-policy constraints;
@@ -225,9 +225,9 @@ into evidence of device identity, presence, or intent.
 
 Muxer's generic `Decision` remains an inner algorithm decision rather than the
 durable receipt. In the proposed pinned release it contains the policy, chosen
-arm, optional probabilities, and notes, but not Netmon's context, complete
+arm, optional probabilities, and notes, but not Netbraid's context, complete
 candidate authority, executed action, interval, or observation identity. For
-the first RF policy, Netmon does not use:
+the first RF policy, Netbraid does not use:
 
 - Muxer's quality-routing `Router`, `Outcome`, or `Summary` profile;
 - `StickyMab`, whose dwell is a count of decisions rather than elapsed radio
@@ -261,7 +261,7 @@ or useful observation coverage rather than selection count alone.
 - The current `hypha-core` crate does not yet provide the `hypha_advert` or
   `hypha_minute` wire types assumed by Infra's fusion design. A sanitized sealed
   fixture and a released wire contract must establish that boundary before
-  Netmon adds a Hypha adapter; a repository name is not a schema contract.
+  Netbraid adds a Hypha adapter; a repository name is not a schema contract.
 - Direct Logp, Pare, Drawset, Graphops, Lattix, Hypha host, Cnk, and Sbits
   dependencies are not earned by the initial Rust flip.
 
@@ -269,7 +269,7 @@ or useful observation coverage rather than selection count alone.
 
 1. Distribute the current Rust boundary. Keep CI green, version the
    workspace, and publish checksummed macOS/Linux binaries plus schema fixtures.
-2. Add an Infra contract test. Run a pinned Netmon release against a
+2. Add an Infra contract test. Run a pinned Netbraid release against a
    sanitized saved capture in a temporary directory; require byte-identical
    `--records-jsonl` output across reruns, verify its schema order and digest,
    and separately validate the occurrence-specific fields and normalized-record
@@ -298,7 +298,7 @@ or useful observation coverage rather than selection count alone.
 
 ## Gates
 
-- Default Netmon and Linktop execution remains passive.
+- Default Netbraid and Linktop execution remains passive.
 - Every active action is explicitly enabled, bounded, attributable, and
   receipt-bearing.
 - A released artifact, not a sibling checkout, is the Infra dependency.
