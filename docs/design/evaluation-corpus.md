@@ -121,8 +121,10 @@ or a known false-positive risk.
 ### Tier 3: differential-tool corpora
 
 Run the same immutable capture through bounded, version-pinned adapters for
-TShark, Zeek, Suricata, and, when fingerprint work begins, nDPI. Compare facts
-at explicit semantic boundaries: packet extent, endpoint tuple, protocol stack,
+TShark, Zeek, Suricata, and, when fingerprint work begins, nDPI. A native
+Netmon extractor enters this tier before it can replace any TShark-backed
+semantic family. Compare facts at explicit semantic boundaries: packet extent,
+endpoint tuple, protocol stack, reconstruction gap, handshake contribution,
 application candidate, parser warning, and abstention reason. Differences are
 recorded, not majority-voted. Two tools reading one capture are two
 interpretations of one source, not independent observations.
