@@ -229,14 +229,18 @@ adjusted during the run.
 
 Artifact acquisition time, observer identity, and acquisition policy are
 optional because a detached PCAP often cannot prove any of them; their absence
-remains explicit. Offline normalization is passive, but that does not imply the
-original acquisition was passive.
+remains explicit. The CLI accepts independently known policy through
+`--acquisition-mode`; active acquisition actions can be repeated with
+`--active-action`. Offline normalization is passive, but that does not imply
+the original acquisition was passive.
 
 The default CLI is a finite text summary for operators. It distinguishes
 capture-file facts from the possibly limited normalized packet subset and
 surfaces the successful run identifier and record digest. Its text projection
-also uses the pure, capture-wide conversation reducer specified in
+also uses the pure conversation reducer specified in
 [`design/capture-conversation-reduction.md`](design/capture-conversation-reduction.md).
+The projection says `capture-wide` only for complete normalization; limited or
+quarantined input is explicitly scoped to the normalized packet subset.
 `--jsonl` emits the manifest, occurrence-specific run receipt, packet
 envelopes, and quarantines. It is the complete successful-run record, not a
 byte-stable rerun projection: the receipt contains its run ID, wall-clock

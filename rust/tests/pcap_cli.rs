@@ -44,12 +44,32 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
     assert!(stdout
         .contains("timing      +400.000 ms .. +500.000 ms from capture start / 100.000 ms span"));
 
+    let partial = Command::new(binary)
+        .args(["pcap", input.to_str().unwrap(), "--packet-limit", "2"])
+        .output()
+        .unwrap();
+    assert!(
+        partial.status.success(),
+        "{}",
+        String::from_utf8_lossy(&partial.stderr)
+    );
+    let partial_stdout = String::from_utf8(partial.stdout).unwrap();
+    assert!(partial_stdout.contains("state         partial"));
+    assert!(partial_stdout.contains(
+        "scope         normalized packet subset; file-wide completeness not established; \
+         endpoint A/B is canonical, not initiator"
+    ));
+    assert!(!partial_stdout
+        .contains("scope         capture-wide; endpoint A/B is canonical, not initiator"));
+
     let jsonl = Command::new(binary)
         .args([
             "pcap",
             input.to_str().unwrap(),
             "--packet-limit",
             "10",
+            "--acquisition-mode",
+            "passive-host-local",
             "--jsonl",
         ])
         .output()
@@ -86,7 +106,13 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         .as_str()
         .unwrap()
         .starts_with("sha256:"));
-    assert!(records[0].get("acquisition_policy").is_none());
+    assert_eq!(
+        records[0]["acquisition_policy"]["mode"],
+        "passive_host_local"
+    );
+    assert!(records[0]["acquisition_policy"]
+        .get("active_actions")
+        .is_none());
     assert_eq!(records[1]["file"]["file_type"], "pcap");
     assert!(records[1]["normalized_records_sha256"]
         .as_str()
@@ -205,6 +231,26 @@ fn pcap_jsonl_modes_are_mutually_exclusive() {
     assert!(stderr.contains("--jsonl"));
     assert!(stderr.contains("--records-jsonl"));
     assert!(stderr.contains("cannot be used with"));
+}
+
+#[test]
+fn pcap_rejects_active_actions_under_a_passive_acquisition_policy() {
+    let output = Command::new(env!("CARGO_BIN_EXE_netmon"))
+        .args([
+            "pcap",
+            "does-not-need-to-exist.pcap",
+            "--acquisition-mode",
+            "passive-host-local",
+            "--active-action",
+            "arp_probe",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("--active-action cannot be used with passive-host-local acquisition"));
+    assert!(!stderr.contains("normalizing does-not-need-to-exist.pcap"));
 }
 
 fn decode_hex(input: &str) -> Vec<u8> {

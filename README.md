@@ -184,11 +184,18 @@ each log.
 The `pcap` command is offline and non-interactive. Its text output reports artifact
 identity, observer/acquisition unknowns, Capinfos file type and declared extent,
 normalization completeness, packet/quarantine counts, the normalized packet subset,
-protocol stacks, capture-wide TCP/UDP conversations with directional
+protocol stacks, TCP/UDP conversations scoped to the whole capture only when
+normalization is complete, with directional
 frame/octet counts and observed TCP flags, and the successful run identifier
 and emitted-record digest. Conversation output uses canonical endpoint A/B
 ordering rather than claiming an initiator, and reports excluded
 packet-envelope coverage by typed reason.
+
+When independently known, `--acquisition-mode passive-host-local` records that
+the original artifact was acquired passively from the host. An
+`active-bounded` acquisition may also repeat `--active-action ACTION`.
+Omitting the mode preserves an unknown policy; offline normalization never
+retroactively proves how the artifact was acquired.
 
 For saved wireless captures, normalized packet records may also carry typed
 IEEE 802.11 frame type/subtype, TA/RA/SA/DA/BSSID identifiers, nonempty SSID

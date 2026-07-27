@@ -4,19 +4,27 @@ use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use anyhow::{Context, Result};
-use clap::Args;
+use anyhow::{bail, Context, Result};
+use clap::{Args, ValueEnum};
 use netmon_adapter_tshark::{
     normalize_saved_capture, NormalizationReport, NormalizeOptions, DEFAULT_MAX_INPUT_BYTES,
     DEFAULT_MAX_STDOUT_BYTES, DEFAULT_PACKET_LIMIT, DEFAULT_TIMEOUT,
 };
-use netmon_evidence::{NormalizationStateV0, PacketEnvelopeV0};
+use netmon_evidence::{
+    CollectionModeV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
+};
 use netmon_replay::{
     reduce_capture_conversations, CaptureConversationV0, ConversationDirectionV0,
     TransportProtocolV0,
 };
 
 const MIB: u64 = 1024 * 1024;
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum AcquisitionModeArg {
+    PassiveHostLocal,
+    ActiveBounded,
+}
 
 #[derive(Debug, Args)]
 pub struct PcapArgs {
@@ -30,6 +38,14 @@ pub struct PcapArgs {
     /// Artifact acquisition time in Unix milliseconds, when independently known.
     #[arg(long)]
     pub acquired_time_unix_ms: Option<i64>,
+
+    /// Original acquisition mode, when independently known.
+    #[arg(long, value_enum)]
+    pub acquisition_mode: Option<AcquisitionModeArg>,
+
+    /// Active action used during original acquisition; repeat for each known action.
+    #[arg(long, requires = "acquisition_mode")]
+    pub active_action: Vec<String>,
 
     /// Emit versioned manifest, run receipt, packet, and quarantine records as JSONL.
     #[arg(long, conflicts_with = "records_jsonl")]
@@ -69,6 +85,7 @@ pub struct PcapArgs {
 }
 
 pub fn run(args: &PcapArgs) -> Result<()> {
+    let acquisition_policy = acquisition_policy(args)?;
     let max_input_bytes = args
         .max_input_mib
         .checked_mul(MIB)
@@ -85,6 +102,7 @@ pub fn run(args: &PcapArgs) -> Result<()> {
             capinfos_path: args.capinfos.clone(),
             observer_id: args.observer_id.clone(),
             acquired_time_unix_ms: args.acquired_time_unix_ms,
+            acquisition_policy,
             allow_personal_plugins: args.allow_personal_plugins,
             packet_limit: args.packet_limit,
             max_input_bytes,
@@ -101,6 +119,32 @@ pub fn run(args: &PcapArgs) -> Result<()> {
         print_summary(&args.input, &report);
         Ok(())
     }
+}
+
+fn acquisition_policy(args: &PcapArgs) -> Result<Option<CollectionPolicyV0>> {
+    if args
+        .active_action
+        .iter()
+        .any(|action| action.trim().is_empty())
+    {
+        bail!("--active-action must not be empty");
+    }
+    let Some(mode) = args.acquisition_mode else {
+        return Ok(None);
+    };
+    let mode = match mode {
+        AcquisitionModeArg::PassiveHostLocal => {
+            if !args.active_action.is_empty() {
+                bail!("--active-action cannot be used with passive-host-local acquisition");
+            }
+            CollectionModeV0::PassiveHostLocal
+        }
+        AcquisitionModeArg::ActiveBounded => CollectionModeV0::ActiveBounded,
+    };
+    Ok(Some(CollectionPolicyV0 {
+        mode,
+        active_actions: args.active_action.clone(),
+    }))
 }
 
 fn print_jsonl(report: &NormalizationReport, include_receipt: bool) -> Result<()> {
@@ -143,11 +187,7 @@ fn print_summary(input: &Path, report: &NormalizationReport) {
     );
     println!(
         "  acquisition   {}",
-        if manifest.acquisition_policy.is_some() {
-            "policy supplied"
-        } else {
-            "policy unknown (detached artifact)"
-        }
+        acquisition_policy_label(manifest.acquisition_policy.as_ref())
     );
     println!("  registry      {}", manifest.extractor.field_registry);
     println!(
@@ -681,7 +721,10 @@ fn print_capture_conversations(report: &NormalizationReport) {
         .expect("capture conversations require at least one emitted packet");
     println!("\ncapture conversations");
     if !reduced.conversations.is_empty() {
-        println!("  scope         capture-wide; endpoint A/B is canonical, not initiator");
+        println!(
+            "  scope         {}",
+            conversation_scope_label(report.manifest.normalization.state)
+        );
     }
     println!(
         "  coverage      {} grouped / {} emitted packet envelopes / {} excluded",
@@ -700,6 +743,38 @@ fn print_capture_conversations(report: &NormalizationReport) {
             "  … {} more capture conversations",
             reduced.conversations.len() - 8
         );
+    }
+}
+
+fn acquisition_policy_label(policy: Option<&CollectionPolicyV0>) -> String {
+    let Some(policy) = policy else {
+        return "policy unknown (detached artifact)".into();
+    };
+    match policy.mode {
+        CollectionModeV0::PassiveHostLocal => "passive host-local".into(),
+        CollectionModeV0::ActiveBounded if policy.active_actions.is_empty() => {
+            "active bounded / actions not supplied".into()
+        }
+        CollectionModeV0::ActiveBounded => format!(
+            "active bounded / actions {}",
+            policy
+                .active_actions
+                .iter()
+                .map(|action| operator_text(action))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
+}
+
+fn conversation_scope_label(state: NormalizationStateV0) -> &'static str {
+    match state {
+        NormalizationStateV0::Complete => {
+            "capture-wide; endpoint A/B is canonical, not initiator"
+        }
+        NormalizationStateV0::Partial => {
+            "normalized packet subset; file-wide completeness not established; endpoint A/B is canonical, not initiator"
+        }
     }
 }
 
