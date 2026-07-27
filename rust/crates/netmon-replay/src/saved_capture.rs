@@ -735,6 +735,41 @@ fn normalized_records_sha256(
     packets: &[(usize, PacketEnvelopeV0)],
     quarantines: &[(usize, PacketQuarantineV0)],
 ) -> Result<String, SavedCaptureReadError> {
+    normalized_records_digest(
+        manifest_line,
+        manifest,
+        packets.iter().map(|(line, record)| (*line, record)),
+        quarantines.iter().map(|(line, record)| (*line, record)),
+    )
+}
+
+pub(crate) fn recompute_normalized_records_sha256(
+    manifest: &CaptureManifestV0,
+    packets: &[PacketEnvelopeV0],
+    quarantines: &[PacketQuarantineV0],
+) -> Result<String, SavedCaptureReadError> {
+    normalized_records_digest(
+        1,
+        manifest,
+        packets
+            .iter()
+            .enumerate()
+            .map(|(index, record)| (index.saturating_add(2), record)),
+        quarantines.iter().enumerate().map(|(index, record)| {
+            (
+                index.saturating_add(packets.len()).saturating_add(2),
+                record,
+            )
+        }),
+    )
+}
+
+fn normalized_records_digest<'a>(
+    manifest_line: usize,
+    manifest: &CaptureManifestV0,
+    packets: impl Iterator<Item = (usize, &'a PacketEnvelopeV0)>,
+    quarantines: impl Iterator<Item = (usize, &'a PacketQuarantineV0)>,
+) -> Result<String, SavedCaptureReadError> {
     let mut hasher = Sha256::new();
     hasher.update(b"netmon.normalized_records.v0\0");
 
@@ -746,10 +781,10 @@ fn normalized_records_sha256(
         }
     })?;
     hash_record(&mut hasher, "manifest", 0, &bytes);
-    for (index, (line, packet)) in packets.iter().enumerate() {
+    for (index, (line, packet)) in packets.enumerate() {
         let bytes = serde_json::to_vec(packet).map_err(|source| {
             SavedCaptureReadError::RecordSerialization {
-                line: *line,
+                line,
                 family: SavedCaptureRecordFamilyV0::Packet,
                 source,
             }
@@ -761,10 +796,10 @@ fn normalized_records_sha256(
             &bytes,
         );
     }
-    for (index, (line, quarantine)) in quarantines.iter().enumerate() {
+    for (index, (line, quarantine)) in quarantines.enumerate() {
         let bytes = serde_json::to_vec(quarantine).map_err(|source| {
             SavedCaptureReadError::RecordSerialization {
-                line: *line,
+                line,
                 family: SavedCaptureRecordFamilyV0::Quarantine,
                 source,
             }

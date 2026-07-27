@@ -28,6 +28,19 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
     if std::env::var_os("NETMON_SMOKE_SHOW_OUTPUT").is_some() {
         eprintln!("{stdout}");
     }
+    assert!(stdout
+        .starts_with("triage\n  normalization complete / 6 emitted / 0 quarantined / 6 inspected"));
+    assert!(stdout.contains("completeness  complete capture normalization"));
+    assert!(stdout.contains(
+        "top capture   cumulative complete capture aggregate by original frame octets; \
+         not recent, time-local, a flow, or a session"
+    ));
+    assert!(stdout.contains(
+        "candidate pivot  tshark display filter: (frame.encap_type == 1) && \
+         (tcp && ((ip.src == 192.0.2.1 && tcp.srcport == 40000"
+    ));
+    assert!(stdout
+        .contains("candidate pivot may also select packets excluded by reducer eligibility rules"));
     assert!(stdout.contains("capture file\n  format        pcap / ether / microseconds"));
     assert!(stdout.contains("extent        6 packets / 324 original packet-data octets"));
     assert!(stdout.contains("normalization\n  state         complete"));
@@ -61,6 +74,13 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
     ));
     assert!(!partial_stdout
         .contains("scope         capture-wide; endpoint A/B is canonical, not initiator"));
+    assert!(partial_stdout.contains(
+        "completeness  partial normalized packet subset; file-wide conclusions unavailable"
+    ));
+    assert!(partial_stdout.contains(
+        "top capture   cumulative normalized packet subset aggregate by original frame octets; \
+         not recent, time-local, a flow, or a session"
+    ));
 
     let jsonl = Command::new(binary)
         .args([
@@ -171,6 +191,64 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
     assert!(deterministic_records
         .iter()
         .all(|record| record["schema"] != "netmon.capture_run_receipt.v0"));
+
+    let triage = Command::new(binary)
+        .args([
+            "pcap",
+            input.to_str().unwrap(),
+            "--packet-limit",
+            "10",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        triage.status.success(),
+        "{}",
+        String::from_utf8_lossy(&triage.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&triage.stdout).lines().count(),
+        1,
+        "finite triage JSON must be one object, not a record stream"
+    );
+    let triage: serde_json::Value = serde_json::from_slice(&triage.stdout).unwrap();
+    assert_eq!(triage["schema"], "netmon.saved_pcap_triage.v0");
+    assert_eq!(triage["normalization"]["completeness"], "complete_capture");
+    assert_eq!(triage["top_capture_conversation"]["status"], "observed");
+    assert_eq!(
+        triage["top_capture_conversation"]["conversation"]["transport"],
+        "tcp"
+    );
+    let traffic_filter = triage["top_capture_conversation"]["conversation"]
+        ["tshark_candidate_display_filter"]
+        .as_str()
+        .unwrap();
+    assert!(traffic_filter.contains("tcp.srcport == 40000"));
+    let pivot = Command::new("tshark")
+        .args([
+            "-n",
+            "-r",
+            input.to_str().unwrap(),
+            "-Y",
+            traffic_filter,
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        pivot.status.success(),
+        "{}",
+        String::from_utf8_lossy(&pivot.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(pivot.stdout).unwrap().lines().count(),
+        4,
+        "this fixture's candidate pivot should select its four matching frames"
+    );
 }
 
 #[test]
@@ -209,9 +287,80 @@ fn pcap_command_surfaces_bounded_wireless_operator_evidence() {
     assert!(stdout.contains("7  channel 1 / 2412 MHz / signal -74..-14 dBm / median -18 dBm (n=7)"));
     assert!(stdout.contains("7  90:a4:de:c0:46:0a"));
     assert!(stdout.contains("text=\"omus\" / hex=6f6d7573"));
+    assert!(stdout.contains(
+        "WLAN disconnect frames  not observed in complete capture among 10 emitted WLAN frames"
+    ));
     assert!(!stdout.contains(
         "scope         capture-wide; endpoint A/B is canonical, not initiator\n  coverage      0 grouped"
     ));
+}
+
+#[test]
+#[ignore = "requires installed tshark and capinfos; run through `just pcap-smoke`"]
+fn pcap_triage_surfaces_observed_wlan_disconnect_frames_without_attack_claims() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("network-join.pcap");
+    fs::write(
+        &input,
+        decode_hex(include_str!(
+            "../crates/netmon-adapter-tshark/tests/fixtures/upstream/libpcap-network-join-nokia-mobile.pcap.hex"
+        )),
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_netmon"))
+        .args([
+            "pcap",
+            input.to_str().unwrap(),
+            "--packet-limit",
+            "100",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let triage: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(triage["wlan"]["status"], "observed");
+    assert_eq!(triage["wlan"]["disconnects"][0]["kind"], "deauthentication");
+    assert_eq!(
+        triage["wlan"]["disconnects"][0]["event_window"]["observations"],
+        1
+    );
+    assert_eq!(
+        triage["wlan"]["disconnects"][0]["tshark_display_filter"],
+        "wlan.fc.type == 0 && wlan.fc.subtype == 12"
+    );
+    assert_eq!(triage["top_capture_conversation"]["status"], "unsupported");
+    let pivot = Command::new("tshark")
+        .args([
+            "-n",
+            "-r",
+            input.to_str().unwrap(),
+            "-Y",
+            triage["wlan"]["disconnects"][0]["tshark_display_filter"]
+                .as_str()
+                .unwrap(),
+            "-T",
+            "fields",
+            "-e",
+            "frame.number",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        pivot.status.success(),
+        "{}",
+        String::from_utf8_lossy(&pivot.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(pivot.stdout).unwrap().lines().count(),
+        1,
+        "the WLAN pivot must select the observed deauthentication frame"
+    );
 }
 
 #[test]

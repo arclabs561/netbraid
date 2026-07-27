@@ -124,6 +124,7 @@ cargo build --manifest-path rust/Cargo.toml
 ./rust/target/debug/netmon here
 ./rust/target/debug/netmon evidence ./host-path.jsonl
 ./rust/target/debug/netmon pcap ./incident.pcap
+./rust/target/debug/netmon pcap ./incident.pcapng --json
 ./rust/target/debug/netmon pcap ./incident.pcapng --jsonl
 ./rust/target/debug/netmon pcap ./incident.pcapng --records-jsonl
 ```
@@ -181,15 +182,21 @@ separator before a valid final JSON record that lacked a newline. Appends are
 fail-closed around known corruption but are not cross-process locking: one writer owns
 each log.
 
-The `pcap` command is offline and non-interactive. Its text output reports artifact
-identity, observer/acquisition unknowns, Capinfos file type and declared extent,
-normalization completeness, packet/quarantine counts, the normalized packet subset,
-protocol stacks, TCP/UDP conversations scoped to the whole capture only when
-normalization is complete, with directional
-frame/octet counts and observed TCP flags, and the successful run identifier
-and emitted-record digest. Conversation output uses canonical endpoint A/B
-ordering rather than claiming an initiator, and reports excluded
-packet-envelope coverage by typed reason.
+The `pcap` command is offline and non-interactive. Its text output leads with a
+bounded triage projection: normalization completeness and quarantine, the
+supported WLAN disconnect-management-frame observations when present,
+the largest cumulative capture conversation by original frame octets, and
+TShark candidate display-filter pivots. A candidate pivot can also select
+packets excluded by the reducer's eligibility rules; the typed reduction
+coverage remains authoritative. It then reports artifact identity, observer/acquisition unknowns,
+Capinfos file type and declared extent, the normalized packet subset, protocol
+stacks, directional capture-conversation frame/octet counts and observed TCP
+flags, and the successful run identifier and emitted-record digest.
+Conversation output is capture-wide only when normalization is complete. It
+uses canonical endpoint A/B ordering and never claims an initiator, flow, or
+session. The top conversation is cumulative across the named claim scope, not
+a recent or time-local ranking; excluded packet-envelope coverage remains
+explicit by typed reason.
 
 When independently known, `--acquisition-mode passive-host-local` records that
 the original artifact was acquired passively from the host. An
@@ -206,15 +213,24 @@ These are artifact observations, not claims about complete channel coverage,
 device identity, role, presence, or intent. See
 [`docs/design/saved-capture-wlan-evidence.md`](docs/design/saved-capture-wlan-evidence.md).
 
+`--json` emits one finite `netmon.saved_pcap_triage.v0` JSON document. The
+typed projection is bound to the capture ID, field registry, and deterministic
+normalized-record digest; it is derived operator output, not a new normalized
+evidence record or an identity, flow, session, or time-local assessment.
+Positive disconnect-frame and conversation observations are useful from the
+first supporting normalized packet. Negative WLAN observations are scoped to
+the complete capture or normalized packet subset; a partial subset with no
+IEEE 802.11 or eligible conversation evidence is explicitly insufficient.
+
 `--jsonl` emits the manifest, occurrence-specific successful-run receipt,
 packet envelopes, and quarantines. Its receipt deliberately changes across
 runs: it includes a run ID, wall-clock interval, elapsed time, and raw tool
-output digests. `--records-jsonl` emits exactly the deterministic
-normalized-record sequence bound by the receipt's
+output digests. `--records-jsonl` emits exactly the deterministic normalized-record
+sequence bound by the receipt's
 `normalized_records_sha256`: manifest, packet envelopes, then quarantines. It
 omits the run receipt, and equivalent runs using the same artifact, fields,
 tools, configuration, limits, and independently supplied provenance produce
-byte-identical output. The two flags are mutually exclusive.
+byte-identical output. The three machine-output choices are mutually exclusive.
 
 The manifest does not infer that a detached artifact was acquired passively or
 that it covered a network, channel, or interval completely; observer,

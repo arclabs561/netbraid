@@ -1,0 +1,111 @@
+{
+  "schema": "netmon.saved_pcap_triage.v0",
+  "normalization": {
+    "state": "complete",
+    "completeness": "complete_capture",
+    "packet_rows_emitted": 3,
+    "packet_rows_quarantined": 0,
+    "packet_rows_inspected": 3,
+    "packet_limit": 10,
+    "packet_limit_reached": false,
+    "emitted_packet_window": {
+      "observations": 3,
+      "earliest_event_time_unix_ns": 1000,
+      "latest_event_time_unix_ns": 3000,
+      "observed_span_ns": 2000
+    }
+  },
+  "quarantine": {
+    "rows": 0,
+    "distinct_reasons": 0,
+    "reasons_shown": 0,
+    "top_reasons": []
+  },
+  "wlan": {
+    "status": "observed",
+    "scope": "complete_capture",
+    "wlan_window": {
+      "observations": 1,
+      "earliest_event_time_unix_ns": 3000,
+      "latest_event_time_unix_ns": 3000,
+      "observed_span_ns": 0
+    },
+    "disconnects": [
+      {
+        "kind": "deauthentication",
+        "event_window": {
+          "observations": 1,
+          "earliest_event_time_unix_ns": 3000,
+          "latest_event_time_unix_ns": 3000,
+          "observed_span_ns": 0
+        },
+        "tshark_display_filter": "wlan.fc.type == 0 && wlan.fc.subtype == 12"
+      }
+    ]
+  },
+  "top_capture_conversation": {
+    "status": "observed",
+    "scope": "complete_capture",
+    "packet_envelopes_seen": 3,
+    "packet_envelopes_grouped": 2,
+    "packet_envelopes_excluded": 1,
+    "exclusions": [
+      {
+        "reason": "ambiguous_network_layer",
+        "packet_envelopes": 1
+      }
+    ],
+    "conversation": {
+      "aggregation": "cumulative_across_claim_scope",
+      "temporal_relevance": "not_assessed",
+      "transport": "tcp",
+      "endpoint_a": {
+        "address": "192.0.2.1",
+        "port": 40000
+      },
+      "endpoint_b": {
+        "address": "198.51.100.2",
+        "port": 443
+      },
+      "observation_point": {
+        "section_number": 0,
+        "interface_id": 0,
+        "encapsulation_type": 1
+      },
+      "total_frames": 2,
+      "total_original_frame_octets": 200,
+      "total_captured_frame_octets": 200,
+      "a_to_b": {
+        "frames": 1,
+        "original_frame_octets": 100,
+        "captured_frame_octets": 100,
+        "tcp_flags": {
+          "syn_without_ack_frames": 1,
+          "syn_ack_frames": 0,
+          "fin_frames": 0,
+          "rst_frames": 0
+        }
+      },
+      "b_to_a": {
+        "frames": 1,
+        "original_frame_octets": 100,
+        "captured_frame_octets": 100,
+        "tcp_flags": {
+          "syn_without_ack_frames": 0,
+          "syn_ack_frames": 1,
+          "fin_frames": 0,
+          "rst_frames": 0
+        }
+      },
+      "earliest_event_time_unix_ns": 1000,
+      "latest_event_time_unix_ns": 2000,
+      "observed_span_ns": 1000,
+      "tshark_candidate_display_filter": "(frame.section_number == 0) && (frame.interface_id == 0) && (frame.encap_type == 1) && (tcp && ((ip.src == 192.0.2.1 && tcp.srcport == 40000 && ip.dst == 198.51.100.2 && tcp.dstport == 443) || (ip.src == 198.51.100.2 && tcp.srcport == 443 && ip.dst == 192.0.2.1 && tcp.dstport == 40000)))"
+    }
+  },
+  "source": {
+    "capture_id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "field_registry": "netmon.tshark.packet_envelope.v1",
+    "normalized_records_sha256": "sha256:c87468244046af4f357a8b155ee4b61d1c8f82e62f24c692382142bc6a3c1571"
+  }
+}

@@ -91,10 +91,16 @@ return explicit exclusion coverage. Chosen.
 ## Decision
 
 `netmon-replay` owns an experimental pure capture-conversation reducer.
-`netmon-evidence` remains unchanged because the result is not yet a serialized
-record contract. The Netmon CLI uses the reducer in finite text output; raw
-`--jsonl` normalization output remains the manifest, successful-run receipt,
-packet envelopes, and quarantines.
+`netmon-evidence` remains unchanged because the result is not a normalized
+evidence record. The Netmon CLI uses the reducer in finite text output and in
+the bounded, versioned `netmon.saved_pcap_triage.v0` operator projection. That
+projection binds to the deterministic normalized-record digest and carries only
+the top cumulative conversation plus coverage and candidate drill-down pivots.
+The candidate five-tuple filter is intentionally not reducer membership: it may
+also select packets excluded for VLAN, tunnel, repeated-layer, or other typed
+eligibility reasons. Raw `--jsonl`
+normalization output remains the manifest, successful-run receipt, packet
+envelopes, and quarantines.
 
 An eligible packet has:
 
@@ -125,6 +131,17 @@ The report also counts all emitted packet envelopes, grouped packets, and
 excluded packets by typed reason. Ranking is deterministic: descending original
 frame octets, then descending frames, then canonical key.
 
+The finite triage projection names whether each claim covers the complete
+capture or only the normalized packet subset. A positive WLAN disconnect-frame
+or top-conversation observation is useful from its first supporting packet.
+Deauthentication and disassociation counts remain separate typed observations
+when both occur; one subtype never hides the other.
+Absence is never promoted beyond that scope: a partial subset with no IEEE
+802.11 or eligible conversation evidence is insufficient, while a supported
+WLAN subset with no deauthentication or disassociation frame is only
+`not_observed` within that subset. Normalized, WLAN, disconnect, and top
+conversation windows retain event timestamps and observed span.
+
 The CLI labels the section **capture conversations** and states that it is
 capture-wide. It never calls original frame octets payload bytes, transferred
 bytes, goodput, or throughput. The capture section prints exact absolute bounds
@@ -143,7 +160,10 @@ timing without discarding the underlying event timestamps.
 - Capture-wide aggregation can merge tuple reuse. The output name and scope
   prevent it from masquerading as sessionized flow data. One long artifact can
   also span a network-context change on the same interface; without aligned
-  context evidence, the reducer cannot split that boundary.
+  context evidence, the reducer cannot split that boundary. The selected top
+  conversation is cumulative across the claim scope and does not imply recent
+  or time-local relevance. A recent-window ranking remains a future reducer,
+  not an implicit warm-up threshold.
 - The reducer counts L2 frame octets because that is what the packet envelope
   records. Payload and IP-octet counters require additional explicit fields.
 
@@ -163,8 +183,12 @@ timing without discarding the underlying event timestamps.
 - Original and captured octets remain separately named and tested.
 - TCP flag counters distinguish SYN without ACK from SYN-ACK.
 - The CLI states grouped/excluded coverage and capture-wide scope.
-- JSONL output remains unchanged until a serialized conversation schema and
-  reduction receipt are separately designed.
+- Raw evidence JSONL output remains unchanged. A finite derived operator
+  projection must use its own schema, bind to the normalized-record digest, and
+  preserve capture-conversation scope and exclusions. Its source reference is
+  constructed from a validated saved-capture record stream, and its public
+  projection path rejects count, capture-ID, or receipt-digest inconsistencies.
+  It is not appended to the normalized evidence stream.
 
 ## Promotion questions
 
