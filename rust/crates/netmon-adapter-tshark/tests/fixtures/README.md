@@ -28,7 +28,7 @@ that have changed adapter behavior:
 | libpcap WPA2 link-up | 5 GHz radiotap, WPA2 EAPOL handshake, protected data, wildcard SSID |
 | libpcap RARP | PCAPNG, Ethernet, non-IP frames |
 | libpcap PPPoE | Classic PCAP, PPPoE discovery, conservative conversation exclusion |
-| rust-pcap snaplen 20 | Original length much larger than captured length |
+| rust-pcap snaplen pair | The same ICMP frame at snaplen 20 and 65535: truncated network evidence versus complete non-TCP/UDP evidence |
 | pcap-parser NTP | Real bidirectional UDP conversations over an 83-second span |
 | pcap-parser big-endian | Big-endian PCAPNG, section/interface IDs, file provenance |
 
