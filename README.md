@@ -378,6 +378,8 @@ index over unknown devices.
 The terminology, native-extractor migration, episode, assessment, binding,
 retention, and cross-surface contracts are detailed in
 [`docs/design/derived-intelligence-boundary.md`](docs/design/derived-intelligence-boundary.md).
+The dependency-ordered public implementation and evaluation program is recorded
+in [`docs/design/network-intelligence-roadmap.md`](docs/design/network-intelligence-roadmap.md).
 
 ## Limitations
 
