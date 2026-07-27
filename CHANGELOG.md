@@ -10,6 +10,8 @@ native binary releases remain available independently.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-27
+
 ### Added
 
 - A strict `netbraid.scenario_bundle.v1` contract for disclosure-reviewed,
@@ -25,6 +27,21 @@ native binary releases remain available independently.
   six- and seven-packet normalized prefixes protect the boundary between a
   prefix-scoped negative WLAN result and an observed seventh-frame
   deauthentication.
+- Versioned, deterministic scenario bundles for offline consumer QA, including
+  Wi-Fi/hotspot recurrence, a same-SSID BSSID attachment transition followed by
+  an incompatible reused-label boundary, VPN-overlay attribution abstention,
+  and a passive neighbor-cache source gap. Bundles carry exact artifact
+  inventories, hashes, named checkpoints, required abstentions,
+  coverage/freshness expectations, bounded text viewports, and a receipt-bound
+  accessor for the typed checkpoint evidence that downstream consumers
+  independently reduce.
+- Provenance-qualified trailing-interval analysis for saved captures. Positive
+  observations remain useful immediately, while negative conclusions require
+  complete normalization and corroborating occurrence-receipt packet bounds.
+- A one-time scoped-token boundary for initial crate ownership and a manual,
+  current-main-only Trusted Publishing gate for later dependency-order
+  releases, with registry metadata and Cargo VCS identity verification before
+  a release tag can create a GitHub release.
 
 ### Changed
 
@@ -39,28 +56,6 @@ native binary releases remain available independently.
   adapter and root CLI exclude their test-only upstream corpora, notices, and
   workspace-only integration tests from publication and retain
   `MIT OR Unlicense`.
-
-## [0.3.0] - 2026-07-27
-
-### Added
-
-- Versioned, deterministic scenario bundles for offline consumer QA, including
-  Wi-Fi/hotspot recurrence, a same-SSID BSSID attachment transition followed by
-  an incompatible reused-label boundary, VPN-overlay attribution abstention,
-  and a passive neighbor-cache source gap. Bundles carry exact artifact
-  inventories, hashes, named checkpoints, required abstentions,
-  coverage/freshness expectations, bounded text viewports, and a receipt-bound
-  accessor for the typed checkpoint evidence that downstream consumers
-  independently reduce.
-- Provenance-qualified trailing-interval analysis for saved captures. Positive
-  observations remain useful immediately, while negative conclusions require
-  complete normalization and corroborating occurrence-receipt packet bounds.
-- A manual, current-main-only crates.io publication gate with dependency-order
-  publication, Trusted Publishing support, registry metadata checks, and Cargo
-  VCS identity verification before a release tag can create a GitHub release.
-
-### Changed
-
 - CI now exercises all workspace features and verifies that public scenario
   fixtures are present in the packaged `netbraid-replay` crate.
 - Saved-capture JSON triage is now `netmon.saved_pcap_triage.v1`, retaining the

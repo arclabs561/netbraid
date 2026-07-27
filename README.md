@@ -140,6 +140,12 @@ bytes. Check crates.io for registry availability. Before a version is visible
 there, install from a source checkout or its tagged GitHub archive rather than
 assuming `cargo install netbraid` is available.
 
+Initial crates.io ownership is a one-time publication from a clean
+current-`main` checkout with a scoped token. Later releases use the repository's
+Trusted Publishing workflow. The bootstrap token is revoked immediately after
+all four trusted publishers are registered, and a release tag is created only
+after crates.io reports artifacts from the intended commit.
+
 To install a source checkout into Cargo's binary directory:
 
 ```sh
