@@ -33,6 +33,14 @@ scenario-check:
     @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/scenario.json'
     @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/host-path.jsonl'
     @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/viewport.txt'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/scenario.json'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-6.jsonl'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-adapter-tshark >/dev/null
+    @! cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-adapter-tshark | grep -Eq '^tests/(curated_corpus\.rs|fixtures/(third-party-licenses|upstream)/)'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid >/dev/null
+    @! cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Eq '^tests/(fixtures/|pcap_cli\.rs$|scenario_cli\.rs$)'
 
 pcap-smoke:
     cargo test --locked --manifest-path rust/Cargo.toml -p netbraid-adapter-tshark --tests -- --ignored

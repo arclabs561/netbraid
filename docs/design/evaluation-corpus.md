@@ -37,11 +37,19 @@ network layer, one for ambiguous transport layer, and ten for unmodeled
 encapsulation.
 
 That is strong adapter-boundary coverage for its size. It is not a representative
-sample of networks or security incidents. Linktop separately has schema/output
-goldens and extensive in-module deterministic TUI tests, but no shared,
-multi-artifact context-transition corpus. Infra has one Netbraid release-boundary
-fixture; its deployed Kismet, BLE, rtl_433, Meshtastic, UniFi, and Home Assistant
-sources do not yet have one replayable, cross-source parity bundle.
+sample of networks or security incidents. Linktop has schema/output goldens,
+extensive in-module deterministic TUI tests, independent typed assertions over
+all four public-synthetic v0 bundles, and a timed Wi-Fi/hotspot screenshot
+scene driven by Netbraid checkpoint inputs. It does not yet consume the
+capture-derived v1 scenario or cover the remaining multi-source and
+presentation matrix. Infra has one Netbraid release-boundary fixture; its
+deployed Kismet, BLE, rtl_433, Meshtastic, UniFi, and Home Assistant sources do
+not yet have one replayable, cross-source parity bundle.
+
+The scenario ledger now has four public-synthetic v0 bundles and one
+public-reviewed, capture-derived v1 bundle. That fifth scenario adds one real
+saved-capture prefix boundary; it does not make the suite representative of
+wireless networks, attacks, device populations, or operator prevalence.
 
 ## Non-goals
 
@@ -144,6 +152,45 @@ administered MAC addresses, and fictional network names. These tiny synthetic
 cases prove the harness and named false-positive guards; they do not satisfy
 the full variation table or claim a representative usage distribution.
 
+The strict `netbraid.scenario_bundle.v1` contract adds reviewed
+capture-derived distribution without broadening v0. It keeps disclosure
+sensitivity (`PUBLIC_REVIEWED`) separate from per-source origin (`observed`),
+derivation (`normalized_saved_capture`), and acquisition
+(`third_party_upstream`). Each source records the admitted corpus coordinate,
+upstream repository and immutable revision, source path and URL, blob and raw
+content digests, raw byte count, SPDX terms, and a digest-bound
+`license_text` artifact. License text is part of the closed inventory but
+cannot be ingested or cited as evidence.
+
+The v1 disclosure review enumerates retained identifier classes. Its first
+scenario retains public-upstream IEEE 802.11 link-layer addresses, one network
+name, and packet timestamps in ingestible evidence; raw packet payload bytes
+are omitted from those evidence artifacts. The loader mechanically derives
+identifier classes from all admitted typed saved-capture records and requires
+exact equality with the declaration. V1 rejects host-path streams and opaque
+quarantine rows because their bytes would sit outside that source and
+disclosure closure. The separately classified legal notice remains verbatim
+for redistribution compliance. These facts are review inputs, not
+anonymization claims. Viewport text remains v0-only until presentation bytes
+have an explicit disclosure contract.
+The committed normalized records also retain their reference extractor
+version, field registry, and effective-configuration fingerprint. Those values
+identify the reviewed bytes and are not portable regeneration constants.
+Changing them is a new artifact closure that requires another admission review.
+
+The separate, non-default `scenario-fixtures-capture-derived` feature exposes
+`saved-capture-prefix-boundary`. It contains deterministic `records-jsonl`
+normalizations at packet limits 6 and 7 over the same admitted libpcap Nokia
+capture. The first six packet records are identical; frame 7 adds one observed
+IEEE 802.11 deauthentication frame. The six-frame negative conclusion is
+therefore scoped only to that normalized prefix. The oracle abstains from
+source-wide absence and counts, actor or access-point identity, attack intent,
+disconnect causality, and radio channel. Version 0 keeps the unchanged
+`netbraid.scenario_replay.v0` checkpoint receipt. Version 1 emits
+`netbraid.scenario_replay.v1`, preserving declared sensitivity and disclosure
+review alongside the same checkpoint projection fields without implying an
+authenticated review authority.
+
 ### Tier 3: differential-tool corpora
 
 Run the same immutable capture through bounded, version-pinned adapters for
@@ -210,8 +257,10 @@ privacy boundaries.
 
 1. Keep Tier 1 admission and smoke checks in
    `netbraid-adapter-tshark`; add a fixture only with a named boundary.
-2. Extend the implemented scenario manifest only with an existing strict source
-   family and a named operator decision; do not add generic untyped event rows.
+2. Keep the four-bundle public-synthetic v0 contract exact. Admit
+   capture-derived v1 artifacts only with a disclosure review, closed upstream
+   and license lineage, an existing strict source family, and a named operator
+   decision; do not add generic untyped event rows.
 3. Add the remaining context-transition, impairment, saved-artifact, and
    presentation-pressure variations; have Linktop consume the same checkpoint
    receipts at multiple terminal sizes.
@@ -226,6 +275,9 @@ privacy boundaries.
   smaller fixture protects the same boundary.
 - A public artifact is rejected if its exact license, immutable origin, or
   privacy status is unresolved.
+- A capture-derived artifact is rejected if retained identifier classes or
+  payload handling are unstated, its license artifact can enter replay, or its
+  source coordinate does not close over the normalized capture identity.
 - A new inference family does not ship until a realistic scenario bundle
   contains positive, conflicting, and abstained cases.
 - A fingerprint score is not called confidence until private, time-separated

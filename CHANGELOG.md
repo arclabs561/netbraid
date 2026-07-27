@@ -10,6 +10,36 @@ native binary releases remain available independently.
 
 ## [Unreleased]
 
+### Added
+
+- A strict `netbraid.scenario_bundle.v1` contract for disclosure-reviewed,
+  capture-derived scenarios with independent sensitivity, source-origin,
+  derivation, and acquisition axes; exact upstream and corpus coordinates;
+  enumerated identifier classes retained in ingestible evidence; and
+  non-ingestible, digest-bound license artifacts. Evidence-identifier
+  declarations must exactly match the admitted typed saved-capture records;
+  unprovenanced host-path artifacts and opaque quarantine rows fail closed.
+  Viewport text remains v0-only until presentation bytes have an explicit
+  disclosure contract.
+- A non-default `scenario-fixtures-capture-derived` fixture whose deterministic
+  six- and seven-packet normalized prefixes protect the boundary between a
+  prefix-scoped negative WLAN result and an observed seventh-frame
+  deauthentication.
+
+### Changed
+
+- The offline `scenario` CLI now validates and replays both v0 and v1 bundles.
+  The four `PUBLIC_SYNTHETIC` v0 built-ins and their
+  `netbraid.scenario_replay.v0` receipt remain unchanged. V1 replay emits
+  `netbraid.scenario_replay.v1` so declared sensitivity and disclosure metadata
+  survive detached receipt transport without implying authenticated review.
+- Cargo source archives now distinguish product fixtures from repository-only
+  evaluation data. `netbraid-replay` includes BSD-3-Clause because it exposes
+  the reviewed capture-derived fixture as a non-default product feature. The
+  adapter and root CLI exclude their test-only upstream corpora, notices, and
+  workspace-only integration tests from publication and retain
+  `MIT OR Unlicense`.
+
 ## [0.3.0] - 2026-07-27
 
 ### Added

@@ -83,9 +83,22 @@ candidate, live Netbraid daemon, or production Rust fusion writer today.
 `netbraid-replay` also owns a finite scenario-bundle validator and checkpoint
 replay receipt. Scenario coverage, expected conclusions, required abstentions,
 and viewport constraints are evaluation oracles, not newly observed evidence.
-The first synthetic bundles protect attachment recurrence, overlay attribution
-abstention, and stale-cache handling. They do not by themselves pass the gate
-for episodes, fingerprints, bindings, identity fusion, or live cutover.
+Four `PUBLIC_SYNTHETIC` v0 bundles protect attachment recurrence, a same-SSID
+attachment boundary, overlay-attribution abstention, and stale-cache handling.
+A separate `PUBLIC_REVIEWED` v1 bundle uses deterministic six- and seven-packet
+prefixes from one admitted public capture to protect prefix-scoped WLAN absence
+and seventh-frame deauthentication semantics. It separates disclosure status
+from observed source origin, normalized-saved-capture derivation, and
+third-party acquisition; records exact upstream, digest, and license lineage;
+and omits packet payload bytes from ingestible evidence artifacts. None of
+these bundles by itself passes the gate for episodes, fingerprints, bindings,
+identity fusion, or live cutover.
+
+The reviewed prefix artifacts commit a reference TShark version, field registry,
+and effective-configuration fingerprint as provenance for their exact bytes.
+They are not portable regeneration constants. A regeneration difference is a
+new closure to review, not evidence that an otherwise compatible operator host
+is invalid.
 
 ## Decision
 
@@ -433,8 +446,9 @@ claim.
    and their coverage limits deterministic.
 2. Extend the content-addressed Netbraid scenario-bundle contract across
    attachment, route/overlay, impairment, cache, saved-capture, and viewport
-   changes, then have Linktop consume the same checkpoint receipts in its
-   deterministic presentation QA.
+   changes. Keep synthetic v0 fixtures separate from disclosure-reviewed
+   capture-derived v1 fixtures, and have Linktop consume the same v0 checkpoint
+   receipt semantics in deterministic presentation QA.
 3. Add acquisition-receipt fixtures for filters, snaplen, drops, clock facts,
    observation points, and source progress.
 4. Add a native container/transport experimental profile only where it answers

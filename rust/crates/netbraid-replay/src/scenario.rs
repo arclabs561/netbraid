@@ -13,7 +13,9 @@ use crate::{
 };
 
 pub const SCENARIO_BUNDLE_SCHEMA_V0: &str = "netbraid.scenario_bundle.v0";
+pub const SCENARIO_BUNDLE_SCHEMA_V1: &str = "netbraid.scenario_bundle.v1";
 pub const SCENARIO_REPLAY_SCHEMA_V0: &str = "netbraid.scenario_replay.v0";
+pub const SCENARIO_REPLAY_SCHEMA_V1: &str = "netbraid.scenario_replay.v1";
 
 const MANIFEST_NAME: &str = "scenario.json";
 
@@ -80,12 +82,194 @@ pub struct ScenarioArtifactV0 {
     pub sha256: String,
 }
 
+/// A public scenario manifest that declares disclosure review of derived evidence.
+///
+/// Version 1 leaves the version 0 public-synthetic contract unchanged and
+/// separates disclosure status from source origin, acquisition, and
+/// derivation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct ScenarioManifestV1 {
+    pub schema: String,
+    pub scenario_id: String,
+    pub license: String,
+    pub sensitivity: ScenarioSensitivityV1,
+    pub disclosure_review: ScenarioDisclosureReviewV1,
+    pub provenance: ScenarioProvenanceV1,
+    pub artifacts: Vec<ScenarioArtifactV1>,
+    pub timeline: Vec<ScenarioTimelineCheckpointV0>,
+    pub expected: ScenarioExpectedV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum ScenarioSensitivityV1 {
+    #[serde(rename = "PUBLIC_REVIEWED")]
+    PublicReviewed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct ScenarioDisclosureReviewV1 {
+    pub retained_evidence_identifier_classes: Vec<ScenarioIdentifierClassV1>,
+    pub evidence_payload_handling: ScenarioPayloadHandlingV1,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ScenarioIdentifierClassV1 {
+    LinkLayerAddress,
+    NetworkName,
+    NetworkLayerAddress,
+    ObserverIdentifier,
+    PacketTimestamp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ScenarioPayloadHandlingV1 {
+    OmittedFromIngestibleEvidenceArtifacts,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct ScenarioProvenanceV1 {
+    pub generator: String,
+    pub generator_version: String,
+    pub description: String,
+    pub sources: Vec<ScenarioSourceProvenanceV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct ScenarioSourceProvenanceV1 {
+    pub id: String,
+    pub source_origin: ScenarioSourceOriginV1,
+    pub derivation: ScenarioDerivationV1,
+    pub acquisition: ScenarioAcquisitionV1,
+    pub corpus_schema: String,
+    pub corpus_fixture_id: String,
+    pub repository: String,
+    pub revision: String,
+    pub source_path: String,
+    pub source_url: String,
+    pub upstream_blob_sha1: String,
+    pub content_sha256: String,
+    pub size_bytes: u64,
+    pub spdx_license_expression: String,
+    pub license_artifact: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ScenarioSourceOriginV1 {
+    Observed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ScenarioDerivationV1 {
+    NormalizedSavedCapture,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ScenarioAcquisitionV1 {
+    ThirdPartyUpstream,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct ScenarioArtifactV1 {
+    pub id: String,
+    pub path: String,
+    pub role: ScenarioArtifactRoleV1,
+    pub media_type: String,
+    pub bytes: u64,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(rename_all = "snake_case")]
+pub enum ScenarioArtifactRoleV1 {
+    SavedCaptureJsonl,
+    LicenseText,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ScenarioArtifactRoleV0 {
     HostPathJsonl,
     SavedCaptureJsonl,
     ViewportText,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ArtifactKind {
+    HostPathJsonl,
+    SavedCaptureJsonl,
+    ViewportText,
+    LicenseText,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ArtifactDescriptor<'a> {
+    id: &'a str,
+    path: &'a str,
+    kind: ArtifactKind,
+    media_type: &'a str,
+    bytes: u64,
+    sha256: &'a str,
+}
+
+impl<'a> ArtifactDescriptor<'a> {
+    fn from_v0(artifact: &'a ScenarioArtifactV0) -> Self {
+        Self {
+            id: &artifact.id,
+            path: &artifact.path,
+            kind: match artifact.role {
+                ScenarioArtifactRoleV0::HostPathJsonl => ArtifactKind::HostPathJsonl,
+                ScenarioArtifactRoleV0::SavedCaptureJsonl => ArtifactKind::SavedCaptureJsonl,
+                ScenarioArtifactRoleV0::ViewportText => ArtifactKind::ViewportText,
+            },
+            media_type: &artifact.media_type,
+            bytes: artifact.bytes,
+            sha256: &artifact.sha256,
+        }
+    }
+
+    fn from_v1(artifact: &'a ScenarioArtifactV1) -> Self {
+        Self {
+            id: &artifact.id,
+            path: &artifact.path,
+            kind: match artifact.role {
+                ScenarioArtifactRoleV1::SavedCaptureJsonl => ArtifactKind::SavedCaptureJsonl,
+                ScenarioArtifactRoleV1::LicenseText => ArtifactKind::LicenseText,
+            },
+            media_type: &artifact.media_type,
+            bytes: artifact.bytes,
+            sha256: &artifact.sha256,
+        }
+    }
+
+    fn error(self, detail: impl Into<String>) -> ScenarioError {
+        ScenarioError::Artifact {
+            artifact: self.id.to_owned(),
+            detail: detail.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -176,6 +360,14 @@ pub struct ScenarioBundleV0 {
     artifacts: BTreeMap<String, LoadedArtifactV0>,
 }
 
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct ScenarioBundleV1 {
+    manifest: ScenarioManifestV1,
+    manifest_sha256: String,
+    artifacts: BTreeMap<String, LoadedArtifactV0>,
+}
+
 impl ScenarioBundleV0 {
     pub fn manifest(&self) -> &ScenarioManifestV0 {
         &self.manifest
@@ -196,51 +388,119 @@ impl ScenarioBundleV0 {
         &self,
         receipt: &ScenarioReplayReceiptV0,
     ) -> Result<ScenarioCheckpointInputsV0, ScenarioError> {
-        let expected = replay_scenario_v0(self, &receipt.checkpoint)?;
+        let view = ScenarioReplayView::from_v0(self);
+        let expected = replay_scenario_core(view, &receipt.checkpoint)?;
         if expected != *receipt {
             return Err(ScenarioError::Invalid(
                 "scenario replay receipt does not match this bundle and checkpoint".into(),
             ));
         }
+        checkpoint_inputs_core(view, &receipt.ingested_record_refs)
+    }
+}
 
-        let mut host_path_records = Vec::new();
-        let mut saved_capture_streams = Vec::new();
-        let mut loaded_saved_artifacts = BTreeSet::new();
-        for reference in &receipt.ingested_record_refs {
-            let (artifact_id, record_id) = split_record_ref(reference)?;
-            let artifact = self
-                .artifacts
-                .get(artifact_id)
-                .expect("receipt references were validated during replay");
-            match artifact.records.get(record_id) {
-                Some(LoadedRecordV0::HostPath(record)) => {
-                    host_path_records.push(record.as_ref().clone());
-                }
-                Some(LoadedRecordV0::SavedCapture)
-                    if loaded_saved_artifacts.insert(artifact_id.to_owned()) =>
-                {
-                    let stream = parse_saved_capture_jsonl(&artifact.bytes).map_err(|error| {
-                        ScenarioError::Artifact {
-                            artifact: artifact_id.to_owned(),
-                            detail: format!(
-                                "validated saved-capture stream could not be resolved: {error}"
-                            ),
-                        }
-                    })?;
-                    saved_capture_streams.push(ScenarioSavedCaptureInputV0 {
-                        artifact: artifact_id.to_owned(),
-                        stream,
-                    });
-                }
-                Some(LoadedRecordV0::SavedCapture) => {}
-                None => unreachable!("receipt references were validated during replay"),
-            }
+#[derive(Clone, Copy)]
+struct ScenarioReplayView<'a> {
+    scenario_id: &'a str,
+    manifest_sha256: &'a str,
+    timeline: &'a [ScenarioTimelineCheckpointV0],
+    expected: &'a ScenarioExpectedV0,
+    artifacts: &'a BTreeMap<String, LoadedArtifactV0>,
+}
+
+impl<'a> ScenarioReplayView<'a> {
+    fn from_v0(bundle: &'a ScenarioBundleV0) -> Self {
+        Self {
+            scenario_id: &bundle.manifest.scenario_id,
+            manifest_sha256: &bundle.manifest_sha256,
+            timeline: &bundle.manifest.timeline,
+            expected: &bundle.manifest.expected,
+            artifacts: &bundle.artifacts,
         }
+    }
 
-        Ok(ScenarioCheckpointInputsV0 {
-            host_path_records,
-            saved_capture_streams,
-        })
+    fn from_v1(bundle: &'a ScenarioBundleV1) -> Self {
+        Self {
+            scenario_id: &bundle.manifest.scenario_id,
+            manifest_sha256: &bundle.manifest_sha256,
+            timeline: &bundle.manifest.timeline,
+            expected: &bundle.manifest.expected,
+            artifacts: &bundle.artifacts,
+        }
+    }
+}
+
+fn checkpoint_inputs_core(
+    view: ScenarioReplayView<'_>,
+    ingested_record_refs: &[String],
+) -> Result<ScenarioCheckpointInputsV0, ScenarioError> {
+    let mut host_path_records = Vec::new();
+    let mut saved_capture_streams = Vec::new();
+    let mut loaded_saved_artifacts = BTreeSet::new();
+    for reference in ingested_record_refs {
+        let (artifact_id, record_id) = split_record_ref(reference)?;
+        let artifact = view
+            .artifacts
+            .get(artifact_id)
+            .expect("receipt references were validated during replay");
+        match artifact.records.get(record_id) {
+            Some(LoadedRecordV0::HostPath(record)) => {
+                host_path_records.push(record.as_ref().clone());
+            }
+            Some(LoadedRecordV0::SavedCapture)
+                if loaded_saved_artifacts.insert(artifact_id.to_owned()) =>
+            {
+                let stream = parse_saved_capture_jsonl(&artifact.bytes).map_err(|error| {
+                    ScenarioError::Artifact {
+                        artifact: artifact_id.to_owned(),
+                        detail: format!(
+                            "validated saved-capture stream could not be resolved: {error}"
+                        ),
+                    }
+                })?;
+                saved_capture_streams.push(ScenarioSavedCaptureInputV0 {
+                    artifact: artifact_id.to_owned(),
+                    stream,
+                });
+            }
+            Some(LoadedRecordV0::SavedCapture) => {}
+            None => unreachable!("receipt references were validated during replay"),
+        }
+    }
+
+    Ok(ScenarioCheckpointInputsV0 {
+        host_path_records,
+        saved_capture_streams,
+    })
+}
+
+impl ScenarioBundleV1 {
+    pub fn manifest(&self) -> &ScenarioManifestV1 {
+        &self.manifest
+    }
+
+    /// SHA-256 of the exact manifest bytes loaded from `scenario.json`.
+    pub fn manifest_sha256(&self) -> &str {
+        &self.manifest_sha256
+    }
+
+    /// Resolves typed evidence from a receipt validated against this exact
+    /// structurally loaded bundle and checkpoint.
+    ///
+    /// Disclosure-review metadata, authored conclusions, license text, and
+    /// viewport text are never returned as source evidence.
+    pub fn checkpoint_inputs_v1(
+        &self,
+        receipt: &ScenarioReplayReceiptV1,
+    ) -> Result<ScenarioCheckpointInputsV0, ScenarioError> {
+        let view = ScenarioReplayView::from_v1(self);
+        let expected = replay_scenario_v1(self, &receipt.checkpoint)?;
+        if expected != *receipt {
+            return Err(ScenarioError::Invalid(
+                "scenario replay receipt does not match this bundle and checkpoint".into(),
+            ));
+        }
+        checkpoint_inputs_core(view, &receipt.ingested_record_refs)
     }
 }
 
@@ -260,6 +520,31 @@ enum LoadedRecordV0 {
 #[serde(deny_unknown_fields)]
 pub struct ScenarioReplayReceiptV0 {
     pub schema: String,
+    pub scenario_id: String,
+    pub manifest_sha256: String,
+    pub checkpoint: String,
+    pub at_ms: u64,
+    pub ingested_record_refs: Vec<String>,
+    pub projection: ScenarioReplayProjectionV0,
+    pub source_coverage: Vec<ScenarioSourceCoverageV0>,
+    pub expected_conclusions: Vec<ScenarioConclusionV0>,
+    pub viewport_assertions: Vec<ScenarioViewportAssertionV0>,
+}
+
+/// Replay receipt for a version 1 scenario that declares disclosure review.
+///
+/// Unlike a version 0 receipt, this remains self-describing when detached from
+/// its bundle: the bundle contract, declared sensitivity, and declared
+/// disclosure review travel with the replay projection. The receipt does not
+/// authenticate the review authority.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+#[serde(deny_unknown_fields)]
+pub struct ScenarioReplayReceiptV1 {
+    pub schema: String,
+    pub bundle_schema: String,
+    pub declared_sensitivity: ScenarioSensitivityV1,
+    pub declared_disclosure_review: ScenarioDisclosureReviewV1,
     pub scenario_id: String,
     pub manifest_sha256: String,
     pub checkpoint: String,
@@ -394,11 +679,69 @@ pub fn load_scenario_bundle_v0(
     let manifest: ScenarioManifestV0 =
         serde_json::from_slice(&manifest_bytes).map_err(ScenarioError::ManifestJson)?;
     validate_manifest_shape(&manifest, limits)?;
-
-    let declared_paths = manifest
+    let descriptors = manifest
         .artifacts
         .iter()
-        .map(|artifact| artifact.path.as_str())
+        .map(ArtifactDescriptor::from_v0)
+        .collect::<Vec<_>>();
+    let loaded = load_scenario_artifacts(directory, &root, &descriptors, limits)?;
+    finish_bundle(manifest, &manifest_bytes, loaded, limits)
+}
+
+/// Structurally validates one version 1 directory that declares review.
+///
+/// Version 1 adds structured source lineage and license artifacts while
+/// retaining the same closed-inventory, deterministic replay, and evidence
+/// projection rules as version 0. Loading does not authenticate the review
+/// authority; callers must establish a trusted admission or distribution path.
+pub fn load_scenario_bundle_v1(
+    directory: impl AsRef<Path>,
+    limits: ScenarioLimitsV0,
+) -> Result<ScenarioBundleV1, ScenarioError> {
+    let directory = directory.as_ref();
+    let root = ScenarioDirectoryV0::open(directory)?;
+    let (manifest_file, manifest_path, manifest_bytes_len) =
+        root.open_regular_file(Path::new(MANIFEST_NAME))?;
+    if manifest_bytes_len > limits.max_manifest_bytes {
+        return Err(ScenarioError::ManifestTooLarge {
+            bytes: manifest_bytes_len,
+            max_bytes: limits.max_manifest_bytes,
+        });
+    }
+    let manifest_bytes =
+        read_bounded_open_file(manifest_file, &manifest_path, limits.max_manifest_bytes)?;
+    let manifest: ScenarioManifestV1 =
+        serde_json::from_slice(&manifest_bytes).map_err(ScenarioError::ManifestJson)?;
+    validate_manifest_shape_v1(&manifest, limits)?;
+    let descriptors = manifest
+        .artifacts
+        .iter()
+        .map(ArtifactDescriptor::from_v1)
+        .collect::<Vec<_>>();
+    let loaded = load_scenario_artifacts(directory, &root, &descriptors, limits)?;
+    validate_bundle_closure(
+        &descriptors,
+        &manifest.timeline,
+        &manifest.expected,
+        &loaded,
+    )?;
+    validate_saved_capture_provenance_v1(&manifest, &descriptors, &loaded)?;
+    Ok(ScenarioBundleV1 {
+        manifest,
+        manifest_sha256: format!("sha256:{:x}", Sha256::digest(&manifest_bytes)),
+        artifacts: loaded,
+    })
+}
+
+fn load_scenario_artifacts(
+    directory: &Path,
+    root: &ScenarioDirectoryV0,
+    descriptors: &[ArtifactDescriptor<'_>],
+    limits: ScenarioLimitsV0,
+) -> Result<BTreeMap<String, LoadedArtifactV0>, ScenarioError> {
+    let declared_paths = descriptors
+        .iter()
+        .map(|artifact| artifact.path)
         .collect::<BTreeSet<_>>();
     let max_inventory_entries = limits.max_artifacts.saturating_mul(16).saturating_add(1);
     let actual_paths = collect_files(directory, max_inventory_entries)?;
@@ -422,39 +765,347 @@ pub fn load_scenario_bundle_v0(
     }
 
     let mut loaded = BTreeMap::new();
-    for artifact in &manifest.artifacts {
-        let (file, path, bytes_len) = root.open_regular_file(Path::new(&artifact.path))?;
+    for artifact in descriptors {
+        let (file, path, bytes_len) = root.open_regular_file(Path::new(artifact.path))?;
         if bytes_len > limits.max_artifact_bytes {
-            return Err(artifact_error(
-                artifact,
-                format!(
-                    "is {} bytes; per-artifact maximum is {}",
-                    bytes_len, limits.max_artifact_bytes
-                ),
-            ));
+            return Err(artifact.error(format!(
+                "is {} bytes; per-artifact maximum is {}",
+                bytes_len, limits.max_artifact_bytes
+            )));
         }
         let bytes = read_bounded_open_file(file, &path, limits.max_artifact_bytes)?;
         loaded.insert(
-            artifact.id.clone(),
-            validate_artifact(artifact, bytes, limits)?,
+            artifact.id.to_owned(),
+            validate_artifact_descriptor(*artifact, bytes, limits)?,
         );
     }
+    Ok(loaded)
+}
 
-    finish_bundle(manifest, &manifest_bytes, loaded, limits)
+fn validate_manifest_shape_v1(
+    manifest: &ScenarioManifestV1,
+    limits: ScenarioLimitsV0,
+) -> Result<(), ScenarioError> {
+    if manifest.schema != SCENARIO_BUNDLE_SCHEMA_V1 {
+        return Err(ScenarioError::Invalid(format!(
+            "unsupported scenario schema {:?}",
+            manifest.schema
+        )));
+    }
+    validate_identifier("scenario_id", &manifest.scenario_id)?;
+    if manifest.license.trim().is_empty()
+        || manifest.provenance.generator.trim().is_empty()
+        || manifest.provenance.generator_version.trim().is_empty()
+        || manifest.provenance.description.trim().is_empty()
+        || manifest.disclosure_review.summary.trim().is_empty()
+    {
+        return Err(ScenarioError::Invalid(
+            "license, provenance, and disclosure-review fields must not be empty".into(),
+        ));
+    }
+    if !manifest
+        .disclosure_review
+        .retained_evidence_identifier_classes
+        .windows(2)
+        .all(|pair| pair[0] < pair[1])
+    {
+        return Err(ScenarioError::Invalid(
+            "retained evidence identifier classes must be unique and in canonical order".into(),
+        ));
+    }
+    if manifest.provenance.sources.is_empty() {
+        return Err(ScenarioError::Invalid(
+            "PUBLIC_REVIEWED scenarios require at least one provenance source".into(),
+        ));
+    }
+
+    let descriptors = manifest
+        .artifacts
+        .iter()
+        .map(ArtifactDescriptor::from_v1)
+        .collect::<Vec<_>>();
+    validate_scenario_shape(&descriptors, &manifest.timeline, &manifest.expected, limits)?;
+    if !descriptors
+        .iter()
+        .any(|artifact| artifact.kind == ArtifactKind::SavedCaptureJsonl)
+    {
+        return Err(ScenarioError::Invalid(
+            "capture-derived version 1 scenarios require a saved_capture_jsonl artifact".into(),
+        ));
+    }
+
+    let artifact_kinds = descriptors
+        .iter()
+        .map(|artifact| (artifact.id, artifact.kind))
+        .collect::<BTreeMap<_, _>>();
+    let license_artifacts = descriptors
+        .iter()
+        .filter(|artifact| artifact.kind == ArtifactKind::LicenseText)
+        .map(|artifact| artifact.id)
+        .collect::<BTreeSet<_>>();
+    let mut source_ids = BTreeSet::new();
+    let mut referenced_licenses = BTreeSet::new();
+    for source in &manifest.provenance.sources {
+        validate_identifier("provenance source id", &source.id)?;
+        if !source_ids.insert(source.id.as_str()) {
+            return Err(ScenarioError::Invalid(format!(
+                "duplicate provenance source id {:?}",
+                source.id
+            )));
+        }
+        if [
+            &source.corpus_schema,
+            &source.corpus_fixture_id,
+            &source.repository,
+            &source.revision,
+            &source.source_path,
+            &source.source_url,
+            &source.upstream_blob_sha1,
+            &source.content_sha256,
+            &source.spdx_license_expression,
+            &source.license_artifact,
+        ]
+        .iter()
+        .any(|value| value.trim().is_empty())
+        {
+            return Err(ScenarioError::Invalid(format!(
+                "provenance source {:?} has an empty coordinate",
+                source.id
+            )));
+        }
+        validate_identifier("corpus fixture id", &source.corpus_fixture_id)?;
+        validate_sha256(&source.content_sha256).map_err(ScenarioError::Invalid)?;
+        validate_lower_hex("revision", &source.revision, 40)?;
+        validate_lower_hex("upstream_blob_sha1", &source.upstream_blob_sha1, 40)?;
+        if source.size_bytes == 0 {
+            return Err(ScenarioError::Invalid(format!(
+                "provenance source {:?} has zero size",
+                source.id
+            )));
+        }
+        if !source.source_url.starts_with("https://") {
+            return Err(ScenarioError::Invalid(format!(
+                "provenance source {:?} must use an HTTPS source_url",
+                source.id
+            )));
+        }
+        if artifact_kinds.get(source.license_artifact.as_str()) != Some(&ArtifactKind::LicenseText)
+        {
+            return Err(ScenarioError::Invalid(format!(
+                "provenance source {:?} must reference a license_text artifact",
+                source.id
+            )));
+        }
+        referenced_licenses.insert(source.license_artifact.as_str());
+    }
+    if license_artifacts != referenced_licenses {
+        return Err(ScenarioError::Invalid(format!(
+            "license artifact references are not closed; unreferenced={:?}, unknown={:?}",
+            license_artifacts
+                .difference(&referenced_licenses)
+                .collect::<Vec<_>>(),
+            referenced_licenses
+                .difference(&license_artifacts)
+                .collect::<Vec<_>>()
+        )));
+    }
+
+    for checkpoint in &manifest.timeline {
+        for reference in &checkpoint.ingest {
+            let (artifact_id, _) = split_record_ref(reference)?;
+            if license_artifacts.contains(artifact_id) {
+                return Err(ScenarioError::Invalid(format!(
+                    "license_text artifact {artifact_id:?} cannot be ingested"
+                )));
+            }
+        }
+    }
+    for evidence in manifest
+        .expected
+        .source_coverage
+        .iter()
+        .flat_map(|coverage| coverage.evidence.iter())
+        .chain(
+            manifest
+                .expected
+                .conclusions
+                .iter()
+                .flat_map(|conclusion| conclusion.evidence.iter()),
+        )
+    {
+        let (artifact_id, _) = split_record_ref(evidence)?;
+        if license_artifacts.contains(artifact_id) {
+            return Err(ScenarioError::Invalid(format!(
+                "license_text artifact {artifact_id:?} cannot be cited as evidence"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn validate_saved_capture_provenance_v1(
+    manifest: &ScenarioManifestV1,
+    descriptors: &[ArtifactDescriptor<'_>],
+    artifacts: &BTreeMap<String, LoadedArtifactV0>,
+) -> Result<(), ScenarioError> {
+    let mut matched_sources = BTreeSet::new();
+    let mut observed_identifier_classes = BTreeSet::new();
+    for descriptor in descriptors
+        .iter()
+        .filter(|artifact| artifact.kind == ArtifactKind::SavedCaptureJsonl)
+    {
+        let stream = parse_saved_capture_jsonl(&artifacts[descriptor.id].bytes)
+            .map_err(|source| descriptor.error(source.to_string()))?;
+        if stream.receipt.is_some() {
+            return Err(descriptor
+                .error("capture-derived scenario artifacts must omit occurrence receipts"));
+        }
+        if !stream.quarantines.is_empty() {
+            return Err(descriptor
+                .error("capture-derived scenario artifacts must omit opaque quarantine rows"));
+        }
+        observed_identifier_classes.extend(identifier_classes_in_saved_capture(&stream));
+        if descriptor.sha256 == stream.manifest.artifact.content_sha256 {
+            return Err(descriptor
+                .error("normalized artifact digest must differ from its raw capture digest"));
+        }
+        let matches = manifest
+            .provenance
+            .sources
+            .iter()
+            .filter(|source| {
+                source.content_sha256 == stream.manifest.artifact.content_sha256
+                    && source.size_bytes == stream.manifest.artifact.size_bytes
+            })
+            .collect::<Vec<_>>();
+        if matches.len() != 1 {
+            return Err(descriptor.error(format!(
+                "raw capture identity must match exactly one provenance source; matched {}",
+                matches.len()
+            )));
+        }
+        matched_sources.insert(matches[0].id.as_str());
+    }
+    let declared_sources = manifest
+        .provenance
+        .sources
+        .iter()
+        .map(|source| source.id.as_str())
+        .collect::<BTreeSet<_>>();
+    if matched_sources != declared_sources {
+        return Err(ScenarioError::Invalid(format!(
+            "saved-capture provenance is not closed; unused={:?}, unknown={:?}",
+            declared_sources
+                .difference(&matched_sources)
+                .collect::<Vec<_>>(),
+            matched_sources
+                .difference(&declared_sources)
+                .collect::<Vec<_>>()
+        )));
+    }
+    let declared_identifier_classes = manifest
+        .disclosure_review
+        .retained_evidence_identifier_classes
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    if observed_identifier_classes != declared_identifier_classes {
+        return Err(ScenarioError::Invalid(format!(
+            "disclosure identifier classes do not match retained evidence; undeclared={:?}, unobserved={:?}",
+            observed_identifier_classes
+                .difference(&declared_identifier_classes)
+                .collect::<Vec<_>>(),
+            declared_identifier_classes
+                .difference(&observed_identifier_classes)
+                .collect::<Vec<_>>()
+        )));
+    }
+    Ok(())
+}
+
+fn identifier_classes_in_saved_capture(
+    stream: &SavedCaptureRecordStreamV0,
+) -> BTreeSet<ScenarioIdentifierClassV1> {
+    let mut classes = BTreeSet::new();
+    if stream.manifest.observer_id.is_some() {
+        classes.insert(ScenarioIdentifierClassV1::ObserverIdentifier);
+    }
+    if stream.manifest.acquired_time_unix_ms.is_some() || !stream.packets.is_empty() {
+        classes.insert(ScenarioIdentifierClassV1::PacketTimestamp);
+    }
+    for packet in &stream.packets {
+        if packet
+            .ethernet
+            .as_ref()
+            .is_some_and(|ethernet| ethernet.source.is_some() || ethernet.destination.is_some())
+            || packet.ieee80211.as_ref().is_some_and(|wlan| {
+                wlan.transmitter.is_some()
+                    || wlan.receiver.is_some()
+                    || wlan.source.is_some()
+                    || wlan.destination.is_some()
+                    || wlan.bssid.is_some()
+            })
+        {
+            classes.insert(ScenarioIdentifierClassV1::LinkLayerAddress);
+        }
+        if packet
+            .ieee80211
+            .as_ref()
+            .is_some_and(|wlan| wlan.ssid_hex.is_some())
+        {
+            classes.insert(ScenarioIdentifierClassV1::NetworkName);
+        }
+        if packet.ipv4.is_some() || packet.ipv6.is_some() {
+            classes.insert(ScenarioIdentifierClassV1::NetworkLayerAddress);
+        }
+    }
+    classes
 }
 
 pub fn replay_scenario_v0(
     bundle: &ScenarioBundleV0,
     checkpoint: &str,
 ) -> Result<ScenarioReplayReceiptV0, ScenarioError> {
-    let target_index = bundle
-        .manifest
+    replay_scenario_core(ScenarioReplayView::from_v0(bundle), checkpoint)
+}
+
+/// Replays a structurally loaded version 1 scenario through one checkpoint.
+///
+/// The version 1 receipt preserves the bundle's declared sensitivity and
+/// disclosure review alongside the unchanged replay projection.
+pub fn replay_scenario_v1(
+    bundle: &ScenarioBundleV1,
+    checkpoint: &str,
+) -> Result<ScenarioReplayReceiptV1, ScenarioError> {
+    let receipt = replay_scenario_core(ScenarioReplayView::from_v1(bundle), checkpoint)?;
+    Ok(ScenarioReplayReceiptV1 {
+        schema: SCENARIO_REPLAY_SCHEMA_V1.into(),
+        bundle_schema: SCENARIO_BUNDLE_SCHEMA_V1.into(),
+        declared_sensitivity: bundle.manifest.sensitivity,
+        declared_disclosure_review: bundle.manifest.disclosure_review.clone(),
+        scenario_id: receipt.scenario_id,
+        manifest_sha256: receipt.manifest_sha256,
+        checkpoint: receipt.checkpoint,
+        at_ms: receipt.at_ms,
+        ingested_record_refs: receipt.ingested_record_refs,
+        projection: receipt.projection,
+        source_coverage: receipt.source_coverage,
+        expected_conclusions: receipt.expected_conclusions,
+        viewport_assertions: receipt.viewport_assertions,
+    })
+}
+
+fn replay_scenario_core(
+    view: ScenarioReplayView<'_>,
+    checkpoint: &str,
+) -> Result<ScenarioReplayReceiptV0, ScenarioError> {
+    let target_index = view
         .timeline
         .iter()
         .position(|candidate| candidate.name == checkpoint)
         .ok_or_else(|| ScenarioError::UnknownCheckpoint(checkpoint.to_owned()))?;
-    let target = &bundle.manifest.timeline[target_index];
-    let ingested_record_refs = bundle.manifest.timeline[..=target_index]
+    let target = &view.timeline[target_index];
+    let ingested_record_refs = view.timeline[..=target_index]
         .iter()
         .flat_map(|entry| entry.ingest.iter().cloned())
         .collect::<Vec<_>>();
@@ -463,7 +1114,7 @@ pub fn replay_scenario_v0(
     let mut saved_ids = BTreeSet::new();
     for reference in &ingested_record_refs {
         let (artifact_id, record_id) = split_record_ref(reference)?;
-        let artifact = bundle
+        let artifact = view
             .artifacts
             .get(artifact_id)
             .ok_or_else(|| ScenarioError::Invalid(format!("unknown artifact {artifact_id:?}")))?;
@@ -489,24 +1140,18 @@ pub fn replay_scenario_v0(
     let saved_captures = saved_ids
         .into_iter()
         .map(|artifact_id| {
-            let artifact = bundle
-                .manifest
-                .artifacts
-                .iter()
-                .find(|artifact| artifact.id == artifact_id)
-                .expect("validated artifact ID");
-            let loaded = bundle
+            let loaded = view
                 .artifacts
                 .get(&artifact_id)
                 .expect("validated artifact data");
-            project_saved_capture(&artifact.id, &loaded.bytes)
+            project_saved_capture(&artifact_id, &loaded.bytes)
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(ScenarioReplayReceiptV0 {
         schema: SCENARIO_REPLAY_SCHEMA_V0.into(),
-        scenario_id: bundle.manifest.scenario_id.clone(),
-        manifest_sha256: bundle.manifest_sha256.clone(),
+        scenario_id: view.scenario_id.to_owned(),
+        manifest_sha256: view.manifest_sha256.to_owned(),
         checkpoint: target.name.clone(),
         at_ms: target.at_ms,
         ingested_record_refs,
@@ -514,31 +1159,26 @@ pub fn replay_scenario_v0(
             host_path,
             saved_captures,
         },
-        source_coverage: bundle
-            .manifest
+        source_coverage: view
             .expected
             .source_coverage
             .iter()
             .filter(|coverage| {
-                bundle
-                    .manifest
-                    .timeline
+                view.timeline
                     .iter()
                     .position(|candidate| candidate.name == coverage.checkpoint)
                     .is_some_and(|index| index <= target_index)
             })
             .cloned()
             .collect(),
-        expected_conclusions: bundle
-            .manifest
+        expected_conclusions: view
             .expected
             .conclusions
             .iter()
             .filter(|conclusion| conclusion.checkpoint == target.name)
             .cloned()
             .collect(),
-        viewport_assertions: bundle
-            .manifest
+        viewport_assertions: view
             .expected
             .viewports
             .iter()
@@ -568,19 +1208,33 @@ fn validate_manifest_shape(
             "license and provenance fields must not be empty".into(),
         ));
     }
-    if manifest.artifacts.is_empty() || manifest.artifacts.len() > limits.max_artifacts {
+    let artifacts = manifest
+        .artifacts
+        .iter()
+        .map(ArtifactDescriptor::from_v0)
+        .collect::<Vec<_>>();
+    validate_scenario_shape(&artifacts, &manifest.timeline, &manifest.expected, limits)
+}
+
+fn validate_scenario_shape(
+    artifacts: &[ArtifactDescriptor<'_>],
+    timeline: &[ScenarioTimelineCheckpointV0],
+    expected: &ScenarioExpectedV0,
+    limits: ScenarioLimitsV0,
+) -> Result<(), ScenarioError> {
+    if artifacts.is_empty() || artifacts.len() > limits.max_artifacts {
         return Err(ScenarioError::Invalid(format!(
             "scenario must declare 1..={} artifacts",
             limits.max_artifacts
         )));
     }
-    if manifest.timeline.is_empty() || manifest.timeline.len() > limits.max_checkpoints {
+    if timeline.is_empty() || timeline.len() > limits.max_checkpoints {
         return Err(ScenarioError::Invalid(format!(
             "scenario must declare 1..={} checkpoints",
             limits.max_checkpoints
         )));
     }
-    if manifest.expected.conclusions.len() > limits.max_conclusions {
+    if expected.conclusions.len() > limits.max_conclusions {
         return Err(ScenarioError::Invalid(format!(
             "scenario declares too many conclusions; maximum is {}",
             limits.max_conclusions
@@ -590,16 +1244,16 @@ fn validate_manifest_shape(
     let mut artifact_ids = BTreeSet::new();
     let mut artifact_paths = BTreeSet::new();
     let mut declared_total_bytes = 0_u64;
-    for artifact in &manifest.artifacts {
-        validate_identifier("artifact id", &artifact.id)?;
-        validate_relative_path(&artifact.path)?;
-        if !artifact_ids.insert(artifact.id.as_str()) {
+    for artifact in artifacts {
+        validate_identifier("artifact id", artifact.id)?;
+        validate_relative_path(artifact.path)?;
+        if !artifact_ids.insert(artifact.id) {
             return Err(ScenarioError::Invalid(format!(
                 "duplicate artifact id {:?}",
                 artifact.id
             )));
         }
-        if !artifact_paths.insert(artifact.path.as_str()) {
+        if !artifact_paths.insert(artifact.path) {
             return Err(ScenarioError::Invalid(format!(
                 "duplicate artifact path {:?}",
                 artifact.path
@@ -611,34 +1265,26 @@ fn validate_manifest_shape(
             ));
         }
         if artifact.bytes > limits.max_artifact_bytes {
-            return Err(artifact_error(
-                artifact,
-                format!(
-                    "declares {} bytes; per-artifact maximum is {}",
-                    artifact.bytes, limits.max_artifact_bytes
-                ),
-            ));
+            return Err(artifact.error(format!(
+                "declares {} bytes; per-artifact maximum is {}",
+                artifact.bytes, limits.max_artifact_bytes
+            )));
         }
         declared_total_bytes = declared_total_bytes
             .checked_add(artifact.bytes)
             .ok_or_else(|| {
                 ScenarioError::Invalid("declared artifact byte total overflowed".into())
             })?;
-        validate_sha256(&artifact.sha256).map_err(|detail| artifact_error(artifact, detail))?;
-        let expected_media = match artifact.role {
-            ScenarioArtifactRoleV0::HostPathJsonl | ScenarioArtifactRoleV0::SavedCaptureJsonl => {
-                "application/x-ndjson"
-            }
-            ScenarioArtifactRoleV0::ViewportText => "text/plain",
+        validate_sha256(artifact.sha256).map_err(|detail| artifact.error(detail))?;
+        let expected_media = match artifact.kind {
+            ArtifactKind::HostPathJsonl | ArtifactKind::SavedCaptureJsonl => "application/x-ndjson",
+            ArtifactKind::ViewportText | ArtifactKind::LicenseText => "text/plain",
         };
         if artifact.media_type != expected_media {
-            return Err(artifact_error(
-                artifact,
-                format!(
-                    "role {:?} requires media_type {expected_media:?}",
-                    artifact.role
-                ),
-            ));
+            return Err(artifact.error(format!(
+                "role {:?} requires media_type {expected_media:?}",
+                artifact.kind
+            )));
         }
     }
     if declared_total_bytes > limits.max_total_artifact_bytes {
@@ -651,7 +1297,7 @@ fn validate_manifest_shape(
     let mut checkpoint_names = BTreeSet::new();
     let mut last_time = None;
     let mut ingested_refs = BTreeSet::new();
-    for checkpoint in &manifest.timeline {
+    for checkpoint in timeline {
         validate_identifier("checkpoint name", &checkpoint.name)?;
         if !checkpoint_names.insert(checkpoint.name.as_str()) {
             return Err(ScenarioError::Invalid(format!(
@@ -683,7 +1329,7 @@ fn validate_manifest_shape(
 
     let mut coverage_ids = BTreeSet::new();
     let mut coverage_scopes = BTreeSet::new();
-    for coverage in &manifest.expected.source_coverage {
+    for coverage in &expected.source_coverage {
         validate_identifier("coverage id", &coverage.id)?;
         if !coverage_ids.insert(coverage.id.as_str()) {
             return Err(ScenarioError::Invalid(format!(
@@ -751,7 +1397,7 @@ fn validate_manifest_shape(
     }
 
     let mut conclusion_ids = BTreeSet::new();
-    for conclusion in &manifest.expected.conclusions {
+    for conclusion in &expected.conclusions {
         validate_identifier("conclusion id", &conclusion.id)?;
         if !conclusion_ids.insert(conclusion.id.as_str()) {
             return Err(ScenarioError::Invalid(format!(
@@ -805,15 +1451,14 @@ fn validate_manifest_shape(
         }
     }
 
-    for viewport in &manifest.expected.viewports {
+    for viewport in &expected.viewports {
         if !checkpoint_names.contains(viewport.checkpoint.as_str()) {
             return Err(ScenarioError::Invalid(format!(
                 "viewport names unknown checkpoint {:?}",
                 viewport.checkpoint
             )));
         }
-        let Some(artifact) = manifest
-            .artifacts
+        let Some(artifact) = artifacts
             .iter()
             .find(|artifact| artifact.id == viewport.artifact)
         else {
@@ -822,11 +1467,10 @@ fn validate_manifest_shape(
                 viewport.artifact
             )));
         };
-        if artifact.role != ScenarioArtifactRoleV0::ViewportText {
-            return Err(artifact_error(
-                artifact,
-                "viewport assertion must reference a viewport_text artifact",
-            ));
+        if artifact.kind != ArtifactKind::ViewportText {
+            return Err(
+                artifact.error("viewport assertion must reference a viewport_text artifact")
+            );
         }
         let cells = u64::from(viewport.width) * u64::from(viewport.height);
         if viewport.width == 0 || viewport.height == 0 || cells > limits.max_viewport_cells {
@@ -839,35 +1483,38 @@ fn validate_manifest_shape(
     Ok(())
 }
 
+#[cfg(feature = "scenario-fixtures")]
 fn validate_artifact(
     artifact: &ScenarioArtifactV0,
+    bytes: Vec<u8>,
+    limits: ScenarioLimitsV0,
+) -> Result<LoadedArtifactV0, ScenarioError> {
+    validate_artifact_descriptor(ArtifactDescriptor::from_v0(artifact), bytes, limits)
+}
+
+fn validate_artifact_descriptor(
+    artifact: ArtifactDescriptor<'_>,
     bytes: Vec<u8>,
     _limits: ScenarioLimitsV0,
 ) -> Result<LoadedArtifactV0, ScenarioError> {
     let actual_bytes = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
     if actual_bytes != artifact.bytes {
-        return Err(artifact_error(
-            artifact,
-            format!(
-                "byte count mismatch: declared {}, actual {actual_bytes}",
-                artifact.bytes
-            ),
-        ));
+        return Err(artifact.error(format!(
+            "byte count mismatch: declared {}, actual {actual_bytes}",
+            artifact.bytes
+        )));
     }
     let digest = format!("sha256:{:x}", Sha256::digest(&bytes));
     if digest != artifact.sha256 {
-        return Err(artifact_error(
-            artifact,
-            format!(
-                "digest mismatch: declared {}, actual {digest}",
-                artifact.sha256
-            ),
-        ));
+        return Err(artifact.error(format!(
+            "digest mismatch: declared {}, actual {digest}",
+            artifact.sha256
+        )));
     }
-    let records = match artifact.role {
-        ScenarioArtifactRoleV0::HostPathJsonl => {
+    let records = match artifact.kind {
+        ArtifactKind::HostPathJsonl => {
             let replay = parse_host_path_jsonl(&bytes)
-                .map_err(|source| artifact_error(artifact, source.to_string()))?;
+                .map_err(|source| artifact.error(source.to_string()))?;
             validate_canonical_host_path_jsonl(artifact, &bytes, &replay)?;
             replay
                 .records
@@ -880,13 +1527,17 @@ fn validate_artifact(
                 })
                 .collect()
         }
-        ScenarioArtifactRoleV0::SavedCaptureJsonl => {
+        ArtifactKind::SavedCaptureJsonl => {
             let stream = parse_saved_capture_jsonl(&bytes)
-                .map_err(|source| artifact_error(artifact, source.to_string()))?;
+                .map_err(|source| artifact.error(source.to_string()))?;
             saved_capture_records(&stream)
         }
-        ScenarioArtifactRoleV0::ViewportText => {
+        ArtifactKind::ViewportText => {
             validate_viewport_bytes(artifact, &bytes)?;
+            BTreeMap::new()
+        }
+        ArtifactKind::LicenseText => {
+            validate_license_text_bytes(artifact, &bytes)?;
             BTreeMap::new()
         }
     };
@@ -894,7 +1545,7 @@ fn validate_artifact(
 }
 
 fn validate_canonical_host_path_jsonl(
-    artifact: &ScenarioArtifactV0,
+    artifact: ArtifactDescriptor<'_>,
     bytes: &[u8],
     replay: &ReplayStateV0,
 ) -> Result<(), ScenarioError> {
@@ -909,55 +1560,43 @@ fn validate_canonical_host_path_jsonl(
             continue;
         }
         let value: serde_json::Value = serde_json::from_slice(line).map_err(|source| {
-            artifact_error(
-                artifact,
-                format!("invalid host-path JSON on line {}: {source}", index + 1),
-            )
+            artifact.error(format!(
+                "invalid host-path JSON on line {}: {source}",
+                index + 1
+            ))
         })?;
         let record_id = value
             .get("record_id")
             .and_then(serde_json::Value::as_str)
             .ok_or_else(|| {
-                artifact_error(
-                    artifact,
-                    format!(
-                        "host-path record on line {} has no string record_id",
-                        index + 1
-                    ),
-                )
+                artifact.error(format!(
+                    "host-path record on line {} has no string record_id",
+                    index + 1
+                ))
             })?;
         if !seen.insert(record_id.to_owned()) {
-            return Err(artifact_error(
-                artifact,
-                format!("host-path record_id {record_id:?} occurs more than once"),
-            ));
+            return Err(artifact.error(format!(
+                "host-path record_id {record_id:?} occurs more than once"
+            )));
         }
         let record = replay_by_id.get(record_id).ok_or_else(|| {
-            artifact_error(
-                artifact,
-                format!("host-path record {record_id:?} was not retained by strict replay"),
-            )
+            artifact.error(format!(
+                "host-path record {record_id:?} was not retained by strict replay"
+            ))
         })?;
         let canonical = serde_json::to_value(record).map_err(|source| {
-            artifact_error(
-                artifact,
-                format!("serializing host-path record {record_id:?}: {source}"),
-            )
+            artifact.error(format!(
+                "serializing host-path record {record_id:?}: {source}"
+            ))
         })?;
         if canonical != value {
-            return Err(artifact_error(
-                artifact,
-                format!(
-                    "host-path record {record_id:?} has unknown, noncanonical, or redundant fields"
-                ),
-            ));
+            return Err(artifact.error(format!(
+                "host-path record {record_id:?} has unknown, noncanonical, or redundant fields"
+            )));
         }
     }
     if seen.len() != replay_by_id.len() {
-        return Err(artifact_error(
-            artifact,
-            "host-path record inventory differs from strict replay",
-        ));
+        return Err(artifact.error("host-path record inventory differs from strict replay"));
     }
     Ok(())
 }
@@ -968,6 +1607,30 @@ fn finish_bundle(
     artifacts: BTreeMap<String, LoadedArtifactV0>,
     _limits: ScenarioLimitsV0,
 ) -> Result<ScenarioBundleV0, ScenarioError> {
+    let descriptors = manifest
+        .artifacts
+        .iter()
+        .map(ArtifactDescriptor::from_v0)
+        .collect::<Vec<_>>();
+    validate_bundle_closure(
+        &descriptors,
+        &manifest.timeline,
+        &manifest.expected,
+        &artifacts,
+    )?;
+    Ok(ScenarioBundleV0 {
+        manifest,
+        manifest_sha256: format!("sha256:{:x}", Sha256::digest(manifest_bytes)),
+        artifacts,
+    })
+}
+
+fn validate_bundle_closure(
+    descriptors: &[ArtifactDescriptor<'_>],
+    timeline: &[ScenarioTimelineCheckpointV0],
+    expected: &ScenarioExpectedV0,
+    artifacts: &BTreeMap<String, LoadedArtifactV0>,
+) -> Result<(), ScenarioError> {
     let available_refs = artifacts
         .iter()
         .flat_map(|(artifact_id, artifact)| {
@@ -980,8 +1643,7 @@ fn finish_bundle(
     for reference in &available_refs {
         split_record_ref(reference)?;
     }
-    let ingested_refs = manifest
-        .timeline
+    let ingested_refs = timeline
         .iter()
         .flat_map(|checkpoint| checkpoint.ingest.iter().cloned())
         .collect::<BTreeSet<_>>();
@@ -997,14 +1659,12 @@ fn finish_bundle(
         )));
     }
 
-    let checkpoint_order = manifest
-        .timeline
+    let checkpoint_order = timeline
         .iter()
         .enumerate()
         .map(|(index, checkpoint)| (checkpoint.name.as_str(), index))
         .collect::<BTreeMap<_, _>>();
-    let ingest_order = manifest
-        .timeline
+    let ingest_order = timeline
         .iter()
         .enumerate()
         .flat_map(|(index, checkpoint)| {
@@ -1014,12 +1674,11 @@ fn finish_bundle(
                 .map(move |reference| (reference.as_str(), index))
         })
         .collect::<BTreeMap<_, _>>();
-    for artifact in manifest
-        .artifacts
+    for artifact in descriptors
         .iter()
-        .filter(|artifact| artifact.role == ScenarioArtifactRoleV0::SavedCaptureJsonl)
+        .filter(|artifact| artifact.kind == ArtifactKind::SavedCaptureJsonl)
     {
-        let ingestion_checkpoints = artifacts[&artifact.id]
+        let ingestion_checkpoints = artifacts[artifact.id]
             .records
             .keys()
             .filter_map(|record| {
@@ -1028,13 +1687,11 @@ fn finish_bundle(
             })
             .collect::<BTreeSet<_>>();
         if ingestion_checkpoints.len() != 1 {
-            return Err(artifact_error(
-                artifact,
-                "saved-capture records must be ingested atomically at one checkpoint",
-            ));
+            return Err(artifact
+                .error("saved-capture records must be ingested atomically at one checkpoint"));
         }
     }
-    for coverage in &manifest.expected.source_coverage {
+    for coverage in &expected.source_coverage {
         let checkpoint_index = checkpoint_order[coverage.checkpoint.as_str()];
         validate_evidence_availability(
             &coverage.evidence,
@@ -1043,7 +1700,7 @@ fn finish_bundle(
             &format!("coverage {:?}", coverage.id),
         )?;
     }
-    for conclusion in &manifest.expected.conclusions {
+    for conclusion in &expected.conclusions {
         let checkpoint_index = checkpoint_order[conclusion.checkpoint.as_str()];
         validate_evidence_availability(
             &conclusion.evidence,
@@ -1052,8 +1709,7 @@ fn finish_bundle(
             &format!("conclusion {:?}", conclusion.id),
         )?;
         for coverage_id in &conclusion.coverage {
-            let coverage = manifest
-                .expected
+            let coverage = expected
                 .source_coverage
                 .iter()
                 .find(|coverage| coverage.id == *coverage_id)
@@ -1066,18 +1722,14 @@ fn finish_bundle(
             }
         }
     }
-    for viewport in &manifest.expected.viewports {
+    for viewport in &expected.viewports {
         let artifact = artifacts
             .get(&viewport.artifact)
             .expect("viewport artifact validated");
         validate_viewport_dimensions(viewport, &artifact.bytes)?;
     }
 
-    Ok(ScenarioBundleV0 {
-        manifest,
-        manifest_sha256: format!("sha256:{:x}", Sha256::digest(manifest_bytes)),
-        artifacts,
-    })
+    Ok(())
 }
 
 fn validate_evidence_availability(
@@ -1173,38 +1825,43 @@ fn project_saved_capture(
 }
 
 fn validate_viewport_bytes(
-    artifact: &ScenarioArtifactV0,
+    artifact: ArtifactDescriptor<'_>,
     bytes: &[u8],
 ) -> Result<(), ScenarioError> {
     if !bytes.is_ascii() {
-        return Err(artifact_error(artifact, "viewport text must be ASCII"));
+        return Err(artifact.error("viewport text must be ASCII"));
     }
     if bytes.contains(&0x1b) {
-        return Err(artifact_error(
-            artifact,
-            "viewport text must not contain ANSI escape bytes",
-        ));
+        return Err(artifact.error("viewport text must not contain ANSI escape bytes"));
     }
     if bytes.contains(&b'\r') {
-        return Err(artifact_error(
-            artifact,
-            "viewport text must use LF line endings",
-        ));
+        return Err(artifact.error("viewport text must use LF line endings"));
     }
     if bytes
         .iter()
         .any(|byte| *byte != b'\n' && !matches!(*byte, b' '..=b'~'))
     {
-        return Err(artifact_error(
-            artifact,
-            "viewport text may contain only printable ASCII cells and LF",
-        ));
+        return Err(artifact.error("viewport text may contain only printable ASCII cells and LF"));
     }
     if !bytes.is_empty() && !bytes.ends_with(b"\n") {
-        return Err(artifact_error(
-            artifact,
-            "viewport text must end with a newline",
-        ));
+        return Err(artifact.error("viewport text must end with a newline"));
+    }
+    Ok(())
+}
+
+fn validate_license_text_bytes(
+    artifact: ArtifactDescriptor<'_>,
+    bytes: &[u8],
+) -> Result<(), ScenarioError> {
+    if bytes.is_empty() {
+        return Err(artifact.error("license text must not be empty"));
+    }
+    std::str::from_utf8(bytes).map_err(|_| artifact.error("license text must be UTF-8"))?;
+    if bytes.contains(&b'\0') || bytes.contains(&b'\r') {
+        return Err(artifact.error("license text must use NUL-free LF line endings"));
+    }
+    if !bytes.ends_with(b"\n") {
+        return Err(artifact.error("license text must end with an LF"));
     }
     Ok(())
 }
@@ -1536,11 +2193,17 @@ fn validate_sha256(value: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn artifact_error(artifact: &ScenarioArtifactV0, detail: impl Into<String>) -> ScenarioError {
-    ScenarioError::Artifact {
-        artifact: artifact.id.clone(),
-        detail: detail.into(),
+fn validate_lower_hex(field: &str, value: &str, expected_len: usize) -> Result<(), ScenarioError> {
+    if value.len() != expected_len
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    {
+        return Err(ScenarioError::Invalid(format!(
+            "{field} must use exactly {expected_len} lowercase hexadecimal characters"
+        )));
     }
+    Ok(())
 }
 
 #[cfg(feature = "scenario-fixtures")]
@@ -1675,4 +2338,111 @@ fn load_scenario_bundle_from_memory_v0(
         );
     }
     finish_bundle(manifest, manifest_bytes, loaded, limits)
+}
+
+#[cfg(feature = "scenario-fixtures-capture-derived")]
+pub fn builtin_scenario_ids_v1() -> &'static [&'static str] {
+    &["saved-capture-prefix-boundary"]
+}
+
+#[cfg(feature = "scenario-fixtures-capture-derived")]
+pub fn builtin_scenario_v1(id: &str) -> Result<ScenarioBundleV1, ScenarioError> {
+    let (manifest_bytes, artifact_bytes): (&[u8], &[(&str, &[u8])]) = match id {
+        "saved-capture-prefix-boundary" => (
+            include_bytes!(
+                "../tests/fixtures/scenarios/saved-capture-prefix-boundary/scenario.json"
+            ),
+            &[
+                (
+                    "prefix-6.jsonl",
+                    include_bytes!(
+                        "../tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-6.jsonl"
+                    ),
+                ),
+                (
+                    "prefix-7.jsonl",
+                    include_bytes!(
+                        "../tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl"
+                    ),
+                ),
+                (
+                    "LICENSE-libpcap-BSD-3-Clause.txt",
+                    include_bytes!(
+                        "../tests/fixtures/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt"
+                    ),
+                ),
+            ],
+        ),
+        _ => {
+            return Err(ScenarioError::Invalid(format!(
+                "unknown built-in version 1 scenario {id:?}"
+            )));
+        }
+    };
+    load_scenario_bundle_from_memory_v1(manifest_bytes, artifact_bytes, ScenarioLimitsV0::default())
+}
+
+#[cfg(feature = "scenario-fixtures-capture-derived")]
+fn load_scenario_bundle_from_memory_v1(
+    manifest_bytes: &[u8],
+    artifact_bytes: &[(&str, &[u8])],
+    limits: ScenarioLimitsV0,
+) -> Result<ScenarioBundleV1, ScenarioError> {
+    let manifest_len = u64::try_from(manifest_bytes.len()).unwrap_or(u64::MAX);
+    if manifest_len > limits.max_manifest_bytes {
+        return Err(ScenarioError::ManifestTooLarge {
+            bytes: manifest_len,
+            max_bytes: limits.max_manifest_bytes,
+        });
+    }
+    let manifest: ScenarioManifestV1 =
+        serde_json::from_slice(manifest_bytes).map_err(ScenarioError::ManifestJson)?;
+    validate_manifest_shape_v1(&manifest, limits)?;
+    let descriptors = manifest
+        .artifacts
+        .iter()
+        .map(ArtifactDescriptor::from_v1)
+        .collect::<Vec<_>>();
+    let supplied = artifact_bytes
+        .iter()
+        .map(|(path, bytes)| ((*path).to_owned(), *bytes))
+        .collect::<BTreeMap<_, _>>();
+    let expected = descriptors
+        .iter()
+        .map(|artifact| artifact.path.to_owned())
+        .collect::<BTreeSet<_>>();
+    if supplied.keys().cloned().collect::<BTreeSet<_>>() != expected {
+        return Err(ScenarioError::Invalid(
+            "built-in version 1 scenario artifact inventory mismatch".into(),
+        ));
+    }
+    let mut total = 0_u64;
+    let mut loaded = BTreeMap::new();
+    for artifact in &descriptors {
+        let bytes = supplied[artifact.path];
+        total = total
+            .checked_add(u64::try_from(bytes.len()).unwrap_or(u64::MAX))
+            .ok_or_else(|| ScenarioError::Invalid("artifact byte total overflowed".into()))?;
+        if total > limits.max_total_artifact_bytes {
+            return Err(ScenarioError::Invalid(
+                "built-in version 1 scenario exceeds total artifact byte limit".into(),
+            ));
+        }
+        loaded.insert(
+            artifact.id.to_owned(),
+            validate_artifact_descriptor(*artifact, bytes.to_vec(), limits)?,
+        );
+    }
+    validate_bundle_closure(
+        &descriptors,
+        &manifest.timeline,
+        &manifest.expected,
+        &loaded,
+    )?;
+    validate_saved_capture_provenance_v1(&manifest, &descriptors, &loaded)?;
+    Ok(ScenarioBundleV1 {
+        manifest,
+        manifest_sha256: format!("sha256:{:x}", Sha256::digest(manifest_bytes)),
+        artifacts: loaded,
+    })
 }

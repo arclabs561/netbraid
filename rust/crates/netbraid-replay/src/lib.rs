@@ -27,15 +27,22 @@ pub use saved_capture::{
 };
 #[cfg(feature = "scenario-fixtures")]
 pub use scenario::{builtin_scenario_ids_v0, builtin_scenario_v0};
+#[cfg(feature = "scenario-fixtures-capture-derived")]
+pub use scenario::{builtin_scenario_ids_v1, builtin_scenario_v1};
 pub use scenario::{
-    load_scenario_bundle_v0, replay_scenario_v0, ScenarioArtifactRoleV0, ScenarioArtifactV0,
-    ScenarioBundleV0, ScenarioCheckpointInputsV0, ScenarioConclusionDispositionV0,
-    ScenarioConclusionV0, ScenarioCoverageFreshnessV0, ScenarioCoverageStateV0, ScenarioError,
-    ScenarioExpectedV0, ScenarioLimitsV0, ScenarioManifestV0, ScenarioPrivacyV0,
-    ScenarioProvenanceV0, ScenarioReplayHostPathV0, ScenarioReplayProjectionV0,
-    ScenarioReplayReceiptV0, ScenarioSavedCaptureInputV0, ScenarioSavedCaptureProjectionV0,
-    ScenarioSourceCoverageV0, ScenarioTimelineCheckpointV0, ScenarioViewportAssertionV0,
-    SCENARIO_BUNDLE_SCHEMA_V0, SCENARIO_REPLAY_SCHEMA_V0,
+    load_scenario_bundle_v0, load_scenario_bundle_v1, replay_scenario_v0, replay_scenario_v1,
+    ScenarioAcquisitionV1, ScenarioArtifactRoleV0, ScenarioArtifactRoleV1, ScenarioArtifactV0,
+    ScenarioArtifactV1, ScenarioBundleV0, ScenarioBundleV1, ScenarioCheckpointInputsV0,
+    ScenarioConclusionDispositionV0, ScenarioConclusionV0, ScenarioCoverageFreshnessV0,
+    ScenarioCoverageStateV0, ScenarioDerivationV1, ScenarioDisclosureReviewV1, ScenarioError,
+    ScenarioExpectedV0, ScenarioIdentifierClassV1, ScenarioLimitsV0, ScenarioManifestV0,
+    ScenarioManifestV1, ScenarioPayloadHandlingV1, ScenarioPrivacyV0, ScenarioProvenanceV0,
+    ScenarioProvenanceV1, ScenarioReplayHostPathV0, ScenarioReplayProjectionV0,
+    ScenarioReplayReceiptV0, ScenarioReplayReceiptV1, ScenarioSavedCaptureInputV0,
+    ScenarioSavedCaptureProjectionV0, ScenarioSensitivityV1, ScenarioSourceCoverageV0,
+    ScenarioSourceOriginV1, ScenarioSourceProvenanceV1, ScenarioTimelineCheckpointV0,
+    ScenarioViewportAssertionV0, SCENARIO_BUNDLE_SCHEMA_V0, SCENARIO_BUNDLE_SCHEMA_V1,
+    SCENARIO_REPLAY_SCHEMA_V0, SCENARIO_REPLAY_SCHEMA_V1,
 };
 pub use triage::{
     project_saved_pcap_triage, project_saved_pcap_triage_v1, SavedPcapClaimScopeV0,

@@ -17,7 +17,8 @@ Netbraid currently contains four separate, buildable surfaces:
   matches and compatible/incomplete observations. Its `pcap` command normalizes a
   bounded saved capture through TShark and prints an operator summary or versioned
   JSONL evidence. Its offline `scenario` command validates and replays finite
-  evidence, abstention, and viewport test bundles.
+  public-synthetic and disclosure-reviewed capture-derived evidence, abstention,
+  and viewport test bundles.
 - `netbraid-adapter-tshark` is an experimental Rust process boundary for saved PCAP and
   PCAPNG artifacts. It stages a regular file, reads file-level facts through
   Capinfos, disables name resolution, selects an explicit first-occurrence TShark
@@ -191,22 +192,58 @@ fail-closed around known corruption but are not cross-process locking: one write
 each log.
 
 The `scenario` command is a finite, offline maintainer surface over
-`netbraid.scenario_bundle.v0`. `validate` checks the exact manifest and artifact
-inventory, hashes, safe paths, strict host-path or saved-capture streams, monotonic
-timeline references, coverage/freshness separation, supported conclusions, required
-abstentions, and ASCII viewport bounds. `replay` returns the source prefix and typed
-projection at one named checkpoint. The reported manifest SHA-256 closes over the
-exact `scenario.json` bytes and is not stored inside the manifest. Scenario
-expectations are authored test oracles, not source evidence, identity claims, or
-live collection instructions. Validation proves their references and structural
-preconditions; consumer tests must independently derive conclusions and render
-views before treating an oracle as passed.
+`netbraid.scenario_bundle.v0` and `netbraid.scenario_bundle.v1`. `validate`
+selects the strict loader named by `scenario.json` and checks the exact manifest
+and artifact inventory, hashes, safe paths, strict host-path or saved-capture
+streams, monotonic timeline references, coverage/freshness separation,
+supported conclusions, required abstentions, and ASCII viewport bounds.
+`replay` returns the source prefix and typed projection at one named checkpoint.
+Version 0 continues to emit the byte-stable `netbraid.scenario_replay.v0`
+receipt. A v1 bundle emits `netbraid.scenario_replay.v1`, preserving the bundle
+schema, declared sensitivity, and declared disclosure review when the receipt
+is detached while retaining the same checkpoint projection fields. Structural
+replay does not authenticate that declaration. The reported manifest SHA-256
+closes over the exact `scenario.json` bytes and is not stored inside the
+manifest. Scenario expectations are authored test oracles, not
+source evidence, identity claims, or live collection instructions. Validation
+proves their references and structural preconditions; consumer tests must
+independently derive conclusions and render views before treating an oracle as
+passed.
 
 The normal library does not embed fixtures. Maintainer tests enable
 `netbraid-replay/scenario-fixtures` to expose four tiny `PUBLIC_SYNTHETIC`
 bundles covering Wi-Fi/hotspot recurrence, a same-SSID BSSID attachment
 transition followed by an incompatible reused-label boundary, overlay
-attribution abstention, and a stale neighbor-cache gap. See
+attribution abstention, and a stale neighbor-cache gap.
+
+The separate, non-default
+`netbraid-replay/scenario-fixtures-capture-derived` feature exposes one
+`PUBLIC_REVIEWED` v1 bundle without changing that v0 list. It contains
+deterministic six- and seven-packet normalized prefixes of an admitted libpcap
+IEEE 802.11 capture. The seventh frame adds one observed deauthentication
+frame; the oracle keeps the earlier negative result prefix-scoped and requires
+abstention from source-wide counts or absence, identity, intent, causality, and
+radio-channel claims. The bundle records exact upstream revision, path, blob
+and content digests, byte count, SPDX terms, and a non-ingestible
+`license_text` artifact. Its disclosure review enumerates link-layer addresses,
+the network name, and packet timestamps retained in ingestible evidence; raw
+packet payload bytes are omitted from those evidence artifacts. Validation
+derives identifier classes from every admitted typed saved-capture record and
+requires the declaration to match exactly. Version 1 does not admit host-path
+streams or opaque quarantine rows, because neither can satisfy this
+capture-source disclosure closure. It also leaves viewport text in v0 until
+presentation bytes have their own disclosure contract. The separately
+classified legal notice remains verbatim for redistribution compliance.
+
+Structural validation does not authenticate a `PUBLIC_REVIEWED` assertion in
+an arbitrary external directory. The built-in is trusted because its exact
+content, source, and legal coordinates are admitted and tested; another
+structurally valid bundle needs its own trusted review and distribution path.
+
+The normalized fixture's committed TShark version, field registry, and
+effective-configuration fingerprint describe the exact reviewed reference
+bytes. They are provenance, not portable constants that every host must
+reproduce. Regeneration changes the bundle closure and requires review. See
 [`docs/design/evaluation-corpus.md`](docs/design/evaluation-corpus.md).
 
 The `pcap` command is offline and non-interactive. Its text output leads with a
@@ -431,5 +468,14 @@ Wireshark.
 
 ## License
 
-Dual-licensed under the [MIT License](LICENSE-MIT) or the
-[Unlicense](UNLICENSE).
+Netbraid-authored source is dual-licensed under the
+[MIT License](LICENSE-MIT) or the [Unlicense](UNLICENSE). Published source
+archives retain the terms of their bundled product fixtures:
+
+- `netbraid-replay` includes one reviewed BSD-3-Clause capture-derived
+  scenario and declares `(MIT OR Unlicense) AND BSD-3-Clause`.
+
+The test-only upstream corpora and notices used by `netbraid-adapter-tshark`
+and the root CLI remain in the GitHub repository and CI but are excluded from
+their published Cargo archives. Those packages and `netbraid-evidence` retain
+`MIT OR Unlicense`.

@@ -8,6 +8,11 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 readme = "README.md"
+exclude = [
+    "tests/curated_corpus.rs",
+    "tests/fixtures/third-party-licenses/**",
+    "tests/fixtures/upstream/**",
+]
 keywords = ["network-analysis", "pcap", "tshark", "wireshark"]
 categories = ["network-programming", "development-tools::debugging"]
 

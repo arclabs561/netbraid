@@ -88,3 +88,18 @@ subprocess, or network operation.
   private labels, and source rows remain external to this crate.
 - New inference families still require positive, conflicting, and abstained
   scenarios plus their own calibration and promotion gates.
+
+## Update (2026-07-27)
+
+The v0 ledger now contains four `PUBLIC_SYNTHETIC` built-ins: the three listed
+above plus the same-SSID attachment-boundary scenario. The original count is
+preserved as decision history.
+
+[ADR-0004](0004-admit-public-reviewed-capture-derived-scenarios.md) extends
+scenario distribution with a strict `netbraid.scenario_bundle.v1` contract for
+`PUBLIC_REVIEWED` capture-derived artifacts. It does not broaden v0. The v1
+bundle separates disclosure sensitivity from source origin, derivation, and
+acquisition; adds exact source and license lineage; and emits
+`netbraid.scenario_replay.v1` so detached receipts retain declared admission
+metadata alongside the unchanged checkpoint projection fields. Structural
+validation does not authenticate that declaration.
