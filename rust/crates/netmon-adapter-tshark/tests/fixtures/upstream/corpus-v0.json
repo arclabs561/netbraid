@@ -241,6 +241,92 @@
       }
     },
     {
+      "id": "libpcap.vxlan",
+      "path": "upstream/libpcap-vxlan.pcap.hex",
+      "purpose": "Exercise nested Ethernet and IPv4 dissection through VXLAN while excluding every packet from flat capture-conversation reduction.",
+      "origin": {
+        "repository": "the-tcpdump-group/libpcap",
+        "revision": "9f37478bad2abafb626a0bf8921506569960d48d",
+        "source_path": "tests/filter/vxlan.pcap",
+        "source_url": "https://raw.githubusercontent.com/the-tcpdump-group/libpcap/9f37478bad2abafb626a0bf8921506569960d48d/tests/filter/vxlan.pcap",
+        "upstream_blob_sha1": "04f0c2f9045d91017db4025df20e195b182bd1d6",
+        "license": "BSD-3-Clause",
+        "license_file": "third-party-licenses/libpcap-BSD-3-Clause.txt"
+      },
+      "content_sha256": "d45eff30fc39ce0e3df91931f86d28c56acc67d23a26bb050064de023c643ea6",
+      "size_bytes": 1552,
+      "expected": {
+        "file_type": "pcap",
+        "encapsulation": "ether",
+        "timestamp_precision": "microseconds",
+        "packet_count": 10,
+        "original_data_size_bytes": 1368,
+        "packets_emitted": 10,
+        "packets_quarantined": 0,
+        "required_protocols": ["eth", "ip", "udp", "vxlan", "arp", "icmp"],
+        "protocol_frame_counts": [
+          {"protocol": "vxlan", "frames": 10},
+          {"protocol": "arp", "frames": 2},
+          {"protocol": "icmp", "frames": 8}
+        ],
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 0,
+          "packet_envelopes_excluded": 10,
+          "conversations": 0,
+          "exclusions": [
+            {"reason": "unmodeled_encapsulation", "packet_envelopes": 10}
+          ]
+        }
+      }
+    },
+    {
+      "id": "libpcap.ipv6-ext-headers",
+      "path": "upstream/libpcap-ipv6-ext-headers.pcap.hex",
+      "purpose": "Exercise a deeply repeated IPv6 extension-header chain without truncating its ordered protocol stack or losing its UDP conversation.",
+      "origin": {
+        "repository": "the-tcpdump-group/libpcap",
+        "revision": "9f37478bad2abafb626a0bf8921506569960d48d",
+        "source_path": "tests/filter/ipv6_ext_headers.pcap",
+        "source_url": "https://raw.githubusercontent.com/the-tcpdump-group/libpcap/9f37478bad2abafb626a0bf8921506569960d48d/tests/filter/ipv6_ext_headers.pcap",
+        "upstream_blob_sha1": "53c0490e1013b03232a1936c0c8086a0d778d6e3",
+        "license": "BSD-3-Clause",
+        "license_file": "third-party-licenses/libpcap-BSD-3-Clause.txt"
+      },
+      "content_sha256": "e3d44a8f9fdb145837891bf6a6450e0da829f8a142d65b320bbe90a7fd63126c",
+      "size_bytes": 912,
+      "expected": {
+        "file_type": "pcap",
+        "encapsulation": "ether",
+        "timestamp_precision": "microseconds",
+        "packet_count": 1,
+        "original_data_size_bytes": 872,
+        "packets_emitted": 1,
+        "packets_quarantined": 0,
+        "required_protocols": [
+          "eth",
+          "ipv6",
+          "ipv6.hopopts",
+          "ipv6.routing",
+          "ipv6.fraghdr",
+          "ipv6.dstopts",
+          "udp"
+        ],
+        "protocol_frame_counts": [
+          {"protocol": "ipv6.hopopts", "frames": 1},
+          {"protocol": "ipv6.routing", "frames": 33},
+          {"protocol": "ipv6.fraghdr", "frames": 33},
+          {"protocol": "ipv6.dstopts", "frames": 33},
+          {"protocol": "udp", "frames": 1}
+        ],
+        "conversation_reduction": {
+          "packet_envelopes_grouped": 1,
+          "packet_envelopes_excluded": 0,
+          "conversations": 1,
+          "exclusions": []
+        }
+      }
+    },
+    {
       "id": "rust-pcap.snaplen-20",
       "path": "upstream/rust-pcap-snaplen-20.pcap.hex",
       "purpose": "Exercise a file whose one frame has 98 original octets but only 20 captured octets.",
