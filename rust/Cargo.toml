@@ -11,6 +11,10 @@ readme = "../README.md"
 keywords = ["network-analysis", "pcap", "replay", "tshark"]
 categories = ["command-line-utilities", "network-programming"]
 
+[features]
+default = []
+scenario-fixtures = ["netbraid-replay/scenario-fixtures"]
+
 [workspace]
 members = [
     "crates/netbraid-adapter-tshark",

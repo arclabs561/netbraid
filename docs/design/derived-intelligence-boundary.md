@@ -69,14 +69,23 @@ The implemented Rust core is intentionally narrower than this target:
 - The TShark adapter normalizes one declared field registry from an immutable
   saved capture. It reports normalization completeness, not capture-wide,
   channel-wide, or network-wide observability.
-- Linktop consumes only host-path evidence at an exact Git revision. Its
-  process-local path and peer dwell are not durable cross-source episodes.
+- Linktop consumes host-path comparison and finite saved-capture triage from an
+  exact pinned evidence/replay revision. Its review command reads normalized
+  evidence without invoking capture or Wireshark; its process-local path and
+  peer dwell are not durable cross-source episodes.
 - Infra remains the sole deployed observation/fusion plane and production
   writer. Its source tables, topology, placement, retention, device
   assignments, consent, and person projections do not move into Netbraid.
 
 There is no stable multi-modal schema, serialized episode, fingerprint
 candidate, live Netbraid daemon, or production Rust fusion writer today.
+
+`netbraid-replay` also owns a finite scenario-bundle validator and checkpoint
+replay receipt. Scenario coverage, expected conclusions, required abstentions,
+and viewport constraints are evaluation oracles, not newly observed evidence.
+The first synthetic bundles protect attachment recurrence, overlay attribution
+abstention, and stale-cache handling. They do not by themselves pass the gate
+for episodes, fingerprints, bindings, identity fusion, or live cutover.
 
 ## Decision
 
@@ -422,8 +431,10 @@ claim.
 
 1. Keep packet normalization, conversation reduction, host-path recurrence,
    and their coverage limits deterministic.
-2. Add a content-addressed Linktop scenario-bundle contract for attachment,
-   route/overlay, impairment, cache, and viewport changes.
+2. Extend the content-addressed Netbraid scenario-bundle contract across
+   attachment, route/overlay, impairment, cache, saved-capture, and viewport
+   changes, then have Linktop consume the same checkpoint receipts in its
+   deterministic presentation QA.
 3. Add acquisition-receipt fixtures for filters, snaplen, drops, clock facts,
    observation points, and source progress.
 4. Add a native container/transport experimental profile only where it answers

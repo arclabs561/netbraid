@@ -7,6 +7,7 @@ use std::path::Path;
 
 mod conversation;
 mod saved_capture;
+mod scenario;
 mod triage;
 
 pub use conversation::{
@@ -23,6 +24,17 @@ pub use netbraid_evidence::{
 pub use saved_capture::{
     parse_saved_capture_jsonl, read_saved_capture_jsonl, SavedCaptureReadError,
     SavedCaptureRecordFamilyV0, SavedCaptureRecordStreamV0,
+};
+#[cfg(feature = "scenario-fixtures")]
+pub use scenario::{builtin_scenario_ids_v0, builtin_scenario_v0};
+pub use scenario::{
+    load_scenario_bundle_v0, replay_scenario_v0, ScenarioArtifactRoleV0, ScenarioArtifactV0,
+    ScenarioBundleV0, ScenarioConclusionDispositionV0, ScenarioConclusionV0,
+    ScenarioCoverageFreshnessV0, ScenarioCoverageStateV0, ScenarioError, ScenarioExpectedV0,
+    ScenarioLimitsV0, ScenarioManifestV0, ScenarioPrivacyV0, ScenarioProvenanceV0,
+    ScenarioReplayHostPathV0, ScenarioReplayProjectionV0, ScenarioReplayReceiptV0,
+    ScenarioSavedCaptureProjectionV0, ScenarioSourceCoverageV0, ScenarioTimelineCheckpointV0,
+    ScenarioViewportAssertionV0, SCENARIO_BUNDLE_SCHEMA_V0, SCENARIO_REPLAY_SCHEMA_V0,
 };
 pub use triage::{
     project_saved_pcap_triage, project_saved_pcap_triage_v1, SavedPcapClaimScopeV0,
@@ -374,6 +386,12 @@ pub fn replay(
 
 pub fn read_jsonl(path: impl AsRef<Path>) -> Result<ReplayStateV0, ReplayError> {
     Ok(read_jsonl_bytes(&fs::read(path)?, false)?.replay)
+}
+
+/// Parses a finite host-path JSONL artifact through the same strict replay path
+/// as [`read_jsonl`], without performing filesystem access.
+pub fn parse_host_path_jsonl(bytes: &[u8]) -> Result<ReplayStateV0, ReplayError> {
+    Ok(read_jsonl_bytes(bytes, false)?.replay)
 }
 
 /// Reads the valid replay prefix while explicitly warning about an interrupted

@@ -23,11 +23,19 @@ rust-check:
     cargo clippy --locked --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
     RUSTDOCFLAGS="-D warnings" cargo doc --locked --manifest-path rust/Cargo.toml --workspace --no-deps
 
+scenario-check:
+    cargo test --locked --manifest-path rust/Cargo.toml --workspace --all-features
+    cargo clippy --locked --manifest-path rust/Cargo.toml --workspace --all-targets --all-features -- -D warnings
+    RUSTDOCFLAGS="-D warnings" cargo doc --locked --manifest-path rust/Cargo.toml --workspace --all-features --no-deps
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/wifi-hotspot-wifi/scenario.json'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/vpn-overlay-transition/scenario.json'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/cache-source-gap/scenario.json'
+
 pcap-smoke:
     cargo test --locked --manifest-path rust/Cargo.toml -p netbraid-adapter-tshark --tests -- --ignored
     cargo test --locked --manifest-path rust/Cargo.toml -p netbraid --test pcap_cli -- --ignored
 
-rust-check-full: rust-check pcap-smoke
+rust-check-full: rust-check scenario-check pcap-smoke
 
 pcap-smoke-show:
     NETBRAID_SMOKE_SHOW_OUTPUT=1 cargo test --locked --manifest-path rust/Cargo.toml -p netbraid --test pcap_cli -- --ignored --nocapture

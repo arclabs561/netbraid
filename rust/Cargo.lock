@@ -288,6 +288,7 @@ dependencies = [
 name = "netbraid-replay"
 version = "0.2.0"
 dependencies = [
+ "libc",
  "netbraid-evidence",
  "serde",
  "serde_json",

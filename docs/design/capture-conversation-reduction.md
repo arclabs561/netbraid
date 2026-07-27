@@ -63,8 +63,8 @@ connection, session, or episode:
 - Treating the first observed endpoint as the initiator.
 - Flattening tunnels, VLANs, multiple observation points, or incomplete
   first-occurrence field groups into one five-tuple.
-- Emitting a new serialized evidence family before the reduction contract has a
-  second consumer.
+- Emitting a new normalized evidence family for a deterministic result that the
+  Netbraid CLI and Linktop can recompute from packet-envelope evidence.
 
 ## Options considered
 
@@ -85,8 +85,8 @@ dependency or release boundary appears.
 ### Reduce packet envelopes in `netbraid-replay`
 
 One pure reducer over versioned packet envelopes gives the same result to the
-CLI and a future consumer, adds no process or collection capability, and can
-return explicit exclusion coverage. Chosen.
+Netbraid CLI and Linktop's finite saved-evidence review, adds no process or
+collection capability, and can return explicit exclusion coverage. Chosen.
 
 ## Decision
 

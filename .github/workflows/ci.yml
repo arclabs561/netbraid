@@ -36,8 +36,8 @@ jobs:
           sudo apt-get update
           sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends tshark
       - run: cargo fmt --all -- --check
-      - run: cargo build --locked --workspace
-      - run: cargo test --locked --workspace
+      - run: cargo build --locked --workspace --all-features
+      - run: cargo test --locked --workspace --all-features
       - name: Exercise installed Wireshark tools and CLI projections
         run: |
           cargo test --locked -p netbraid-adapter-tshark --tests -- --ignored
@@ -47,8 +47,12 @@ jobs:
           for package in netbraid-evidence netbraid-replay netbraid-adapter-tshark netbraid; do
             cargo package --locked --list -p "$package" >/dev/null
           done
-      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
-      - run: cargo doc --locked --workspace --no-deps
+          cargo package --locked --list -p netbraid-replay >"$RUNNER_TEMP/netbraid-replay-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/wifi-hotspot-wifi/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/vpn-overlay-transition/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
+          grep -Fqx 'tests/fixtures/scenarios/cache-source-gap/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
+      - run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+      - run: cargo doc --locked --workspace --all-features --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
 

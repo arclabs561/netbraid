@@ -1,0 +1,2 @@
+# Closed scenario bundles bind exact bytes and terminal-cell fixtures.
+rust/crates/netbraid-replay/tests/fixtures/scenarios/** text eol=lf

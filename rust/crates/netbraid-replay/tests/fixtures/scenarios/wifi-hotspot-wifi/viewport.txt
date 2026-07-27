@@ -1,0 +1,6 @@
+PATH  wifi -> hotspot -> wifi
+NOW   Northstar Lab via 192.0.2.1
+CHANGE 2 confirmed context transitions
+RECUR exact anchored context seen before
+ABSTAIN physical place and owner unknown
+SOURCE passive host path; complete/current

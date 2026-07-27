@@ -50,9 +50,11 @@ The `netbraid` package remains an operator CLI. It may import the libraries as
 commands earn concrete use cases. The legacy Go CLI remains compatibility capture
 code and is not a library foundation.
 
-Linktop imports the libraries directly for optional prior-context comparison.
-It remains usable with no history path and no Netbraid executable, service, or
-store. Imported libraries may not initiate network activity.
+Linktop imports the libraries directly for optional prior-context comparison
+and finite review of already-normalized saved-capture evidence. It remains
+usable with no history path and no Netbraid executable, service, store,
+Wireshark installation, or packet capture. Imported libraries may not initiate
+network activity.
 
 ## Dependency and release policy
 
