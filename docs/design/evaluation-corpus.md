@@ -134,7 +134,7 @@ One scenario earns admission only when it exposes a distinct operator decision
 or a known false-positive risk.
 
 The implemented `netbraid.scenario_bundle.v0` contract lives in
-`netbraid-replay`, not `netbraid-evidence`. A bundle is a closed directory:
+`netbraid::replay`, not `netbraid::evidence`. A bundle is a closed directory:
 `scenario.json` plus an exact flat inventory of regular, non-symlink artifacts
 with byte counts and SHA-256 digests. Unix loaders bind file opens to a stable
 directory handle and use no-follow semantics. The manifest keeps coverage state
@@ -256,7 +256,7 @@ privacy boundaries.
 ## Implementation plan
 
 1. Keep Tier 1 admission and smoke checks in
-   `netbraid-adapter-tshark`; add a fixture only with a named boundary.
+   `netbraid::adapters::tshark`; add a fixture only with a named boundary.
 2. Keep the four-bundle public-synthetic v0 contract exact. Admit
    capture-derived v1 artifacts only with a disclosure review, closed upstream
    and license lineage, an existing strict source family, and a named operator

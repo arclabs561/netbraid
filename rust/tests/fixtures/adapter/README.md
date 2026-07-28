@@ -15,7 +15,7 @@ content identities and immutable origin coordinates, and exact bytes without
 requiring Wireshark. The ignored smoke test additionally normalizes every
 admitted artifact twice with installed `capinfos` and `tshark`, round-trips both
 the occurrence-bearing and deterministic JSONL projections through
-`netbraid-replay`, and checks byte-stable deterministic records, receipt-bound
+`netbraid::replay`, and checks byte-stable deterministic records, receipt-bound
 digests, replayed evidence equality, and conservative conversation grouping.
 
 The corpus is intentionally small. It spans capture and link-layer boundaries

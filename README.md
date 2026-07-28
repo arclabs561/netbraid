@@ -1,37 +1,38 @@
 # netbraid
 
-Netbraid is a versioned network-evidence and deterministic-replay workspace. Its Rust
-release normalizes immutable artifacts, preserves provenance, and replays typed
-evidence; the repository also retains a legacy Go capture tool and a disconnected
-acquisition-policy experiment while the dependency-ordered Rust cutover proceeds.
+Netbraid is a versioned network-evidence and deterministic-replay tool. Its
+single Rust package provides reusable evidence, replay, and adapter modules
+beside the operator CLI; the repository also retains a legacy Go capture tool
+and a disconnected acquisition-policy experiment while the Rust cutover
+proceeds.
 
-Netbraid currently contains four separate, buildable surfaces:
+Netbraid currently contains three lifecycle surfaces:
 
 - The root Go CLI captures from one or more interfaces, optionally hops Wi-Fi
   channels, writes one PCAP per interface plus `events.jsonl`, and can print packets or
   a live summary.
-- `rust/` is a small reader for the latest `netops` audit JSONL. Its `net`, `device`,
-  and `here` commands do not capture traffic or query a controller directly. Its
-  experimental `evidence` command deterministically replays a supplied v0 host-path
-  JSONL log and distinguishes anchored exact recurrence from unanchored exact key
-  matches and compatible/incomplete observations. Its `pcap` command normalizes a
-  bounded saved capture through TShark and prints an operator summary or versioned
-  JSONL evidence. Its offline `scenario` command validates and replays finite
-  public-synthetic and disclosure-reviewed capture-derived evidence, abstention,
-  and viewport test bundles.
-- `netbraid-adapter-tshark` is an experimental Rust process boundary for saved PCAP and
-  PCAPNG artifacts. It stages a regular file, reads file-level facts through
-  Capinfos, disables name resolution, selects an explicit first-occurrence TShark
-  field registry, fingerprints effective TShark configuration, refuses personal
-  plugins unless explicitly allowed, preserves invalid rows as quarantines, and
-  emits a successful-run receipt.
+- `rust/` is one library-and-CLI package. Its `net`, `device`, and `here`
+  commands read the latest `netops` audit JSONL without capturing traffic or
+  querying a controller directly. Its experimental `evidence` command
+  deterministically replays a supplied v0 host-path JSONL log and distinguishes
+  anchored exact recurrence from unanchored exact key matches and
+  compatible/incomplete observations. Its `pcap` command normalizes a bounded
+  saved capture through the `netbraid::adapters::tshark` module and prints an
+  operator summary or versioned JSONL evidence. That adapter stages a regular
+  PCAP or PCAPNG file, reads file-level facts through Capinfos, disables name
+  resolution, selects an explicit first-occurrence TShark field registry,
+  fingerprints effective configuration, refuses personal plugins unless
+  explicitly allowed, preserves invalid rows as quarantines, and emits a
+  successful-run receipt. The offline `scenario` command validates and replays
+  finite public-synthetic and disclosure-reviewed capture-derived evidence,
+  abstention, and viewport test bundles.
 - `swucb/` is an unused legacy sliding-window UCB experiment. It remains only
   until the Rust acquisition control proves the receipt and replay contract
   needed to delete the old Go acquisition tree.
 
-These surfaces share a repository, not one runtime or data model. Both CLIs currently
-build a binary named `netbraid`; the commands below invoke them by build path rather than
-claiming they can be installed side by side. The Go module path
+The legacy Go CLI and Rust package share a repository, not one runtime or data
+model. Both CLIs currently build a binary named `netbraid`; the commands below
+invoke them by build path rather than claiming they can be installed side by side. The Go module path
 `github.com/arclabs561/netwatch` is retained as a compatibility name, not as the
 repository's current charter.
 
@@ -41,15 +42,15 @@ repository's current charter.
 | --- | --- | --- |
 | Go capture CLI | Legacy compatibility | Acquire selected packet/RF observations as PCAP and JSONL |
 | Rust snapshot CLI | Compatibility reader | Interpret the latest saved netops audit snapshot |
-| Rust v0 libraries | Experimental | Record and replay evidence, compare host-path context, validate finite operator scenarios, and reduce eligible packet envelopes into capture-wide conversations |
-| Rust Wireshark-tool adapter | Experimental | Normalize bounded saved captures into manifests, successful-run receipts, packet envelopes, and quarantines without live capture |
+| Rust v0 library modules | Experimental | Record and replay evidence, compare host-path context, validate finite operator scenarios, and reduce eligible packet envelopes into capture-wide conversations |
+| Rust Wireshark-tool adapter module | Experimental | Normalize bounded saved captures into manifests, successful-run receipts, packet envelopes, and quarantines without live capture |
 | `swucb/` | Legacy, deletion-gated | Preserve no runtime behavior; remove after the Rust acquisition control proves receipt-bound attribution |
 | Broader multi-modal evidence families | Gated future | Add temporal, entity, episode, or fingerprint records only after representative fixtures and a concrete second consumer |
 | Live deployment or fusion service | External | Consume released evidence/replay artifacts after its own parity and rollback gates |
 
-The narrow Rust evidence/replay core exists as an experimental v0 package boundary.
-Its broader multi-modal contract remains gated on representative fixtures and a
-concrete consumer. `HostPathObservationV0` is specified in
+The narrow Rust evidence/replay core exists as public modules in the
+`netbraid` package. Its broader multi-modal contract remains gated on
+representative fixtures and a concrete consumer. `HostPathObservationV0` is specified in
 [`docs/design/rust-library-boundary.md`](docs/design/rust-library-boundary.md) so
 Linktop can act as a real second consumer without claiming that the broader gate has
 passed. The dependency-ordered removal of the Go capture CLI and eventual migration
@@ -133,8 +134,8 @@ cargo build --manifest-path rust/Cargo.toml
 ./rust/target/debug/netbraid scenario replay ./scenario --checkpoint CHECKPOINT --json
 ```
 
-The Rust workspace requires Rust 1.88 or newer. The CLI and its three
-libraries are released together at one version; the first registry release
+The Rust package requires Rust 1.88 or newer. Its library and CLI are released
+together at one version; the first registry release
 identity is 0.3.0 because the earlier 0.2.0 Git tag already names immutable
 bytes. Check crates.io for registry availability. Before a version is visible
 there, install from a source checkout or its tagged GitHub archive rather than
@@ -143,7 +144,7 @@ assuming `cargo install netbraid` is available.
 Initial crates.io ownership is a one-time publication from a clean
 current-`main` checkout with a scoped token. Later releases use the repository's
 Trusted Publishing workflow. The bootstrap token is revoked immediately after
-all four trusted publishers are registered, and a release tag is created only
+the trusted publisher is registered, and a release tag is created only
 after crates.io reports artifacts from the intended commit.
 
 To install a source checkout into Cargo's binary directory:
@@ -153,10 +154,23 @@ cargo +1.88 install --locked --path rust
 netbraid --version
 ```
 
+Rust consumers can import the policy-neutral library without the CLI or
+Wireshark-tool dependency surface:
+
+```toml
+[dependencies]
+netbraid = { version = "0.3", default-features = false }
+```
+
+The public paths are `netbraid::evidence` and `netbraid::replay`. Add
+`features = ["adapter-tshark"]` only when the bounded offline
+`netbraid::adapters::tshark` process boundary is needed. The default `cli`
+feature is intended for `cargo install netbraid`.
+
 Tagged releases use `netbraid-vVERSION` and contain native archives for Linux
 x86-64, Intel macOS, and Apple silicon macOS. Each archive contains the Rust
-`netbraid` binary, README, both license files, and the canonical
-`netbraid-evidence` v0 fixture bundle. For example:
+`netbraid` binary, README, both authored-code license files, and the canonical
+evidence v0 fixture bundle. For example:
 
 ```sh
 version=0.3.0
@@ -217,13 +231,12 @@ independently derive conclusions and render views before treating an oracle as
 passed.
 
 The normal library does not embed fixtures. Maintainer tests enable
-`netbraid-replay/scenario-fixtures` to expose four tiny `PUBLIC_SYNTHETIC`
+`scenario-fixtures` to expose four tiny `PUBLIC_SYNTHETIC`
 bundles covering Wi-Fi/hotspot recurrence, a same-SSID BSSID attachment
 transition followed by an incompatible reused-label boundary, overlay
 attribution abstention, and a stale neighbor-cache gap.
 
-The separate, non-default
-`netbraid-replay/scenario-fixtures-capture-derived` feature exposes one
+The separate, non-default `scenario-fixtures-capture-derived` feature exposes one
 `PUBLIC_REVIEWED` v1 bundle without changing that v0 list. It contains
 deterministic six- and seven-packet normalized prefixes of an admitted libpcap
 IEEE 802.11 capture. The seventh frame adds one observed deauthentication
@@ -465,7 +478,7 @@ RARP, PPPoE discovery, severe snaplen truncation, NTP conversations, and
 big-endian PCAPNG. The upstream bytes remain text-reviewable hex; their manifest
 pins source commits, blob IDs, decoded digests, licenses, and stable normalization
 expectations. See the
-[fixture corpus](rust/crates/netbraid-adapter-tshark/tests/fixtures/README.md).
+[fixture corpus](rust/tests/fixtures/adapter/README.md).
 `just pcap-smoke-show` prints the finite operator summary from the CLI fixture so
 presentation changes can be reviewed without preparing a local capture.
 `just rust-check-full` is the release-oriented Rust gate: build, tests, Clippy,
@@ -475,13 +488,10 @@ Wireshark.
 ## License
 
 Netbraid-authored source is dual-licensed under the
-[MIT License](LICENSE-MIT) or the [Unlicense](UNLICENSE). Published source
-archives retain the terms of their bundled product fixtures:
+[MIT License](LICENSE-MIT) or the [Unlicense](UNLICENSE). The published
+`netbraid` source archive also includes one reviewed BSD-3-Clause
+capture-derived scenario and its exact notice, so the package declares
+`(MIT OR Unlicense) AND BSD-3-Clause`.
 
-- `netbraid-replay` includes one reviewed BSD-3-Clause capture-derived
-  scenario and declares `(MIT OR Unlicense) AND BSD-3-Clause`.
-
-The test-only upstream corpora and notices used by `netbraid-adapter-tshark`
-and the root CLI remain in the GitHub repository and CI but are excluded from
-their published Cargo archives. Those packages and `netbraid-evidence` retain
-`MIT OR Unlicense`.
+The test-only upstream adapter and CLI corpora and their notices remain in the
+GitHub repository and CI but are excluded from the published Cargo archive.

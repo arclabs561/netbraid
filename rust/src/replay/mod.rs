@@ -10,16 +10,16 @@ mod saved_capture;
 mod scenario;
 mod triage;
 
+pub use crate::evidence::{
+    CollectionModeV0, CollectionPolicyV0, ContextKeyV0, CoverageStateV0, CoverageV0,
+    HostPathObservationV0, HostPathV0, NetworkNameV0, NetworkNameVisibilityV0, ObservationOrderV0,
+    SourceRefV0, ValidationError, HOST_PATH_SCHEMA_V0,
+};
 pub use conversation::{
     reduce_capture_conversations, CaptureConversationKeyV0, CaptureConversationReportV0,
     CaptureConversationV0, ConversationDirectionV0, ConversationEndpointV0,
     ConversationExclusionReasonV0, IpFamilyV0, ObservationPointV0, TcpFlagCountsV0,
     TransportProtocolV0,
-};
-pub use netbraid_evidence::{
-    CollectionModeV0, CollectionPolicyV0, ContextKeyV0, CoverageStateV0, CoverageV0,
-    HostPathObservationV0, HostPathV0, NetworkNameV0, NetworkNameVisibilityV0, ObservationOrderV0,
-    SourceRefV0, ValidationError, HOST_PATH_SCHEMA_V0,
 };
 pub use saved_capture::{
     parse_saved_capture_jsonl, read_saved_capture_jsonl, SavedCaptureReadError,

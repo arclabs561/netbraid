@@ -2,14 +2,14 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::net::IpAddr;
 
-use netbraid_evidence::{
+use crate::evidence::{
     CaptureManifestV0, CaptureRunReceiptV0, NormalizationStateV0, PacketEnvelopeV0,
     PacketQuarantineV0,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::saved_capture::recompute_normalized_records_sha256;
-use crate::{
+use crate::replay::saved_capture::recompute_normalized_records_sha256;
+use crate::replay::{
     reduce_capture_conversations, CaptureConversationV0, ConversationDirectionV0,
     ConversationExclusionReasonV0, IpFamilyV0, SavedCaptureRecordStreamV0, TransportProtocolV0,
 };

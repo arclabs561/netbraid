@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
-use netbraid_replay::{
+use netbraid::replay::{
     load_scenario_bundle_v0, load_scenario_bundle_v1, replay_scenario_v0, replay_scenario_v1,
     ScenarioBundleV0, ScenarioBundleV1, ScenarioConclusionDispositionV0, ScenarioLimitsV0,
     ScenarioReplayProjectionV0, ScenarioReplayReceiptV0, ScenarioReplayReceiptV1,
@@ -125,7 +125,7 @@ enum LoadedScenario {
 }
 
 impl LoadedScenario {
-    fn replay(&self, checkpoint: &str) -> Result<LoadedReceipt, netbraid_replay::ScenarioError> {
+    fn replay(&self, checkpoint: &str) -> Result<LoadedReceipt, netbraid::replay::ScenarioError> {
         match self {
             Self::V0(bundle) => replay_scenario_v0(bundle, checkpoint).map(LoadedReceipt::V0),
             Self::V1(bundle) => replay_scenario_v1(bundle, checkpoint).map(LoadedReceipt::V1),
@@ -146,7 +146,7 @@ struct ReplayReceiptView<'a> {
     ingested_record_refs: &'a [String],
     projection: &'a ScenarioReplayProjectionV0,
     source_coverage: &'a [ScenarioSourceCoverageV0],
-    expected_conclusions: &'a [netbraid_replay::ScenarioConclusionV0],
+    expected_conclusions: &'a [netbraid::replay::ScenarioConclusionV0],
     viewport_assertions: &'a [ScenarioViewportAssertionV0],
 }
 

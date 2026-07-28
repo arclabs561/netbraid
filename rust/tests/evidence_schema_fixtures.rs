@@ -1,14 +1,14 @@
 use std::fs;
 use std::path::Path;
 
-use netbraid_evidence::{
+use netbraid::evidence::{
     CaptureManifestV0, CaptureRunReceiptV0, HostPathObservationV0, PacketEnvelopeV0,
     PacketQuarantineV0,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-const FIXTURE_DIRECTORY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/v0");
+const FIXTURE_DIRECTORY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/evidence/v0");
 
 #[test]
 fn v0_fixture_inventory_is_exact_pretty_and_valid() {
@@ -43,7 +43,7 @@ fn v0_fixture_inventory_is_exact_pretty_and_valid() {
 
 #[test]
 fn legacy_netmon_adapter_identity_remains_readable() {
-    let text = include_str!("fixtures/compat/netmon-adapter-manifest-v0.json");
+    let text = include_str!("fixtures/evidence/compat/netmon-adapter-manifest-v0.json");
     let manifest: CaptureManifestV0 = serde_json::from_str(text).unwrap();
 
     manifest.validate().unwrap();

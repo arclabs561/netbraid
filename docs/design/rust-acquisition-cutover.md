@@ -125,22 +125,22 @@ actual deployment boundary.
 ### Dependency direction
 
 ```text
-                       muxer
-                         |
-             future opt-in acquisition policy
-                         |
-netbraid-adapter-* --> netbraid-evidence <-- netbraid-replay
-          \               |                 /
-           \-------------- netbraid CLI -----/
-                            |
-                   released artifact/API
-                            |
-                           Infra
+                         muxer
+                           |
+               future opt-in acquisition policy
+                           |
+netbraid::adapters::* --> netbraid::evidence <-- netbraid::replay
+            \                    |                    /
+             \---------------- netbraid CLI ----------/
+                                  |
+                         released package/API
+                                  |
+                                 Infra
 
-Linktop --> released netbraid-evidence + netbraid-replay
+Linktop --> released netbraid::{evidence, replay}
 ```
 
-`netbraid-evidence` remains the lowest policy-neutral contract. `netbraid-replay`
+`netbraid::evidence` remains the lowest policy-neutral contract. `netbraid::replay`
 owns deterministic reducers. Acquisition adapters produce evidence but do not
 own deployment. The Netbraid CLI is an operator and integration surface, not a
 service dependency.
@@ -183,9 +183,9 @@ regulatory-domain, radio, hardware, or materially different location transition
 starts a new epoch. Transient cooldown or capability changes only change the
 eligible subset.
 
-That dependency belongs only in the acquisition package or module that owns the
-consumer. It does not belong in `netbraid-evidence`, `netbraid-replay`, Linktop, or
-the passive default path.
+That dependency belongs only in the acquisition module that owns the consumer.
+It does not belong in `netbraid::evidence`, `netbraid::replay`, Linktop, or the
+passive default path.
 
 The dependency is not added until that consumer exists. Published Muxer 0.5.3
 does not yet satisfy the receipt-grade propensity gate: deterministic

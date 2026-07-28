@@ -1,11 +1,11 @@
-use netbraid_evidence::{
+use netbraid::evidence::{
     CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureFileMetadataV0, CaptureManifestV0,
     CaptureNormalizationV0, CaptureRunReceiptV0, EthernetFieldsV0, Ieee80211FieldsV0, Ipv4FieldsV0,
     NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0, PacketQuarantineV0, TcpFieldsV0,
     ToolRunReceiptV0, UdpFieldsV0, CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
     NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
 };
-use netbraid_replay::{
+use netbraid::replay::{
     parse_saved_capture_jsonl, project_saved_pcap_triage, project_saved_pcap_triage_v1,
     SavedPcapClaimScopeV0, SavedPcapConversationAggregationV0, SavedPcapConversationTriageV0,
     SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
@@ -32,7 +32,10 @@ fn positive_triage_projection_matches_contract_golden() {
     );
     let triage = project_saved_pcap_triage(&records).unwrap();
 
-    assert_golden(&triage, include_str!("fixtures/triage-positive-v0.json"));
+    assert_golden(
+        &triage,
+        include_str!("fixtures/replay/triage-positive-v0.json"),
+    );
 }
 
 #[test]
@@ -60,7 +63,10 @@ fn partial_triage_projection_matches_contract_golden() {
     );
     let triage = project_saved_pcap_triage(&records).unwrap();
 
-    assert_golden(&triage, include_str!("fixtures/triage-partial-v0.json"));
+    assert_golden(
+        &triage,
+        include_str!("fixtures/replay/triage-partial-v0.json"),
+    );
 }
 
 #[test]
@@ -97,7 +103,10 @@ fn unsupported_triage_projection_matches_contract_golden() {
     );
     let triage = project_saved_pcap_triage(&records).unwrap();
 
-    assert_golden(&triage, include_str!("fixtures/triage-unsupported-v0.json"));
+    assert_golden(
+        &triage,
+        include_str!("fixtures/replay/triage-unsupported-v0.json"),
+    );
 }
 
 #[test]
@@ -667,7 +676,7 @@ fn validated_stream(
     manifest: CaptureManifestV0,
     packets: Vec<PacketEnvelopeV0>,
     quarantines: Vec<PacketQuarantineV0>,
-) -> netbraid_replay::SavedCaptureRecordStreamV0 {
+) -> netbraid::replay::SavedCaptureRecordStreamV0 {
     let mut jsonl = Vec::new();
     push_record(&mut jsonl, &manifest);
     for packet in packets {
@@ -685,7 +694,7 @@ fn validated_stream_with_receipt(
     quarantines: Vec<PacketQuarantineV0>,
     earliest_packet_time_unix_ns: i64,
     latest_packet_time_unix_ns: i64,
-) -> netbraid_replay::SavedCaptureRecordStreamV0 {
+) -> netbraid::replay::SavedCaptureRecordStreamV0 {
     let records = validated_stream(manifest, packets, quarantines);
     let receipt = CaptureRunReceiptV0 {
         schema: CAPTURE_RUN_RECEIPT_SCHEMA_V0.into(),
