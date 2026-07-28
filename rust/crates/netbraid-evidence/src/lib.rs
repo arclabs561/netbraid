@@ -321,6 +321,28 @@ mod tests {
     }
 
     #[test]
+    fn canonicalization_is_idempotent() {
+        let mut record = observation();
+        record.path.resolvers = vec!["b".into(), "a".into(), "b".into()];
+        record.coverage.observed_sources = vec!["route".into(), "address".into(), "route".into()];
+
+        record.canonicalize();
+        let once = record.clone();
+        record.canonicalize();
+
+        assert_eq!(record, once);
+    }
+
+    #[test]
+    fn context_key_ignores_order_and_duplicates_in_set_like_fields() {
+        let mut equivalent = observation();
+        equivalent.path.resolvers = vec!["192.0.2.53".into(), "2001:db8::53".into()];
+        equivalent.path.address_prefixes = vec!["192.0.2.7".into(), "2001:db8:7::/64".into()];
+
+        assert_eq!(observation().context_key(), equivalent.context_key());
+    }
+
+    #[test]
     fn association_does_not_define_durable_context() {
         let before = observation();
         let mut after = before.clone();
