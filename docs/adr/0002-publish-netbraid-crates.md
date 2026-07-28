@@ -1,6 +1,8 @@
 ---
-status: accepted
+status: superseded
 date: 2026-07-26
+superseded_by:
+  - 0005
 extends:
   - 0001
 governs:
@@ -87,3 +89,11 @@ service, store, fusion authority, or automatic collection behavior.
   discipline.
 - Native archive users retain the existing release path, while Rust consumers
   no longer need a sibling checkout.
+
+## Superseded
+
+[ADR-0005](0005-publish-one-netbraid-package.md) replaces the four-package
+publication topology before any of those packages reached crates.io. The
+evidence, replay, and TShark boundaries remain public Rust modules, while one
+`netbraid` package owns the library, operator binary, registry identity, and
+release lifecycle.

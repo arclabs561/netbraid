@@ -1,50 +1,73 @@
 [package]
 name = "netbraid"
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
+version = "0.3.0"
+edition = "2021"
+rust-version = "1.88"
 description = "Inspect and replay provenance-preserving network evidence"
-license.workspace = true
-repository.workspace = true
-publish.workspace = true
+license = "(MIT OR Unlicense) AND BSD-3-Clause"
+repository = "https://github.com/arclabs561/netbraid"
+publish = ["crates-io"]
 readme = "../README.md"
-exclude = ["tests/fixtures/**", "tests/pcap_cli.rs", "tests/scenario_cli.rs"]
+exclude = [
+    "tests/adapter_curated_corpus.rs",
+    "tests/fixtures/adapter/third-party-licenses/**",
+    "tests/fixtures/adapter/upstream/**",
+    "tests/fixtures/*.hex",
+    "tests/pcap_cli.rs",
+    "tests/scenario_cli.rs",
+]
 keywords = ["network-analysis", "pcap", "replay", "tshark"]
 categories = ["command-line-utilities", "network-programming"]
 
 [features]
-default = []
-scenario-fixtures = ["netbraid-replay/scenario-fixtures"]
-scenario-fixtures-capture-derived = ["netbraid-replay/scenario-fixtures-capture-derived"]
-
-[workspace]
-members = [
-    "crates/netbraid-adapter-tshark",
-    "crates/netbraid-evidence",
-    "crates/netbraid-replay",
-]
-resolver = "2"
-
-[workspace.package]
-version = "0.3.0"
-edition = "2021"
-rust-version = "1.88"
-license = "MIT OR Unlicense"
-repository = "https://github.com/arclabs561/netbraid"
-publish = ["crates-io"]
+default = ["cli"]
+adapter-tshark = ["dep:csv", "dep:tempfile"]
+cli = ["adapter-tshark", "dep:anyhow", "dep:clap"]
+scenario-fixtures = []
+scenario-fixtures-capture-derived = []
 
 [[bin]]
 name = "netbraid"
 path = "src/main.rs"
+required-features = ["cli"]
+
+[[test]]
+name = "adapter_curated_corpus"
+path = "tests/adapter_curated_corpus.rs"
+required-features = ["adapter-tshark"]
+
+[[test]]
+name = "adapter_tshark_smoke"
+path = "tests/adapter_tshark_smoke.rs"
+required-features = ["adapter-tshark"]
+
+[[test]]
+name = "cli_identity"
+path = "tests/cli_identity.rs"
+required-features = ["cli"]
+
+[[test]]
+name = "pcap_cli"
+path = "tests/pcap_cli.rs"
+required-features = ["cli"]
+
+[[test]]
+name = "scenario_cli"
+path = "tests/scenario_cli.rs"
+required-features = ["cli"]
 
 [dependencies]
-clap = { version = "4", features = ["derive"] }
+anyhow = { version = "1", optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
+csv = { version = "1.3", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-anyhow = "1"
-netbraid-adapter-tshark = { version = "0.3.0", path = "crates/netbraid-adapter-tshark" }
-netbraid-evidence = { version = "0.3.0", path = "crates/netbraid-evidence" }
-netbraid-replay = { version = "0.3.0", path = "crates/netbraid-replay" }
+sha2 = "0.10.9"
+tempfile = { version = "3", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
+sha1 = "0.10"
 tempfile = "3"

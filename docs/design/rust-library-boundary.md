@@ -21,34 +21,37 @@ identity, traffic fingerprinting, or live fusion is settled.
 
 ## Decision
 
-Netbraid exposes three Rust libraries beside its operator CLI:
+Netbraid exposes three public Rust module boundaries beside its operator CLI
+from one package:
 
 ```text
-                         netbraid-evidence
-                    /          |          \
-          netbraid-replay      |      netbraid-adapter-tshark
-                 \             |             /
+                           netbraid
+                    ┌──────────┴──────────┐
+                evidence              adapters
+                    │                     └── tshark
+                    └── replay                 │
+                         │                     │
                   Linktop CLI/TUI       netbraid CLI
 ```
 
-`netbraid-evidence` owns serialized, versioned record types and their local
+`netbraid::evidence` owns serialized, versioned record types and their local
 invariants. It has no collectors, renderer, wall-clock reads, filesystem
 access, networking, controller client, or deployment policy.
 
-`netbraid-replay` owns deterministic operations over those records: JSONL
+`netbraid::replay` owns deterministic operations over those records: JSONL
 decoding, append validation, ordering, context comparison, recurrence, and
 replay summaries, plus pure capture-conversation reduction over packet
 envelopes. It may perform explicit file I/O, but it is not a daemon or generic
 storage framework. The same records, ordering inputs, and cutoff must produce
 the same state.
 
-`netbraid-adapter-tshark` owns the offline saved-capture process and provenance
-boundary. It returns `netbraid-evidence` records; it does not capture live traffic
-or infer acquisition coverage.
+`netbraid::adapters::tshark` owns the offline saved-capture process and
+provenance boundary. It returns `netbraid::evidence` records; it does not
+capture live traffic or infer acquisition coverage.
 
-The `netbraid` package remains an operator CLI. It may import the libraries as
-commands earn concrete use cases. The legacy Go CLI remains compatibility capture
-code and is not a library foundation.
+The `netbraid` package contains both this library and the operator binary. The
+binary may import the modules as commands earn concrete use cases. The legacy
+Go CLI remains compatibility capture code and is not a library foundation.
 
 Linktop imports the libraries directly for optional prior-context comparison
 and finite review of already-normalized saved-capture evidence. It remains
@@ -58,31 +61,35 @@ network activity.
 
 ## Dependency and release policy
 
-Within the Netbraid workspace, packages use local `path` plus exact workspace
-`version` dependencies. Across repositories, consumers use crates.io semver
-releases and a lockfile. Cross-repository filesystem paths and floating Git
-branches are forbidden; an exact Git revision is reserved for a deliberate
-unreleased compatibility trial.
+Across repositories, consumers use one crates.io `netbraid` semver dependency
+and a lockfile. Evidence/replay consumers disable default features; the
+default `cli` feature enables the operator binary and feature-gated TShark
+adapter. Cross-repository filesystem paths and floating Git branches are
+forbidden; an exact Git revision is reserved for a deliberate unreleased
+compatibility trial.
 
-The current mixed Go/Rust repository keeps its Rust application under `rust/`
+The current mixed Go/Rust repository keeps its Rust package under `rust/`
 while the root Go CLI remains a compatibility surface. At the all-Rust cutover,
-the intended shape is a root virtual Cargo workspace with a tracked lockfile:
+the intended shape is one root package with a tracked lockfile:
 
 ```text
 Cargo.toml
 Cargo.lock
-crates/
-  netbraid/             # operator application
-  netbraid-adapter-tshark/
-  netbraid-evidence/    # versioned records and invariants
-  netbraid-replay/      # deterministic replay and explicit file I/O
+src/
+  evidence/             # versioned records and invariants
+  replay/               # deterministic replay and explicit file I/O
+  adapters/
+    tshark/             # bounded offline process boundary
+  lib.rs
+  main.rs               # operator application
 ```
 
 Do not add `core`, `model`, `store`, `fusion`, `runtime`, or daemon crates in
 anticipation of future work. A package boundary must isolate a real dependency
 set, reusable API, independently released artifact, or second consumer.
+Source modules remain the default unit of separation.
 
-`netbraid-adapter-tshark` earns its process boundary by owning bounded shell-free
+`netbraid::adapters::tshark` earns its module and feature boundary by owning bounded shell-free
 offline invocation, subprocess deadlines, private input staging, tool and
 effective-configuration provenance, a declared first-occurrence field registry,
 exact timestamp parsing, canonicalization, quarantine, and normalization
@@ -167,7 +174,7 @@ durability guarantee.
 - Interrupted-tail recovery is warning-bearing and read-only at the consumer.
 - Append never writes behind known corruption.
 - A consumer builds from crates.io without a sibling Netbraid checkout.
-- Shared crates contain no collection, controller, actuation, or identity
+- Shared library modules contain no collection, controller, actuation, or identity
   policy.
 - Capture conversations keep observation points separate, use canonical
   endpoint direction rather than guessed initiator direction, and report

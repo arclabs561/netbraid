@@ -6,6 +6,7 @@ decisions:
   - ../adr/0002-publish-netbraid-crates.md
   - ../adr/0003-own-versioned-scenario-bundles-in-replay.md
   - ../adr/0004-admit-public-reviewed-capture-derived-scenarios.md
+  - ../adr/0005-publish-one-netbraid-package.md
 grounded_in:
   - derived-intelligence-boundary.md
   - evaluation-corpus.md
@@ -20,14 +21,14 @@ review_trigger: capture-derived fixtures enter Linktop, a second replay engine a
 ## Where we are
 
 Netbraid is the reusable, policy-neutral evidence side of the network
-intelligence stack. Its Rust workspace currently provides:
+intelligence stack. Its single Rust package currently provides:
 
-- `netbraid-evidence` for versioned records and local invariants;
-- `netbraid-replay` for strict finite input, deterministic replay, trailing
+- `netbraid::evidence` for versioned records and local invariants;
+- `netbraid::replay` for strict finite input, deterministic replay, trailing
   triage, and closed scenario bundles;
-- `netbraid-adapter-tshark` for a bounded saved-capture process and provenance
+- `netbraid::adapters::tshark` for a bounded saved-capture process and provenance
   boundary; and
-- `netbraid` for finite operator and integration commands.
+- the `netbraid` binary for finite operator and integration commands.
 
 The implemented slices cover host-path recurrence, deterministic saved-PCAP
 normalization, WLAN evidence, capture conversations, provenance-qualified
@@ -39,25 +40,21 @@ causality, actor, access-point, channel, and count claims remain unsupported.
 Linktop is a real external consumer of the evidence and replay libraries and
 can review normalized saved evidence without invoking the Netbraid CLI.
 
-The four Rust packages carry 0.3.0 workspace metadata but are not yet published
-on crates.io. That is not yet a final release identity: the latest
-capture-derived work is recorded under `Unreleased` after the current 0.3.0
-changelog boundary. Before publication, either fold that work into 0.3.0 or
-bump the workspace and changelog deliberately. The release workflow then
-enforces commit-owned versions, trusted publication, dependency order, package
-inventory, and registry verification. One valid scoped-token bootstrap is
-still required before trusted publishers can take over. The existing
+The `netbraid` package carries 0.3.0 metadata but is not yet published on
+crates.io. Before publication, all intended candidate work must be folded into
+the 0.3.0 changelog boundary. The release workflow enforces commit-owned
+versions, trusted publication, package inventory, and registry verification.
+One valid scoped-token bootstrap is still required before its trusted
+publisher can take over. The existing
 `netbraid-v0.2.0` tag identifies an earlier commit and must not be reused for
 newer package bytes.
 
 Package licensing follows the bytes Cargo actually distributes, not which
-features are enabled. `netbraid`, `netbraid-evidence`, and
-`netbraid-adapter-tshark` remain `MIT OR Unlicense`; repository-only capture
-corpora are excluded from their source archives. `netbraid-replay` distributes
-the reviewed BSD-derived scenario fixture and notice, so its archive declares
-`(MIT OR Unlicense) AND BSD-3-Clause`. A materially larger supported corpus
-needs its own data-package or content-addressed release boundary instead of
-broadening unrelated runtime crates.
+features are enabled. The one package distributes the reviewed BSD-derived
+scenario fixture and notice, so its archive declares
+`(MIT OR Unlicense) AND BSD-3-Clause`. Repository-only capture corpora remain
+excluded. A materially larger supported corpus needs its own data package or
+content-addressed release boundary instead of broadening the runtime package.
 
 The root Go capture command and `swucb` remain compatibility code. They are not
 the architecture to port feature by feature. Netbraid is not a daemon, live
@@ -107,9 +104,9 @@ crate or repository.
   does not quietly reimplement their entire scope.
 - Human text, JSON/JSONL, replay, and downstream TUI views project the same
   typed meaning at different densities.
-- No new `core`, `model`, `fusion`, `runtime`, store, daemon, or umbrella crate
-  is added without a second consumer or a measured invariant that the current
-  four-package graph cannot own.
+- No new `core`, `model`, `fusion`, `runtime`, store, daemon, or package
+  boundary is added without an independent consumer, cadence, or measured
+  dependency/compatibility invariant that modules and features cannot own.
 - Useful results should appear on the first supported observation. Longer
   dwell may improve distributions, recurrence, and baselines but cannot be a
   prerequisite for basic provenance, change, coverage, or abstention.
@@ -138,11 +135,11 @@ by those consumers.
 ```text
 specialist artifacts/tools
           |
-netbraid-adapter-* ---> netbraid-evidence <--- netbraid-replay
-          \                    |                    /
-           \---------------- netbraid CLI ----------/
-                                |
-                     released crates / artifacts
+netbraid::adapters::* ---> netbraid::evidence <--- netbraid::replay
+            \                    |                    /
+             \---------------- netbraid CLI ----------/
+                                  |
+                        released crate / artifacts
                          /                   \
                     Linktop                Infra
 
@@ -166,10 +163,9 @@ cannot authorize acquisition or define evidence semantics.
 These are gated lanes, not one serial feature train. In particular, registry
 bootstrap does not block repository-only scenario or evaluation work.
 
-1. Reconcile the release boundary: either make the current capture-derived work
-   part of 0.3.0 or choose a new workspace version. With that identity fixed,
-   bootstrap the four registry names using one valid scoped credential,
-   configure trusted publishing, and revoke the bootstrap credential.
+1. Finish the 0.3.0 single-package release boundary. Bootstrap the `netbraid`
+   registry name using one valid scoped credential, configure trusted
+   publishing, and revoke the bootstrap credential.
 2. Finish the operator-decision scenario matrix and Linktop presentation gate.
    Prioritize impairment localization, partial peer visibility, split-route
    behavior, and the smallest differential capture cases over corpus volume.
@@ -202,13 +198,12 @@ daemon, long baseline, or multi-modal schema.
 
 The workspace currently says 0.3.0, while the changelog records the latest
 capture-derived work after that release boundary. First decide whether those
-bytes are 0.3.0 and fold the changelog accordingly, or bump the workspace and
-changelog together. From a clean clone of that intended release commit,
-bootstrap each crate name with a fresh scoped token, configure the GitHub
-trusted publisher, revoke the token, and let the pinned release workflow
-publish in dependency order. Verify each registry package's repository,
-version, VCS SHA, dirty state, and yanked state before creating the GitHub
-release.
+bytes are 0.3.0 and fold the changelog accordingly. From a clean clone of that
+intended release commit, bootstrap the `netbraid` crate with a fresh scoped
+token, configure the GitHub trusted publisher, revoke the token, and let the
+pinned release workflow own later publication. Verify the registry package's
+repository, version, VCS SHA, dirty state, and yanked state before creating the
+GitHub release.
 
 Do not move Linktop as part of this publication. Linktop ADR-0008 currently
 retains the exact Git revision until the crates it consumes exist on crates.io
@@ -222,8 +217,8 @@ or semver contract, never a sibling path.
 Consumer: fresh-clone users, future library consumers, and Infra admission
 gates.
 
-Gate: all four crates resolve from crates.io at one release identity; the
-trusted publisher is configured; the bootstrap token is revoked; an external
+Gate: the `netbraid` crate resolves from crates.io at the intended release
+identity; the trusted publisher is configured; the bootstrap token is revoked; an external
 scratch consumer and Infra pass from clean checkouts without a local Netbraid
 directory. Linktop migration has its own accepted gate.
 

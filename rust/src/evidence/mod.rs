@@ -1,7 +1,7 @@
 //! Experimental policy-neutral evidence records.
 //!
 //! `HostPathObservationV0` is intentionally narrower than Netbraid's gated
-//! multi-modal observation contract. The crate owns data invariants only: it
+//! multi-modal observation contract. The module owns data invariants only: it
 //! performs no collection, networking, filesystem access, or wall-clock reads.
 
 use std::collections::BTreeSet;
@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(json["path"]["network_name"]["visibility"], "observed");
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&record).unwrap()),
-            include_str!("../tests/fixtures/v0/host_path_observation_v0.json")
+            include_str!("../../tests/fixtures/evidence/v0/host_path_observation_v0.json")
         );
     }
 

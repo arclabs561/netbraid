@@ -3,7 +3,7 @@ use std::process::Command;
 
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("crates/netbraid-replay/tests/fixtures/scenarios")
+        .join("tests/fixtures/replay/scenarios")
         .join(name)
 }
 
@@ -148,12 +148,7 @@ fn scenario_dispatch_does_not_follow_a_manifest_symlink_to_probe_its_schema() {
 fn capture_scenario_lineage_matches_the_admitted_adapter_corpus() {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR"));
     let corpus: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(
-            workspace
-                .join("crates/netbraid-adapter-tshark")
-                .join("tests/fixtures/upstream/corpus-v0.json"),
-        )
-        .unwrap(),
+        &std::fs::read(workspace.join("tests/fixtures/adapter/upstream/corpus-v0.json")).unwrap(),
     )
     .unwrap();
     let scenario: serde_json::Value = serde_json::from_slice(
@@ -191,7 +186,7 @@ fn capture_scenario_lineage_matches_the_admitted_adapter_corpus() {
 
     let adapter_license = std::fs::read(
         workspace
-            .join("crates/netbraid-adapter-tshark/tests/fixtures")
+            .join("tests/fixtures/adapter")
             .join(admitted["origin"]["license_file"].as_str().unwrap()),
     )
     .unwrap();

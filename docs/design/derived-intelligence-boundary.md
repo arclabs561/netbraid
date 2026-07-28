@@ -62,9 +62,9 @@ devices.
 
 The implemented Rust core is intentionally narrower than this target:
 
-- `netbraid-evidence` serializes experimental host-path and saved-capture
+- `netbraid::evidence` serializes experimental host-path and saved-capture
   observations plus source, policy, coverage, extractor, and run receipts.
-- `netbraid-replay` performs deterministic JSONL replay, host-path comparison,
+- `netbraid::replay` performs deterministic JSONL replay, host-path comparison,
   and a non-serialized capture-conversation reduction.
 - The TShark adapter normalizes one declared field registry from an immutable
   saved capture. It reports normalization completeness, not capture-wide,
@@ -80,7 +80,7 @@ The implemented Rust core is intentionally narrower than this target:
 There is no stable multi-modal schema, serialized episode, fingerprint
 candidate, live Netbraid daemon, or production Rust fusion writer today.
 
-`netbraid-replay` also owns a finite scenario-bundle validator and checkpoint
+`netbraid::replay` also owns a finite scenario-bundle validator and checkpoint
 replay receipt. Scenario coverage, expected conclusions, required abstentions,
 and viewport constraints are evaluation oracles, not newly observed evidence.
 Four `PUBLIC_SYNTHETIC` v0 bundles protect attachment recurrence, a same-SSID

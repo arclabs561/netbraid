@@ -1,6 +1,6 @@
 //! Bounded, offline normalization of saved captures through TShark.
 //!
-//! This crate does not capture live traffic. It invokes TShark without a shell,
+//! This module does not capture live traffic. It invokes TShark without a shell,
 //! disables name resolution, selects a fixed field registry, and returns typed
 //! evidence plus explicit quarantines.
 
@@ -15,15 +15,15 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, SystemTimeError, UNIX_EPOCH};
 
-use capinfos::{argument_template as capinfos_argument_template, parse_table};
-pub use fields::FIELD_REGISTRY_ID;
-use fields::{parse_rows, FIELDS};
-use netbraid_evidence::{
+use crate::evidence::{
     CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureManifestV0, CaptureNormalizationV0,
     CaptureRunReceiptV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
     PacketQuarantineV0, ToolRunReceiptV0, CAPTURE_MANIFEST_SCHEMA_V0,
     CAPTURE_RUN_RECEIPT_SCHEMA_V0, NORMALIZED_RECORDS_DIGEST_PROFILE_V0,
 };
+use capinfos::{argument_template as capinfos_argument_template, parse_table};
+pub use fields::FIELD_REGISTRY_ID;
+use fields::{parse_rows, FIELDS};
 use process::run_bounded;
 pub use process::ProcessError;
 use sha2::{Digest, Sha256};
@@ -139,8 +139,8 @@ pub enum AdapterError {
     ClockBeforeUnixEpoch(SystemTimeError),
     ClockOutOfRange,
     RecordSerialization(serde_json::Error),
-    InvalidManifest(netbraid_evidence::CaptureValidationError),
-    InvalidReceipt(netbraid_evidence::CaptureValidationError),
+    InvalidManifest(crate::evidence::CaptureValidationError),
+    InvalidReceipt(crate::evidence::CaptureValidationError),
 }
 
 impl std::fmt::Display for AdapterError {
@@ -1057,19 +1057,19 @@ mod tests {
     #[test]
     fn public_capture_fixtures_form_one_receipt_bound_record_set() {
         let manifest: CaptureManifestV0 = serde_json::from_str(include_str!(
-            "../tests/fixtures/schema-v0/capture_manifest_v0.json"
+            "../../../tests/fixtures/adapter/schema-v0/capture_manifest_v0.json"
         ))
         .unwrap();
         let receipt: CaptureRunReceiptV0 = serde_json::from_str(include_str!(
-            "../tests/fixtures/schema-v0/capture_run_receipt_v0.json"
+            "../../../tests/fixtures/adapter/schema-v0/capture_run_receipt_v0.json"
         ))
         .unwrap();
         let packet: PacketEnvelopeV0 = serde_json::from_str(include_str!(
-            "../tests/fixtures/schema-v0/packet_envelope_v0.json"
+            "../../../tests/fixtures/adapter/schema-v0/packet_envelope_v0.json"
         ))
         .unwrap();
         let quarantine: PacketQuarantineV0 = serde_json::from_str(include_str!(
-            "../tests/fixtures/schema-v0/packet_quarantine_v0.json"
+            "../../../tests/fixtures/adapter/schema-v0/packet_quarantine_v0.json"
         ))
         .unwrap();
 
