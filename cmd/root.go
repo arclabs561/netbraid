@@ -451,15 +451,15 @@ func resolveIfacesFlat(
 		log.Info().Msgf("using %d/%d interfaces: %v", len(netIfaces), len(availNetIfaces), names)
 		var ifaces []monitor.Interface
 		for _, netIface := range netIfaces {
-		wiphy := wiphys[netIface.Name]
-		channels := []int{}
-		if wiphy != nil {
-			channels = wiphy.ChannelInts()
-		}
-		ifaces = append(ifaces, monitor.Interface{
-			Interface: netIface,
-			Channels:  channels,
-		})
+			wiphy := wiphys[netIface.Name]
+			channels := []int{}
+			if wiphy != nil {
+				channels = wiphy.ChannelInts()
+			}
+			ifaces = append(ifaces, monitor.Interface{
+				Interface: netIface,
+				Channels:  channels,
+			})
 		}
 		return ifaces, nil
 	}
@@ -528,21 +528,21 @@ func resolveIfacesFlat(
 		var clauseMatches [][]monitor.Interface
 		var clauseMatchIndices [][]int
 		for _, clause := range spec.Clauses {
-		var clauseIfaceMatches []net.Interface
-		var channels [][]int
-		for _, iface := range ifaceMatches {
-			wiphy := wiphys[iface.Name]
-			match, ok := clause.Match(iface, wiphy)
-			if !ok {
-				continue
+			var clauseIfaceMatches []net.Interface
+			var channels [][]int
+			for _, iface := range ifaceMatches {
+				wiphy := wiphys[iface.Name]
+				match, ok := clause.Match(iface, wiphy)
+				if !ok {
+					continue
+				}
+				clauseIfaceMatches = append(clauseIfaceMatches, iface)
+				ch := match.Channels
+				if len(ch) == 0 && wiphy != nil {
+					ch = wiphy.ChannelInts()
+				}
+				channels = append(channels, ch)
 			}
-			clauseIfaceMatches = append(clauseIfaceMatches, iface)
-			ch := match.Channels
-			if len(ch) == 0 && wiphy != nil {
-				ch = wiphy.ChannelInts()
-			}
-			channels = append(channels, ch)
-		}
 
 			var matches []monitor.Interface
 			var matchIndices []int
@@ -602,12 +602,14 @@ func resolveIfacesFlat(
 					UpperExclusive: len(matches) + 1,
 				}
 			}
+			compatible := roaring.New()
+			for _, matchIndex := range specMatchIndices[i][j] {
+				compatible.AddInt(matchIndex)
+			}
 			regions = append(regions, csp.Region{
-				Index: index,
-				Compatible: roaring.BitmapOf(lo.Map(specMatchIndices[i][j], func(i int, _ int) uint32 {
-					return uint32(i)
-				})...),
-				Bound: bound,
+				Index:      index,
+				Compatible: compatible,
+				Bound:      bound,
 			})
 		}
 	}
@@ -633,7 +635,7 @@ func resolveIfacesFlat(
 				continue
 			}
 			asmtIfaces := lo.Filter(specMatches[i][j], func(iface monitor.Interface, i int) bool {
-				return asmt.Set.Contains(uint32(i))
+				return asmt.Set.ContainsInt(i)
 			})
 			if len(asmtIfaces) == 0 {
 				panic(fmt.Sprintf("no interfaces kept: %v", asmt.Index))

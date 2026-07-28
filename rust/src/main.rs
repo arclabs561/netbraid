@@ -824,8 +824,8 @@ mod tests {
             ts: 1,
             aps: BTreeMap::new(),
             clients: vec![
-                test_client("arc", "192.0.2.1"),
-                test_client("arcade", "192.0.2.2"),
+                test_client("workstation", "192.0.2.1"),
+                test_client("workstation-lab", "192.0.2.2"),
             ],
             clients_wireless: 2,
             clients_wired: 0,
@@ -834,15 +834,16 @@ mod tests {
             wan_status: None,
         };
         assert!(matches!(
-            match_clients(&snapshot, "ARC"),
-            ClientMatch::Exact(client) if client.name.as_deref() == Some("arc")
+            match_clients(&snapshot, "WORKSTATION"),
+            ClientMatch::Exact(client) if client.name.as_deref() == Some("workstation")
         ));
         assert!(matches!(
-            match_clients(&snapshot, "cade"),
-            ClientMatch::UniquePartial(client) if client.name.as_deref() == Some("arcade")
+            match_clients(&snapshot, "-lab"),
+            ClientMatch::UniquePartial(client)
+                if client.name.as_deref() == Some("workstation-lab")
         ));
         assert!(matches!(
-            match_clients(&snapshot, "ar"),
+            match_clients(&snapshot, "work"),
             ClientMatch::Ambiguous(clients) if clients.len() == 2
         ));
     }
@@ -875,7 +876,7 @@ mod tests {
         let j = r#"{"ts":1,"clients_wireless":2,"clients_wired":1,"sat_min":96,"wan_status":"ok",
             "aps":{"AP1":{"uptime_h":51.5,"uplink":"wire","clients":2,
                 "radios":{"na":{"channel":48,"airtime":7,"neighbors":19}}}},
-            "clients":[{"name":"MacBookPro","ip":"192.168.1.35","ap":"AP1","radio":"na","signal":-42,"sat":100,"tx_bytes":100},
+            "clients":[{"name":"workstation","ip":"192.0.2.35","ap":"AP1","radio":"na","signal":-42,"sat":100,"tx_bytes":100},
                        {"name":"nas","wired":true,"ap":"SW1"}]}"#;
         let s: Snapshot = serde_json::from_str(j).expect("snapshot parses");
         assert_eq!(s.clients_wireless, 2);

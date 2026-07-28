@@ -9,6 +9,32 @@ GitHub native binary releases remain available independently.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-28
+
+### Changed
+
+- Replaced the internal migration-oriented README and planning ledger with a
+  concise public operator guide, contributor decisions, architecture, fixture,
+  conversation, and IEEE 802.11 evidence documentation.
+- Made maintainer ADRs and design working notes local-only while retaining
+  their durable product constraints in public documentation.
+- Replaced the legacy single-stage Docker image with an explicit multi-stage
+  build whose runtime contains only the Go compatibility binary and runtime
+  libraries; base manifests are digest-pinned and local image builds no longer
+  imply a registry push.
+- Expanded repository ignores for raw captures, local analysis, logs,
+  databases, and credential-bearing files; reduced the container context to an
+  allowlist of Go build inputs; and corrected the scenario fixture line-ending
+  rule.
+- Replaced author-specific compatibility-reader test values with documentation
+  addresses and neutral fixture names.
+
+### Fixed
+
+- Brought the legacy Go compatibility tree through the current lint suite with
+  checked integer conversions, portable platform boundaries, typed TOML tags,
+  error-chain handling, and allocation-safe buffer pooling.
+
 ## [0.3.0] - 2026-07-27
 
 ### Added
@@ -130,7 +156,8 @@ GitHub native binary releases remain available independently.
 - Raw PCAP, PCAPNG, and CAP artifacts are ignored recursively; reviewed
   synthetic fixtures remain readable source encodings.
 
-[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.0...HEAD
+[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.1...HEAD
+[0.3.1]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.0...netbraid-v0.3.1
 [0.3.0]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.2.0...netbraid-v0.3.0
 [0.2.0]: https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.2.0
 [0.1.0]: https://github.com/arclabs561/netbraid/releases/tag/netmon-v0.1.0

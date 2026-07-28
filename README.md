@@ -1,497 +1,253 @@
 # netbraid
 
-Netbraid is a versioned network-evidence and deterministic-replay tool. Its
-single Rust package provides reusable evidence, replay, and adapter modules
-beside the operator CLI; the repository also retains a legacy Go capture tool
-and a disconnected acquisition-policy experiment while the Rust cutover
-proceeds.
+Netbraid normalizes network evidence and replays it deterministically.
 
-Netbraid currently contains three lifecycle surfaces:
+The Rust package provides a library and operator CLI for strict evidence logs,
+finite scenario bundles, and bounded saved-PCAP normalization. The repository
+also contains a legacy Go capture CLI; it is maintained for compatibility, not
+used by the Rust package.
 
-- The root Go CLI captures from one or more interfaces, optionally hops Wi-Fi
-  channels, writes one PCAP per interface plus `events.jsonl`, and can print packets or
-  a live summary.
-- `rust/` is one library-and-CLI package. Its `net`, `device`, and `here`
-  commands read the latest `netops` audit JSONL without capturing traffic or
-  querying a controller directly. Its experimental `evidence` command
-  deterministically replays a supplied v0 host-path JSONL log and distinguishes
-  anchored exact recurrence from unanchored exact key matches and
-  compatible/incomplete observations. Its `pcap` command normalizes a bounded
-  saved capture through the `netbraid::adapters::tshark` module and prints an
-  operator summary or versioned JSONL evidence. That adapter stages a regular
-  PCAP or PCAPNG file, reads file-level facts through Capinfos, disables name
-  resolution, selects an explicit first-occurrence TShark field registry,
-  fingerprints effective configuration, refuses personal plugins unless
-  explicitly allowed, preserves invalid rows as quarantines, and emits a
-  successful-run receipt. The offline `scenario` command validates and replays
-  finite public-synthetic and disclosure-reviewed capture-derived evidence,
-  abstention, and viewport test bundles.
-- `swucb/` is an unused legacy sliding-window UCB experiment. It remains only
-  until the Rust acquisition control proves the receipt and replay contract
-  needed to delete the old Go acquisition tree.
-
-The legacy Go CLI and Rust package share a repository, not one runtime or data
-model. Both CLIs currently build a binary named `netbraid`; the commands below
-invoke them by build path rather than claiming they can be installed side by side. The Go module path
-`github.com/arclabs561/netwatch` is retained as a compatibility name, not as the
-repository's current charter.
-
-## Scope
-
-| Surface | Lifecycle | Job |
-| --- | --- | --- |
-| Go capture CLI | Legacy compatibility | Acquire selected packet/RF observations as PCAP and JSONL |
-| Rust snapshot CLI | Compatibility reader | Interpret the latest saved netops audit snapshot |
-| Rust v0 library modules | Experimental | Record and replay evidence, compare host-path context, validate finite operator scenarios, and reduce eligible packet envelopes into capture-wide conversations |
-| Rust Wireshark-tool adapter module | Experimental | Normalize bounded saved captures into manifests, successful-run receipts, packet envelopes, and quarantines without live capture |
-| `swucb/` | Legacy, deletion-gated | Preserve no runtime behavior; remove after the Rust acquisition control proves receipt-bound attribution |
-| Broader multi-modal evidence families | Gated future | Add temporal, entity, episode, or fingerprint records only after representative fixtures and a concrete second consumer |
-| Live deployment or fusion service | External | Consume released evidence/replay artifacts after its own parity and rollback gates |
-
-The narrow Rust evidence/replay core exists as public modules in the
-`netbraid` package. Its broader multi-modal contract remains gated on
-representative fixtures and a concrete consumer. `HostPathObservationV0` is specified in
-[`docs/design/rust-library-boundary.md`](docs/design/rust-library-boundary.md) so
-Linktop can act as a real second consumer without claiming that the broader gate has
-passed. The dependency-ordered removal of the Go capture CLI and eventual migration
-of reusable live-plane logic are specified in
-[`docs/design/rust-acquisition-cutover.md`](docs/design/rust-acquisition-cutover.md).
-New core work is Rust; the Go tree receives only compatibility, security, and build
-fixes until it can be retired. A future opt-in Rust acquisition policy may reuse
-Muxer instead of porting `swucb`; Muxer does not enter evidence, replay, Linktop, or
-the passive default path.
-
-The repository does not own:
-
-- host-path and link-quality diagnosis, which belongs to Linktop. Once Netbraid exposes
-  a stable policy-neutral Rust API, Linktop may move from its exact-revision v0
-  dependency to that release; local diagnosis already remains usable without a
-  Netbraid executable, store, controller, or deployment;
-- deployed collectors, operational stores, retention, topology, runtime health,
-  notifications, compatibility projections, or the current Python fusion service;
-- device aliases, assignments, enrolled anchors, consent, credentials, household
-  identity, or person-presence authority;
-- controller/Kismet integration, active LAN inventory, IDS behavior, arbitrary shell
-  hooks, or a distributed capture/dataflow runtime for the future core.
-
-The legacy capture and watcher code is not the foundation for the future core. New
-production capture belongs to the deployed Kismet path or mature capture tools; new
-Netbraid work must preserve source evidence rather than widening capture features.
-
-## Build and run the Go capture CLI
-
-Go 1.25.12 or newer is declared by `go.mod`; this compatibility floor tracks
-standard-library security fixes rather than the future Rust architecture.
-
-This is the legacy acquisition binary, not the passive Rust reader. Invoking it
-without a subcommand begins live acquisition on selected/default interfaces and
-writes into the current directory. Keep it build-path-qualified and supply an
-explicit interface, output directory, and terminal condition; do not install it
-beside the Rust binary.
-
-```sh
-go build -o netbraid .
-./netbraid --help
+```text
+scenario wifi-hotspot-wifi @ wifi-returned (120000 ms) — manifest sha256:0039c3aec486771112102010b07d873b276b71547d089886b13f3235bb2d0ba2
+3 record reference(s) ingested
+host path: 3 record(s), 2 exact context key(s), 2 confirmed transition(s), 0 compatible/incomplete transition(s), latest wifi-primary-2
+declared oracle: 1 supported conclusion(s), 0 required abstention(s), 3 source-coverage row(s), 1 viewport assertion(s)
 ```
 
-Capture one interface until interrupted, writing artifacts to the selected directory:
+The example comes from a public-synthetic fixture. Netbraid preserves what a
+source observed, the source's coverage, and the limits on each conclusion. It
+does not turn an address, protocol, network name, or recurrence into verified
+device, application, owner, person, intent, or place identity.
+
+Status: experimental.
+
+## Install
+
+The Rust package requires Rust 1.88 or newer:
 
 ```sh
-sudo ./netbraid -q -i en0 -o /tmp/netbraid-capture
+cargo install netbraid --version 0.3.1 --locked
 ```
 
-`-i` accepts a Go regular expression as written; it is not implicitly anchored. Use
-`-I` for all active interfaces. Per-interface options follow the expression after a
-colon:
+Checksummed native archives for x86-64 Linux, Intel macOS, and Apple silicon
+macOS are attached to the
+[`netbraid-v0.3.1` release](https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.3.1):
 
 ```sh
-sudo ./netbraid -q -i 'wlp.*:h=static,b=2.4ghz' -o /tmp/netbraid-capture
+gh release download netbraid-v0.3.1 \
+  --repo arclabs561/netbraid \
+  --dir netbraid-v0.3.1
+(cd netbraid-v0.3.1 && shasum -a 256 --check SHA256SUMS)
 ```
 
-`h=static|uniform|thompson` selects the hopping strategy and
-`b=2.4ghz|5ghz` limits the band. The default strategy is `uniform`, with a 200 ms
-capture interval. Multiple selected interfaces capture concurrently; one interface
-occupies one channel at a time.
+The macOS archives are not code-signed or notarized. Cargo installation is the
+most portable path.
 
-The capture directory contains `<hopper>:<interface>.pcap` files and `events.jsonl`.
-Without `-q`, packet records go to stdout. `-S` selects the dynamic summary instead.
-
-## Build and run the Rust snapshot CLI
+From a checkout:
 
 ```sh
-cargo build --manifest-path rust/Cargo.toml
-./rust/target/debug/netbraid --version
+cargo build --locked --manifest-path rust/Cargo.toml
 ./rust/target/debug/netbraid --help
-./rust/target/debug/netbraid net
-./rust/target/debug/netbraid device '<name, MAC, or IP substring>'
-./rust/target/debug/netbraid here
-./rust/target/debug/netbraid evidence ./host-path.jsonl
-./rust/target/debug/netbraid pcap ./incident.pcap
-./rust/target/debug/netbraid pcap ./incident.pcapng --json
-./rust/target/debug/netbraid pcap ./incident.pcapng --jsonl
-./rust/target/debug/netbraid pcap ./incident.pcapng --records-jsonl
-./rust/target/debug/netbraid scenario validate ./scenario --json
-./rust/target/debug/netbraid scenario replay ./scenario --checkpoint CHECKPOINT --json
 ```
 
-The Rust package requires Rust 1.88 or newer. Its library and CLI are released
-together at one version; the first registry release
-identity is 0.3.0 because the earlier 0.2.0 Git tag already names immutable
-bytes. Check crates.io for registry availability. Before a version is visible
-there, install from a source checkout or its tagged GitHub archive rather than
-assuming `cargo install netbraid` is available.
-
-Initial crates.io ownership is a one-time publication from a clean
-current-`main` checkout with a scoped token. Later releases use the repository's
-Trusted Publishing workflow. The bootstrap token is revoked immediately after
-the trusted publisher is registered, and a release tag is created only
-after crates.io reports artifacts from the intended commit.
-
-To install a source checkout into Cargo's binary directory:
+## Use
 
 ```sh
-cargo +1.88 install --locked --path rust
-netbraid --version
+netbraid evidence ./host-path.jsonl
+netbraid pcap ./incident.pcapng
+netbraid pcap ./incident.pcapng --json
+netbraid pcap ./incident.pcapng --records-jsonl
+netbraid scenario validate ./scenario
+netbraid scenario replay ./scenario --checkpoint CHECKPOINT
 ```
 
-Rust consumers can import the policy-neutral library without the CLI or
-Wireshark-tool dependency surface:
+`evidence` and `scenario` are finite, offline operations. `pcap` accepts only a
+regular saved PCAP or PCAPNG file; it does not open live interfaces.
+
+Three compatibility commands read the last object in a saved controller audit
+log and exit:
+
+```sh
+netbraid --file ~/.cache/netops/audit-history.jsonl net
+netbraid --file ~/.cache/netops/audit-history.jsonl device QUERY
+netbraid --file ~/.cache/netops/audit-history.jsonl here
+```
+
+They do not capture traffic or query a controller. A missing, empty, or
+malformed file is an error rather than evidence about the current network.
+
+## Saved captures
+
+`netbraid pcap` stages and hashes one saved artifact, obtains file facts from
+Capinfos, and invokes TShark with:
+
+- name resolution disabled;
+- an explicit first-occurrence field registry;
+- a private personal-configuration directory;
+- bounded input, output, packet count, and runtime;
+- no shell interpolation; and
+- tool, registry, environment, and effective-configuration fingerprints.
+
+TShark and Capinfos must be installed and compatible with the capture. Personal
+Wireshark plugins are refused unless `--allow-personal-plugins` is explicit.
+System plugins and allowed personal plugins remain fingerprinted provenance;
+Netbraid does not claim that a dissector process is a sandbox.
+
+The output modes serve different consumers:
+
+| Mode | Consumer | Contract |
+| --- | --- | --- |
+| default text | operator | finite evidence summary and limitations |
+| `--json` | program or agent | one provenance-complete triage document |
+| `--jsonl` | archival pipeline | manifest, run receipt, records, quarantines |
+| `--records-jsonl` | deterministic replay | occurrence-independent normalized records |
+
+`--packet-limit`, `--max-input-mib`, `--max-output-mib`, and
+`--timeout-seconds` bound work. `--tail-seconds` narrows analysis to an artifact
+interval; negative conclusions remain qualified by normalization completeness
+and capture coverage.
+
+Normalizing an existing file is passive. That does not prove the original
+acquisition was passive. Supply independently known provenance with
+`--observer-id`, `--acquired-time-unix-ms`, `--acquisition-mode`, and repeated
+`--active-action` values.
+
+See
+[Saved-PCAP normalization](https://github.com/arclabs561/netbraid/blob/main/docs/saved-pcap-normalization.md)
+and
+[Capture conversations](https://github.com/arclabs561/netbraid/blob/main/docs/capture-conversations.md).
+
+## Scenario bundles
+
+A scenario is a closed, finite directory with a strict `scenario.json`
+manifest and a digest-bound inventory of evidence and optional viewport
+artifacts. Validation checks:
+
+- schema and exact artifact inventory;
+- safe paths, sizes, and SHA-256 digests;
+- strict typed evidence streams;
+- monotonic checkpoint references;
+- source coverage and freshness;
+- supported conclusions and required abstentions; and
+- bounded text viewport dimensions.
+
+The normal package includes public-synthetic fixtures for:
+
+- Wi-Fi to hotspot and back;
+- same-SSID attachment change and label reuse;
+- VPN overlay transitions; and
+- a stale passive neighbor-cache gap.
+
+The non-default `scenario-fixtures-capture-derived` feature adds one
+disclosure-reviewed, licensed upstream-capture boundary case. Fixtures prove
+specific invariants; they are not a representative sample of networks,
+operators, devices, or incidents.
+
+```sh
+netbraid scenario validate \
+  rust/tests/fixtures/replay/scenarios/wifi-hotspot-wifi
+netbraid scenario replay \
+  rust/tests/fixtures/replay/scenarios/wifi-hotspot-wifi \
+  --checkpoint wifi-returned
+```
+
+See
+[Fixture policy](https://github.com/arclabs561/netbraid/blob/main/docs/fixture-policy.md)
+and
+[IEEE 802.11 evidence](https://github.com/arclabs561/netbraid/blob/main/docs/wlan-evidence.md).
+
+## Library
+
+The CLI and library share one package and release version. Policy-neutral
+evidence and replay consumers can avoid the CLI and Wireshark-tool dependency
+surface:
 
 ```toml
 [dependencies]
 netbraid = { version = "0.3", default-features = false }
 ```
 
-The public paths are `netbraid::evidence` and `netbraid::replay`. Add
-`features = ["adapter-tshark"]` only when the bounded offline
-`netbraid::adapters::tshark` process boundary is needed. The default `cli`
-feature is intended for `cargo install netbraid`.
-
-Tagged releases use `netbraid-vVERSION` and contain native archives for Linux
-x86-64, Intel macOS, and Apple silicon macOS. Each archive contains the Rust
-`netbraid` binary, README, both authored-code license files, and the canonical
-evidence v0 fixture bundle. For example:
-
-```sh
-version=0.3.0
-target=aarch64-apple-darwin
-asset="netbraid-v${version}-${target}.tar.gz"
-gh release download "netbraid-v${version}" --repo arclabs561/netbraid \
-  --pattern "$asset" --pattern SHA256SUMS
-grep "  ${asset}$" SHA256SUMS | shasum -a 256 --check
-tar -xzf "$asset"
-mkdir -p "$HOME/.local/bin"
-install -m 0755 "netbraid-v${version}-${target}/netbraid" "$HOME/.local/bin/netbraid"
-```
-
-Use `x86_64-apple-darwin` on an Intel Mac and
-`x86_64-unknown-linux-gnu` on x86-64 Linux. The checksum covers the
-downloaded archive. GitHub build-provenance attestations cover all release
-archives and `SHA256SUMS`.
-
-The macOS archives are not Developer ID signed or notarized. If local policy
-rejects a downloaded binary, build the verified tag from source with Cargo
-instead of weakening Gatekeeper.
-
-The default snapshot input is `~/.cache/netops/audit-history.jsonl`; pass `--file PATH`
-to read another audit history. The snapshot commands read the last JSON object and
-exit. The `evidence` command strictly reads the complete supplied log. A missing,
-empty, or malformed input is an error rather than evidence about the live network.
-Compatibility output identifies the saved source path, exact Unix timestamp,
-relative age or future-clock warning, and controller-reported metric names. Device
-queries prioritize exact values, refuse ambiguous substring matches, and never turn
-a hostname-shaped roster match into verified device identity.
-
-At the library boundary, `read_jsonl` remains strict.
-`read_jsonl_recovering_tail` can instead return the valid replay prefix plus a typed
-warning when only the final malformed fragment is unterminated; internal or
-newline-terminated corruption still fails. `append_jsonl` strictly preflights existing
-content, writes each canonical record and its newline from one buffer, and inserts one
-separator before a valid final JSON record that lacked a newline. Appends are
-fail-closed around known corruption but are not cross-process locking: one writer owns
-each log.
-
-The `scenario` command is a finite, offline maintainer surface over
-`netbraid.scenario_bundle.v0` and `netbraid.scenario_bundle.v1`. `validate`
-selects the strict loader named by `scenario.json` and checks the exact manifest
-and artifact inventory, hashes, safe paths, strict host-path or saved-capture
-streams, monotonic timeline references, coverage/freshness separation,
-supported conclusions, required abstentions, and ASCII viewport bounds.
-`replay` returns the source prefix and typed projection at one named checkpoint.
-Version 0 continues to emit the byte-stable `netbraid.scenario_replay.v0`
-receipt. A v1 bundle emits `netbraid.scenario_replay.v1`, preserving the bundle
-schema, declared sensitivity, and declared disclosure review when the receipt
-is detached while retaining the same checkpoint projection fields. Structural
-replay does not authenticate that declaration. The reported manifest SHA-256
-closes over the exact `scenario.json` bytes and is not stored inside the
-manifest. Scenario expectations are authored test oracles, not
-source evidence, identity claims, or live collection instructions. Validation
-proves their references and structural preconditions; consumer tests must
-independently derive conclusions and render views before treating an oracle as
-passed.
-
-The normal library does not embed fixtures. Maintainer tests enable
-`scenario-fixtures` to expose four tiny `PUBLIC_SYNTHETIC`
-bundles covering Wi-Fi/hotspot recurrence, a same-SSID BSSID attachment
-transition followed by an incompatible reused-label boundary, overlay
-attribution abstention, and a stale neighbor-cache gap.
-
-The separate, non-default `scenario-fixtures-capture-derived` feature exposes one
-`PUBLIC_REVIEWED` v1 bundle without changing that v0 list. It contains
-deterministic six- and seven-packet normalized prefixes of an admitted libpcap
-IEEE 802.11 capture. The seventh frame adds one observed deauthentication
-frame; the oracle keeps the earlier negative result prefix-scoped and requires
-abstention from source-wide counts or absence, identity, intent, causality, and
-radio-channel claims. The bundle records exact upstream revision, path, blob
-and content digests, byte count, SPDX terms, and a non-ingestible
-`license_text` artifact. Its disclosure review enumerates link-layer addresses,
-the network name, and packet timestamps retained in ingestible evidence; raw
-packet payload bytes are omitted from those evidence artifacts. Validation
-derives identifier classes from every admitted typed saved-capture record and
-requires the declaration to match exactly. Version 1 does not admit host-path
-streams or opaque quarantine rows, because neither can satisfy this
-capture-source disclosure closure. It also leaves viewport text in v0 until
-presentation bytes have their own disclosure contract. The separately
-classified legal notice remains verbatim for redistribution compliance.
-
-Structural validation does not authenticate a `PUBLIC_REVIEWED` assertion in
-an arbitrary external directory. The built-in is trusted because its exact
-content, source, and legal coordinates are admitted and tested; another
-structurally valid bundle needs its own trusted review and distribution path.
-
-The normalized fixture's committed TShark version, field registry, and
-effective-configuration fingerprint describe the exact reviewed reference
-bytes. They are provenance, not portable constants that every host must
-reproduce. Regeneration changes the bundle closure and requires review. See
-[`docs/design/evaluation-corpus.md`](docs/design/evaluation-corpus.md).
-
-The `pcap` command is offline and non-interactive. Its text output leads with a
-bounded triage projection: normalization completeness and quarantine, the
-supported WLAN disconnect-management-frame observations when present,
-the largest cumulative capture conversation by original frame octets, and
-TShark candidate display-filter pivots. A candidate pivot can also select
-packets excluded by the reducer's eligibility rules; the typed reduction
-coverage remains authoritative. It then reports artifact identity, observer/acquisition unknowns,
-Capinfos file type and declared extent, the normalized packet subset, protocol
-stacks, directional capture-conversation frame/octet counts and observed TCP
-flags, and the successful run identifier and emitted-record digest.
-Conversation output is capture-wide only when normalization is complete. It
-uses canonical endpoint A/B ordering and never claims an initiator, flow, or
-session. The top conversation is cumulative across the named claim scope, not
-a recent or time-local ranking; excluded packet-envelope coverage remains
-explicit by typed reason.
-
-`--tail-seconds SECONDS` adds an explicit source-artifact trailing-interval
-analysis to text or `--json` triage while preserving that cumulative result.
-Decimal seconds down to nanosecond precision are accepted. The requested
-interval ends at the occurrence receipt's latest source-artifact packet time
-when that extent is available, otherwise it falls back to the latest normalized
-packet event time. Both boundaries are inclusive. Output distinguishes the
-source-artifact packet extent, normalized packet artifact extent, requested
-interval, selected packet extent, packet/exclusion counts, largest selected
-conversation, and time-bounded TShark candidate pivot. Positive selection
-remains useful immediately. A negative conclusion is qualified only when
-normalization is complete and an occurrence receipt supplies file packet-time
-bounds consistent with the normalized packet extrema and spanning the requested
-interval; otherwise output abstains with typed reasons. Packet timestamps do
-not prove continuous acquisition coverage. This interval does not sessionize
-tuple reuse or infer an episode. The option is analysis-only and conflicts
-with `--jsonl` and `--records-jsonl`, so normalized evidence output remains
-unchanged.
-
-When independently known, `--acquisition-mode passive-host-local` records that
-the original artifact was acquired passively from the host. An
-`active-bounded` acquisition may also repeat `--active-action ACTION`.
-Omitting the mode preserves an unknown policy; offline normalization never
-retroactively proves how the artifact was acquired.
-
-For saved wireless captures, normalized packet records may also carry typed
-IEEE 802.11 frame type/subtype, TA/RA/SA/DA/BSSID identifiers, nonempty SSID
-element bytes, and normalized channel/frequency/signal metadata when TShark
-supplies them. Finite text ranks frame mix, radio contexts, observed BSSIDs,
-transmitter addresses, and SSID elements with explicit packet-field coverage.
-These are artifact observations, not claims about complete channel coverage,
-device identity, role, presence, or intent. See
-[`docs/design/saved-capture-wlan-evidence.md`](docs/design/saved-capture-wlan-evidence.md).
-
-`--json` emits one finite `netmon.saved_pcap_triage.v1` JSON document. Its
-`source` retains the full validated `CaptureManifestV0`, optional
-occurrence-specific `CaptureRunReceiptV0`, and deterministic normalized-record
-digest. It is derived operator output, not a new normalized evidence record or
-an identity, flow, session, or episode assessment. Without `--tail-seconds`,
-the optional `trailing_window` member is omitted. The public Rust
-`project_saved_pcap_triage` API continues to emit the unchanged v0 projection
-for compatibility; v1 is a separate projection.
-Positive disconnect-frame and conversation observations are useful from the
-first supporting normalized packet. Negative WLAN observations are scoped to
-the complete capture or normalized packet subset; a partial subset with no
-IEEE 802.11 or eligible conversation evidence is explicitly insufficient.
-
-`--jsonl` emits the manifest, occurrence-specific successful-run receipt,
-packet envelopes, and quarantines. Its receipt deliberately changes across
-runs: it includes a run ID, wall-clock interval, elapsed time, and raw tool
-output digests. `--records-jsonl` emits exactly the deterministic normalized-record
-sequence bound by the receipt's
-`normalized_records_sha256`: manifest, packet envelopes, then quarantines. It
-omits the run receipt, and equivalent runs using the same artifact, fields,
-tools, configuration, limits, and independently supplied provenance produce
-byte-identical output. The three machine-output choices are mutually exclusive.
-
-The manifest does not infer that a detached artifact was acquired passively or
-that it covered a network, channel, or interval completely; observer,
-acquisition time, acquisition policy, and acquisition coverage are absent
-unless independently supplied. See
-[`docs/saved-pcap-normalization.md`](docs/saved-pcap-normalization.md).
-The deliberately non-sessionized conversation reducer is specified in
-[`docs/design/capture-conversation-reduction.md`](docs/design/capture-conversation-reduction.md).
-
-Saved-PCAP normalization requires compatible `tshark` and `capinfos`
-executables at runtime. They are not bundled in release archives. On macOS,
-install the Homebrew `wireshark` formula; on Debian or Ubuntu, install the
-`tshark` package. `net`, `device`, `here`, and host-path `evidence` replay do
-not invoke Wireshark tools.
-
-## Promotion gates
-
-The future reusable core is narrower than “move fusion into Netbraid.” Each promoted
-slice must normalize a named immutable source artifact, preserve observer and coverage
-evidence, replay deterministically, and explain why a conclusion was reached or why
-the evidence is insufficient.
-
-The long-term boundary is:
-
-- Netbraid: versioned evidence records, source/coverage provenance, canonical replay,
-  reversible candidate mechanics, and explanations;
-- deployment consumers: collectors, operational stores, retention, topology,
-  runtime health, compatibility rendering, and live projections;
-- policy owners: device aliases, assignments, enrolled anchors, consent references,
-  and credentials.
-
-### Intended operator value
-
-The future core is justified only if it can answer questions that a single live host
-view or raw packet table cannot answer reproducibly:
-
-| Operator circumstance | Netbraid job | Linktop projection |
+| Feature | Default | Adds |
 | --- | --- | --- |
-| A failure recurs across days or network contexts | replay source records into comparable path- or site-scoped episodes and baselines | show the relevant prior episode or baseline as optional cited evidence |
-| Sources disagree about an endpoint binding or role | retain every observation, coverage interval, conflict, and candidate lineage | show the contradiction without replacing the current host observation |
-| Encrypted traffic still needs coarse attribution | derive versioned application, service, stack, or role candidates from flow and handshake features, with alternatives and abstention | show a candidate only in a focused evidence view with source and window |
-| One host cannot distinguish local, controller, sensor, and remote symptoms | align event and acquisition time across observers and expose the earliest supported change | identify which vantage implicated a segment and what remains unseen |
-| An operator needs to hand off an intermittent incident | emit a deterministic, private evidence capsule and an explicitly sanitized projection | link the current session context to that capsule without requiring Netbraid |
+| `cli` | yes | operator binary and TShark adapter |
+| `adapter-tshark` | via `cli` | bounded saved-capture process boundary |
+| `scenario-fixtures` | no | public-synthetic scenario accessors |
+| `scenario-fixtures-capture-derived` | no | reviewed capture-derived scenario |
 
-This is not a commitment to one daemon or dashboard. The first useful library slice
-is immutable records plus deterministic replay and explanation. Temporal reducers,
-entity relationships, episode construction, fingerprint candidates, and query
-projections follow only when each has a second consumer or a costly invariant worth
-centralizing.
+The primary public modules are:
 
-Linktop remains the immediate terminal instrument:
+- `netbraid::evidence`: versioned, policy-neutral record types;
+- `netbraid::replay`: strict JSONL, scenario, triage, and pure reduction;
+- `netbraid::adapters::tshark`: optional offline normalization boundary.
 
-- its default acquisition policy is passive host-local observation;
-- its active path probes are explicit, bounded, and independently useful;
-- switching a Linktop view never causes Netbraid or another source to collect more;
-- Netbraid evidence is optional, versioned, and provenance-preserving; and
-- multi-source durable fusion, cross-vantage baselines, identity policy, and
-  advisory fingerprint mechanics do not move into Linktop. Its explicitly
-  configured v0 host-path JSONL is a narrow consumer of Netbraid replay, not a
-  second fusion plane.
+Schema IDs retain the historical `netmon.*` namespace where changing them
+would break wire compatibility. Product names and Rust API paths use
+`netbraid`.
 
-New Netbraid-owned core implementation is Rust. The Go capture CLI remains
-compatibility code rather than a base to port feature by feature. Functionality,
-semantic correctness, and operator quality take precedence over language
-composition: mature specialists may remain subprocess or source boundaries, and
-a native Rust extractor earns promotion only against the same evidence and
-failure-semantics gates.
+See
+[Architecture](https://github.com/arclabs561/netbraid/blob/main/docs/architecture.md)
+and
+[Design decisions](https://github.com/arclabs561/netbraid/blob/main/DECISIONS.md).
 
-No typed multi-modal observation implementation starts before representative replay
-fixtures fix the minimum schema. A policy-neutral binding reducer moves here only if a
-later promotion decision proves a second consumer or a costly invariant. A live
-deployment remains authoritative until shadow replay and rollback prove a single
-replacement writer.
+## Legacy Go capture CLI
 
-Kismet, Zeek, TShark, controllers, flow exporters, DHCP, DNS-SD, and similar systems
-remain acquisition or dissection owners. The saved-capture TShark adapter normalizes
-one declared packet-envelope field registry; future adapters may normalize other
-versioned artifacts or records, but must not quietly reimplement their capture stacks.
-Every temporal projection must retain source, observer, coverage, event/acquisition
-time, and extractor or rule version; distinguish `observed`, `advertised`, `inferred`,
-and `verified` claims; and support an explicit unknown or abstained result. Absence is
-evidence only when the relevant coverage and source completeness are recorded.
-
-Traffic fingerprints are one future inferred-evidence family, not device facts. TCP/IP
-traits, TLS or QUIC handshakes, DNS and certificate metadata, packet-size/direction
-sequences, flow timing, and control-plane advertisements may support application,
-stack, service, or device-role candidates. Each candidate must retain the source
-feature reference, observation window, extractor/signature/model version, conflicts,
-and an open-world unknown result. NAT, relays, VPNs, shared libraries, encrypted
-protocol evolution, and concept drift prevent a fingerprint from proving device
-identity, human presence, or intent.
-
-Collection purpose, site, modality, retention, and export remain deployment policy.
-Aliases, assignments, enrolled anchors, consent, and credentials remain outside
-Netbraid. Netbraid does not automatically label people or maintain a global fingerprint
-index over unknown devices.
-
-The terminology, native-extractor migration, episode, assessment, binding,
-retention, and cross-surface contracts are detailed in
-[`docs/design/derived-intelligence-boundary.md`](docs/design/derived-intelligence-boundary.md).
-The dependency-ordered public implementation and evaluation program is recorded
-in [`docs/design/network-intelligence-roadmap.md`](docs/design/network-intelligence-roadmap.md).
-
-## Limitations
-
-- Wi-Fi monitor mode and channel changes depend on the interface, operating system,
-  drivers, and privileges. macOS cannot set channels through the current adapter; the
-  capture path degrades to the current channel when setup fails.
-- The Go capture model and disconnected `watch/` package are legacy code. The old
-  host/new-port hooks are not wired into the current CLI, and legacy shell action or
-  predicate triggers fail closed if selected.
-- The Rust CLI is a saved-snapshot and evidence-log reader, not a live controller or
-  Kismet client. Saved-PCAP normalization additionally requires compatible `tshark`
-  and `capinfos` executables at runtime.
-- TShark plugins and defaults can affect dissection. The adapter isolates personal
-  configuration, removes documented ambient TShark behavior/path overrides, refuses
-  personal plugins by default, and fingerprints effective configuration reports.
-  `--allow-personal-plugins` is an executable-code opt-in; the digest is provenance,
-  not a hermetic plugin bundle.
-- There is an experimental v0 host-path schema and deterministic replay contract,
-  but no stable multi-modal schema, daemon, or production fusion writer in this
-  repository today.
-
-## Checks
+The root Go program is a separate live-acquisition compatibility surface. It
+requires libpcap and may require elevated privileges. Invoking it without a
+subcommand begins acquisition and writes artifacts, so use an explicit
+interface, output directory, and terminal condition:
 
 ```sh
-go test ./...
-cargo test --manifest-path rust/Cargo.toml
-just rust-check
-just pcap-smoke
-just pcap-smoke-show
-just rust-check-full
+go build -o netbraid-go .
+sudo ./netbraid-go -q -i en0 -o /tmp/netbraid-capture
 ```
 
-The root `just test` also runs the repository's Go lint configuration before tests.
-`just pcap-smoke` is opt-in because it invokes the locally installed TShark and
-Capinfos against both readable synthetic captures and a small curated public corpus:
-radiotap/802.11, raw 802.11, 5 GHz WPA2 association/EAPOL/protected data,
-RARP, PPPoE discovery, severe snaplen truncation, NTP conversations, and
-big-endian PCAPNG. The upstream bytes remain text-reviewable hex; their manifest
-pins source commits, blob IDs, decoded digests, licenses, and stable normalization
-expectations. See the
-[fixture corpus](rust/tests/fixtures/adapter/README.md).
-`just pcap-smoke-show` prints the finite operator summary from the CLI fixture so
-presentation changes can be reviewed without preparing a local capture.
-`just rust-check-full` is the release-oriented Rust gate: build, tests, Clippy,
-rustdoc, and both installed-tool smoke suites. It does not install or bundle
-Wireshark.
+Its output contains one PCAP per selected interface plus `events.jsonl`.
+Do not install it beside the Rust binary under the same filename. New
+evidence, replay, adapter, and CLI work belongs in Rust; the Go tree receives
+compatibility, security, and build fixes while its remaining acquisition
+contract is retired deliberately.
+
+The Go module's historical `github.com/arclabs561/netwatch` path remains for
+source compatibility.
+
+## Evidence and safety boundaries
+
+- Netbraid does not capture or contact the network in its Rust commands.
+- Raw capture artifacts, logs, local notebooks, and credentials are ignored by
+  the repository and excluded from package and container contexts.
+- JSONL replay is strict. Unknown schemas, unknown fields, non-canonical
+  records, unsafe paths, and known corruption fail closed.
+- Interrupted final JSONL fragments can be recovered only through an explicit
+  warning-bearing read path.
+- Conversation direction is canonical endpoint order, not guessed initiator
+  or client/server direction.
+- Protocol and traffic fingerprints are evidence candidates, not verified
+  application, actor, role, or intent labels.
+- Absence claims require source coverage, freshness, and a complete relevant
+  interval.
+
+Netbraid does not own a daemon, database, retention policy, controller,
+credentials, identity graph, automatic telemetry, or active-discovery policy.
+Consumers may combine its records, but they must preserve source evidence and
+declare their own inference authority.
+
+## Development
+
+```sh
+just rust-check
+just scenario-check
+just pcap-smoke       # requires TShark and Capinfos
+just test             # legacy Go compatibility
+```
+
+The Rust checks cover no-default-feature consumers, all package features,
+formatting, tests, clippy, rustdoc warnings, fixture inventory, and extracted
+package contents. The saved-capture smoke lane runs separately because it
+depends on installed Wireshark tools.
 
 ## License
 
-Netbraid-authored source is dual-licensed under the
-[MIT License](LICENSE-MIT) or the [Unlicense](UNLICENSE). The published
-`netbraid` source archive also includes one reviewed BSD-3-Clause
-capture-derived scenario and its exact notice, so the package declares
-`(MIT OR Unlicense) AND BSD-3-Clause`.
-
-The test-only upstream adapter and CLI corpora and their notices remain in the
-GitHub repository and CI but are excluded from the published Cargo archive.
+Authored code is available under MIT or the Unlicense. The package expression
+is `(MIT OR Unlicense) AND BSD-3-Clause` because the source archive includes a
+supported capture-derived fixture under BSD-3-Clause. Its notice is distributed
+with the fixture.

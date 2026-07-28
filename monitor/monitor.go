@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -465,7 +464,7 @@ func (m *Monitor) listenInterface(
 					return
 				}
 				// EOF or other error - stop reading
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					return
 				}
 				log.Debug().Err(err).Msg("error reading packet")
@@ -703,13 +702,14 @@ func analyzePacket(packet gopacket.Packet) *AnalyzedPacket {
 		obs = time.Now()
 	}
 	analyzed.ObservedAt = obs
-	var txCh, rxCh uint8
+	var txCh uint8
+	var rxCh int
 	for _, l := range packet.Layers() {
 		switch l := l.(type) {
 		case *layers.RadioTap:
 			ch, ok := netref.FrequencyToChannel[int(l.ChannelFrequency)]
 			if ok {
-				rxCh = uint8(ch)
+				rxCh = ch
 			} else {
 				log.Warn().Msgf("unknown channel: %d", l.ChannelFrequency)
 			}
@@ -742,7 +742,7 @@ func analyzePacket(packet gopacket.Packet) *AnalyzedPacket {
 	if txCh != 0 {
 		analyzed.Channel = int(txCh)
 	} else if rxCh != 0 {
-		analyzed.Channel = int(rxCh)
+		analyzed.Channel = rxCh
 	} else {
 		log.Trace().Int("bytes", packet.Metadata().CaptureLength).
 			Stringer("linkType", linkType).
@@ -773,12 +773,11 @@ func (m *Monitor) processPacket(
 	state *packetState,
 ) {
 	now := time.Now()
-	var a *AnalyzedPacket
 
 	// Use optimized processor if available
 	// Note: We use the packet's link type from the source, not from metadata
 	// For now, always use analyzePacket which handles link type internally
-	a = analyzePacket(packet)
+	a := analyzePacket(packet)
 
 	m.WithAggregate(func(agg *Aggregate) {
 		agg.Global.PacketsTotal++
@@ -1073,26 +1072,4 @@ func setMode(
 	iface string,
 ) error {
 	return platformWiFi.SetMonitorMode(ctx, iface)
-}
-
-// setModeLinux is the Linux-specific implementation
-func setModeLinux(
-	ctx context.Context,
-	iface string,
-) error {
-	cmd := exec.CommandContext(ctx, "ip", "link", "set", iface, "down")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("setting link down failed: %w", err)
-	}
-	// We are only doing passive monitoring, so there's no reason to set
-	// monitor control.
-	cmd = exec.CommandContext(ctx, "iw", iface, "set", "monitor", "none")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("setting monitor control failed: %w", err)
-	}
-	cmd = exec.CommandContext(ctx, "ip", "link", "set", iface, "up")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("setting link up failed: %w", err)
-	}
-	return nil
 }

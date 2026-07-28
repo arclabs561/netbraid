@@ -2,6 +2,7 @@ package csp
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/RoaringBitmap/roaring"
@@ -75,7 +76,7 @@ func (h head) String() string {
 // NextHead returns the next head in the region, or (nil, false) if there are no
 // more for the given. If false is returned then the region is exhausted. Whereas
 func (r *Region) NextHead() *head {
-	n := int(r.Compatible.Stats().Cardinality)
+	n := bitmapCardinalityInt(r.Compatible)
 	if r.head == nil {
 		// We start with the largest subset so as to search in an order
 		// that maximizes the number of interfaces.
@@ -136,11 +137,19 @@ func (a Assignment) String() string {
 // [^1]: https://mathoverflow.net/questions/17202/sum-of-the-first-k-binomial-coefficients-for-fixed-n
 func (r Region) Width() int {
 	w := 0
-	n := int(r.Compatible.Stats().Cardinality)
+	n := bitmapCardinalityInt(r.Compatible)
 	for k := r.Bound.LowerInclusive; k < r.Bound.UpperExclusive; k++ {
 		w += Binom(n, k)
 	}
 	return w
+}
+
+func bitmapCardinalityInt(bitmap *roaring.Bitmap) int {
+	cardinality := bitmap.GetCardinality()
+	if cardinality > math.MaxInt {
+		panic(fmt.Sprintf("bitmap cardinality %d exceeds int range", cardinality))
+	}
+	return int(cardinality)
 }
 
 // // gosper's hack
@@ -392,7 +401,7 @@ func (s *state) solve() ([]Assignment, bool) {
 				log.Trace().Msgf("skipping previous assignment: %d", dev)
 				continue
 			}
-			nextSet.Add(uint32(dev))
+			nextSet.AddInt(dev)
 		}
 		if nextSet.IsEmpty() {
 			log.Trace().Msg("no compatible devices left for assignment, continuing to next head")
