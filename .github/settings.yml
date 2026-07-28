@@ -2,7 +2,7 @@
 # https://github.com/repository-settings/app
 
 repository:
-  description: "Versioned network evidence and deterministic replay"
+  description: "Netbraid normalizes network evidence and replays it deterministically"
   private: false
   has_issues: true
   has_wiki: false

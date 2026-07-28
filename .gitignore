@@ -1,22 +1,44 @@
-data
-build
+# Build output
+/netbraid
+/netbraid-go
+/netwatch
+target/
+**/target/
 
-# Private capture and replay artifacts. Sanitized fixtures belong only under
-# explicit test fixture directories.
+# Maintainer planning and agent reports are local-only.
+/.agents/
+/docs/adr/
+/docs/design/
+
+# Private capture and replay artifacts. Reviewed fixtures belong only under
+# explicit rust/tests/fixtures directories and use committed text encodings.
 *.pcap
 *.pcapng
 *.cap
+*.pcap.gz
+*.pcapng.gz
+*.pcap.zst
+*.pcapng.zst
+*.har
 /events.jsonl
 /audit-history.jsonl
 /host-path*.jsonl
 /linktop-captures/
 
-# go build output (the binary itself; main.go is committed)
-netwatch
-
-# Cargo (any subtree, e.g. rs/target)
-target/
-**/target/
-
-# Local agent reports
-.agents/
+# Local analysis, logs, databases, and credentials.
+.ipynb_checkpoints/
+*.ipynb
+*.log
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+!.env.example
+secrets.json
+credentials.json
+token.txt
+*.pem
+*.key
+id_rsa
+id_ed25519

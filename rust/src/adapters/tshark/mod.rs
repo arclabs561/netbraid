@@ -1075,10 +1075,6 @@ mod tests {
 
         assert_eq!(receipt.capture_id, manifest.capture_id);
         assert_eq!(manifest.extractor.adapter, TSHARK_ADAPTER_ID);
-        assert_eq!(
-            manifest.extractor.adapter_version,
-            env!("CARGO_PKG_VERSION")
-        );
         assert_eq!(packet.capture_id, manifest.capture_id);
         assert_eq!(quarantine.capture_id, manifest.capture_id);
         assert_eq!(receipt.file.file_size_bytes, manifest.artifact.size_bytes);

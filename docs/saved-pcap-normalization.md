@@ -238,7 +238,7 @@ The default CLI is a finite text summary for operators. It distinguishes
 capture-file facts from the possibly limited normalized packet subset and
 surfaces the successful run identifier and record digest. Its text projection
 also uses the pure conversation reducer specified in
-[`design/capture-conversation-reduction.md`](design/capture-conversation-reduction.md).
+[`capture-conversations.md`](capture-conversations.md).
 The projection says `capture-wide` only for complete normalization; limited or
 quarantined input is explicitly scoped to the normalized packet subset.
 `--jsonl` emits the manifest, occurrence-specific run receipt, packet
@@ -291,8 +291,8 @@ reducer and pin grouped, excluded, exclusion-reason, and conversation counts.
 
 The corpus does not make the upstream artifact's original observer or
 acquisition policy knowable. Those fields remain absent. Public parser fixtures
-also do not substitute for private, sealed deployment fixtures when evaluating
-Kismet, Hypha, rtl_433, Meshtastic, controller, or fusion adapters.
+also do not establish behavior for other acquisition tools, sensor families, or
+multi-source consumers.
 
 ## Tradeoffs
 
@@ -322,23 +322,6 @@ Kismet, Hypha, rtl_433, Meshtastic, controller, or fusion adapters.
 - A successful-run receipt supports reproduction and comparison, but is not an
   attestation: it is unsigned, the configured tool path is not resolved and
   hashed, and v0 writes no durable receipt when a subprocess fails.
-
-## Implementation plan
-
-1. Add capture-manifest, packet-envelope, and quarantine records plus validation
-   to `netbraid::evidence`.
-2. Add `netbraid::adapters::tshark` with a fixed field registry, bounded process
-   execution, exact timestamp parsing, artifact hashing, and row quarantine.
-3. Add `netbraid pcap INPUT` with human text by default, `--jsonl` for a complete
-   successful-run record, and `--records-jsonl` for the deterministic
-   normalized-record stream.
-4. Add parser/golden tests and an opt-in smoke test against an installed TShark
-   using readable synthetic captures.
-5. Update the public scope and command documentation.
-6. Add bounded Capinfos metadata, a successful-run receipt, and PCAPNG replay
-   coverage without changing the crate dependency direction.
-7. Admit a compact, licensed upstream corpus through a content-addressed
-   manifest and run it through the same installed-tool smoke boundary.
 
 ## Gates
 

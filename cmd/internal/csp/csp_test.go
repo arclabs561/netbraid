@@ -3,6 +3,7 @@ package csp_test
 import (
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 	"testing"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 	"github.com/samber/mo"
-	"golang.org/x/exp/constraints"
 )
 
 func init() {
@@ -86,7 +86,11 @@ func TestSolveSingleAtMost(t *testing.T) {
 			if len(asmts) != 1 {
 				t.Fatalf("expected 1 assignment, got %d: %#v", len(asmts), asmts)
 			}
-			if c := asmts[0].Set.GetCardinality(); c != uint64(k) {
+			c := asmts[0].Set.GetCardinality()
+			if c > math.MaxInt {
+				t.Fatalf("assignment cardinality %d exceeds int range", c)
+			}
+			if int(c) != k {
 				t.Fatalf("expected %d assignment, got %d: %#v", k, c, asmts)
 			}
 		})
@@ -208,18 +212,12 @@ func TestBinom(t *testing.T) {
 	}
 }
 
-func arange[T constraints.Ordered](start, stop, step T) []T {
-	var a []T
-	for i := start; i < stop; i += step {
-		a = append(a, i)
-	}
-	return a
-}
-
 func availBitmap(n int) *roaring.Bitmap {
-	return roaring.BitmapOf(lo.Map(arange(0, n, 1), func(i int, _ int) uint32 {
-		return uint32(i)
-	})...)
+	bitmap := roaring.New()
+	for i := range n {
+		bitmap.AddInt(i)
+	}
+	return bitmap
 }
 
 func TestWidth(t *testing.T) {
