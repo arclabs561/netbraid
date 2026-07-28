@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use serde::{Deserialize, Serialize};
 
-use crate::CollectionPolicyV0;
+use crate::evidence::CollectionPolicyV0;
 
 pub const CAPTURE_MANIFEST_SCHEMA_V0: &str = "netmon.capture_manifest.v0";
 pub const CAPTURE_RUN_RECEIPT_SCHEMA_V0: &str = "netmon.capture_run_receipt.v0";
@@ -869,7 +869,7 @@ mod tests {
 
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
-            include_str!("../tests/fixtures/v0/capture_manifest_v0.json")
+            include_str!("../../tests/fixtures/evidence/v0/capture_manifest_v0.json")
         );
     }
 
@@ -963,7 +963,7 @@ mod tests {
 
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
-            include_str!("../tests/fixtures/v0/packet_envelope_v0.json")
+            include_str!("../../tests/fixtures/evidence/v0/packet_envelope_v0.json")
         );
     }
 
@@ -974,7 +974,7 @@ mod tests {
 
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
-            include_str!("../tests/fixtures/v0/packet_envelope_wlan_v0.json")
+            include_str!("../../tests/fixtures/evidence/v0/packet_envelope_wlan_v0.json")
         );
     }
 
@@ -1002,7 +1002,7 @@ mod tests {
 
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
-            include_str!("../tests/fixtures/v0/capture_run_receipt_v0.json")
+            include_str!("../../tests/fixtures/evidence/v0/capture_run_receipt_v0.json")
         );
     }
 
@@ -1013,7 +1013,7 @@ mod tests {
 
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
-            include_str!("../tests/fixtures/v0/packet_quarantine_v0.json")
+            include_str!("../../tests/fixtures/evidence/v0/packet_quarantine_v0.json")
         );
     }
 }

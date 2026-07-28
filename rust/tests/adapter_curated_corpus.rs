@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use netbraid_adapter_tshark::{normalize_saved_capture, NormalizationReport, NormalizeOptions};
-use netbraid_evidence::NormalizationStateV0;
-use netbraid_replay::{
+use netbraid::adapters::tshark::{normalize_saved_capture, NormalizationReport, NormalizeOptions};
+use netbraid::evidence::NormalizationStateV0;
+use netbraid::replay::{
     parse_saved_capture_jsonl, reduce_capture_conversations, ConversationExclusionReasonV0,
     SavedCaptureRecordStreamV0,
 };
@@ -552,7 +552,7 @@ fn assert_replayed_records_equal(
 
 fn assert_ieee80211_expectations(
     fixture: &Fixture,
-    packets: &[netbraid_evidence::PacketEnvelopeV0],
+    packets: &[netbraid::evidence::PacketEnvelopeV0],
 ) {
     let Some(expected) = &fixture.expected.ieee80211 else {
         assert!(
@@ -707,7 +707,7 @@ fn unique_sorted<T: Ord>(values: impl IntoIterator<Item = T>) -> Vec<T> {
 }
 
 fn fixtures_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/adapter")
 }
 
 fn read_corpus(fixtures_root: &Path) -> Corpus {

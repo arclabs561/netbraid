@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
-use netbraid_evidence::{
+use crate::evidence::{
     CaptureManifestV0, CaptureRunReceiptV0, CaptureValidationError, PacketEnvelopeV0,
     PacketQuarantineV0, CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
     PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
@@ -825,7 +825,7 @@ fn hash_record(hasher: &mut Sha256, kind: &str, index: u64, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use netbraid_evidence::CaptureValidationError;
+    use crate::evidence::CaptureValidationError;
     use std::fs;
 
     const OTHER_DIGEST: &str =
@@ -844,28 +844,28 @@ mod tests {
 
     fn manifest() -> CaptureManifestV0 {
         serde_json::from_str(include_str!(
-            "../tests/fixtures/evidence-v0/capture_manifest_v0.json"
+            "../../tests/fixtures/replay/evidence-v0/capture_manifest_v0.json"
         ))
         .unwrap()
     }
 
     fn receipt() -> CaptureRunReceiptV0 {
         serde_json::from_str(include_str!(
-            "../tests/fixtures/evidence-v0/capture_run_receipt_v0.json"
+            "../../tests/fixtures/replay/evidence-v0/capture_run_receipt_v0.json"
         ))
         .unwrap()
     }
 
     fn packet() -> PacketEnvelopeV0 {
         serde_json::from_str(include_str!(
-            "../tests/fixtures/evidence-v0/packet_envelope_v0.json"
+            "../../tests/fixtures/replay/evidence-v0/packet_envelope_v0.json"
         ))
         .unwrap()
     }
 
     fn quarantine() -> PacketQuarantineV0 {
         serde_json::from_str(include_str!(
-            "../tests/fixtures/evidence-v0/packet_quarantine_v0.json"
+            "../../tests/fixtures/replay/evidence-v0/packet_quarantine_v0.json"
         ))
         .unwrap()
     }

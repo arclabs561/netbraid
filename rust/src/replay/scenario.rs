@@ -7,7 +7,7 @@ use std::path::{Component, Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{
+use crate::replay::{
     parse_host_path_jsonl, parse_saved_capture_jsonl, ContextRelationV0, ReplayStateV0,
     SavedCaptureRecordStreamV0,
 };
@@ -512,7 +512,7 @@ struct LoadedArtifactV0 {
 
 #[derive(Debug, Clone)]
 enum LoadedRecordV0 {
-    HostPath(Box<crate::HostPathObservationV0>),
+    HostPath(Box<crate::replay::HostPathObservationV0>),
     SavedCapture,
 }
 
@@ -563,7 +563,7 @@ pub struct ScenarioReplayReceiptV1 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ScenarioCheckpointInputsV0 {
-    pub host_path_records: Vec<crate::HostPathObservationV0>,
+    pub host_path_records: Vec<crate::replay::HostPathObservationV0>,
     pub saved_capture_streams: Vec<ScenarioSavedCaptureInputV0>,
 }
 
@@ -620,7 +620,7 @@ pub enum ScenarioError {
         detail: String,
     },
     UnknownCheckpoint(String),
-    Replay(crate::ReplayError),
+    Replay(crate::replay::ReplayError),
 }
 
 impl std::fmt::Display for ScenarioError {
@@ -1134,7 +1134,7 @@ fn replay_scenario_core(
     let host_path = if host_records.is_empty() {
         None
     } else {
-        let replay = crate::replay(host_records).map_err(ScenarioError::Replay)?;
+        let replay = crate::replay::replay(host_records).map_err(ScenarioError::Replay)?;
         Some(project_host_path(&replay))
     };
     let saved_captures = saved_ids
@@ -1778,7 +1778,7 @@ fn project_host_path(replay: &ReplayStateV0) -> ScenarioReplayHostPathV0 {
     let exact_context_keys = replay
         .records
         .iter()
-        .map(crate::HostPathObservationV0::context_key)
+        .map(crate::replay::HostPathObservationV0::context_key)
         .collect::<BTreeSet<_>>()
         .len();
     let confirmed_context_transitions = replay
@@ -2220,64 +2220,64 @@ pub fn builtin_scenario_ids_v0() -> &'static [&'static str] {
 pub fn builtin_scenario_v0(id: &str) -> Result<ScenarioBundleV0, ScenarioError> {
     let (manifest_bytes, artifact_bytes): (&[u8], &[(&str, &[u8])]) = match id {
         "wifi-hotspot-wifi" => (
-            include_bytes!("../tests/fixtures/scenarios/wifi-hotspot-wifi/scenario.json"),
+            include_bytes!("../../tests/fixtures/replay/scenarios/wifi-hotspot-wifi/scenario.json"),
             &[
                 (
                     "host-path.jsonl",
-                    include_bytes!("../tests/fixtures/scenarios/wifi-hotspot-wifi/host-path.jsonl"),
+                    include_bytes!("../../tests/fixtures/replay/scenarios/wifi-hotspot-wifi/host-path.jsonl"),
                 ),
                 (
                     "viewport.txt",
-                    include_bytes!("../tests/fixtures/scenarios/wifi-hotspot-wifi/viewport.txt"),
+                    include_bytes!("../../tests/fixtures/replay/scenarios/wifi-hotspot-wifi/viewport.txt"),
                 ),
             ],
         ),
         "same-ssid-attachment-boundary" => (
             include_bytes!(
-                "../tests/fixtures/scenarios/same-ssid-attachment-boundary/scenario.json"
+                "../../tests/fixtures/replay/scenarios/same-ssid-attachment-boundary/scenario.json"
             ),
             &[
                 (
                     "host-path.jsonl",
                     include_bytes!(
-                        "../tests/fixtures/scenarios/same-ssid-attachment-boundary/host-path.jsonl"
+                        "../../tests/fixtures/replay/scenarios/same-ssid-attachment-boundary/host-path.jsonl"
                     ),
                 ),
                 (
                     "viewport.txt",
                     include_bytes!(
-                        "../tests/fixtures/scenarios/same-ssid-attachment-boundary/viewport.txt"
+                        "../../tests/fixtures/replay/scenarios/same-ssid-attachment-boundary/viewport.txt"
                     ),
                 ),
             ],
         ),
         "vpn-overlay-transition" => (
-            include_bytes!("../tests/fixtures/scenarios/vpn-overlay-transition/scenario.json"),
+            include_bytes!("../../tests/fixtures/replay/scenarios/vpn-overlay-transition/scenario.json"),
             &[
                 (
                     "host-path.jsonl",
                     include_bytes!(
-                        "../tests/fixtures/scenarios/vpn-overlay-transition/host-path.jsonl"
+                        "../../tests/fixtures/replay/scenarios/vpn-overlay-transition/host-path.jsonl"
                     ),
                 ),
                 (
                     "viewport.txt",
                     include_bytes!(
-                        "../tests/fixtures/scenarios/vpn-overlay-transition/viewport.txt"
+                        "../../tests/fixtures/replay/scenarios/vpn-overlay-transition/viewport.txt"
                     ),
                 ),
             ],
         ),
         "cache-source-gap" => (
-            include_bytes!("../tests/fixtures/scenarios/cache-source-gap/scenario.json"),
+            include_bytes!("../../tests/fixtures/replay/scenarios/cache-source-gap/scenario.json"),
             &[
                 (
                     "host-path.jsonl",
-                    include_bytes!("../tests/fixtures/scenarios/cache-source-gap/host-path.jsonl"),
+                    include_bytes!("../../tests/fixtures/replay/scenarios/cache-source-gap/host-path.jsonl"),
                 ),
                 (
                     "viewport.txt",
-                    include_bytes!("../tests/fixtures/scenarios/cache-source-gap/viewport.txt"),
+                    include_bytes!("../../tests/fixtures/replay/scenarios/cache-source-gap/viewport.txt"),
                 ),
             ],
         ),
@@ -2350,25 +2350,25 @@ pub fn builtin_scenario_v1(id: &str) -> Result<ScenarioBundleV1, ScenarioError> 
     let (manifest_bytes, artifact_bytes): (&[u8], &[(&str, &[u8])]) = match id {
         "saved-capture-prefix-boundary" => (
             include_bytes!(
-                "../tests/fixtures/scenarios/saved-capture-prefix-boundary/scenario.json"
+                "../../tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/scenario.json"
             ),
             &[
                 (
                     "prefix-6.jsonl",
                     include_bytes!(
-                        "../tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-6.jsonl"
+                        "../../tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/prefix-6.jsonl"
                     ),
                 ),
                 (
                     "prefix-7.jsonl",
                     include_bytes!(
-                        "../tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl"
+                        "../../tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl"
                     ),
                 ),
                 (
                     "LICENSE-libpcap-BSD-3-Clause.txt",
                     include_bytes!(
-                        "../tests/fixtures/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt"
+                        "../../tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt"
                     ),
                 ),
             ],

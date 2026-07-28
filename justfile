@@ -18,35 +18,34 @@ test: lint
 
 rust-check:
     cargo fmt --manifest-path rust/Cargo.toml --all -- --check
-    cargo build --locked --manifest-path rust/Cargo.toml --workspace
-    cargo test --locked --manifest-path rust/Cargo.toml --workspace
-    cargo clippy --locked --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
-    RUSTDOCFLAGS="-D warnings" cargo doc --locked --manifest-path rust/Cargo.toml --workspace --no-deps
+    cargo test --locked --manifest-path rust/Cargo.toml --no-default-features
+    cargo check --locked --manifest-path rust/Cargo.toml --lib --no-default-features --features scenario-fixtures,scenario-fixtures-capture-derived
+    cargo build --locked --manifest-path rust/Cargo.toml
+    cargo test --locked --manifest-path rust/Cargo.toml
+    cargo clippy --locked --manifest-path rust/Cargo.toml --all-targets -- -D warnings
+    RUSTDOCFLAGS="-D warnings" cargo doc --locked --manifest-path rust/Cargo.toml --no-deps
 
 scenario-check:
-    cargo test --locked --manifest-path rust/Cargo.toml --workspace --all-features
-    cargo clippy --locked --manifest-path rust/Cargo.toml --workspace --all-targets --all-features -- -D warnings
-    RUSTDOCFLAGS="-D warnings" cargo doc --locked --manifest-path rust/Cargo.toml --workspace --all-features --no-deps
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/wifi-hotspot-wifi/scenario.json'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/vpn-overlay-transition/scenario.json'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/cache-source-gap/scenario.json'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/scenario.json'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/host-path.jsonl'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/viewport.txt'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/scenario.json'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-6.jsonl'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-replay | grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-adapter-tshark >/dev/null
-    @! cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid-adapter-tshark | grep -Eq '^tests/(curated_corpus\.rs|fixtures/(third-party-licenses|upstream)/)'
-    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid >/dev/null
-    @! cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Eq '^tests/(fixtures/|pcap_cli\.rs$|scenario_cli\.rs$)'
+    cargo test --locked --manifest-path rust/Cargo.toml --all-features
+    cargo clippy --locked --manifest-path rust/Cargo.toml --all-targets --all-features -- -D warnings
+    RUSTDOCFLAGS="-D warnings" cargo doc --locked --manifest-path rust/Cargo.toml --all-features --no-deps
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Fqx 'tests/fixtures/replay/scenarios/wifi-hotspot-wifi/scenario.json'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Fqx 'tests/fixtures/replay/scenarios/vpn-overlay-transition/scenario.json'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Fqx 'tests/fixtures/replay/scenarios/cache-source-gap/scenario.json'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Fqx 'tests/fixtures/replay/scenarios/same-ssid-attachment-boundary/scenario.json'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Fqx 'tests/fixtures/replay/scenarios/same-ssid-attachment-boundary/host-path.jsonl'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Fqx 'tests/fixtures/replay/scenarios/same-ssid-attachment-boundary/viewport.txt'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Fqx 'tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/scenario.json'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Fqx 'tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/prefix-6.jsonl'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Fqx 'tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl'
+    @cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Fqx 'tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt'
+    @! cargo package --locked --allow-dirty --manifest-path rust/Cargo.toml --list -p netbraid | grep -Eq '^tests/(adapter_curated_corpus\.rs$|fixtures/adapter/(third-party-licenses|upstream)/|fixtures/[^/]+\.hex$|pcap_cli\.rs$|scenario_cli\.rs$)'
 
 pcap-smoke:
-    cargo test --locked --manifest-path rust/Cargo.toml -p netbraid-adapter-tshark --tests -- --ignored
-    cargo test --locked --manifest-path rust/Cargo.toml -p netbraid --test pcap_cli -- --ignored
+    cargo test --locked --manifest-path rust/Cargo.toml --test adapter_tshark_smoke --test adapter_curated_corpus -- --ignored
+    cargo test --locked --manifest-path rust/Cargo.toml --test pcap_cli -- --ignored
 
 rust-check-full: rust-check scenario-check pcap-smoke
 
 pcap-smoke-show:
-    NETBRAID_SMOKE_SHOW_OUTPUT=1 cargo test --locked --manifest-path rust/Cargo.toml -p netbraid --test pcap_cli -- --ignored --nocapture
+    NETBRAID_SMOKE_SHOW_OUTPUT=1 cargo test --locked --manifest-path rust/Cargo.toml --test pcap_cli -- --ignored --nocapture

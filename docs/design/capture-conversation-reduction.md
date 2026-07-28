@@ -78,11 +78,11 @@ records. Rejected.
 ### Add a `netbraid-flow` or reducer crate
 
 A new crate would suggest a separately released dependency or dependency set
-that does not yet exist. `netbraid-replay` already owns deterministic operations
+that does not yet exist. `netbraid::replay` already owns deterministic operations
 over evidence records and is already consumed by Linktop. Rejected until a real
 dependency or release boundary appears.
 
-### Reduce packet envelopes in `netbraid-replay`
+### Reduce packet envelopes in `netbraid::replay`
 
 One pure reducer over versioned packet envelopes gives the same result to the
 Netbraid CLI and Linktop's finite saved-evidence review, adds no process or
@@ -90,8 +90,8 @@ collection capability, and can return explicit exclusion coverage. Chosen.
 
 ## Decision
 
-`netbraid-replay` owns an experimental pure capture-conversation reducer.
-`netbraid-evidence` remains unchanged because the result is not a normalized
+`netbraid::replay` owns an experimental pure capture-conversation reducer.
+`netbraid::evidence` remains unchanged because the result is not a normalized
 evidence record. The Netbraid CLI uses the reducer in finite text output and in
 the bounded, versioned `netmon.saved_pcap_triage.v0` operator projection. That
 projection binds to the deterministic normalized-record digest and carries only

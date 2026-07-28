@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use netbraid_adapter_tshark::{normalize_saved_capture, NormalizeOptions};
-use netbraid_evidence::NormalizationStateV0;
+use netbraid::adapters::tshark::{normalize_saved_capture, NormalizeOptions};
+use netbraid::evidence::NormalizationStateV0;
 
 #[test]
 #[ignore = "requires an installed tshark; run through `just pcap-smoke`"]
@@ -11,12 +11,12 @@ fn installed_tshark_normalizes_synthetic_capture() {
     let tcp = normalize_fixture(
         directory.path(),
         "ethernet-ipv4-tcp",
-        include_str!("fixtures/ethernet_ipv4_tcp.hex"),
+        include_str!("fixtures/adapter/ethernet_ipv4_tcp.hex"),
     );
     let tcp_again = normalize_fixture(
         directory.path(),
         "ethernet-ipv4-tcp-again",
-        include_str!("fixtures/ethernet_ipv4_tcp.hex"),
+        include_str!("fixtures/adapter/ethernet_ipv4_tcp.hex"),
     );
     assert_eq!(tcp.manifest.capture_id, tcp_again.manifest.capture_id);
     assert_eq!(
@@ -51,7 +51,7 @@ fn installed_tshark_normalizes_synthetic_capture() {
     let udp = normalize_fixture(
         directory.path(),
         "ethernet-ipv6-udp",
-        include_str!("fixtures/ethernet_ipv6_udp.hex"),
+        include_str!("fixtures/adapter/ethernet_ipv6_udp.hex"),
     );
     let packet = &udp.packets[0];
     assert_eq!(packet.ipv6.as_ref().unwrap().source, "2001:db8::1");
@@ -61,7 +61,7 @@ fn installed_tshark_normalizes_synthetic_capture() {
     let arp = normalize_fixture(
         directory.path(),
         "ethernet-arp",
-        include_str!("fixtures/ethernet_arp.hex"),
+        include_str!("fixtures/adapter/ethernet_arp.hex"),
     );
     let packet = &arp.packets[0];
     assert!(packet.ipv4.is_none());
@@ -77,7 +77,7 @@ fn installed_tshark_normalizes_synthetic_capture() {
     let truncated = normalize_fixture(
         directory.path(),
         "ethernet-ipv4-tcp-truncated",
-        include_str!("fixtures/ethernet_ipv4_tcp_truncated.hex"),
+        include_str!("fixtures/adapter/ethernet_ipv4_tcp_truncated.hex"),
     );
     assert_eq!(truncated.receipt.file.snaplen, Some(54));
     assert_eq!(truncated.receipt.file.packet_count, 1);
@@ -103,7 +103,7 @@ fn installed_tshark_normalizes_synthetic_capture() {
     let vlan = normalize_fixture(
         directory.path(),
         "ethernet-vlan-ipv4-tcp",
-        include_str!("fixtures/ethernet_vlan_ipv4_tcp.hex"),
+        include_str!("fixtures/adapter/ethernet_vlan_ipv4_tcp.hex"),
     );
     assert_eq!(vlan.receipt.file.packet_count, 1);
     assert_eq!(vlan.receipt.file.original_data_size_bytes, 58);
@@ -128,7 +128,7 @@ fn installed_tshark_normalizes_synthetic_capture() {
         directory.path(),
         "ethernet-ipv4-tcp-pcapng",
         "pcapng",
-        include_str!("fixtures/ethernet_ipv4_tcp.pcapng.hex"),
+        include_str!("fixtures/adapter/ethernet_ipv4_tcp.pcapng.hex"),
         1,
     );
     assert_eq!(pcapng.receipt.file.file_type, "pcapng");
@@ -145,7 +145,7 @@ fn normalize_fixture(
     directory: &std::path::Path,
     name: &str,
     fixture: &str,
-) -> netbraid_adapter_tshark::NormalizationReport {
+) -> netbraid::adapters::tshark::NormalizationReport {
     normalize_fixture_with_extension(directory, name, "pcap", fixture, 10)
 }
 
@@ -155,7 +155,7 @@ fn normalize_fixture_with_extension(
     extension: &str,
     fixture: &str,
     packet_limit: usize,
-) -> netbraid_adapter_tshark::NormalizationReport {
+) -> netbraid::adapters::tshark::NormalizationReport {
     let input = directory.join(format!("{name}.{extension}"));
     fs::write(&input, decode_hex(fixture)).unwrap();
     let report = normalize_saved_capture(

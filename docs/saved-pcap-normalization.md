@@ -32,9 +32,9 @@ Sources:
 - [Wireshark configuration files](https://www.wireshark.org/docs/wsug_html_chunked/ChAppFilesConfigurationSection.html)
 - [Wireshark Lua startup](https://www.wireshark.org/docs/wsdg_html_chunked/wsluarm.html)
 
-Netbraid already separates pure evidence records (`netbraid-evidence`) from
-deterministic file/replay mechanics (`netbraid-replay`). The process boundary has
-a different dependency and failure profile from either crate.
+Netbraid already separates pure evidence records (`netbraid::evidence`) from
+deterministic file/replay mechanics (`netbraid::replay`). The process boundary
+has a different dependency and failure profile from either module.
 
 Capinfos is part of the same Wireshark tool suite and reads the same capture
 formats as TShark. Its table mode can report file type, encapsulation, timestamp
@@ -73,16 +73,16 @@ This could remove the process dependency, but it duplicates mature capture-file
 and protocol-dissection work while expanding Netbraid's security and maintenance
 surface. Rejected.
 
-### Keep the normalizer in the CLI package
+### Keep the normalizer in the CLI module
 
-This avoids a crate, but mixes process control, resource limits, parser
+This avoids a distinct boundary, but mixes process control, resource limits, parser
 quarantine, staging, effective-configuration fingerprinting, and tool provenance
 into an unrelated compatibility reader. Those invariants and dependencies form
 a reusable process boundary independently of presentation. Rejected.
 
-### Add an explicit TShark adapter crate
+### Add an explicit TShark adapter boundary
 
-`netbraid-adapter-tshark` owns one offline process boundary. It invokes TShark
+`netbraid::adapters::tshark` owns one offline process boundary. It invokes TShark
 without a shell, uses a declared `-T fields` registry, enforces a deadline and
 output/input limits, records tool, registry, and effective-configuration
 versions, and returns typed records plus quarantined rows. Chosen.
@@ -112,16 +112,16 @@ reusing the same isolated Wireshark process boundary. Chosen.
 The dependency direction is:
 
 ```text
-netbraid-evidence
-    ^              ^
-    |              |
-netbraid-replay   netbraid-adapter-tshark
-                       ^
-                       |
-                    netbraid CLI
+netbraid::evidence
+    ^                 ^
+    |                 |
+netbraid::replay   netbraid::adapters::tshark
+                          ^
+                          |
+                       netbraid CLI
 ```
 
-`netbraid-evidence` owns four pure record families:
+`netbraid::evidence` owns four pure record families:
 
 - a capture manifest with content digest, byte length, observer provenance,
   extractor provenance, optional acquisition policy, and normalization
@@ -283,7 +283,7 @@ unique content identities and immutable origin coordinates, decoded size, and
 digest without network access or Wireshark. The opt-in smoke suite additionally
 normalizes every admitted capture twice using installed Capinfos and TShark. It
 constructs the full occurrence-bearing JSONL and deterministic records JSONL in
-their canonical family order, parses both through `netbraid-replay`, verifies that
+their canonical family order, parses both through `netbraid::replay`, verifies that
 the receipt binds the parser-recomputed digest, and proves equivalent runs
 produce byte-identical deterministic records and equal replayed evidence.
 Typed corpus expectations also run the replay crate's conservative conversation
@@ -326,8 +326,8 @@ Kismet, Hypha, rtl_433, Meshtastic, controller, or fusion adapters.
 ## Implementation plan
 
 1. Add capture-manifest, packet-envelope, and quarantine records plus validation
-   to `netbraid-evidence`.
-2. Add `netbraid-adapter-tshark` with a fixed field registry, bounded process
+   to `netbraid::evidence`.
+2. Add `netbraid::adapters::tshark` with a fixed field registry, bounded process
    execution, exact timestamp parsing, artifact hashing, and row quarantine.
 3. Add `netbraid pcap INPUT` with human text by default, `--jsonl` for a complete
    successful-run record, and `--records-jsonl` for the deterministic

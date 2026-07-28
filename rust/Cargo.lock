@@ -254,44 +254,11 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "clap",
- "netbraid-adapter-tshark",
- "netbraid-evidence",
- "netbraid-replay",
- "serde",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "netbraid-adapter-tshark"
-version = "0.3.0"
-dependencies = [
  "csv",
- "netbraid-evidence",
- "netbraid-replay",
+ "libc",
  "serde",
  "serde_json",
  "sha1",
- "sha2",
- "tempfile",
-]
-
-[[package]]
-name = "netbraid-evidence"
-version = "0.3.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "netbraid-replay"
-version = "0.3.0"
-dependencies = [
- "libc",
- "netbraid-evidence",
- "serde",
- "serde_json",
  "sha2",
  "tempfile",
 ]

@@ -1,8 +1,8 @@
 use std::ffi::OsString;
 use std::path::Path;
 
+use crate::evidence::CaptureFileMetadataV0;
 use csv::StringRecord;
-use netbraid_evidence::CaptureFileMetadataV0;
 
 pub(crate) fn arguments(input: &Path) -> Vec<OsString> {
     [

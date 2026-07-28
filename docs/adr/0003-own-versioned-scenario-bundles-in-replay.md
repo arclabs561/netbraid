@@ -2,7 +2,9 @@
 status: accepted
 date: 2026-07-27
 governs:
-  - rust/crates/netbraid-replay/**
+  - rust/src/replay/**
+  - rust/tests/replay_scenario_bundle.rs
+  - rust/tests/fixtures/replay/scenarios/**
   - rust/src/scenario.rs
   - rust/src/main.rs
   - docs/design/evaluation-corpus.md
@@ -103,3 +105,7 @@ acquisition; adds exact source and license lineage; and emits
 `netbraid.scenario_replay.v1` so detached receipts retain declared admission
 metadata alongside the unchanged checkpoint projection fields. Structural
 validation does not authenticate that declaration.
+
+[ADR-0005](0005-publish-one-netbraid-package.md) later moves replay into the
+public `netbraid::replay` module without changing scenario schemas, features,
+or ownership.
