@@ -1,12 +1,11 @@
 # Changelog
 
-All notable changes to Netbraid's versioned Rust workspace and binary release are
+All notable changes to Netbraid's versioned Rust package and binary release are
 documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Netbraid uses one workspace release version. The CLI and three reusable
-libraries are prepared for crates.io publication in dependency order; GitHub
-native binary releases remain available independently.
+The public library and CLI share one `netbraid` package and release version;
+GitHub native binary releases remain available independently.
 
 ## [Unreleased]
 
@@ -39,25 +38,36 @@ native binary releases remain available independently.
   observations remain useful immediately, while negative conclusions require
   complete normalization and corroborating occurrence-receipt packet bounds.
 - A one-time scoped-token boundary for initial crate ownership and a manual,
-  current-main-only Trusted Publishing gate for later dependency-order
+  current-main-only Trusted Publishing gate for later
   releases, with registry metadata and Cargo VCS identity verification before
   a release tag can create a GitHub release.
 
 ### Changed
 
+- Collapsed the unpublished four-package workspace into one publishable
+  `netbraid` library-and-CLI package. The public API retains
+  `netbraid::evidence`, `netbraid::replay`, and the feature-gated
+  `netbraid::adapters::tshark` boundaries without four registry ownership and
+  release lifecycles.
+- CLI and TShark dependencies are gated behind default `cli` and
+  `adapter-tshark` features, so evidence/replay consumers can disable default
+  features. Existing schema, digest, corpus, and producer identifiers remain
+  unchanged.
+- The single source archive declares
+  `(MIT OR Unlicense) AND BSD-3-Clause` because it contains the supported
+  capture-derived scenario; repository-only adapter and CLI corpora remain
+  excluded.
 - The offline `scenario` CLI now validates and replays both v0 and v1 bundles.
   The four `PUBLIC_SYNTHETIC` v0 built-ins and their
   `netbraid.scenario_replay.v0` receipt remain unchanged. V1 replay emits
   `netbraid.scenario_replay.v1` so declared sensitivity and disclosure metadata
   survive detached receipt transport without implying authenticated review.
 - Cargo source archives now distinguish product fixtures from repository-only
-  evaluation data. `netbraid-replay` includes BSD-3-Clause because it exposes
-  the reviewed capture-derived fixture as a non-default product feature. The
-  adapter and root CLI exclude their test-only upstream corpora, notices, and
-  workspace-only integration tests from publication and retain
-  `MIT OR Unlicense`.
-- CI now exercises all workspace features and verifies that public scenario
-  fixtures are present in the packaged `netbraid-replay` crate.
+  evaluation data. The package includes the reviewed BSD-3-Clause-derived
+  fixture while excluding test-only upstream corpora, notices, and
+  repository-only integration tests.
+- CI now exercises all package features and verifies that public scenario
+  fixtures are present in the packaged `netbraid` crate.
 - Saved-capture JSON triage is now `netmon.saved_pcap_triage.v1`, retaining the
   validated capture manifest, optional occurrence receipt, normalized-record
   digest, and optional trailing-window projection. The public v0 projection API

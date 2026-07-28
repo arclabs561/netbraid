@@ -4,13 +4,11 @@ date: 2026-07-27
 extends:
   - 0003
 governs:
-  - rust/crates/netbraid-replay/src/scenario.rs
-  - rust/crates/netbraid-replay/tests/scenario_bundle_v1.rs
-  - rust/crates/netbraid-replay/tests/fixtures/scenarios/saved-capture-prefix-boundary/**
-  - rust/crates/netbraid-replay/Cargo.toml
-  - rust/crates/netbraid-replay/README.md
-  - rust/crates/netbraid-adapter-tshark/Cargo.toml
-  - rust/crates/netbraid-adapter-tshark/README.md
+  - rust/src/replay/scenario.rs
+  - rust/tests/replay_scenario_bundle_v1.rs
+  - rust/tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/**
+  - rust/src/adapters/tshark/**
+  - rust/tests/fixtures/adapter/**
   - rust/Cargo.toml
   - rust/src/scenario.rs
   - rust/tests/scenario_cli.rs
@@ -175,3 +173,10 @@ fields are unchanged.
 - Another disclosure class, acquisition mode, derivation, source family, or
   payload policy requires an explicit v1 extension or a later schema version;
   unknown tokens fail closed.
+
+## Update (2026-07-27)
+
+[ADR-0005](0005-publish-one-netbraid-package.md) places the supported scenario,
+its BSD notice, replay, and adapter sources in one Cargo package. The package
+therefore declares `(MIT OR Unlicense) AND BSD-3-Clause`; repository-only
+adapter corpora and their separate notices remain excluded.

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::net::IpAddr;
 
-use netbraid_evidence::PacketEnvelopeV0;
+use crate::evidence::PacketEnvelopeV0;
 
 const UNMODELED_ENCAPSULATION_PROTOCOLS: &[&str] = &[
     "geneve",
@@ -325,7 +325,7 @@ fn count_tcp_flags(counts: &mut TcpFlagCountsV0, flags: u16) {
 
 #[cfg(test)]
 mod tests {
-    use netbraid_evidence::{
+    use crate::evidence::{
         EthernetFieldsV0, Ipv4FieldsV0, Ipv6FieldsV0, PacketFrameV0, TcpFieldsV0, UdpFieldsV0,
         PACKET_ENVELOPE_SCHEMA_V0,
     };

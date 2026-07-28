@@ -1,10 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use netbraid_evidence::{
+use netbraid::evidence::{
     CaptureManifestV0, CaptureRunReceiptV0, PacketEnvelopeV0, PacketQuarantineV0,
 };
-use netbraid_replay::{
+use netbraid::replay::{
     load_scenario_bundle_v0, replay_scenario_v0, ScenarioConclusionDispositionV0,
     ScenarioCoverageFreshnessV0, ScenarioLimitsV0, ScenarioPrivacyV0, SCENARIO_REPLAY_SCHEMA_V0,
 };
@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/scenarios")
+        .join("tests/fixtures/replay/scenarios")
         .join(name)
 }
 
@@ -130,23 +130,23 @@ fn same_ssid_attachment_preserves_boundary_evidence_before_label_reuse_diverges(
         records[0].path.next_hop_link_address,
         records[1].path.next_hop_link_address
     );
-    let attachment_change = netbraid_replay::compare_contexts(Some(&records[0]), &records[1]);
+    let attachment_change = netbraid::replay::compare_contexts(Some(&records[0]), &records[1]);
     assert_eq!(
         attachment_change.relation,
-        netbraid_replay::ContextRelationV0::SameContext
+        netbraid::replay::ContextRelationV0::SameContext
     );
     assert_eq!(
         attachment_change.changed_dimensions,
         ["association", "associated_bssid"]
     );
-    let recurrence = netbraid_replay::summarize_context_recurrence(records, &records[1]);
+    let recurrence = netbraid::replay::summarize_context_recurrence(records, &records[1]);
     assert_eq!(
         recurrence.exact_context_match,
-        netbraid_replay::ExactContextMatchV0::AnchoredExactRecurrence
+        netbraid::replay::ExactContextMatchV0::AnchoredExactRecurrence
     );
     assert_eq!(
         recurrence.attachment_corroboration,
-        netbraid_replay::AttachmentCorroborationV0::NotSeenBefore
+        netbraid::replay::AttachmentCorroborationV0::NotSeenBefore
     );
     // These are the authored abstention oracles. Downstream consumer tests must
     // independently derive that this host-path-only evidence cannot establish
@@ -196,10 +196,10 @@ fn same_ssid_attachment_preserves_boundary_evidence_before_label_reuse_diverges(
         records[1].path.address_prefixes,
         records[2].path.address_prefixes
     );
-    let boundary_change = netbraid_replay::compare_contexts(Some(&records[1]), &records[2]);
+    let boundary_change = netbraid::replay::compare_contexts(Some(&records[1]), &records[2]);
     assert_eq!(
         boundary_change.relation,
-        netbraid_replay::ContextRelationV0::ContextChanged
+        netbraid::replay::ContextRelationV0::ContextChanged
     );
     assert!(boundary_change
         .changed_dimensions
@@ -376,17 +376,19 @@ fn symlinked_artifacts_fail_closed() {
 fn saved_capture_records_are_ingested_atomically_and_projected() {
     let temporary = tempfile::tempdir().unwrap();
     let manifest_record: CaptureManifestV0 = serde_json::from_str(include_str!(
-        "fixtures/evidence-v0/capture_manifest_v0.json"
+        "fixtures/replay/evidence-v0/capture_manifest_v0.json"
     ))
     .unwrap();
     let receipt_record: CaptureRunReceiptV0 = serde_json::from_str(include_str!(
-        "fixtures/evidence-v0/capture_run_receipt_v0.json"
+        "fixtures/replay/evidence-v0/capture_run_receipt_v0.json"
     ))
     .unwrap();
-    let packet_record: PacketEnvelopeV0 =
-        serde_json::from_str(include_str!("fixtures/evidence-v0/packet_envelope_v0.json")).unwrap();
+    let packet_record: PacketEnvelopeV0 = serde_json::from_str(include_str!(
+        "fixtures/replay/evidence-v0/packet_envelope_v0.json"
+    ))
+    .unwrap();
     let quarantine_record: PacketQuarantineV0 = serde_json::from_str(include_str!(
-        "fixtures/evidence-v0/packet_quarantine_v0.json"
+        "fixtures/replay/evidence-v0/packet_quarantine_v0.json"
     ))
     .unwrap();
     let mut capture = Vec::new();
@@ -494,7 +496,7 @@ fn saved_capture_records_are_ingested_atomically_and_projected() {
 #[test]
 fn builtins_use_the_same_validation_and_replay_api() {
     assert_eq!(
-        netbraid_replay::builtin_scenario_ids_v0(),
+        netbraid::replay::builtin_scenario_ids_v0(),
         [
             "wifi-hotspot-wifi",
             "same-ssid-attachment-boundary",
@@ -502,8 +504,8 @@ fn builtins_use_the_same_validation_and_replay_api() {
             "cache-source-gap"
         ]
     );
-    for id in netbraid_replay::builtin_scenario_ids_v0() {
-        let bundle = netbraid_replay::builtin_scenario_v0(id).unwrap();
+    for id in netbraid::replay::builtin_scenario_ids_v0() {
+        let bundle = netbraid::replay::builtin_scenario_v0(id).unwrap();
         let checkpoint = bundle.manifest().timeline.last().unwrap().name.clone();
         let replay = replay_scenario_v0(&bundle, &checkpoint).unwrap();
         assert_eq!(replay.scenario_id, *id);
@@ -522,8 +524,8 @@ fn builtins_use_the_same_validation_and_replay_api() {
 #[cfg(feature = "scenario-fixtures")]
 #[test]
 fn checkpoint_inputs_reject_a_receipt_from_another_bundle() {
-    let first = netbraid_replay::builtin_scenario_v0("wifi-hotspot-wifi").unwrap();
-    let second = netbraid_replay::builtin_scenario_v0("vpn-overlay-transition").unwrap();
+    let first = netbraid::replay::builtin_scenario_v0("wifi-hotspot-wifi").unwrap();
+    let second = netbraid::replay::builtin_scenario_v0("vpn-overlay-transition").unwrap();
     let receipt = replay_scenario_v0(&first, "wifi-returned").unwrap();
 
     let error = second.checkpoint_inputs_v0(&receipt).unwrap_err();

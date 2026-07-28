@@ -2,12 +2,12 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use netbraid_evidence::{
+use netbraid::evidence::{
     CaptureFileMetadataV0, CaptureManifestV0, CaptureRunReceiptV0, Ipv4FieldsV0, PacketEnvelopeV0,
     PacketQuarantineV0, ToolRunReceiptV0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
     NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_QUARANTINE_SCHEMA_V0,
 };
-use netbraid_replay::{
+use netbraid::replay::{
     load_scenario_bundle_v0, load_scenario_bundle_v1, parse_saved_capture_jsonl,
     project_saved_pcap_triage_v1, replay_scenario_v1, SavedPcapClaimScopeV0,
     SavedPcapTriageOptionsV1, SavedPcapWlanDisconnectKindV0, SavedPcapWlanTriageV0,
@@ -25,7 +25,7 @@ const RAW_CAPTURE_SHA256: &str =
 
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/scenarios")
+        .join("tests/fixtures/replay/scenarios")
         .join(name)
 }
 
@@ -536,7 +536,7 @@ fn synthetic_v0_manifest_closures_remain_pinned() {
 #[test]
 fn synthetic_v0_builtin_inventory_remains_exactly_four() {
     assert_eq!(
-        netbraid_replay::builtin_scenario_ids_v0(),
+        netbraid::replay::builtin_scenario_ids_v0(),
         [
             "wifi-hotspot-wifi",
             "same-ssid-attachment-boundary",
@@ -550,10 +550,10 @@ fn synthetic_v0_builtin_inventory_remains_exactly_four() {
 #[test]
 fn reviewed_capture_builtin_inventory_is_separate_and_exactly_one() {
     assert_eq!(
-        netbraid_replay::builtin_scenario_ids_v1(),
+        netbraid::replay::builtin_scenario_ids_v1(),
         ["saved-capture-prefix-boundary"]
     );
-    let bundle = netbraid_replay::builtin_scenario_v1(SCENARIO).unwrap();
+    let bundle = netbraid::replay::builtin_scenario_v1(SCENARIO).unwrap();
     let receipt = replay_scenario_v1(&bundle, "prefix-seven").unwrap();
     assert_eq!(receipt.projection.saved_captures.len(), 2);
 }

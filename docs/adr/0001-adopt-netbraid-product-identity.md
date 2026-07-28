@@ -3,9 +3,8 @@ status: accepted
 date: 2026-07-26
 governs:
   - rust/Cargo.toml
-  - rust/crates/*/Cargo.toml
   - rust/src/**
-  - rust/crates/**
+  - rust/tests/**
   - cmd/root.go
   - .github/**
   - README.md
@@ -66,3 +65,10 @@ module path is not presented as the product name.
   authority, or private fusion plane.
 - Historical prose, the 0.1 tag, and legacy producer fixtures may still name
   Netmon where that history is the subject.
+
+## Update (2026-07-27)
+
+[ADR-0005](0005-publish-one-netbraid-package.md) collapses the unpublished
+package family into one `netbraid` package. The evidence, replay, and TShark
+names now identify public module boundaries; `netbraid-adapter-tshark` remains
+the current serialized producer identity rather than a registry package.

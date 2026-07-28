@@ -1,6 +1,6 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use netbraid_evidence::{
+use crate::evidence::{
     EthernetFieldsV0, Ieee80211FieldsV0, Ipv4FieldsV0, Ipv6FieldsV0, PacketEnvelopeV0,
     PacketFrameV0, PacketQuarantineV0, TcpFieldsV0, UdpFieldsV0, WlanRadioFieldsV0,
     PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
