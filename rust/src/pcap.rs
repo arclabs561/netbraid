@@ -15,9 +15,9 @@ use netbraid_evidence::{
     CollectionModeV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
 };
 use netbraid_replay::{
-    project_saved_pcap_triage_v1, reduce_capture_conversations, CaptureConversationV0,
-    ConversationDirectionV0, SavedCaptureRecordStreamV0, SavedPcapClaimScopeV0,
-    SavedPcapCompletenessV0, SavedPcapConversationTriageV0,
+    project_saved_pcap_fingerprint_v0, project_saved_pcap_triage_v1, reduce_capture_conversations,
+    CaptureConversationV0, ConversationDirectionV0, SavedCaptureRecordStreamV0,
+    SavedPcapClaimScopeV0, SavedPcapCompletenessV0, SavedPcapConversationTriageV0,
     SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
     SavedPcapTopConversationV0, SavedPcapTrailingConversationTriageV1,
     SavedPcapTrailingIntervalAnchorV1, SavedPcapTrailingTopConversationV1,
@@ -106,6 +106,13 @@ pub struct PcapArgs {
     #[arg(long, conflicts_with_all = ["jsonl", "records_jsonl"])]
     pub json: bool,
 
+    /// Emit one packet-shape fingerprint candidate as JSON.
+    #[arg(
+        long,
+        conflicts_with_all = ["json", "jsonl", "records_jsonl", "tail_seconds"]
+    )]
+    pub fingerprint_json: bool,
+
     /// Emit versioned manifest, run receipt, packet, and quarantine records as JSONL.
     #[arg(long, conflicts_with_all = ["json", "records_jsonl"])]
     pub jsonl: bool,
@@ -177,13 +184,30 @@ pub fn run(args: &PcapArgs) -> Result<()> {
     )
     .with_context(|| format!("normalizing {}", args.input.display()))?;
 
-    match (args.json, args.jsonl, args.records_jsonl) {
-        (true, false, false) => print_triage_json(&report, tail_window_ns),
-        (false, true, false) => print_jsonl(&report, true),
-        (false, false, true) => print_jsonl(&report, false),
-        (false, false, false) => print_summary(&args.input, &report, tail_window_ns),
+    match (
+        args.fingerprint_json,
+        args.json,
+        args.jsonl,
+        args.records_jsonl,
+    ) {
+        (true, false, false, false) => print_fingerprint_json(&report),
+        (false, true, false, false) => print_triage_json(&report, tail_window_ns),
+        (false, false, true, false) => print_jsonl(&report, true),
+        (false, false, false, true) => print_jsonl(&report, false),
+        (false, false, false, false) => print_summary(&args.input, &report, tail_window_ns),
         _ => unreachable!("clap rejects conflicting output modes"),
     }
+}
+
+fn print_fingerprint_json(report: &NormalizationReport) -> Result<()> {
+    let triage = triage_for_report(report, None)?;
+    let candidate = project_saved_pcap_fingerprint_v0(&triage);
+    let mut output = BufWriter::new(io::stdout().lock());
+    serde_json::to_writer(&mut output, &candidate)
+        .context("writing saved-PCAP fingerprint candidate")?;
+    output.write_all(b"\n")?;
+    output.flush()?;
+    Ok(())
 }
 
 fn acquisition_policy(args: &PcapArgs) -> Result<Option<CollectionPolicyV0>> {

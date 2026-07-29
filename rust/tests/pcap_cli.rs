@@ -260,6 +260,41 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         "this fixture's candidate pivot should select its four matching frames"
     );
 
+    let fingerprint = Command::new(binary)
+        .args([
+            "pcap",
+            input.to_str().unwrap(),
+            "--packet-limit",
+            "10",
+            "--fingerprint-json",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        fingerprint.status.success(),
+        "{}",
+        String::from_utf8_lossy(&fingerprint.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&fingerprint.stdout).lines().count(),
+        1,
+        "fingerprint JSON must be one object"
+    );
+    let fingerprint: serde_json::Value = serde_json::from_slice(&fingerprint.stdout).unwrap();
+    assert_eq!(
+        fingerprint["schema"],
+        "netmon.saved_pcap_fingerprint_candidate.v0"
+    );
+    assert_eq!(fingerprint["scope"], "complete_capture");
+    assert_eq!(fingerprint["status"]["status"], "observed");
+    assert!(fingerprint["status"]["digest"]
+        .as_str()
+        .unwrap()
+        .starts_with("sha256:"));
+    let fingerprint_text = fingerprint.to_string();
+    assert!(!fingerprint_text.contains("192.0.2.1"));
+    assert!(!fingerprint_text.contains("40000"));
+
     let trailing = Command::new(binary)
         .args([
             "pcap",
@@ -575,6 +610,26 @@ fn pcap_jsonl_modes_are_mutually_exclusive() {
     assert!(stderr.contains("--jsonl"));
     assert!(stderr.contains("--records-jsonl"));
     assert!(stderr.contains("cannot be used with"));
+}
+
+#[test]
+fn pcap_fingerprint_json_is_separate_from_other_json_modes() {
+    let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+        .args([
+            "pcap",
+            "does-not-need-to-exist.pcap",
+            "--fingerprint-json",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("--fingerprint-json"));
+    assert!(stderr.contains("--json"));
+    assert!(stderr.contains("cannot be used with"));
+    assert!(!stderr.contains("normalizing does-not-need-to-exist.pcap"));
 }
 
 #[test]

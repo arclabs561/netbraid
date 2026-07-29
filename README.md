@@ -275,7 +275,8 @@ an identity claim. The Rust API also has a separate
 `netmon.saved_pcap_fingerprint_candidate.v0` projection. It describes packet
 shape, leaves endpoint addresses and ports out of its digest, and reports
 partial or unsupported input instead of guessing. It does not identify a
-device, person, place, or intent.
+device, person, place, or intent. The opt-in `--fingerprint-json` command emits
+that candidate directly; it does not change `--json` output.
 Positive disconnect-frame and conversation observations are useful from the
 first supporting normalized packet. Negative WLAN observations are scoped to
 the complete capture or normalized packet subset; a partial subset with no
