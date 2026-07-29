@@ -1,9 +1,9 @@
 # netbraid
 
-Netbraid is a versioned network-evidence and deterministic-replay workspace. Its Rust
-release normalizes immutable artifacts, preserves provenance, and replays typed
-evidence; the repository also retains a legacy Go capture tool and a disconnected
-acquisition-policy experiment while the dependency-ordered Rust cutover proceeds.
+Netbraid records, normalizes, and replays versioned network evidence. The Rust
+release preserves provenance and typed evidence; the repository also retains a
+legacy Go capture tool and a disconnected acquisition-policy experiment while the
+Rust cutover proceeds.
 
 Netbraid currently contains four separate, buildable surfaces:
 
