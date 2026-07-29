@@ -36,6 +36,17 @@ The normal library embeds no scenarios. The non-default
 `netbraid.scenario_bundle.v1` `PUBLIC_REVIEWED` bundle derived from an admitted
 public saved capture.
 
+The test-only `relation-preflight` fixture covers source-preserving
+disagreement, late correction, missing sources, clock uncertainty, and
+identifier-rotation abstention. Run it with:
+
+```text
+cargo test -p netbraid-replay --test relation_preflight
+```
+
+It is a portable contract check. It does not add a runtime fusion or identity
+API and does not require private deployment data.
+
 Version 1 separates disclosure sensitivity from source origin, derivation, and
 acquisition. It records exact upstream, corpus, digest, size, and SPDX
 coordinates; enumerates identifier classes retained in ingestible evidence;

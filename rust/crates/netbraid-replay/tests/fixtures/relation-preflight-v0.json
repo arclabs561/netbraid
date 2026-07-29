@@ -1,0 +1,137 @@
+{
+  "schema": "netbraid.relation_preflight_fixture.v0",
+  "privacy": "PUBLIC_SYNTHETIC",
+  "as_of_unix_s": 1000,
+  "freshness_window_s": 30,
+  "cases": [
+    {
+      "id": "fresh_disagreement",
+      "expected_sources": ["host_path", "network_controller"],
+      "records": [
+        {
+          "record_id": "path-1",
+          "source": "host_path",
+          "event_ts": 990,
+          "received_ts": 990,
+          "join_key": "window-1",
+          "claim": "office"
+        },
+        {
+          "record_id": "controller-1",
+          "source": "network_controller",
+          "event_ts": 991,
+          "received_ts": 992,
+          "join_key": "window-1",
+          "claim": "living"
+        }
+      ],
+      "expected": {
+        "relation": "disagree",
+        "missing_sources": [],
+        "uncertain_sources": []
+      }
+    },
+    {
+      "id": "late_correction",
+      "expected_sources": ["wifi_observer"],
+      "records": [
+        {
+          "record_id": "wifi-1",
+          "source": "wifi_observer",
+          "event_ts": 980,
+          "received_ts": 980,
+          "join_key": "window-2",
+          "claim": "office"
+        },
+        {
+          "record_id": "wifi-1-correction",
+          "source": "wifi_observer",
+          "event_ts": 980,
+          "received_ts": 999,
+          "supersedes": "wifi-1",
+          "join_key": "window-2",
+          "claim": "living"
+        }
+      ],
+      "expected": {
+        "relation": "correlated",
+        "corrected_claim": "living",
+        "history_length": 2,
+        "missing_sources": [],
+        "uncertain_sources": []
+      }
+    },
+    {
+      "id": "rotation_without_closure",
+      "expected_sources": ["wifi_observer"],
+      "records": [
+        {
+          "record_id": "rotating-a",
+          "source": "wifi_observer",
+          "event_ts": 970,
+          "received_ts": 970,
+          "join_key": null,
+          "identifier": "synthetic-a",
+          "claim": "same-scene"
+        },
+        {
+          "record_id": "rotating-b",
+          "source": "wifi_observer",
+          "event_ts": 971,
+          "received_ts": 971,
+          "join_key": null,
+          "identifier": "synthetic-b",
+          "claim": "same-scene"
+        }
+      ],
+      "expected": {
+        "relation": "insufficient",
+        "missing_sources": [],
+        "uncertain_sources": []
+      }
+    },
+    {
+      "id": "spectrum_clock_uncertainty",
+      "expected_sources": ["spectrum_summary"],
+      "records": [
+        {
+          "record_id": "spectrum-1",
+          "source": "spectrum_summary",
+          "event_ts": 995,
+          "received_ts": 996,
+          "join_key": "window-3",
+          "claim": "band-present",
+          "clock": "receipt",
+          "clock_uncertainty_s": 5
+        }
+      ],
+      "expected": {
+        "relation": "uncertain",
+        "missing_sources": [],
+        "uncertain_sources": ["spectrum_summary"]
+      }
+    },
+    {
+      "id": "health_without_station_link",
+      "expected_sources": ["radio_health", "network_controller"],
+      "records": [
+        {
+          "record_id": "radio-health-1",
+          "source": "radio_health",
+          "event_ts": 998,
+          "received_ts": 998,
+          "join_key": "window-4",
+          "claim": "health-only",
+          "route_present": true,
+          "ap_ok": true,
+          "station_count": 0
+        }
+      ],
+      "expected": {
+        "relation": "missing",
+        "missing_sources": ["network_controller"],
+        "uncertain_sources": []
+      }
+    }
+  ]
+}
