@@ -18,6 +18,12 @@ or `not_comparable`. It compares only candidates with the same schema, claim
 scope, and feature set, and checks each digest against its basis. It does not
 join observers or identify a device.
 
+`project_saved_pcap_wlan_fingerprint_v0` is a separate candidate for validated
+802.11/radiotap frame and radio metadata. It keeps MAC addresses, BSSIDs, and
+SSID bytes out of the digest and reports missing WLAN evidence as unsupported
+or insufficient according to capture scope. It does not join this evidence to
+the packet-shape candidate or to BLE, CSI, or spectrum observations.
+
 ```toml
 [dependencies]
 netbraid-replay = "0.3"

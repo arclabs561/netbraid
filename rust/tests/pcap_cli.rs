@@ -440,6 +440,37 @@ fn pcap_command_surfaces_bounded_wireless_operator_evidence() {
     assert!(!stdout.contains(
         "scope         capture-wide; endpoint A/B is canonical, not initiator\n  coverage      0 grouped"
     ));
+
+    let wlan_fingerprint = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+        .args([
+            "pcap",
+            input.to_str().unwrap(),
+            "--packet-limit",
+            "100",
+            "--wlan-fingerprint-json",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        wlan_fingerprint.status.success(),
+        "{}",
+        String::from_utf8_lossy(&wlan_fingerprint.stderr)
+    );
+    let wlan_fingerprint: serde_json::Value =
+        serde_json::from_slice(&wlan_fingerprint.stdout).unwrap();
+    assert_eq!(
+        wlan_fingerprint["schema"],
+        "netmon.saved_pcap_wlan_fingerprint_candidate.v0"
+    );
+    assert_eq!(wlan_fingerprint["status"]["status"], "observed");
+    assert_eq!(wlan_fingerprint["status"]["basis"]["wlan_frames"], 10);
+    assert_eq!(
+        wlan_fingerprint["status"]["basis"]["radio_metadata_frames"],
+        7
+    );
+    let wlan_fingerprint_text = wlan_fingerprint.to_string();
+    assert!(!wlan_fingerprint_text.contains("90:a4:de:c0:46:0a"));
+    assert!(!wlan_fingerprint_text.contains("6f6d7573"));
 }
 
 #[test]
@@ -628,6 +659,26 @@ fn pcap_fingerprint_json_is_separate_from_other_json_modes() {
     let stderr = String::from_utf8(output.stderr).unwrap();
     assert!(stderr.contains("--fingerprint-json"));
     assert!(stderr.contains("--json"));
+    assert!(stderr.contains("cannot be used with"));
+    assert!(!stderr.contains("normalizing does-not-need-to-exist.pcap"));
+}
+
+#[test]
+fn pcap_wlan_fingerprint_json_is_separate_from_other_json_modes() {
+    let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+        .args([
+            "pcap",
+            "does-not-need-to-exist.pcap",
+            "--wlan-fingerprint-json",
+            "--fingerprint-json",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("--wlan-fingerprint-json"));
+    assert!(stderr.contains("--fingerprint-json"));
     assert!(stderr.contains("cannot be used with"));
     assert!(!stderr.contains("normalizing does-not-need-to-exist.pcap"));
 }

@@ -15,9 +15,10 @@ use netbraid_evidence::{
     CollectionModeV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
 };
 use netbraid_replay::{
-    project_saved_pcap_fingerprint_v0, project_saved_pcap_triage_v1, reduce_capture_conversations,
-    CaptureConversationV0, ConversationDirectionV0, SavedCaptureRecordStreamV0,
-    SavedPcapClaimScopeV0, SavedPcapCompletenessV0, SavedPcapConversationTriageV0,
+    project_saved_pcap_fingerprint_v0, project_saved_pcap_triage_v1,
+    project_saved_pcap_wlan_fingerprint_v0, reduce_capture_conversations, CaptureConversationV0,
+    ConversationDirectionV0, SavedCaptureRecordStreamV0, SavedPcapClaimScopeV0,
+    SavedPcapCompletenessV0, SavedPcapConversationTriageV0,
     SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
     SavedPcapTopConversationV0, SavedPcapTrailingConversationTriageV1,
     SavedPcapTrailingIntervalAnchorV1, SavedPcapTrailingTopConversationV1,
@@ -103,15 +104,34 @@ pub struct PcapArgs {
     pub active_action: Vec<String>,
 
     /// Emit one finite, provenance-complete saved-PCAP triage v1 document as JSON.
-    #[arg(long, conflicts_with_all = ["jsonl", "records_jsonl"])]
+    #[arg(long, conflicts_with_all = ["jsonl", "records_jsonl", "fingerprint_json", "wlan_fingerprint_json"])]
     pub json: bool,
 
     /// Emit one packet-shape fingerprint candidate as JSON.
     #[arg(
         long,
-        conflicts_with_all = ["json", "jsonl", "records_jsonl", "tail_seconds"]
+        conflicts_with_all = [
+            "json",
+            "jsonl",
+            "records_jsonl",
+            "tail_seconds",
+            "wlan_fingerprint_json"
+        ]
     )]
     pub fingerprint_json: bool,
+
+    /// Emit one 802.11/radiotap fingerprint candidate as JSON.
+    #[arg(
+        long,
+        conflicts_with_all = [
+            "json",
+            "fingerprint_json",
+            "jsonl",
+            "records_jsonl",
+            "tail_seconds"
+        ]
+    )]
+    pub wlan_fingerprint_json: bool,
 
     /// Emit versioned manifest, run receipt, packet, and quarantine records as JSONL.
     #[arg(long, conflicts_with_all = ["json", "records_jsonl"])]
@@ -185,18 +205,31 @@ pub fn run(args: &PcapArgs) -> Result<()> {
     .with_context(|| format!("normalizing {}", args.input.display()))?;
 
     match (
+        args.wlan_fingerprint_json,
         args.fingerprint_json,
         args.json,
         args.jsonl,
         args.records_jsonl,
     ) {
-        (true, false, false, false) => print_fingerprint_json(&report),
-        (false, true, false, false) => print_triage_json(&report, tail_window_ns),
-        (false, false, true, false) => print_jsonl(&report, true),
-        (false, false, false, true) => print_jsonl(&report, false),
-        (false, false, false, false) => print_summary(&args.input, &report, tail_window_ns),
+        (true, false, false, false, false) => print_wlan_fingerprint_json(&report),
+        (false, true, false, false, false) => print_fingerprint_json(&report),
+        (false, false, true, false, false) => print_triage_json(&report, tail_window_ns),
+        (false, false, false, true, false) => print_jsonl(&report, true),
+        (false, false, false, false, true) => print_jsonl(&report, false),
+        (false, false, false, false, false) => print_summary(&args.input, &report, tail_window_ns),
         _ => unreachable!("clap rejects conflicting output modes"),
     }
+}
+
+fn print_wlan_fingerprint_json(report: &NormalizationReport) -> Result<()> {
+    let records = records_for_report(report);
+    let candidate = project_saved_pcap_wlan_fingerprint_v0(&records);
+    let mut output = BufWriter::new(io::stdout().lock());
+    serde_json::to_writer(&mut output, &candidate)
+        .context("writing saved-PCAP WLAN fingerprint candidate")?;
+    output.write_all(b"\n")?;
+    output.flush()?;
+    Ok(())
 }
 
 fn print_fingerprint_json(report: &NormalizationReport) -> Result<()> {
@@ -270,15 +303,19 @@ fn triage_for_report(
     report: &NormalizationReport,
     tail_window_ns: Option<u64>,
 ) -> Result<SavedPcapTriageV1> {
-    let records = SavedCaptureRecordStreamV0 {
+    let records = records_for_report(report);
+    project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1 { tail_window_ns })
+        .context("projecting validated saved-PCAP triage")
+}
+
+fn records_for_report(report: &NormalizationReport) -> SavedCaptureRecordStreamV0 {
+    SavedCaptureRecordStreamV0 {
         manifest: report.manifest.clone(),
         receipt: Some(report.receipt.clone()),
         packets: report.packets.clone(),
         quarantines: report.quarantines.clone(),
         normalized_records_sha256: report.receipt.normalized_records_sha256.clone(),
-    };
-    project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1 { tail_window_ns })
-        .context("projecting validated saved-PCAP triage")
+    }
 }
 
 fn print_summary(

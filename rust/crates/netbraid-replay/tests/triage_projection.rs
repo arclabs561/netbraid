@@ -8,13 +8,14 @@ use netbraid_evidence::{
 use netbraid_replay::{
     compare_saved_pcap_fingerprints_v0, parse_saved_capture_jsonl,
     project_saved_pcap_fingerprint_v0, project_saved_pcap_triage, project_saved_pcap_triage_v1,
-    SavedPcapClaimScopeV0, SavedPcapConversationAggregationV0, SavedPcapConversationTriageV0,
+    project_saved_pcap_wlan_fingerprint_v0, SavedPcapClaimScopeV0,
+    SavedPcapConversationAggregationV0, SavedPcapConversationTriageV0,
     SavedPcapFingerprintComparisonReasonV0, SavedPcapFingerprintComparisonV0,
     SavedPcapFingerprintStatusV0, SavedPcapNegativeClaimAbstentionReasonV1,
     SavedPcapNegativeClaimQualificationV1, SavedPcapTrailingConversationAggregationV1,
     SavedPcapTrailingConversationTriageV1, SavedPcapTrailingIntervalAnchorV1,
     SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1, SavedPcapTriageProjectionError,
-    SavedPcapWlanDisconnectKindV0, SavedPcapWlanTriageV0,
+    SavedPcapWlanDisconnectKindV0, SavedPcapWlanFingerprintStatusV0, SavedPcapWlanTriageV0,
 };
 use proptest::prelude::*;
 
@@ -208,6 +209,180 @@ fn fingerprint_candidate_preserves_partial_and_unsupported_abstentions() {
             reason: SavedPcapFingerprintComparisonReasonV0::LeftNotObserved,
         }
     );
+}
+
+#[test]
+fn wlan_fingerprint_is_separate_and_identifier_free() {
+    let mut first = wlan_packet(1, 8);
+    first.frame.protocols = vec!["radiotap".into(), "wlan_radio".into(), "wlan".into()];
+    first.ieee80211.as_mut().unwrap().ssid_hex = Some("6f6d7573".into());
+    first.wlan_radio = Some(netbraid_evidence::WlanRadioFieldsV0 {
+        channel: Some(1),
+        center_frequency_mhz: Some(2_412),
+        signal_dbm: Some(-74),
+    });
+    let mut second = wlan_packet(2, 12);
+    second.frame.protocols = first.frame.protocols.clone();
+    second.wlan_radio = Some(netbraid_evidence::WlanRadioFieldsV0 {
+        channel: Some(1),
+        center_frequency_mhz: Some(2_412),
+        signal_dbm: Some(-40),
+    });
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Complete, 2, 0),
+        vec![first, second],
+        vec![],
+    );
+    let candidate = project_saved_pcap_wlan_fingerprint_v0(&records);
+
+    assert_eq!(candidate.scope, SavedPcapClaimScopeV0::CompleteCapture);
+    let SavedPcapWlanFingerprintStatusV0::Observed { digest, basis, .. } = &candidate.status else {
+        panic!("validated WLAN evidence should produce an observed candidate");
+    };
+    assert!(digest.starts_with("sha256:"));
+    assert_eq!(basis.wlan_frames, 2);
+    assert_eq!(basis.radiotap_frames, 2);
+    assert_eq!(basis.radio_metadata_frames, 2);
+    assert_eq!(basis.ssid_element_frames, 1);
+    assert_eq!(basis.channel_frames, 2);
+    assert_eq!(basis.center_frequency_frames, 2);
+    assert_eq!(basis.signal_frames, 2);
+    assert_eq!(basis.signal_dbm.minimum_dbm, Some(-74));
+    assert_eq!(basis.signal_dbm.maximum_dbm, Some(-40));
+    assert_eq!(basis.observed_span_ns, 1_000);
+    assert_eq!(basis.frame_mix[0].frame_subtype, 8);
+    assert_eq!(basis.frame_mix[0].frames, 1);
+    assert_eq!(basis.frame_mix[1].frame_subtype, 12);
+    assert_eq!(basis.frame_mix[1].frames, 1);
+    assert_eq!(basis.channels[0].frames, 2);
+    assert_eq!(basis.center_frequencies_mhz[0].frames, 2);
+
+    let encoded = serde_json::to_string(&candidate).unwrap();
+    assert!(!encoded.contains("02:00:00:00:00:01"));
+    assert!(!encoded.contains("6f6d7573"));
+
+    let mut identifiers_changed = records.clone();
+    let wlan = identifiers_changed.packets[0].ieee80211.as_mut().unwrap();
+    wlan.transmitter = Some("02:00:00:00:00:aa".into());
+    wlan.bssid = Some("02:00:00:00:00:bb".into());
+    wlan.ssid_hex = Some("6c6162".into());
+    let changed_candidate = project_saved_pcap_wlan_fingerprint_v0(&identifiers_changed);
+    let SavedPcapWlanFingerprintStatusV0::Observed {
+        digest: changed_digest,
+        ..
+    } = changed_candidate.status
+    else {
+        panic!("identifier changes must not remove WLAN evidence");
+    };
+    assert_eq!(digest, &changed_digest);
+}
+
+#[test]
+fn wlan_fingerprint_abstains_without_frames_at_the_right_scope() {
+    let partial = validated_stream(
+        manifest(NormalizationStateV0::Partial, 1, 0),
+        vec![tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 2)],
+        vec![],
+    );
+    assert!(matches!(
+        project_saved_pcap_wlan_fingerprint_v0(&partial).status,
+        SavedPcapWlanFingerprintStatusV0::Insufficient { .. }
+    ));
+
+    let complete = validated_stream(
+        manifest(NormalizationStateV0::Complete, 1, 0),
+        vec![tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 2)],
+        vec![],
+    );
+    assert!(matches!(
+        project_saved_pcap_wlan_fingerprint_v0(&complete).status,
+        SavedPcapWlanFingerprintStatusV0::Unsupported { .. }
+    ));
+}
+
+#[test]
+fn wlan_fingerprint_keeps_scope_and_coverage_explicit() {
+    let mut first = wlan_packet(1, 8);
+    first.frame.protocols = vec!["wlan".into()];
+    first.wlan_radio = Some(netbraid_evidence::WlanRadioFieldsV0 {
+        channel: Some(1),
+        center_frequency_mhz: None,
+        signal_dbm: None,
+    });
+    let mut second = wlan_packet(2, 8);
+    second.frame.protocols = vec!["wlan".into()];
+    second.wlan_radio = Some(netbraid_evidence::WlanRadioFieldsV0 {
+        channel: None,
+        center_frequency_mhz: Some(2_437),
+        signal_dbm: Some(-55),
+    });
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Partial, 2, 0),
+        vec![first, second],
+        vec![],
+    );
+    let candidate = project_saved_pcap_wlan_fingerprint_v0(&records);
+
+    assert_eq!(
+        candidate.scope,
+        SavedPcapClaimScopeV0::NormalizedPacketSubset
+    );
+    let SavedPcapWlanFingerprintStatusV0::Observed { basis, .. } = candidate.status else {
+        panic!("WLAN frames in a partial stream remain an observed subset");
+    };
+    assert_eq!(basis.wlan_frames, 2);
+    assert_eq!(basis.radio_metadata_frames, 2);
+    assert_eq!(basis.channel_frames, 1);
+    assert_eq!(basis.center_frequency_frames, 1);
+    assert_eq!(basis.signal_frames, 1);
+    assert_eq!(basis.channels[0].value, 1);
+    assert_eq!(basis.channels[0].frames, 1);
+    assert_eq!(basis.center_frequencies_mhz[0].value, 2_437);
+    assert_eq!(basis.center_frequencies_mhz[0].frames, 1);
+}
+
+#[test]
+fn wlan_fingerprint_digest_ignores_order_and_absolute_time() {
+    let mut first = wlan_packet(1, 8);
+    first.frame.protocols = vec!["radiotap".into(), "wlan_radio".into(), "wlan".into()];
+    first.wlan_radio = Some(netbraid_evidence::WlanRadioFieldsV0 {
+        channel: Some(1),
+        center_frequency_mhz: Some(2_412),
+        signal_dbm: Some(-60),
+    });
+    let mut second = wlan_packet(2, 12);
+    second.frame.protocols = first.frame.protocols.clone();
+    second.wlan_radio = first.wlan_radio.clone();
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Complete, 2, 0),
+        vec![first, second],
+        vec![],
+    );
+    let digest = |records: &netbraid_replay::SavedCaptureRecordStreamV0| {
+        let SavedPcapWlanFingerprintStatusV0::Observed { digest, .. } =
+            project_saved_pcap_wlan_fingerprint_v0(records).status
+        else {
+            panic!("fixture should produce an observed candidate");
+        };
+        digest
+    };
+
+    let baseline = digest(&records);
+    let mut shifted = records.clone();
+    for packet in &mut shifted.packets {
+        packet.frame.event_time_unix_ns += 9_000_000;
+    }
+    assert_eq!(baseline, digest(&shifted));
+
+    let mut reordered = records.clone();
+    reordered.packets.reverse();
+    assert_eq!(baseline, digest(&reordered));
+
+    reordered.packets[0]
+        .frame
+        .protocols
+        .retain(|protocol| protocol != "radiotap");
+    assert_ne!(baseline, digest(&reordered));
 }
 
 proptest! {

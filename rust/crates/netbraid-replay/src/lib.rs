@@ -10,6 +10,7 @@ mod fingerprint;
 mod saved_capture;
 mod scenario;
 mod triage;
+mod wlan_fingerprint;
 
 pub use conversation::{
     reduce_capture_conversations, CaptureConversationKeyV0, CaptureConversationReportV0,
@@ -72,6 +73,14 @@ pub use triage::{
     SavedPcapWlanDisconnectKindV0, SavedPcapWlanDisconnectV0, SavedPcapWlanInsufficientReasonV0,
     SavedPcapWlanTriageV0, SavedPcapWlanUnsupportedReasonV0, SAVED_PCAP_TRIAGE_SCHEMA_V0,
     SAVED_PCAP_TRIAGE_SCHEMA_V1,
+};
+pub use wlan_fingerprint::{
+    project_saved_pcap_wlan_fingerprint_v0, SavedPcapWlanFingerprintBasisV0,
+    SavedPcapWlanFingerprintCandidateV0, SavedPcapWlanFingerprintInsufficientReasonV0,
+    SavedPcapWlanFingerprintSourceV0, SavedPcapWlanFingerprintStatusV0,
+    SavedPcapWlanFingerprintUnsupportedReasonV0, SavedPcapWlanFrameMixV0,
+    SavedPcapWlanRadioValueV0, SavedPcapWlanSignalSummaryV0,
+    SAVED_PCAP_WLAN_FINGERPRINT_CANDIDATE_SCHEMA_V0,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

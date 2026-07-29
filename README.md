@@ -99,6 +99,7 @@ cargo build --manifest-path rust/Cargo.toml
 ./rust/target/debug/netbraid pcap ./incident.pcapng --json
 ./rust/target/debug/netbraid pcap ./incident.pcapng --jsonl
 ./rust/target/debug/netbraid pcap ./incident.pcapng --records-jsonl
+./rust/target/debug/netbraid pcap ./incident.pcapng --wlan-fingerprint-json
 ./rust/target/debug/netbraid scenario validate ./scenario --json
 ./rust/target/debug/netbraid scenario replay ./scenario --checkpoint CHECKPOINT --json
 ```
@@ -277,6 +278,14 @@ shape, leaves endpoint addresses and ports out of its digest, and reports
 partial or unsupported input instead of guessing. It does not identify a
 device, person, place, or intent. The opt-in `--fingerprint-json` command emits
 that candidate directly; it does not change `--json` output.
+
+The separate `netmon.saved_pcap_wlan_fingerprint_candidate.v0` projection
+summarizes validated 802.11/radiotap frame mix, radio metadata coverage,
+channels, frequencies, and signal ranges. It excludes MAC addresses, BSSIDs,
+and SSID bytes from its digest. Missing radio metadata remains visible as a
+coverage fact; this candidate does not identify a device, person, place, or
+intent, and it does not join BLE, CSI, or spectrum evidence. The opt-in
+`--wlan-fingerprint-json` command emits it directly.
 Positive disconnect-frame and conversation observations are useful from the
 first supporting normalized packet. Negative WLAN observations are scoped to
 the complete capture or normalized packet subset; a partial subset with no
