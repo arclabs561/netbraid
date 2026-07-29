@@ -1,9 +1,10 @@
 use netbraid_evidence::{
     CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureFileMetadataV0, CaptureManifestV0,
-    CaptureNormalizationV0, CaptureRunReceiptV0, EthernetFieldsV0, Ieee80211FieldsV0, Ipv4FieldsV0,
-    NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0, PacketQuarantineV0, TcpFieldsV0,
-    ToolRunReceiptV0, UdpFieldsV0, CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
-    NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
+    CaptureNormalizationV0, CaptureRunReceiptV0, CollectionPolicyV0, EthernetFieldsV0,
+    Ieee80211FieldsV0, Ipv4FieldsV0, NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0,
+    PacketQuarantineV0, TcpFieldsV0, ToolRunReceiptV0, UdpFieldsV0, CAPTURE_MANIFEST_SCHEMA_V0,
+    CAPTURE_RUN_RECEIPT_SCHEMA_V0, NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0,
+    PACKET_QUARANTINE_SCHEMA_V0,
 };
 use netbraid_replay::{
     compare_saved_pcap_fingerprints_v0, parse_saved_capture_jsonl,
@@ -228,14 +229,18 @@ fn wlan_fingerprint_is_separate_and_identifier_free() {
         center_frequency_mhz: Some(2_412),
         signal_dbm: Some(-40),
     });
-    let records = validated_stream(
-        manifest(NormalizationStateV0::Complete, 2, 0),
-        vec![first, second],
-        vec![],
-    );
+    let mut capture_manifest = manifest(NormalizationStateV0::Complete, 2, 0);
+    capture_manifest.observer_id = Some("observer-a".into());
+    capture_manifest.acquisition_policy = Some(CollectionPolicyV0::passive_host_local());
+    let records = validated_stream(capture_manifest, vec![first, second], vec![]);
     let candidate = project_saved_pcap_wlan_fingerprint_v0(&records);
 
     assert_eq!(candidate.scope, SavedPcapClaimScopeV0::CompleteCapture);
+    assert_eq!(candidate.source.observer_id.as_deref(), Some("observer-a"));
+    assert_eq!(
+        candidate.source.acquisition_policy,
+        Some(CollectionPolicyV0::passive_host_local())
+    );
     let SavedPcapWlanFingerprintStatusV0::Observed { digest, basis, .. } = &candidate.status else {
         panic!("validated WLAN evidence should produce an observed candidate");
     };
