@@ -6,8 +6,9 @@ use netbraid_evidence::{
     NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
 };
 use netbraid_replay::{
-    parse_saved_capture_jsonl, project_saved_pcap_triage, project_saved_pcap_triage_v1,
-    SavedPcapClaimScopeV0, SavedPcapConversationAggregationV0, SavedPcapConversationTriageV0,
+    parse_saved_capture_jsonl, project_saved_pcap_fingerprint_v0, project_saved_pcap_triage,
+    project_saved_pcap_triage_v1, SavedPcapClaimScopeV0, SavedPcapConversationAggregationV0,
+    SavedPcapConversationTriageV0, SavedPcapFingerprintStatusV0,
     SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
     SavedPcapTrailingConversationAggregationV1, SavedPcapTrailingConversationTriageV1,
     SavedPcapTrailingIntervalAnchorV1, SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1,
@@ -33,6 +34,122 @@ fn positive_triage_projection_matches_contract_golden() {
     let triage = project_saved_pcap_triage(&records).unwrap();
 
     assert_golden(&triage, include_str!("fixtures/triage-positive-v0.json"));
+}
+
+#[test]
+fn fingerprint_candidate_is_observed_and_endpoint_free() {
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Complete, 3, 0),
+        vec![
+            tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+            tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+            wlan_packet(3, 12),
+        ],
+        vec![],
+    );
+    let triage =
+        project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1::default()).unwrap();
+    let candidate = project_saved_pcap_fingerprint_v0(&triage);
+
+    assert_eq!(candidate.scope, SavedPcapClaimScopeV0::CompleteCapture);
+    let SavedPcapFingerprintStatusV0::Observed {
+        digest,
+        basis,
+        caveats,
+    } = &candidate.status
+    else {
+        panic!("complete eligible packet evidence should produce an observed candidate");
+    };
+    assert!(digest.starts_with("sha256:"));
+    assert_eq!(basis.feature_names.len(), 25);
+    assert!(caveats
+        .iter()
+        .any(|caveat| caveat.contains("not sessionized")));
+
+    let encoded = serde_json::to_string(&candidate).unwrap();
+    assert!(!encoded.contains("192.0.2.1"));
+    assert!(!encoded.contains("198.51.100.2"));
+    assert!(!encoded.contains("40000"));
+    assert!(!encoded.contains("443"));
+    assert_eq!(encoded, serde_json::to_string(&candidate).unwrap());
+}
+
+#[test]
+fn fingerprint_digest_ignores_endpoints_but_changes_for_included_features() {
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Complete, 2, 0),
+        vec![
+            tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+            tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+        ],
+        vec![],
+    );
+    let triage =
+        project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1::default()).unwrap();
+    let baseline = project_saved_pcap_fingerprint_v0(&triage);
+
+    let mut endpoint_changed = triage.clone();
+    let SavedPcapConversationTriageV0::Observed { conversation, .. } =
+        &mut endpoint_changed.top_capture_conversation
+    else {
+        panic!("the fixture should produce an observed conversation");
+    };
+    conversation.endpoint_a.address = "203.0.113.9".parse().unwrap();
+    conversation.endpoint_b.port = 8443;
+    let endpoint_candidate = project_saved_pcap_fingerprint_v0(&endpoint_changed);
+
+    let mut feature_changed = triage;
+    let SavedPcapConversationTriageV0::Observed { conversation, .. } =
+        &mut feature_changed.top_capture_conversation
+    else {
+        panic!("the fixture should produce an observed conversation");
+    };
+    conversation.total_frames += 1;
+    let feature_candidate = project_saved_pcap_fingerprint_v0(&feature_changed);
+
+    let digest = |candidate: &netbraid_replay::SavedPcapFingerprintCandidateV0| {
+        let SavedPcapFingerprintStatusV0::Observed { digest, .. } = &candidate.status else {
+            panic!("candidate should remain observed");
+        };
+        digest.clone()
+    };
+    assert_eq!(digest(&baseline), digest(&endpoint_candidate));
+    assert_ne!(digest(&baseline), digest(&feature_candidate));
+}
+
+#[test]
+fn fingerprint_candidate_preserves_partial_and_unsupported_abstentions() {
+    let partial = validated_stream(
+        manifest(NormalizationStateV0::Partial, 0, 0),
+        vec![],
+        vec![],
+    );
+    let partial_triage =
+        project_saved_pcap_triage_v1(&partial, SavedPcapTriageOptionsV1::default()).unwrap();
+    let partial_candidate = project_saved_pcap_fingerprint_v0(&partial_triage);
+    assert!(matches!(
+        partial_candidate.status,
+        SavedPcapFingerprintStatusV0::Insufficient { .. }
+    ));
+    assert!(!serde_json::to_string(&partial_candidate)
+        .unwrap()
+        .contains("digest"));
+
+    let unsupported = validated_stream(
+        manifest(NormalizationStateV0::Complete, 1, 0),
+        vec![wlan_packet(1, 8)],
+        vec![],
+    );
+    let unsupported_triage =
+        project_saved_pcap_triage_v1(&unsupported, SavedPcapTriageOptionsV1::default()).unwrap();
+    let unsupported_candidate = project_saved_pcap_fingerprint_v0(&unsupported_triage);
+    assert!(matches!(
+        unsupported_candidate.status,
+        SavedPcapFingerprintStatusV0::Unsupported { .. }
+    ));
+    assert!(!serde_json::to_string(&unsupported_candidate)
+        .unwrap()
+        .contains("digest"));
 }
 
 #[test]

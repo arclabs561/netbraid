@@ -41,7 +41,7 @@ repository's current charter.
 | --- | --- | --- |
 | Go capture CLI | Legacy compatibility | Acquire selected packet/RF observations as PCAP and JSONL |
 | Rust snapshot CLI | Compatibility reader | Interpret the latest saved netops audit snapshot |
-| Rust v0 libraries | Experimental | Record and replay evidence, compare host-path context, validate finite operator scenarios, and reduce eligible packet envelopes into capture-wide conversations |
+| Rust v0 libraries | Experimental | Record and replay evidence, compare host-path context, validate finite operator scenarios, reduce eligible packet envelopes into capture-wide conversations, and emit endpoint-independent packet-shape candidates |
 | Rust Wireshark-tool adapter | Experimental | Normalize bounded saved captures into manifests, successful-run receipts, packet envelopes, and quarantines without live capture |
 | `swucb/` | Legacy, deletion-gated | Preserve no runtime behavior; remove after the Rust acquisition control proves receipt-bound attribution |
 | Broader multi-modal evidence families | Gated future | Add temporal, entity, episode, or fingerprint records only after representative fixtures and a concrete second consumer |
@@ -49,12 +49,9 @@ repository's current charter.
 
 The narrow Rust evidence/replay core exists as an experimental v0 package boundary.
 Its broader multi-modal contract remains gated on representative fixtures and a
-concrete consumer. `HostPathObservationV0` is specified in
-[`docs/design/rust-library-boundary.md`](docs/design/rust-library-boundary.md) so
-Linktop can act as a real second consumer without claiming that the broader gate has
-passed. The dependency-ordered removal of the Go capture CLI and eventual migration
-of reusable live-plane logic are specified in
-[`docs/design/rust-acquisition-cutover.md`](docs/design/rust-acquisition-cutover.md).
+concrete consumer. `HostPathObservationV0` is the policy-neutral host-path record
+that lets Linktop act as a real second consumer without claiming that the broader
+gate has passed. The Go capture CLI remains on a dependency-ordered retirement path.
 New core work is Rust; the Go tree receives only compatibility, security, and build
 fixes until it can be retired. A future opt-in Rust acquisition policy may reuse
 Muxer instead of porting `swucb`; Muxer does not enter evidence, replay, Linktop, or
@@ -249,8 +246,7 @@ structurally valid bundle needs its own trusted review and distribution path.
 The normalized fixture's committed TShark version, field registry, and
 effective-configuration fingerprint describe the exact reviewed reference
 bytes. They are provenance, not portable constants that every host must
-reproduce. Regeneration changes the bundle closure and requires review. See
-[`docs/design/evaluation-corpus.md`](docs/design/evaluation-corpus.md).
+reproduce. Regeneration changes the bundle closure and requires review.
 
 The `pcap` command is offline and non-interactive. Its text output leads with a
 bounded triage projection: normalization completeness and quarantine, the
@@ -298,8 +294,7 @@ element bytes, and normalized channel/frequency/signal metadata when TShark
 supplies them. Finite text ranks frame mix, radio contexts, observed BSSIDs,
 transmitter addresses, and SSID elements with explicit packet-field coverage.
 These are artifact observations, not claims about complete channel coverage,
-device identity, role, presence, or intent. See
-[`docs/design/saved-capture-wlan-evidence.md`](docs/design/saved-capture-wlan-evidence.md).
+device identity, role, presence, or intent.
 
 `--json` emits one finite `netmon.saved_pcap_triage.v1` JSON document. Its
 `source` retains the full validated `CaptureManifestV0`, optional
@@ -308,7 +303,14 @@ digest. It is derived operator output, not a new normalized evidence record or
 an identity, flow, session, or episode assessment. Without `--tail-seconds`,
 the optional `trailing_window` member is omitted. The public Rust
 `project_saved_pcap_triage` API continues to emit the unchanged v0 projection
-for compatibility; v1 is a separate projection.
+for compatibility; v1 is a separate projection. From a v1 projection,
+`project_saved_pcap_fingerprint_v0` emits the experimental
+`netmon.saved_pcap_fingerprint_candidate.v0` packet-shape candidate. Its
+observed digest excludes endpoint addresses and ports so later observers can
+compare shape without turning a tuple into an identity claim. Partial
+normalization and captures without an eligible IP/TCP/UDP conversation remain
+typed insufficient or unsupported results; the candidate does not join
+observers or infer a device, person, place, or intent.
 Positive disconnect-frame and conversation observations are useful from the
 first supporting normalized packet. Negative WLAN observations are scoped to
 the complete capture or normalized packet subset; a partial subset with no
@@ -329,8 +331,7 @@ that it covered a network, channel, or interval completely; observer,
 acquisition time, acquisition policy, and acquisition coverage are absent
 unless independently supplied. See
 [`docs/saved-pcap-normalization.md`](docs/saved-pcap-normalization.md).
-The deliberately non-sessionized conversation reducer is specified in
-[`docs/design/capture-conversation-reduction.md`](docs/design/capture-conversation-reduction.md).
+The conversation reducer remains deliberately non-sessionized and capture-wide.
 
 Saved-PCAP normalization requires compatible `tshark` and `capinfos`
 executables at runtime. They are not bundled in release archives. On macOS,
@@ -421,10 +422,8 @@ Netbraid. Netbraid does not automatically label people or maintain a global fing
 index over unknown devices.
 
 The terminology, native-extractor migration, episode, assessment, binding,
-retention, and cross-surface contracts are detailed in
-[`docs/design/derived-intelligence-boundary.md`](docs/design/derived-intelligence-boundary.md).
-The dependency-ordered public implementation and evaluation program is recorded
-in [`docs/design/network-intelligence-roadmap.md`](docs/design/network-intelligence-roadmap.md).
+retention, and cross-surface contracts remain future design work; the current
+promotion gates above are the operative boundary.
 
 ## Limitations
 

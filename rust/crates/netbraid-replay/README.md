@@ -1,13 +1,22 @@
 # netbraid-replay
 
 `netbraid-replay` provides deterministic JSONL replay, host-path comparison,
-saved-capture validation, capture-conversation reduction, and bounded triage
-projections over `netbraid-evidence` records. It also validates closed, finite
+saved-capture validation, capture-conversation reduction, bounded triage
+projections, and an endpoint-independent packet-shape fingerprint candidate
+over `netbraid-evidence` records. It also validates closed, finite
 operator-scenario bundles and replays their named checkpoints.
 
 It is a library, not a daemon, store, collector, identity authority, or live
 fusion service. Given the same records and bounds, its replay and projections
 are deterministic.
+
+`project_saved_pcap_fingerprint_v0` consumes a validated
+`SavedPcapTriageV1` projection and emits
+`netmon.saved_pcap_fingerprint_candidate.v0`. Only an observed eligible
+IP/TCP/UDP conversation produces a digest. The digest excludes endpoint
+addresses and ports; partial normalization and unsupported packet evidence
+remain typed abstentions. The candidate is not a device identity, a
+cross-observer join, or a person, place, or intent claim.
 
 ```toml
 [dependencies]
