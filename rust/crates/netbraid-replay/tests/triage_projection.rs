@@ -16,6 +16,7 @@ use netbraid_replay::{
     SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1, SavedPcapTriageProjectionError,
     SavedPcapWlanDisconnectKindV0, SavedPcapWlanTriageV0,
 };
+use proptest::prelude::*;
 
 const CAPTURE_ID: &str = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
 const RECORDS_DIGEST: &str =
@@ -207,6 +208,73 @@ fn fingerprint_candidate_preserves_partial_and_unsupported_abstentions() {
             reason: SavedPcapFingerprintComparisonReasonV0::LeftNotObserved,
         }
     );
+}
+
+proptest! {
+    #[test]
+    fn fingerprint_comparison_ignores_source_occurrence_metadata(
+        capture_id in "[a-z0-9:/_-]{1,32}",
+        records_digest in "sha256:[0-9a-f]{64}",
+    ) {
+        let records = validated_stream(
+            manifest(NormalizationStateV0::Complete, 2, 0),
+            vec![
+                tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+                tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+            ],
+            vec![],
+        );
+        let mut triage = project_saved_pcap_triage_v1(
+            &records,
+            SavedPcapTriageOptionsV1::default(),
+        )
+        .unwrap();
+        triage.source.manifest.capture_id = capture_id.clone();
+        triage.source.normalized_records_sha256 = records_digest;
+        let candidate = project_saved_pcap_fingerprint_v0(&triage);
+        let mut source_changed = candidate.clone();
+        source_changed.source.capture_id = format!("{capture_id}-other");
+        source_changed.source.normalized_records_sha256 =
+            "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".into();
+
+        prop_assert_eq!(
+            compare_saved_pcap_fingerprints_v0(&candidate, &source_changed),
+            SavedPcapFingerprintComparisonV0::Corroborated,
+        );
+    }
+
+    #[test]
+    fn fingerprint_comparison_rejects_forged_digests(
+        forged_suffix in "[0-9a-f]{1,16}",
+    ) {
+        let records = validated_stream(
+            manifest(NormalizationStateV0::Complete, 2, 0),
+            vec![
+                tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+                tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+            ],
+            vec![],
+        );
+        let triage = project_saved_pcap_triage_v1(
+            &records,
+            SavedPcapTriageOptionsV1::default(),
+        )
+        .unwrap();
+        let candidate = project_saved_pcap_fingerprint_v0(&triage);
+        let mut forged = candidate.clone();
+        let SavedPcapFingerprintStatusV0::Observed { digest, .. } = &mut forged.status
+        else {
+            panic!("complete eligible packet evidence should produce an observed candidate");
+        };
+        *digest = format!("sha256:{forged_suffix}");
+
+        prop_assert_eq!(
+            compare_saved_pcap_fingerprints_v0(&candidate, &forged),
+            SavedPcapFingerprintComparisonV0::NotComparable {
+                reason: SavedPcapFingerprintComparisonReasonV0::InvalidDigest,
+            },
+        );
+    }
 }
 
 #[test]
