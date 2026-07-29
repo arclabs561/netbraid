@@ -18,11 +18,12 @@ pub use conversation::{
     TransportProtocolV0,
 };
 pub use fingerprint::{
-    project_saved_pcap_fingerprint_v0, SavedPcapFingerprintBasisV0,
-    SavedPcapFingerprintCandidateV0, SavedPcapFingerprintConversationV0,
-    SavedPcapFingerprintInsufficientReasonV0, SavedPcapFingerprintSourceV0,
-    SavedPcapFingerprintStatusV0, SavedPcapFingerprintUnsupportedReasonV0,
-    SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0,
+    compare_saved_pcap_fingerprints_v0, project_saved_pcap_fingerprint_v0,
+    SavedPcapFingerprintBasisV0, SavedPcapFingerprintCandidateV0,
+    SavedPcapFingerprintComparisonReasonV0, SavedPcapFingerprintComparisonV0,
+    SavedPcapFingerprintConversationV0, SavedPcapFingerprintInsufficientReasonV0,
+    SavedPcapFingerprintSourceV0, SavedPcapFingerprintStatusV0,
+    SavedPcapFingerprintUnsupportedReasonV0, SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0,
 };
 pub use netbraid_evidence::{
     CollectionModeV0, CollectionPolicyV0, ContextKeyV0, CoverageStateV0, CoverageV0,

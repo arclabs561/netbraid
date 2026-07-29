@@ -13,6 +13,11 @@ identify devices or people. The same records and bounds produce the same output.
 an observed eligible IP/TCP/UDP conversation. It excludes endpoint addresses
 and ports, and reports partial or unsupported evidence without guessing.
 
+`compare_saved_pcap_fingerprints_v0` returns `corroborated`, `conflicting`,
+or `not_comparable`. It compares only candidates with the same schema, claim
+scope, and feature set, and checks each digest against its basis. It does not
+join observers or identify a device.
+
 ```toml
 [dependencies]
 netbraid-replay = "0.3"

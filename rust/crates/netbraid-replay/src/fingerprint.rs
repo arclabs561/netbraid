@@ -104,6 +104,29 @@ pub enum SavedPcapFingerprintUnsupportedReasonV0 {
     NoEligibleIpTcpUdpPacketEnvelopes,
 }
 
+/// Why two fingerprint candidates cannot be compared.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SavedPcapFingerprintComparisonReasonV0 {
+    LeftNotObserved,
+    RightNotObserved,
+    DifferentSchema,
+    DifferentClaimScope,
+    DifferentFeatureSet,
+    InvalidDigest,
+}
+
+/// A conservative comparison of two packet-shape candidates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum SavedPcapFingerprintComparisonV0 {
+    Corroborated,
+    Conflicting,
+    NotComparable {
+        reason: SavedPcapFingerprintComparisonReasonV0,
+    },
+}
+
 /// The result of reducing a validated saved-capture triage projection.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
@@ -236,6 +259,72 @@ pub fn project_saved_pcap_fingerprint_v0(
         source,
         scope,
         status,
+    }
+}
+
+/// Compares two candidates without joining their sources or inferring identity.
+///
+/// Candidates are comparable only when their schema, claim scope, and feature
+/// set match and both carry an observed digest. A missing or unsupported
+/// candidate is reported as `NotComparable`, not as disagreement.
+pub fn compare_saved_pcap_fingerprints_v0(
+    left: &SavedPcapFingerprintCandidateV0,
+    right: &SavedPcapFingerprintCandidateV0,
+) -> SavedPcapFingerprintComparisonV0 {
+    if left.schema != right.schema {
+        return SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentSchema,
+        };
+    }
+    if left.scope != right.scope {
+        return SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentClaimScope,
+        };
+    }
+
+    let (
+        SavedPcapFingerprintStatusV0::Observed {
+            digest: left_digest,
+            basis: left_basis,
+            ..
+        },
+        SavedPcapFingerprintStatusV0::Observed {
+            digest: right_digest,
+            basis: right_basis,
+            ..
+        },
+    ) = (&left.status, &right.status)
+    else {
+        return match (
+            matches!(&left.status, SavedPcapFingerprintStatusV0::Observed { .. }),
+            matches!(&right.status, SavedPcapFingerprintStatusV0::Observed { .. }),
+        ) {
+            (false, _) => SavedPcapFingerprintComparisonV0::NotComparable {
+                reason: SavedPcapFingerprintComparisonReasonV0::LeftNotObserved,
+            },
+            (true, false) => SavedPcapFingerprintComparisonV0::NotComparable {
+                reason: SavedPcapFingerprintComparisonReasonV0::RightNotObserved,
+            },
+            (true, true) => unreachable!("observed candidates matched above"),
+        };
+    };
+
+    if left_basis.feature_names != right_basis.feature_names {
+        return SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentFeatureSet,
+        };
+    }
+    if left_digest != &fingerprint_digest(left_basis)
+        || right_digest != &fingerprint_digest(right_basis)
+    {
+        return SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::InvalidDigest,
+        };
+    }
+    if left_basis == right_basis {
+        SavedPcapFingerprintComparisonV0::Corroborated
+    } else {
+        SavedPcapFingerprintComparisonV0::Conflicting
     }
 }
 

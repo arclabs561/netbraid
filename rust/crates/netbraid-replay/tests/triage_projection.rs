@@ -6,13 +6,15 @@ use netbraid_evidence::{
     NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
 };
 use netbraid_replay::{
-    parse_saved_capture_jsonl, project_saved_pcap_fingerprint_v0, project_saved_pcap_triage,
-    project_saved_pcap_triage_v1, SavedPcapClaimScopeV0, SavedPcapConversationAggregationV0,
-    SavedPcapConversationTriageV0, SavedPcapFingerprintStatusV0,
-    SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
-    SavedPcapTrailingConversationAggregationV1, SavedPcapTrailingConversationTriageV1,
-    SavedPcapTrailingIntervalAnchorV1, SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1,
-    SavedPcapTriageProjectionError, SavedPcapWlanDisconnectKindV0, SavedPcapWlanTriageV0,
+    compare_saved_pcap_fingerprints_v0, parse_saved_capture_jsonl,
+    project_saved_pcap_fingerprint_v0, project_saved_pcap_triage, project_saved_pcap_triage_v1,
+    SavedPcapClaimScopeV0, SavedPcapConversationAggregationV0, SavedPcapConversationTriageV0,
+    SavedPcapFingerprintComparisonReasonV0, SavedPcapFingerprintComparisonV0,
+    SavedPcapFingerprintStatusV0, SavedPcapNegativeClaimAbstentionReasonV1,
+    SavedPcapNegativeClaimQualificationV1, SavedPcapTrailingConversationAggregationV1,
+    SavedPcapTrailingConversationTriageV1, SavedPcapTrailingIntervalAnchorV1,
+    SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1, SavedPcapTriageProjectionError,
+    SavedPcapWlanDisconnectKindV0, SavedPcapWlanTriageV0,
 };
 
 const CAPTURE_ID: &str = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
@@ -115,6 +117,48 @@ fn fingerprint_digest_ignores_endpoints_but_changes_for_included_features() {
     };
     assert_eq!(digest(&baseline), digest(&endpoint_candidate));
     assert_ne!(digest(&baseline), digest(&feature_candidate));
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&baseline, &endpoint_candidate),
+        SavedPcapFingerprintComparisonV0::Corroborated
+    );
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&baseline, &feature_candidate),
+        SavedPcapFingerprintComparisonV0::Conflicting
+    );
+
+    let mut schema_changed = baseline.clone();
+    schema_changed.schema = "other.schema.v0".into();
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&baseline, &schema_changed),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentSchema,
+        }
+    );
+
+    let mut feature_set_changed = baseline.clone();
+    let SavedPcapFingerprintStatusV0::Observed { basis, .. } = &mut feature_set_changed.status
+    else {
+        panic!("the fixture should produce an observed candidate");
+    };
+    basis.feature_names.push("future.feature".into());
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&baseline, &feature_set_changed),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentFeatureSet,
+        }
+    );
+
+    let mut invalid_digest = baseline.clone();
+    let SavedPcapFingerprintStatusV0::Observed { digest, .. } = &mut invalid_digest.status else {
+        panic!("the fixture should produce an observed candidate");
+    };
+    *digest = "sha256:invalid".into();
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&baseline, &invalid_digest),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::InvalidDigest,
+        }
+    );
 }
 
 #[test]
@@ -127,6 +171,7 @@ fn fingerprint_candidate_preserves_partial_and_unsupported_abstentions() {
     let partial_triage =
         project_saved_pcap_triage_v1(&partial, SavedPcapTriageOptionsV1::default()).unwrap();
     let partial_candidate = project_saved_pcap_fingerprint_v0(&partial_triage);
+    let partial_clone = partial_candidate.clone();
     assert!(matches!(
         partial_candidate.status,
         SavedPcapFingerprintStatusV0::Insufficient { .. }
@@ -150,6 +195,18 @@ fn fingerprint_candidate_preserves_partial_and_unsupported_abstentions() {
     assert!(!serde_json::to_string(&unsupported_candidate)
         .unwrap()
         .contains("digest"));
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&partial_candidate, &unsupported_candidate),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentClaimScope,
+        }
+    );
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&partial_clone, &partial_candidate),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::LeftNotObserved,
+        }
+    );
 }
 
 #[test]
