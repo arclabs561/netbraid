@@ -316,15 +316,20 @@ not invoke Wireshark tools.
 
 ## Promotion gates
 
-The future reusable core is narrower than “move fusion into Netbraid.” Each promoted
-slice must normalize a named immutable source artifact, preserve observer and coverage
-evidence, replay deterministically, and explain why a conclusion was reached or why
-the evidence is insufficient.
+Netbraid is the home for policy-neutral evidence fusion: braiding admitted
+source observations into deterministic alignments, episodes, candidate
+relations, and explanations. This is distinct from private identity fusion,
+which applies device, room, person, consent, and retention policy elsewhere.
+
+The future reusable core is narrower than private identity fusion and live
+deployment. Each promoted slice must normalize a named immutable source artifact,
+preserve observer and coverage evidence, replay deterministically, and explain why
+a conclusion was reached or why the evidence is insufficient.
 
 The long-term boundary is:
 
 - Netbraid: versioned evidence records, source/coverage provenance, canonical replay,
-  reversible candidate mechanics, and explanations;
+  policy-neutral fusion, reversible candidate mechanics, and explanations;
 - deployment consumers: collectors, operational stores, retention, topology,
   runtime health, compatibility rendering, and live projections;
 - policy owners: device aliases, assignments, enrolled anchors, consent references,
@@ -345,9 +350,10 @@ view or raw packet table cannot answer reproducibly:
 
 This is not a commitment to one daemon or dashboard. The first useful library slice
 is immutable records plus deterministic replay and explanation. Temporal reducers,
-entity relationships, episode construction, fingerprint candidates, and query
+source-scoped relations, episode construction, fingerprint candidates, and query
 projections follow only when each has a second consumer or a costly invariant worth
-centralizing.
+centralizing. Private identity fusion and live durable storage remain deployment
+responsibilities, not Netbraid library behavior.
 
 Linktop remains the immediate terminal instrument:
 
