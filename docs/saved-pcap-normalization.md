@@ -4,11 +4,10 @@ Status: experimental
 
 ## Problem
 
-Netbraid needs a reproducible way to turn a staged packet-capture artifact into
-versioned, policy-neutral evidence. Equal staged bytes, field registry, TShark
-build, and effective-configuration fingerprint must produce equal records. A
-capture is valuable for regression tests, incident handoff, and later reducers,
-but raw dissector output is not a stable application contract.
+Netbraid turns a staged packet-capture file into versioned, policy-neutral
+evidence. The same file, field registry, TShark build, and configuration must
+produce the same records. The records support tests, handoff, and later
+reducers; raw dissector output is not the application contract.
 
 The boundary must preserve what was observed without claiming endpoint identity,
 application identity, physical location, or intent. It must also be safe to run

@@ -1,39 +1,18 @@
 # netbraid
 
-Netbraid records, normalizes, and replays versioned network evidence. The Rust
-release preserves provenance and typed evidence; the repository also retains a
-legacy Go capture tool and a disconnected acquisition-policy experiment while the
-Rust cutover proceeds.
+Netbraid contains a Rust library for network evidence and an older Go capture CLI.
+The Rust code reads host snapshots, normalizes saved captures through TShark, and
+replays finite test fixtures. It does not run a collector, store, or fusion service.
 
-Netbraid currently contains four separate, buildable surfaces:
+The repository also contains:
 
-- The root Go CLI captures from one or more interfaces, optionally hops Wi-Fi
-  channels, writes one PCAP per interface plus `events.jsonl`, and can print packets or
-  a live summary.
-- `rust/` is a small reader for the latest `netops` audit JSONL. Its `net`, `device`,
-  and `here` commands do not capture traffic or query a controller directly. Its
-  experimental `evidence` command deterministically replays a supplied v0 host-path
-  JSONL log and distinguishes anchored exact recurrence from unanchored exact key
-  matches and compatible/incomplete observations. Its `pcap` command normalizes a
-  bounded saved capture through TShark and prints an operator summary or versioned
-  JSONL evidence. Its offline `scenario` command validates and replays finite
-  public-synthetic and disclosure-reviewed capture-derived evidence, abstention,
-  and viewport test bundles.
-- `netbraid-adapter-tshark` is an experimental Rust process boundary for saved PCAP and
-  PCAPNG artifacts. It stages a regular file, reads file-level facts through
-  Capinfos, disables name resolution, selects an explicit first-occurrence TShark
-  field registry, fingerprints effective TShark configuration, refuses personal
-  plugins unless explicitly allowed, preserves invalid rows as quarantines, and
-  emits a successful-run receipt.
-- `swucb/` is an unused legacy sliding-window UCB experiment. It remains only
-  until the Rust acquisition control proves the receipt and replay contract
-  needed to delete the old Go acquisition tree.
+- `netbraid-adapter-tshark`, which turns a bounded saved capture into manifests,
+  packet records, and quarantines;
+- `swucb/`, an unused legacy experiment kept until the Go capture path can be
+  retired.
 
-These surfaces share a repository, not one runtime or data model. Both CLIs currently
-build a binary named `netbraid`; the commands below invoke them by build path rather than
-claiming they can be installed side by side. The Go module path
-`github.com/arclabs561/netwatch` is retained as a compatibility name, not as the
-repository's current charter.
+The Go and Rust commands both build a binary named `netbraid`, so the examples
+below invoke them by build path. The old Go module path is kept for compatibility.
 
 ## Scope
 
@@ -41,21 +20,15 @@ repository's current charter.
 | --- | --- | --- |
 | Go capture CLI | Legacy compatibility | Acquire selected packet/RF observations as PCAP and JSONL |
 | Rust snapshot CLI | Compatibility reader | Interpret the latest saved netops audit snapshot |
-| Rust v0 libraries | Experimental | Record and replay evidence, compare host-path context, validate finite operator scenarios, reduce eligible packet envelopes into capture-wide conversations, and emit endpoint-independent packet-shape candidates |
-| Rust Wireshark-tool adapter | Experimental | Normalize bounded saved captures into manifests, successful-run receipts, packet envelopes, and quarantines without live capture |
+| Rust v0 libraries | Experimental | Read and replay evidence, compare host paths, validate fixtures, reduce saved-capture packets, and emit packet-shape candidates |
+| Rust Wireshark-tool adapter | Experimental | Normalize bounded saved captures into manifests, packets, receipts, and quarantines |
 | `swucb/` | Legacy, deletion-gated | Preserve no runtime behavior; remove after the Rust acquisition control proves receipt-bound attribution |
-| Broader multi-modal evidence families | Gated future | Add temporal, entity, episode, or fingerprint records only after representative fixtures and a concrete second consumer |
+| Broader multi-modal evidence families | Gated future | Add cross-source and RF evidence only after representative fixtures and a concrete second consumer |
 | Live deployment or fusion service | External | Consume released evidence/replay artifacts after its own parity and rollback gates |
 
-The narrow Rust evidence/replay core exists as an experimental v0 package boundary.
-Its broader multi-modal contract remains gated on representative fixtures and a
-concrete consumer. `HostPathObservationV0` is the policy-neutral host-path record
-that lets Linktop act as a real second consumer without claiming that the broader
-gate has passed. The Go capture CLI remains on a dependency-ordered retirement path.
-New core work is Rust; the Go tree receives only compatibility, security, and build
-fixes until it can be retired. A future opt-in Rust acquisition policy may reuse
-Muxer instead of porting `swucb`; Muxer does not enter evidence, replay, Linktop, or
-the passive default path.
+The Rust core is experimental. Its host-path record is policy-neutral, and its
+multi-modal work still needs representative fixtures and a second consumer. The
+Go capture CLI remains for compatibility; new core work is Rust.
 
 The repository does not own:
 
@@ -296,21 +269,13 @@ transmitter addresses, and SSID elements with explicit packet-field coverage.
 These are artifact observations, not claims about complete channel coverage,
 device identity, role, presence, or intent.
 
-`--json` emits one finite `netmon.saved_pcap_triage.v1` JSON document. Its
-`source` retains the full validated `CaptureManifestV0`, optional
-occurrence-specific `CaptureRunReceiptV0`, and deterministic normalized-record
-digest. It is derived operator output, not a new normalized evidence record or
-an identity, flow, session, or episode assessment. Without `--tail-seconds`,
-the optional `trailing_window` member is omitted. The public Rust
-`project_saved_pcap_triage` API continues to emit the unchanged v0 projection
-for compatibility; v1 is a separate projection. From a v1 projection,
-`project_saved_pcap_fingerprint_v0` emits the experimental
-`netmon.saved_pcap_fingerprint_candidate.v0` packet-shape candidate. Its
-observed digest excludes endpoint addresses and ports so later observers can
-compare shape without turning a tuple into an identity claim. Partial
-normalization and captures without an eligible IP/TCP/UDP conversation remain
-typed insufficient or unsupported results; the candidate does not join
-observers or infer a device, person, place, or intent.
+`--json` emits one finite `netmon.saved_pcap_triage.v1` JSON document with source
+and normalization details. It is derived output, not a new evidence record or
+an identity claim. The Rust API also has a separate
+`netmon.saved_pcap_fingerprint_candidate.v0` projection. It describes packet
+shape, leaves endpoint addresses and ports out of its digest, and reports
+partial or unsupported input instead of guessing. It does not identify a
+device, person, place, or intent.
 Positive disconnect-frame and conversation observations are useful from the
 first supporting normalized packet. Negative WLAN observations are scoped to
 the complete capture or normalized packet subset; a partial subset with no
