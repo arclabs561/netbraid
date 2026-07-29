@@ -420,6 +420,7 @@ just rust-check
 just pcap-smoke
 just pcap-smoke-show
 just rust-check-full
+(cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000)
 ```
 
 The root `just test` also runs the repository's Go lint configuration before tests.
@@ -436,6 +437,8 @@ presentation changes can be reviewed without preparing a local capture.
 `just rust-check-full` is the release-oriented Rust gate: build, tests, Clippy,
 rustdoc, and both installed-tool smoke suites. It does not install or bundle
 Wireshark.
+The fuzz command is a local parser smoke for arbitrary saved-capture JSONL; its
+generated corpus and artifacts stay under `rust/fuzz/` and are not published.
 
 ## License
 
