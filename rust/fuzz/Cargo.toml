@@ -1,0 +1,21 @@
+[package]
+name = "netbraid-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+netbraid-replay = { path = "../crates/netbraid-replay" }
+
+[[bin]]
+name = "parse_saved_capture_jsonl"
+path = "fuzz_targets/parse_saved_capture_jsonl.rs"
+test = false
+doc = false
+bench = false
