@@ -7,6 +7,7 @@ use std::path::Path;
 
 mod conversation;
 mod fingerprint;
+mod relation;
 mod saved_capture;
 mod scenario;
 mod triage;
@@ -30,6 +31,10 @@ pub use netbraid_evidence::{
     CollectionModeV0, CollectionPolicyV0, ContextKeyV0, CoverageStateV0, CoverageV0,
     HostPathObservationV0, HostPathV0, NetworkNameV0, NetworkNameVisibilityV0, ObservationOrderV0,
     SourceRefV0, ValidationError, HOST_PATH_SCHEMA_V0,
+};
+pub use relation::{
+    reduce_relation_v0, RelationError, RelationProjectionV0, RelationRecordV0,
+    RelationSourceStateV0, RelationStateV0, RELATION_PROJECTION_SCHEMA_V0,
 };
 pub use saved_capture::{
     parse_saved_capture_jsonl, read_saved_capture_jsonl, SavedCaptureReadError,

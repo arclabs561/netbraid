@@ -37,6 +37,9 @@ publish = ["crates-io"]
 name = "netbraid"
 path = "src/main.rs"
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }

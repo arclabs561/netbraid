@@ -24,6 +24,11 @@ SSID bytes out of the digest and reports missing WLAN evidence as unsupported
 or insufficient according to capture scope. It does not join this evidence to
 the packet-shape candidate or to BLE, CSI, or spectrum observations.
 
+`reduce_relation_v0` reduces one explicitly scoped, already admitted relation.
+It preserves source state, freshness limits, correction history, disagreement,
+clock uncertainty, and identifier-rotation abstention. It does not infer a
+device, person, place, or durable identity.
+
 ```toml
 [dependencies]
 netbraid-replay = "0.3"
@@ -36,16 +41,16 @@ The normal library embeds no scenarios. The non-default
 `netbraid.scenario_bundle.v1` `PUBLIC_REVIEWED` bundle derived from an admitted
 public saved capture.
 
-The test-only `relation-preflight` fixture covers source-preserving
-disagreement, late correction, missing sources, clock uncertainty, and
-identifier-rotation abstention. Run it with:
+The public `relation-preflight` fixture exercises that reducer with source-
+preserving disagreement, late correction, missing sources, stale and future
+observations, clock uncertainty, and identifier-rotation abstention. Run it with:
 
 ```text
 cargo test -p netbraid-replay --test relation_preflight
 ```
 
-It is a portable contract check. It does not add a runtime fusion or identity
-API and does not require private deployment data.
+It is a portable policy-neutral relation check. It does not require private
+deployment data or add identity, collection, or durable-storage behavior.
 
 Version 1 separates disclosure sensitivity from source origin, derivation, and
 acquisition. It records exact upstream, corpus, digest, size, and SPDX

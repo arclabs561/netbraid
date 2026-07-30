@@ -349,11 +349,13 @@ view or raw packet table cannot answer reproducibly:
 | An operator needs to hand off an intermittent incident | emit a deterministic, private evidence capsule and an explicitly sanitized projection | link the current session context to that capsule without requiring Netbraid |
 
 This is not a commitment to one daemon or dashboard. The first useful library slice
-is immutable records plus deterministic replay and explanation. Temporal reducers,
-source-scoped relations, episode construction, fingerprint candidates, and query
-projections follow only when each has a second consumer or a costly invariant worth
-centralizing. Private identity fusion and live durable storage remain deployment
-responsibilities, not Netbraid library behavior.
+is immutable records plus deterministic replay and explanation. Netbraid now also
+has a narrow source-scoped relation reducer with explicit freshness and abstention;
+it does not join identities or write durable state. Broader temporal reducers,
+episode construction, fingerprint candidates, and query projections still need a
+second consumer or a costly invariant worth centralizing. Private identity fusion
+and live durable storage remain deployment responsibilities, not Netbraid library
+behavior.
 
 Linktop remains the immediate terminal instrument:
 
@@ -374,10 +376,10 @@ a native Rust extractor earns promotion only against the same evidence and
 failure-semantics gates.
 
 No typed multi-modal observation implementation starts before representative replay
-fixtures fix the minimum schema. A policy-neutral binding reducer moves here only if a
-later promotion decision proves a second consumer or a costly invariant. A live
-deployment remains authoritative until shadow replay and rollback prove a single
-replacement writer.
+fixtures fix the minimum schema. The relation reducer is intentionally narrower:
+it consumes admitted records and returns one scoped, source-preserving projection.
+A live deployment remains authoritative until shadow replay and rollback prove a
+single replacement writer.
 
 Kismet, Zeek, TShark, controllers, flow exporters, DHCP, DNS-SD, and similar systems
 remain acquisition or dissection owners. The saved-capture TShark adapter normalizes
@@ -435,6 +437,8 @@ just rust-check
 just pcap-smoke
 just pcap-smoke-show
 just rust-check-full
+just fuzz-smoke
+just mutation-check
 (cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000)
 ```
 
@@ -454,6 +458,9 @@ rustdoc, and both installed-tool smoke suites. It does not install or bundle
 Wireshark.
 The fuzz command is a local parser smoke for arbitrary saved-capture JSONL; its
 generated corpus and artifacts stay under `rust/fuzz/` and are not published.
+`just fuzz-smoke` is the same bounded fuzz run through the repository command.
+`just mutation-check` requires `cargo-mutants` and focuses on the relation
+reducer; both are local, opt-in checks rather than the default gate.
 
 ## License
 

@@ -132,6 +132,48 @@
         "missing_sources": ["network_controller"],
         "uncertain_sources": []
       }
+    },
+    {
+      "id": "stale_observer",
+      "expected_sources": ["wifi_observer"],
+      "records": [
+        {
+          "record_id": "stale-wifi-1",
+          "source": "wifi_observer",
+          "event_ts": 900,
+          "received_ts": 900,
+          "join_key": "window-5",
+          "claim": "office"
+        }
+      ],
+      "expected": {
+        "relation": "insufficient",
+        "missing_sources": [],
+        "stale_sources": ["wifi_observer"],
+        "future_sources": [],
+        "uncertain_sources": []
+      }
+    },
+    {
+      "id": "future_observation",
+      "expected_sources": ["wifi_observer"],
+      "records": [
+        {
+          "record_id": "future-wifi-1",
+          "source": "wifi_observer",
+          "event_ts": 1001,
+          "received_ts": 1001,
+          "join_key": "window-6",
+          "claim": "office"
+        }
+      ],
+      "expected": {
+        "relation": "insufficient",
+        "missing_sources": [],
+        "stale_sources": [],
+        "future_sources": ["wifi_observer"],
+        "uncertain_sources": []
+      }
     }
   ]
 }
