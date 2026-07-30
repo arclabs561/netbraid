@@ -392,6 +392,102 @@ fn wlan_fingerprint_digest_ignores_order_and_absolute_time() {
 
 proptest! {
     #[test]
+    fn wlan_fingerprint_digest_is_invariant_to_identifiers_and_order(
+        samples in prop::collection::vec(
+            (
+                0u8..=3,
+                0u8..=15,
+                prop::option::of(1u32..=200),
+                prop::option::of(1u16..=6_000),
+                prop::option::of(any::<i8>()),
+            ),
+            1..20,
+        ),
+    ) {
+        let packets = samples
+            .iter()
+            .enumerate()
+            .map(|(index, (frame_type, frame_subtype, channel, frequency, signal))| {
+                let mut packet = wlan_packet(index as u64 + 1, *frame_subtype);
+                packet.ieee80211.as_mut().unwrap().frame_type = *frame_type;
+                packet.wlan_radio = match (*channel, *frequency, *signal) {
+                    (None, None, None) => None,
+                    (channel, frequency, signal) => Some(netbraid_evidence::WlanRadioFieldsV0 {
+                        channel,
+                        center_frequency_mhz: frequency,
+                        signal_dbm: signal,
+                    }),
+                };
+                packet
+            })
+            .collect::<Vec<_>>();
+        let records = validated_stream(
+            manifest(NormalizationStateV0::Complete, packets.len() as u64, 0),
+            packets,
+            vec![],
+        );
+
+        let digest = |records: &netbraid_replay::SavedCaptureRecordStreamV0| {
+            let SavedPcapWlanFingerprintStatusV0::Observed { digest, .. } =
+                project_saved_pcap_wlan_fingerprint_v0(records).status
+            else {
+                panic!("generated WLAN fixture should produce an observed candidate");
+            };
+            digest
+        };
+
+        let baseline = digest(&records);
+        let mut reordered = records.clone();
+        reordered.packets.reverse();
+        for (index, packet) in reordered.packets.iter_mut().enumerate() {
+            let ieee80211 = packet.ieee80211.as_mut().unwrap();
+            let suffix = index as u8;
+            let ssid_element_present = ieee80211.ssid_hex.is_some();
+            ieee80211.transmitter = Some(format!("02:00:00:00:01:{suffix:02x}"));
+            ieee80211.receiver = Some(format!("02:00:00:00:02:{suffix:02x}"));
+            ieee80211.source = Some(format!("02:00:00:00:03:{suffix:02x}"));
+            ieee80211.destination = Some(format!("02:00:00:00:04:{suffix:02x}"));
+            ieee80211.bssid = Some(format!("02:00:00:00:05:{suffix:02x}"));
+            ieee80211.ssid_hex = ssid_element_present.then(|| "6c6162".into());
+        }
+
+        prop_assert_eq!(&baseline, &digest(&reordered));
+
+        let mut changed_samples = samples;
+        changed_samples.push((0, 0, None, None, None));
+        let changed_packets = changed_samples
+            .iter()
+            .enumerate()
+            .map(|(index, (frame_type, frame_subtype, channel, frequency, signal))| {
+                let mut packet = wlan_packet(index as u64 + 1, *frame_subtype);
+                packet.ieee80211.as_mut().unwrap().frame_type = *frame_type;
+                packet.wlan_radio = match (*channel, *frequency, *signal) {
+                    (None, None, None) => None,
+                    (channel, frequency, signal) => Some(netbraid_evidence::WlanRadioFieldsV0 {
+                        channel,
+                        center_frequency_mhz: frequency,
+                        signal_dbm: signal,
+                    }),
+                };
+                packet
+            })
+            .collect::<Vec<_>>();
+        let changed = validated_stream(
+            manifest(
+                NormalizationStateV0::Complete,
+                changed_packets.len() as u64,
+                0,
+            ),
+            changed_packets,
+            vec![],
+        );
+
+        prop_assert_ne!(&baseline, &digest(&changed));
+    }
+}
+
+proptest! {
+    #[test]
     fn fingerprint_comparison_ignores_source_occurrence_metadata(
         capture_id in "[a-z0-9:/_-]{1,32}",
         records_digest in "sha256:[0-9a-f]{64}",
