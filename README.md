@@ -250,6 +250,16 @@ Do not commit the archive, extracted files, or generated inventories. Review
 the source terms and the extraction receipt before using a public slice in a
 committed fixture.
 
+The admitted fixture corpus also has a local, offline evaluator. It runs the
+debug binary twice per fixture and checks manifest hashes, expected WLAN
+evidence, content-bound provenance, deterministic output, and identifier
+non-disclosure. It writes only a metadata report under the ignored
+`eval-data/` directory:
+
+```sh
+uv run --script scripts/evaluate-admitted-corpus.py
+```
+
 The `pcap` command is offline and non-interactive. Its text output leads with a
 bounded triage projection: normalization completeness and quarantine, the
 supported WLAN disconnect-management-frame observations when present,
