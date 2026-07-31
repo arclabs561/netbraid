@@ -49,6 +49,9 @@ pcap-smoke:
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000
 
+mutation-check:
+    cargo mutants --manifest-path rust/Cargo.toml --package netbraid-replay --file crates/netbraid-replay/src/fingerprint.rs --re 'project_saved_pcap_fingerprint_v0|compare_saved_pcap_fingerprints_v0' --test-package netbraid-replay --jobs 2 --timeout 180 --no-shuffle -v
+
 rust-check-full: rust-check scenario-check pcap-smoke
 
 pcap-smoke-show:

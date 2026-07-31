@@ -436,6 +436,7 @@ just pcap-smoke
 just pcap-smoke-show
 just rust-check-full
 just fuzz-smoke
+just mutation-check
 (cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000)
 ```
 
