@@ -42,6 +42,30 @@ SOURCES: dict[str, dict[str, Any]] = {
         "license": "Etalab Open License 2.0",
         "doi": "10.57745/NDW74U",
     },
+    "sdr4iot-ble-zigbee": {
+        "url": "https://zenodo.org/api/records/4639390/files/dataset.zip/content",
+        "filename": "sdr4iot-ble-zigbee-dataset.zip",
+        "bytes": 78_658_727,
+        "md5": "c966c5cbf1243b5a16f59675451de84e",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.4639390",
+    },
+    "wifi-management-frames": {
+        "url": "https://zenodo.org/api/records/8003772/files/datasets.zip/content",
+        "filename": "wifi-management-frames.zip",
+        "bytes": 4_126_124,
+        "md5": "835320ace908243f23cb03fc48ce44fc",
+        "license": "MIT",
+        "doi": "10.5281/zenodo.8003772",
+    },
+    "wifi-probe-requests": {
+        "url": "https://zenodo.org/api/records/7503594/files/Dataset.zip/content",
+        "filename": "wifi-probe-requests.zip",
+        "bytes": 49_977_913,
+        "md5": "3eeab562d6140adc0891aa122e829b8b",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.7503594",
+    },
 }
 
 
