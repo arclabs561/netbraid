@@ -1,5 +1,7 @@
 data
 build
+/eval-data/
+__pycache__/
 
 # Private capture and replay artifacts. Sanitized fixtures belong only under
 # explicit test fixture directories.

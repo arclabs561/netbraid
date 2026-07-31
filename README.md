@@ -222,6 +222,34 @@ effective-configuration fingerprint describe the exact reviewed reference
 bytes. They are provenance, not portable constants that every host must
 reproduce. Regeneration changes the bundle closure and requires review.
 
+## Maintainer evaluation data
+
+The repository includes a small fetcher for approved public capture archives.
+It stores downloads and selected extracts under the ignored `eval-data/`
+directory, checks the declared byte count and MD5 digest, and writes receipts
+for downloaded and extracted files. It is not part of the normal test gate.
+
+```sh
+uv run --script scripts/fetch-public-eval-corpus.py list
+uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad
+uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad \
+  --inspect --inspect-output eval-data/v2i-80211ad-members.json
+```
+
+Use repeated `--extract-member` options to select a bounded slice after
+inspection. The larger Zigbee archive is opt-in and uses the same checks:
+
+```sh
+uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad \
+  --extract-member v2i-80211ad-dataset/2020/pcap/trace-236/monitor.ad.1593946636.pcap \
+  --extract-member v2i-80211ad-dataset/2020/gps.csv \
+  --extract-member v2i-80211ad-dataset/2020/trghpt.csv
+```
+
+Do not commit the archive, extracted files, or generated inventories. Review
+the source terms and the extraction receipt before using a public slice in a
+committed fixture.
+
 The `pcap` command is offline and non-interactive. Its text output leads with a
 bounded triage projection: normalization completeness and quarantine, the
 supported WLAN disconnect-management-frame observations when present,
