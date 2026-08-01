@@ -153,6 +153,7 @@ def profile_archive(path: Path) -> dict[str, Any]:
     expected_selected = wanted_members()
     selected: dict[str, bytes] = {}
     pair_parts: dict[tuple[int, int, int], int] = {}
+    pairs_by_ap = dict.fromkeys(EXPECTED_PAIRS_BY_AP, 0)
     frame_ids: dict[tuple[int, int], set[int]] = {}
     files = 0
     directories = 0
@@ -162,8 +163,7 @@ def profile_archive(path: Path) -> dict[str, Any]:
     try:
         with tarfile.open(path, "r:") as source:
             for member in source:
-                parts = Path(member.name).parts
-                if member.name.startswith("/") or ".." in parts:
+                if member.name.startswith("/") or ".." in member.name.split("/"):
                     raise RuntimeError(f"unsafe CAEZ member path: {member.name}")
                 if member.isdir():
                     directories += 1
@@ -181,9 +181,13 @@ def profile_archive(path: Path) -> dict[str, Any]:
                     ap, take, frame = (int(match.group(index)) for index in range(1, 4))
                     key = (ap, take, frame)
                     bit = 1 if match.group(4) == "csi.csv" else 2
-                    if pair_parts.get(key, 0) & bit:
+                    observed_parts = pair_parts.get(key)
+                    if observed_parts is None:
+                        observed_parts = 0
+                        pairs_by_ap[ap] += 1
+                    if observed_parts & bit:
                         raise RuntimeError(f"duplicate CAEZ pair member: {member.name}")
-                    pair_parts[key] = pair_parts.get(key, 0) | bit
+                    pair_parts[key] = observed_parts | bit
                     frame_ids.setdefault((ap, take), set()).add(frame)
 
                 if member.name in expected_selected:
@@ -203,9 +207,8 @@ def profile_archive(path: Path) -> dict[str, Any]:
         parts != 3 for parts in pair_parts.values()
     ):
         raise RuntimeError("CAEZ CSI/frame-metadata pairing changed")
-    pairs_by_ap = {
-        ap: sum(key[0] == ap for key in pair_parts) for ap in EXPECTED_PAIRS_BY_AP
-    }
+    if sum(pairs_by_ap.values()) != len(pair_parts):
+        raise RuntimeError("CAEZ per-AP accounting diverged from unique pairs")
     if pairs_by_ap != EXPECTED_PAIRS_BY_AP:
         raise RuntimeError("CAEZ per-AP pair counts changed")
     if set(selected) != expected_selected:
