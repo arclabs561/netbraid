@@ -20,6 +20,7 @@ import os
 import ssl
 import stat
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 import zipfile
@@ -144,9 +145,23 @@ def write_archive_receipt(
         "sha256": sha256,
         "archive": archive.name,
     }
-    archive.with_suffix(archive.suffix + ".json").write_text(
-        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    receipt = archive.with_suffix(archive.suffix + ".json")
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=f".{receipt.name}.", dir=receipt.parent
     )
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(metadata, output, indent=2, sort_keys=True)
+            output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, receipt)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
 
 
 def download(spec: dict[str, Any], output_dir: Path) -> Path:
@@ -168,6 +183,10 @@ def download(spec: dict[str, Any], output_dir: Path) -> Path:
         spec["url"], headers={"User-Agent": "netbraid-local-eval/1"}
     )
     context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    cert_file = os.environ.get("SSL_CERT_FILE")
+    cert_dir = os.environ.get("SSL_CERT_DIR")
+    if cert_file or cert_dir:
+        context.load_verify_locations(cafile=cert_file, capath=cert_dir)
     with (
         urllib.request.urlopen(request, timeout=60, context=context) as response,
         partial.open("xb") as target,
