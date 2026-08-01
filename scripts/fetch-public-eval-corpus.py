@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
+# dependencies = ["truststore==0.10.4"]
 # ///
 
 """Fetch and inspect approved public wireless evaluation archives.
@@ -16,6 +17,7 @@ import argparse
 import hashlib
 import json
 import os
+import ssl
 import stat
 import sys
 import urllib.error
@@ -23,6 +25,8 @@ import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Any
+
+import truststore
 
 
 SOURCES: dict[str, dict[str, Any]] = {
@@ -71,7 +75,7 @@ SOURCES: dict[str, dict[str, Any]] = {
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("dataset", choices=["list", *SOURCES])
+    parser.add_argument("dataset", choices=["list", "all", *SOURCES])
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -125,12 +129,33 @@ def digest_file(path: Path) -> tuple[int, str, str]:
     return size, md5.hexdigest(), sha256.hexdigest()
 
 
+def write_archive_receipt(
+    archive: Path,
+    spec: dict[str, Any],
+    size: int,
+    md5: str,
+    sha256: str,
+) -> None:
+    metadata = {
+        "schema": "local.public_wireless_archive.v1",
+        "source": spec,
+        "bytes": size,
+        "md5": md5,
+        "sha256": sha256,
+        "archive": archive.name,
+    }
+    archive.with_suffix(archive.suffix + ".json").write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
 def download(spec: dict[str, Any], output_dir: Path) -> Path:
     output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     archive = output_dir / spec["filename"]
     if archive.exists():
-        size, md5, _ = digest_file(archive)
+        size, md5, sha256 = digest_file(archive)
         if size == spec["bytes"] and md5 == spec["md5"]:
+            write_archive_receipt(archive, spec, size, md5, sha256)
             print(f"reusing verified archive: {archive}")
             return archive
         raise RuntimeError(f"existing archive failed verification: {archive}")
@@ -142,8 +167,9 @@ def download(spec: dict[str, Any], output_dir: Path) -> Path:
     request = urllib.request.Request(
         spec["url"], headers={"User-Agent": "netbraid-local-eval/1"}
     )
+    context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     with (
-        urllib.request.urlopen(request, timeout=60) as response,
+        urllib.request.urlopen(request, timeout=60, context=context) as response,
         partial.open("xb") as target,
     ):
         content_length = response.headers.get("Content-Length")
@@ -167,16 +193,12 @@ def download(spec: dict[str, Any], output_dir: Path) -> Path:
             f"download verification failed: bytes={received}, md5={md5.hexdigest()}"
         )
     os.replace(partial, archive)
-    metadata = {
-        "schema": "local.public_wireless_archive.v1",
-        "source": spec,
-        "bytes": received,
-        "md5": md5.hexdigest(),
-        "sha256": sha256.hexdigest(),
-        "archive": archive.name,
-    }
-    archive.with_suffix(archive.suffix + ".json").write_text(
-        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    write_archive_receipt(
+        archive,
+        spec,
+        received,
+        md5.hexdigest(),
+        sha256.hexdigest(),
     )
     print(f"downloaded and verified: {archive}")
     return archive
@@ -276,25 +298,43 @@ def main() -> int:
     if args.dataset == "list":
         print_catalog()
         return 0
-    archive = download(SOURCES[args.dataset], args.output_dir.resolve())
+    if args.dataset == "all" and args.extract_member:
+        raise RuntimeError("--extract-member requires one named dataset")
+
+    selected = (
+        SOURCES if args.dataset == "all" else {args.dataset: SOURCES[args.dataset]}
+    )
+    inventories: dict[str, dict[str, Any]] = {}
+    for dataset, spec in selected.items():
+        archive = download(spec, args.output_dir.resolve())
+        if args.inspect:
+            inventories[dataset] = inspect_archive(archive)
+        if args.extract_member:
+            extract_members(
+                archive,
+                args.extract_member,
+                (
+                    args.extract_dir or args.output_dir / f"extracted-{dataset}"
+                ).resolve(),
+                args.max_extract_bytes,
+            )
+
     if args.inspect:
-        inventory = inspect_archive(archive)
-        rendered = json.dumps(inventory, indent=2) + "\n"
+        inventory: dict[str, Any]
+        if args.dataset == "all":
+            inventory = {
+                "schema": "local.public_wireless_archive_inventory.v1",
+                "datasets": inventories,
+            }
+        else:
+            inventory = inventories[args.dataset]
+        rendered = json.dumps(inventory, indent=2, sort_keys=True) + "\n"
         if args.inspect_output is None:
             print(rendered, end="")
         else:
             args.inspect_output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             args.inspect_output.write_text(rendered, encoding="utf-8")
             print(f"wrote member inventory: {args.inspect_output}")
-    if args.extract_member:
-        extract_members(
-            archive,
-            args.extract_member,
-            (
-                args.extract_dir or args.output_dir / f"extracted-{args.dataset}"
-            ).resolve(),
-            args.max_extract_bytes,
-        )
     return 0
 
 

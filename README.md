@@ -231,6 +231,8 @@ for downloaded and extracted files. It is not part of the normal test gate.
 
 ```sh
 uv run --script scripts/fetch-public-eval-corpus.py list
+uv run --script scripts/fetch-public-eval-corpus.py all \
+  --inspect --inspect-output eval-data/public-corpus-inventory.json
 uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad
 uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad \
   --inspect --inspect-output eval-data/v2i-80211ad-members.json
