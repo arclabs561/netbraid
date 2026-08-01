@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
+import io
 import json
 import os
 import stat
@@ -120,6 +122,8 @@ def validate_manifest(
         expected_keys = {"archive", "expect", "id", "member", "mode"}
         if mode == "netbraid-wlan":
             expected_keys.add("packet_limit")
+            if "reference" in case:
+                expected_keys.add("reference")
         if (
             set(case) != expected_keys
             or not isinstance(case_id, str)
@@ -144,6 +148,27 @@ def validate_manifest(
         ):
             raise EvaluationError("member_manifest", case_id)
         total_bytes += member["bytes"]
+        reference = case.get("reference")
+        if reference is not None:
+            if (
+                not isinstance(reference, dict)
+                or set(reference) != {"format", "member"}
+                or reference["format"] != "wifi-management-csv-v1"
+            ):
+                raise EvaluationError("reference_manifest", case_id)
+            reference_member = reference["member"]
+            if (
+                not isinstance(reference_member, dict)
+                or set(reference_member) != {"name", "bytes", "sha256"}
+                or not isinstance(reference_member["name"], str)
+                or reference_member["name"].startswith("/")
+                or ".." in Path(reference_member["name"]).parts
+                or not isinstance(reference_member["bytes"], int)
+                or not 0 < reference_member["bytes"] <= MAX_MEMBER_BYTES
+                or not is_hex(reference_member["sha256"], SHA256)
+            ):
+                raise EvaluationError("reference_manifest", case_id)
+            total_bytes += reference_member["bytes"]
         if total_bytes > MAX_TOTAL_MEMBER_BYTES:
             raise EvaluationError("total_member_bytes")
         if mode == "netbraid-wlan":
@@ -251,6 +276,92 @@ def run_netbraid(binary: Path, capture: Path, packet_limit: int, case_id: str) -
     return completed.stdout
 
 
+def reconcile_wifi_management_csv(
+    reference_bytes: bytes, basis: Any, case_id: str
+) -> tuple[bool, dict[str, Any]]:
+    if not isinstance(basis, dict):
+        raise EvaluationError("netbraid_reference_shape", case_id)
+    expected_fields = [
+        "Timestamp",
+        "type",
+        "MAC_timestamp",
+        "rssi",
+        "addr1",
+        "addr2",
+        "addr3",
+        "SSID",
+    ]
+    type_map = {
+        "Dot11ProbeReq": (0, 4),
+        "Dot11ProbeResp": (0, 5),
+        "Dot11Beacon": (0, 8),
+    }
+    try:
+        text = reference_bytes.decode("utf-8")
+        reader = csv.DictReader(io.StringIO(text, newline=""))
+        if reader.fieldnames != expected_fields:
+            raise EvaluationError("reference_shape", case_id)
+        reference_mix: dict[tuple[int, int], int] = {}
+        rows = 0
+        for row in reader:
+            if set(row) != set(expected_fields) or any(
+                value is None for value in row.values()
+            ):
+                raise EvaluationError("reference_shape", case_id)
+            frame = type_map.get(row["type"])
+            if frame is None:
+                raise EvaluationError("reference_frame_type", case_id)
+            rows += 1
+            if rows > 100_000:
+                raise EvaluationError("reference_rows", case_id)
+            reference_mix[frame] = reference_mix.get(frame, 0) + 1
+    except UnicodeDecodeError:
+        raise EvaluationError("reference_encoding", case_id) from None
+
+    observed_mix: dict[tuple[int, int], int] = {}
+    frame_mix = basis.get("frame_mix")
+    if not isinstance(frame_mix, list):
+        raise EvaluationError("netbraid_reference_shape", case_id)
+    for item in frame_mix:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"frame_type", "frame_subtype", "frames"}
+            or not all(isinstance(item[key], int) for key in item)
+        ):
+            raise EvaluationError("netbraid_reference_shape", case_id)
+        key = (item["frame_type"], item["frame_subtype"])
+        if key in observed_mix:
+            raise EvaluationError("netbraid_reference_shape", case_id)
+        observed_mix[key] = item["frames"]
+    wlan_frames = basis.get("wlan_frames")
+    if not isinstance(wlan_frames, int):
+        raise EvaluationError("netbraid_reference_shape", case_id)
+
+    frame_keys = sorted(reference_mix.keys() | observed_mix.keys())
+    deltas = [
+        {
+            "frame_type": frame_type,
+            "frame_subtype": frame_subtype,
+            "reference_frames": reference_mix.get((frame_type, frame_subtype), 0),
+            "normalized_frames": observed_mix.get((frame_type, frame_subtype), 0),
+            "absolute_delta": abs(
+                reference_mix.get((frame_type, frame_subtype), 0)
+                - observed_mix.get((frame_type, frame_subtype), 0)
+            ),
+        }
+        for frame_type, frame_subtype in frame_keys
+    ]
+    total_delta = abs(rows - wlan_frames)
+    passed = total_delta == 0 and all(item["absolute_delta"] == 0 for item in deltas)
+    return passed, {
+        "format": "wifi-management-csv-v1",
+        "reference_rows": rows,
+        "normalized_frames": wlan_frames,
+        "absolute_count_delta": total_delta,
+        "frame_mix": deltas,
+    }
+
+
 def evaluate_case(
     case: dict[str, Any], archive_path: Path, binary: Path, temporary: Path
 ) -> tuple[bool, dict[str, Any]]:
@@ -301,6 +412,18 @@ def evaluate_case(
     basis = status.get("basis")
     if isinstance(basis, dict) and isinstance(basis.get("wlan_frames"), int):
         result["wlan_frames"] = basis["wlan_frames"]
+    reference = case.get("reference")
+    if reference is not None:
+        reference_path = temporary / f"case-{len(list(temporary.iterdir()))}"
+        reference_bytes = extract_member(
+            archive_path, reference["member"], reference_path, case_id
+        )
+        reference_passed, reconciliation = reconcile_wifi_management_csv(
+            reference_bytes, basis, case_id
+        )
+        passed = passed and reference_passed
+        result["reference_reconciliation"] = reconciliation
+        result["result"] = "pass" if passed else "expectation_failure"
     return passed, result
 
 

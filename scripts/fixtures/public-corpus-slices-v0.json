@@ -48,7 +48,7 @@
       "archive": "wifi-management-frames",
       "expect": {
         "reason": null,
-        "scope": "normalized_packet_subset",
+        "scope": "complete_capture",
         "status": "observed"
       },
       "id": "wifi-management-capture-1",
@@ -58,7 +58,39 @@
         "sha256": "ca6d686ab53c93ead0412dffe181590bdb09da84274653ab79216b957610c48a"
       },
       "mode": "netbraid-wlan",
-      "packet_limit": 1000
+      "packet_limit": 100000,
+      "reference": {
+        "format": "wifi-management-csv-v1",
+        "member": {
+          "bytes": 4106419,
+          "name": "datasets/1/capture-1.csv",
+          "sha256": "4225868082578e28a0af481d18d0b708e093348916b6427167816c50de1a1654"
+        }
+      }
+    },
+    {
+      "archive": "wifi-management-frames",
+      "expect": {
+        "reason": null,
+        "scope": "complete_capture",
+        "status": "observed"
+      },
+      "id": "wifi-management-capture-2",
+      "member": {
+        "bytes": 7460125,
+        "name": "datasets/2/capture-2.pcap",
+        "sha256": "7c0befc8c32684444fd3404b2b9960ff637d333869bc8b5792a03ff2c0f6607a"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 100000,
+      "reference": {
+        "format": "wifi-management-csv-v1",
+        "member": {
+          "bytes": 6966702,
+          "name": "datasets/2/capture-2.csv",
+          "sha256": "6aaee283dabb86a6e1a7aa19d0875ce6a70544d2ca9c0f49930b545217a30f2c"
+        }
+      }
     },
     {
       "archive": "sdr4iot-ble-zigbee",

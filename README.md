@@ -253,10 +253,11 @@ Do not commit the archive, extracted files, or generated inventories. Review
 the source terms and the extraction receipt before using a public slice in a
 committed fixture.
 
-The on-demand evaluator verifies eight checked slices across the five archives,
-runs each PCAP projection twice, and emits a metadata-only local report. The
-[evaluation protocol](docs/public-corpus-evaluation.md) defines lineage, split
-groups, metrics, and the separate admission gate.
+The on-demand evaluator verifies nine checked slices across the five archives,
+runs each PCAP projection twice, reconciles both complete management captures
+against their publisher CSV frame counts and subtypes, and emits a
+metadata-only local report. The [evaluation protocol](docs/public-corpus-evaluation.md)
+defines lineage, split groups, metrics, and the separate admission gate.
 
 The admitted fixture corpus also has a local, offline evaluator. It runs the
 debug binary twice per fixture and checks manifest hashes, expected WLAN

@@ -36,20 +36,23 @@ The initial campaign should include one V2I trace, both anonymized management
 captures, one four-observer ZBDS hour, and one complete SDR4IoT session. Probe
 request JSON is a structured-data case, not input to the PCAP adapter.
 
-The first bounded run covers eight slices from all five archives. With a
-1,000-packet limit, the V2I and management-frame cases each report 1,000
-observed WLAN frames. The complete 50-packet SDR4IoT Zigbee case reports
+The bounded run covers nine slices from all five archives. With a
+1,000-packet limit, the V2I case reports 1,000 observed WLAN frames. Both
+management-frame captures run to completion and reconcile all 36,306 and
+60,984 frames, respectively, with their publisher CSVs. The complete
+50-packet SDR4IoT Zigbee case reports
 `unsupported`, while each limited ZBDS observer reports `insufficient` rather
 than converting partial non-WLAN coverage into a capture-wide unsupported
 claim. The probe-request example passes only its checked structured-JSON shape.
-All seven PCAP cases produce byte-identical projections on two runs.
+All eight PCAP cases produce byte-identical projections on two runs.
 
 ### Reference reconciliation
 
 Publisher-derived CSV is a reference, not automatically ground truth. Reconcile
 only fields whose preprocessing is disclosed:
 
-- management-frame subtype counts and total rows for each PCAP/CSV pair;
+- management-frame subtype counts and total rows for each PCAP/CSV pair (now
+  enforced with zero absolute delta for both captures);
 - V2I trace number, timestamps, selected frame subtypes, and disclosed tshark
   fields;
 - SDR4IoT capture/CSV session membership before considering packet-level
