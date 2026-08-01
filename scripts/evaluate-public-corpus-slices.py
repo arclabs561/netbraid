@@ -638,7 +638,7 @@ def evaluate(
                     binary,
                     case_directory,
                 )
-                for case, case_directory in zip(cases, case_directories, strict=True)
+                for case, case_directory in zip(cases, case_directories)
             ]
         for future in futures:
             passed, result = future.result()
