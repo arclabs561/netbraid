@@ -1,6 +1,11 @@
 {
   "schema": "netbraid.public_corpus_slices.v0",
   "archives": {
+    "sorbonne-campus-rssi": {
+      "bytes": 3144312,
+      "filename": "220211012-SU-Outdoors-Campus.zip",
+      "md5": "3ce2868b97eb1a8750233e67fb3cfbe3"
+    },
     "sdr4iot-ble-zigbee": {
       "bytes": 78658727,
       "filename": "sdr4iot-ble-zigbee-dataset.zip",
@@ -187,6 +192,54 @@
         "sha256": "410b36ffb49ff9f5071c92ab86ae392f650c67ce4c19798f76848eb7a32c0328"
       },
       "mode": "structured-json"
+    },
+    {
+      "archive": "sorbonne-campus-rssi",
+      "expect": {
+        "reason": null,
+        "scope": "complete_capture",
+        "status": "observed"
+      },
+      "id": "sorbonne-campus-1m-sniffer-08",
+      "member": {
+        "bytes": 152709,
+        "name": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/1m/pcapTraces/01m-S08.pcap",
+        "sha256": "f0a4abd76466c519c19b6849397c272a2ad4ff3bff11db65ac3a12c1c70a579f"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 100000,
+      "reference": {
+        "format": "sorbonne-rssi-tsv-v1",
+        "member": {
+          "bytes": 108105,
+          "name": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/1m/csvTraces/01m-S08.txt",
+          "sha256": "c9ca8e4f75115360574b8bb0cb23164b8e34f4433db025a2110e8610c876936e"
+        }
+      }
+    },
+    {
+      "archive": "sorbonne-campus-rssi",
+      "expect": {
+        "reason": null,
+        "scope": "complete_capture",
+        "status": "observed"
+      },
+      "id": "sorbonne-campus-50m-sniffer-08",
+      "member": {
+        "bytes": 103704,
+        "name": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/50m/pcapTraces/50m-S08.pcap",
+        "sha256": "ee30544f1737c6afc85339f5ed42b8445c46c56ce52961cbe8f909ad46873baa"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 100000,
+      "reference": {
+        "format": "sorbonne-rssi-tsv-v1",
+        "member": {
+          "bytes": 73132,
+          "name": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/50m/csvTraces/50m-S08.txt",
+          "sha256": "5603278b3a9adeec6047e5e3e3b5f9b78b78bda5f0f9144a4ba66538c83827d3"
+        }
+      }
     }
   ]
 }

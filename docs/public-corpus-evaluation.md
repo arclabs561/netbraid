@@ -1,8 +1,8 @@
-# Public wireless corpus evaluation
+# Public network corpus evaluation
 
-Five allowlisted public archives are available to the local evaluation
-workflow. Together they contain 2,044,071,964 archive bytes, 2,035 ZIP members,
-and 10,948,869,926 uncompressed member bytes. They remain ignored under
+Six allowlisted public archives are available to the bounded local evaluation
+workflow. Together they contain 2,047,216,276 archive bytes, 2,241 ZIP members,
+and 10,968,439,159 uncompressed member bytes. They remain ignored under
 `eval-data/`: successful fetching is not admission into Netbraid's committed
 fixture ledger.
 
@@ -15,6 +15,7 @@ fixture ledger.
 | SDR4IoT BLE/Zigbee | one scenario/scene/session observed by several servers | paired capture, CSV, and SigMF artifacts for BLE and Zigbee | format detection, explicit abstention, and future adapter checks against paired publisher extracts | comparability between servers when capture clocks and labeling have not been validated |
 | Wi-Fi management frames | one anonymized station capture | two PCAP/CSV pairs with publisher frame counts and anonymization procedure | parser robustness, management-frame coverage, deterministic output, and count reconciliation | exact original frame bytes: anonymization deliberately removed elements and may leave inconsistent lengths |
 | Wi-Fi probe requests | one environment/scenario/device time block | processed JSON, measurement intervals, device/scenario spreadsheet, and collection description | structured-data profiling and future privacy/abstention cases | a raw-PCAP oracle or permission to treat MAC/IE similarity as durable identity |
+| Sorbonne campus RSSI | one outdoor experiment, with one transmitter observed by ten sniffers at six known distances | paired PCAP and publisher TSV traces for each sniffer/distance cell | radio-metadata normalization, distance-slice sensitivity, and exact frame/channel/RSSI-summary reconciliation | general ranging accuracy, device identity, or independent train/test examples within the same experiment |
 
 The corpora are independent. Temporal proximity, matching protocol fields, or
 similar radio fingerprints across archives cannot create a positive relation
@@ -36,15 +37,22 @@ The initial campaign should include one V2I trace, both anonymized management
 captures, one four-observer ZBDS hour, and one complete SDR4IoT session. Probe
 request JSON is a structured-data case, not input to the PCAP adapter.
 
-The bounded run covers nine slices from all five archives. With a
+The bounded run covers 11 slices from all six archives. With a
 1,000-packet limit, the V2I case reports 1,000 observed WLAN frames. Both
 management-frame captures run to completion and reconcile all 36,306 and
-60,984 frames, respectively, with their publisher CSVs. The complete
+60,984 frames, respectively, with their publisher CSVs. Two Sorbonne captures
+from the same sniffer at 1 m and 50 m run to completion and exactly reconcile
+1,885 and 1,280 rows, respectively, including frame mix, channel mix, and RSSI
+summary. The complete
 50-packet SDR4IoT Zigbee case reports
 `unsupported`, while each limited ZBDS observer reports `insufficient` rather
 than converting partial non-WLAN coverage into a capture-wide unsupported
 claim. The probe-request example passes only its checked structured-JSON shape.
-All eight PCAP cases produce byte-identical projections on two runs.
+All ten PCAP cases produce byte-identical projections on two runs. The v1 report
+also records the exact campaign-manifest SHA-256, clean Netbraid Git revision,
+and executable SHA-256 that produced it; evaluation fails closed when tracked
+repository changes make the revision ambiguous or when executable bytes change
+during the run.
 
 ### Reference reconciliation
 
@@ -53,6 +61,8 @@ only fields whose preprocessing is disclosed:
 
 - management-frame subtype counts and total rows for each PCAP/CSV pair (now
   enforced with zero absolute delta for both captures);
+- Sorbonne frame mix, channel mix, RSSI count/sum/range, and total rows for each
+  selected PCAP/TSV pair (now enforced with exact agreement at 1 m and 50 m);
 - V2I trace number, timestamps, selected frame subtypes, and disclosed tshark
   fields;
 - SDR4IoT capture/CSV session membership before considering packet-level
@@ -92,6 +102,8 @@ train, calibration, and evaluation sets.
 - Probe requests: group by environment, scenario interval, and physical device;
   evaluate environment or scenario transfer only with the spreadsheet's
   publisher-provided intervals.
+- Sorbonne: keep all sniffers and distances in this experiment in one split
+  group; the 1 m and 50 m cases are sensitivity slices, not independent folds.
 
 Deduplicate content before splitting. Near-duplicate time windows and paired
 CSV/PCAP representations stay in the same group.
@@ -110,8 +122,40 @@ Report data validity before model or relation quality:
 
 Precision, recall, false-link rate, and calibration require an independently
 labeled subset. Rates must include raw numerators, denominators, and confidence
-intervals. None of the five archives, by itself, labels a Netbraid-to-Linktop or
+intervals. None of the six archives, by itself, labels a Netbraid-to-Linktop or
 cross-protocol identity relation.
+
+## Adapter-motivating corpus
+
+The fetch catalog also pins 16 artifacts (109,299,217,230 bytes) for later
+adapter and model work. These downloads are provenance-bearing inputs, not part
+of the 11-case normalization report:
+
+| Corpus | Downloaded unit | What it can motivate | Boundary |
+|---|---|---|---|
+| IoT-23 v2 Hakai | Ethernet PCAP, labeled Zeek flow log, and label configuration for scenario 8-1 | a packet-to-flow adapter and malicious/benign label-lineage checks | not WLAN evidence and not a device-identity oracle |
+| WiSig compact variants | SingleDay, ManyRx, ManyTx, and ManySig IQ/pickle archives | transmitter/receiver/day split discipline and learned radio-fingerprint experiments | requires a bounded pickle/IQ adapter; non-commercial share-alike terms apply |
+| CAEZ indoor L-shape | multi-sniffer Wi-Fi CSI with position ground truth | CSI/position schema design and spatial holdout experiments | not accepted by the packet adapter; original data may not be redistributed |
+| OPERAnet | PWR, two Wi-Fi CSI, two UWB, Kinect, and code archives | participant/activity/room/time alignment across modalities | requires modality-specific adapters and cannot establish cross-protocol identity by temporal overlap |
+| Gotham 2025 | complete 23.8 GB IoT emulation archive with PCAP/CSV and attack events | scale, flow/security, and abstention stress cases | emulated devices do not establish physical-hardware or live-deployment parity |
+
+Use these corpora to develop the smallest adapter seams and to motivate hardware
+work with evidence. Do not promote a relation type merely because a public
+dataset makes a model trainable.
+
+The first such seam is an archive-backed CAEZ CSI profile:
+
+```sh
+just caez-csi-profile
+```
+
+It verifies the complete 1.93 GB artifact and fetch receipt, scans the
+uncompressed tar inventory without extraction, requires all 161,182 CSI/frame
+metadata pairs, and parses only eight small AP/take samples plus four AP metadata
+objects (75,174 bytes total). The report checks a 5-by-52 CSI shape and stable
+metadata keys. It deliberately leaves the large ground-truth CSV and NPZ
+position payload unread, so it establishes an adapter/container seam but no
+position alignment, ranging accuracy, radio identity, or model quality.
 
 ## Admission gate
 

@@ -4,10 +4,10 @@
 # dependencies = ["truststore==0.10.4"]
 # ///
 
-"""Fetch and inspect approved public wireless evaluation archives.
+"""Fetch and inspect allowlisted public network evaluation artifacts.
 
 Archives are stored outside Git under ``eval-data/`` by default. The source
-allowlist, byte count, and MD5 digest are kept here so a local fetch is
+allowlist, byte count, and pinned digests are kept here so a local fetch is
 repeatable and fails closed on a changed download.
 """
 
@@ -21,6 +21,7 @@ import ssl
 import stat
 import sys
 import tempfile
+import tarfile
 import urllib.error
 import urllib.request
 import zipfile
@@ -38,6 +39,7 @@ SOURCES: dict[str, dict[str, Any]] = {
         "md5": "a37836cce4f3d37f8ef374850069fc9e",
         "license": "CC BY 4.0",
         "doi": "10.5281/zenodo.7026551",
+        "group": "baseline",
     },
     "zbds2023": {
         "url": "https://entrepot.recherche.data.gouv.fr/api/access/datafile/156780",
@@ -46,6 +48,7 @@ SOURCES: dict[str, dict[str, Any]] = {
         "md5": "6e8d9fc1c76688393ccdfb6364436ac1",
         "license": "Etalab Open License 2.0",
         "doi": "10.57745/NDW74U",
+        "group": "baseline",
     },
     "sdr4iot-ble-zigbee": {
         "url": "https://zenodo.org/api/records/4639390/files/dataset.zip/content",
@@ -54,6 +57,7 @@ SOURCES: dict[str, dict[str, Any]] = {
         "md5": "c966c5cbf1243b5a16f59675451de84e",
         "license": "CC BY 4.0",
         "doi": "10.5281/zenodo.4639390",
+        "group": "baseline",
     },
     "wifi-management-frames": {
         "url": "https://zenodo.org/api/records/8003772/files/datasets.zip/content",
@@ -62,6 +66,7 @@ SOURCES: dict[str, dict[str, Any]] = {
         "md5": "835320ace908243f23cb03fc48ce44fc",
         "license": "MIT",
         "doi": "10.5281/zenodo.8003772",
+        "group": "baseline",
     },
     "wifi-probe-requests": {
         "url": "https://zenodo.org/api/records/7503594/files/Dataset.zip/content",
@@ -70,13 +75,175 @@ SOURCES: dict[str, dict[str, Any]] = {
         "md5": "3eeab562d6140adc0891aa122e829b8b",
         "license": "CC BY 4.0",
         "doi": "10.5281/zenodo.7503594",
+        "group": "baseline",
+    },
+    "sorbonne-campus-rssi": {
+        "url": "https://entrepot.recherche.data.gouv.fr/api/access/datafile/617311",
+        "filename": "220211012-SU-Outdoors-Campus.zip",
+        "bytes": 3_144_312,
+        "md5": "3ce2868b97eb1a8750233e67fb3cfbe3",
+        "license": "Etalab Open License 2.0",
+        "doi": "10.57745/HAOPHF",
+        "group": "baseline",
+    },
+    "iot23v2-hakai-pcap": {
+        "url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset-v2/CTU-IoT-Malware-Capture-8-1/pcap/2018-07-31-15-15-09-192.168.100.113.pcap",
+        "filename": "iot23v2-hakai-capture-8-1.pcap",
+        "bytes": 2_098_362,
+        "md5": "e1d2e236a6e399614c675766f04e05e5",
+        "sha256": "80dcc2602519479ddcde889fa902fee19a76696630811452f8df38888af894f2",
+        "format": "file",
+        "license": "CC BY (version unspecified)",
+        "group": "motivating",
+    },
+    "iot23v2-hakai-zeek": {
+        "url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset-v2/CTU-IoT-Malware-Capture-8-1/2018-07-31-15-15-09-192.168.100.113-zeek-conn-log.labeled",
+        "filename": "iot23v2-hakai-capture-8-1-zeek.log.labeled",
+        "bytes": 1_431_000,
+        "md5": "669ed9d8acbe254e2efa768fecae91d5",
+        "sha256": "4877ca8f0f01902fbd18d28b7d06cb3d0be082355b7f2c8862c9deef1782eb8a",
+        "format": "file",
+        "license": "CC BY (version unspecified)",
+        "group": "motivating",
+    },
+    "iot23v2-hakai-labels": {
+        "url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset-v2/CTU-IoT-Malware-Capture-8-1/2018-07-31-15-15-09-192.168.100.113-labels.config",
+        "filename": "iot23v2-hakai-capture-8-1-labels.config",
+        "bytes": 1_778,
+        "md5": "1069166d74b3e2754af26b86955d5e98",
+        "sha256": "39014291d4220f3e85c45b574c43d5c769093926af99843371c93b9365d407e1",
+        "format": "file",
+        "license": "CC BY (version unspecified)",
+        "group": "motivating",
+    },
+    "wisig-single-day": {
+        "url": "https://drive.usercontent.google.com/download?id=1lWf9BuUZTSNcABVFWYoBT_-EH8ctXEcZ&export=download&confirm=t",
+        "filename": "WiSig-SingleDay.pkl.zip",
+        "bytes": 1_119_463_474,
+        "md5": "8878d4ca2b1622d9f8ae9fed645a887c",
+        "sha256": "bb4af37ebbdbfa2c99e1fe589c6a5be7f03f101cdaf3fc9440245e3b48a17965",
+        "license": "CC BY-NC-SA 4.0",
+        "group": "motivating",
+    },
+    "wisig-many-rx": {
+        "url": "https://drive.usercontent.google.com/download?id=1TtdydJCuhkvDQ1RWb3PkxakkWo2-X5Uv&export=download&confirm=t",
+        "filename": "WiSig-ManyRx.pkl.zip",
+        "bytes": 1_249_528_063,
+        "md5": "56c68c2a7d723a0ed90e178d963a54b3",
+        "sha256": "d2b23108c3f6f63a10ebbb149d7b08d6e1c1961cf5184926fbab452def3049de",
+        "license": "CC BY-NC-SA 4.0",
+        "group": "motivating",
+    },
+    "wisig-many-tx": {
+        "url": "https://drive.usercontent.google.com/download?id=17EnvGFoflJEh1xhFC8wx5fhCuPYhWt2l&export=download&confirm=t",
+        "filename": "WiSig-ManyTx.pkl.zip",
+        "bytes": 2_631_104_718,
+        "md5": "0aed3049a7f81935faa16058de6163c0",
+        "sha256": "a8fc3e35134a240bfb4dab8862a6e482cef44de000b813d42417b853c47ccc7e",
+        "license": "CC BY-NC-SA 4.0",
+        "group": "motivating",
+    },
+    "wisig-many-sig": {
+        "url": "https://drive.usercontent.google.com/download?id=1szuns8MhcYocdbipK9t9TM9MLgEMklxk&export=download&confirm=t",
+        "filename": "WiSig-ManySig.pkl.zip",
+        "bytes": 1_454_577_503,
+        "md5": "1081d373308bcb95b8f81a3e41d3a94a",
+        "sha256": "5c3d6f5aece87a86ecd8cf5a0f6bdc56535f34cfd3e8a32e8ce6dbc448c85bac",
+        "license": "CC BY-NC-SA 4.0",
+        "group": "motivating",
+    },
+    "caez-wifi-indoor-lshape": {
+        "url": "https://iis-people.ee.ethz.ch/~caez/wifi/caez-wifi-indoor-Lshape.tar.gz",
+        "filename": "caez-wifi-indoor-Lshape.tar.gz",
+        "bytes": 1_933_783_040,
+        "md5": "a6127a35dd7397fe592da9e6b942eb25",
+        "sha256": "3ee1fd4f2746b1ac6ac8e7c5172c35b4abe5d507353981359218b0e7fd868bdf",
+        "format": "tar",
+        "license": "CAEZ Dataset License v1.0 (no original-data redistribution)",
+        "group": "motivating",
+    },
+    "operanet-pwr": {
+        "url": "https://ndownloader.figshare.com/files/30686384",
+        "filename": "OPERAnet-pwr.zip",
+        "bytes": 1_048_378_050,
+        "md5": "ac1301876899ff51b3826afaff6634a7",
+        "sha256": "bb1a1478ab624f76c40677101fb36ae8102dd7e7b85512c0bb8213cf0ceb5bf5",
+        "license": "CC0",
+        "doi": "10.6084/m9.figshare.16578203.v1",
+        "group": "motivating",
+    },
+    "operanet-wificsi1": {
+        "url": "https://ndownloader.figshare.com/files/30689729",
+        "filename": "OPERAnet-wificsi1.zip",
+        "bytes": 36_490_626_012,
+        "md5": "0bd15bc2577c6479a6fa6aaaea89087b",
+        "license": "CC0",
+        "doi": "10.6084/m9.figshare.16578428.v1",
+        "group": "motivating",
+    },
+    "operanet-wificsi2": {
+        "url": "https://ndownloader.figshare.com/files/30694595",
+        "filename": "OPERAnet-wificsi2.zip",
+        "bytes": 34_352_781_492,
+        "md5": "1eee5528687b42f5e866c232a68bb411",
+        "license": "CC0",
+        "doi": "10.6084/m9.figshare.16578431.v1",
+        "group": "motivating",
+    },
+    "operanet-uwb1": {
+        "url": "https://ndownloader.figshare.com/files/30686474",
+        "filename": "OPERAnet-uwb1.zip",
+        "bytes": 2_908_466_535,
+        "md5": "41cb357326a9b2911dcb5801aa6c483f",
+        "license": "CC0",
+        "doi": "10.6084/m9.figshare.16578245.v1",
+        "group": "motivating",
+    },
+    "operanet-uwb2": {
+        "url": "https://ndownloader.figshare.com/files/30686552",
+        "filename": "OPERAnet-uwb2.zip",
+        "bytes": 2_091_091_120,
+        "md5": "cf794dbaf7fb31629c9f9888571177f2",
+        "license": "CC0",
+        "doi": "10.6084/m9.figshare.16578251.v1",
+        "group": "motivating",
+    },
+    "operanet-codes": {
+        "url": "https://ndownloader.figshare.com/files/30686756",
+        "filename": "OPERAnet-codes.zip",
+        "bytes": 13_983,
+        "md5": "6b9d2068629bc3f0f139301447b69898",
+        "license": "CC0",
+        "doi": "10.6084/m9.figshare.16578299.v1",
+        "group": "motivating",
+    },
+    "operanet-kinect": {
+        "url": "https://ndownloader.figshare.com/files/30686327",
+        "filename": "OPERAnet-kinect.zip",
+        "bytes": 190_903_745,
+        "md5": "5a333a86da131f2ebae5730f1bf22ffc",
+        "license": "CC0",
+        "doi": "10.6084/m9.figshare.16578191.v1",
+        "group": "motivating",
+    },
+    "gotham-iot-2025": {
+        "url": "https://zenodo.org/api/records/14502760/files/GothamDataset2025.zip/content",
+        "filename": "GothamDataset2025.zip",
+        "bytes": 23_824_968_355,
+        "md5": "7ca78c0517ccb3d2854e823678e0f206",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.14502760",
+        "group": "motivating",
     },
 }
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("dataset", choices=["list", "all", *SOURCES])
+    parser.add_argument(
+        "dataset",
+        choices=["list", "baseline", "motivating", "all", *SOURCES],
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -167,9 +334,15 @@ def write_archive_receipt(
 def download(spec: dict[str, Any], output_dir: Path) -> Path:
     output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     archive = output_dir / spec["filename"]
+    if archive.is_symlink():
+        raise RuntimeError(f"refusing symlink archive path: {archive}")
     if archive.exists():
         size, md5, sha256 = digest_file(archive)
-        if size == spec["bytes"] and md5 == spec["md5"]:
+        if (
+            size == spec["bytes"]
+            and md5 == spec["md5"]
+            and ("sha256" not in spec or sha256 == spec["sha256"])
+        ):
             write_archive_receipt(archive, spec, size, md5, sha256)
             print(f"reusing verified archive: {archive}")
             return archive
@@ -207,7 +380,12 @@ def download(spec: dict[str, Any], output_dir: Path) -> Path:
             md5.update(chunk)
             sha256.update(chunk)
 
-    if received != spec["bytes"] or md5.hexdigest() != spec["md5"]:
+    if (
+        received != spec["bytes"]
+        or md5.hexdigest() != spec["md5"]
+        or "sha256" in spec
+        and sha256.hexdigest() != spec["sha256"]
+    ):
         raise RuntimeError(
             f"download verification failed: bytes={received}, md5={md5.hexdigest()}"
         )
@@ -223,7 +401,44 @@ def download(spec: dict[str, Any], output_dir: Path) -> Path:
     return archive
 
 
-def inspect_archive(archive: Path) -> dict[str, Any]:
+def inspect_archive(archive: Path, spec: dict[str, Any]) -> dict[str, Any]:
+    artifact_format = spec.get("format", "zip")
+    if artifact_format == "file":
+        return {
+            "archive": str(archive),
+            "members": [
+                {
+                    "name": archive.name,
+                    "bytes": archive.stat().st_size,
+                    "compressed_bytes": archive.stat().st_size,
+                    "directory": False,
+                }
+            ],
+        }
+    if artifact_format in {"tar", "tar-gzip"}:
+        mode = "r:" if artifact_format == "tar" else "r:gz"
+        with tarfile.open(archive, mode) as source:
+            members = []
+            for member in source.getmembers():
+                parts = Path(member.name).parts
+                if (
+                    member.name.startswith("/")
+                    or ".." in parts
+                    or member.issym()
+                    or member.islnk()
+                ):
+                    raise RuntimeError(f"unsafe archive member: {member.name}")
+                members.append(
+                    {
+                        "name": member.name,
+                        "bytes": member.size,
+                        "compressed_bytes": None,
+                        "directory": member.isdir(),
+                    }
+                )
+            return {"archive": str(archive), "members": members}
+    if artifact_format != "zip":
+        raise RuntimeError(f"unsupported artifact format: {artifact_format}")
     with zipfile.ZipFile(archive) as source:
         members = []
         for member in source.infolist():
@@ -244,10 +459,13 @@ def inspect_archive(archive: Path) -> dict[str, Any]:
 
 def extract_members(
     archive: Path,
+    spec: dict[str, Any],
     member_names: list[str],
     output_dir: Path,
     max_bytes: int,
 ) -> None:
+    if spec.get("format", "zip") != "zip":
+        raise RuntimeError("member extraction currently requires a ZIP artifact")
     if max_bytes <= 0:
         raise RuntimeError("--max-extract-bytes must be positive")
     output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -317,20 +535,25 @@ def main() -> int:
     if args.dataset == "list":
         print_catalog()
         return 0
-    if args.dataset == "all" and args.extract_member:
-        raise RuntimeError("--extract-member requires one named dataset")
+    if args.dataset in {"baseline", "motivating", "all"} and args.extract_member:
+        raise RuntimeError("--extract-member requires one named artifact")
 
-    selected = (
-        SOURCES if args.dataset == "all" else {args.dataset: SOURCES[args.dataset]}
-    )
+    if args.dataset in {"baseline", "motivating", "all"}:
+        groups = {args.dataset} if args.dataset != "all" else {"baseline", "motivating"}
+        selected = {
+            name: spec for name, spec in SOURCES.items() if spec["group"] in groups
+        }
+    else:
+        selected = {args.dataset: SOURCES[args.dataset]}
     inventories: dict[str, dict[str, Any]] = {}
     for dataset, spec in selected.items():
         archive = download(spec, args.output_dir.resolve())
         if args.inspect:
-            inventories[dataset] = inspect_archive(archive)
+            inventories[dataset] = inspect_archive(archive, spec)
         if args.extract_member:
             extract_members(
                 archive,
+                spec,
                 args.extract_member,
                 (
                     args.extract_dir or args.output_dir / f"extracted-{dataset}"
@@ -340,7 +563,7 @@ def main() -> int:
 
     if args.inspect:
         inventory: dict[str, Any]
-        if args.dataset == "all":
+        if args.dataset in {"baseline", "motivating", "all"}:
             inventory = {
                 "schema": "local.public_wireless_archive_inventory.v1",
                 "datasets": inventories,

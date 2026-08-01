@@ -224,22 +224,31 @@ reproduce. Regeneration changes the bundle closure and requires review.
 
 ## Maintainer evaluation data
 
-The repository includes a small fetcher for approved public capture archives.
-It stores downloads and selected extracts under the ignored `eval-data/`
-directory, checks the declared byte count and MD5 digest, and writes receipts
-for downloaded and extracted files. It is not part of the normal test gate.
+The repository includes a bounded fetcher for approved public evaluation
+artifacts. It stores downloads and selected extracts under the ignored
+`eval-data/` directory, checks declared byte counts and pinned MD5 (plus SHA-256
+where available), and writes receipts for downloaded and extracted files. It is
+not part of the normal test gate.
 
 ```sh
 uv run --script scripts/fetch-public-eval-corpus.py list
-uv run --script scripts/fetch-public-eval-corpus.py all \
+uv run --script scripts/fetch-public-eval-corpus.py baseline \
   --inspect --inspect-output eval-data/public-corpus-inventory.json
+uv run --script scripts/fetch-public-eval-corpus.py motivating
+uv run --script scripts/fetch-public-eval-corpus.py all
 uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad
 uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad \
   --inspect --inspect-output eval-data/v2i-80211ad-members.json
 ```
 
-Use repeated `--extract-member` options to select a bounded slice after
-inspection. The larger Zigbee archive is opt-in and uses the same checks:
+`baseline` fetches the six archives used by the bounded evaluator (about 2.05 GB).
+`motivating` fetches all 16 later-work artifacts (about 109.30 GB), including
+WiSig, CAEZ, OPERAnet, IoT-23 v2, and the complete Gotham archive. `all` fetches
+both groups (111,346,433,506 bytes). Group fetches verify and reuse completed
+files; they do not extract them.
+
+Use repeated `--extract-member` options with one named ZIP artifact to select a
+bounded slice after inspection:
 
 ```sh
 uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad \
@@ -253,11 +262,13 @@ Do not commit the archive, extracted files, or generated inventories. Review
 the source terms and the extraction receipt before using a public slice in a
 committed fixture.
 
-The on-demand evaluator verifies nine checked slices across the five archives,
-runs each PCAP projection twice, reconciles both complete management captures
-against their publisher CSV frame counts and subtypes, and emits a
-metadata-only local report. The [evaluation protocol](docs/public-corpus-evaluation.md)
-defines lineage, split groups, metrics, and the separate admission gate.
+The on-demand evaluator verifies 11 checked slices across six archives, runs
+each of ten PCAP projections twice, reconciles both complete management captures
+and two Sorbonne distance slices against publisher references, and emits a
+metadata-only local report bound to both a clean revision and exact executable
+SHA-256, plus the exact campaign-manifest SHA-256. The
+[evaluation protocol](docs/public-corpus-evaluation.md) defines lineage, split
+groups, motivating corpora, metrics, and the separate admission gate.
 
 The admitted fixture corpus also has a local, offline evaluator. It runs the
 debug binary twice per fixture and checks manifest hashes, expected WLAN
