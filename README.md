@@ -246,11 +246,17 @@ uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad \
   --extract-member v2i-80211ad-dataset/2020/pcap/trace-236/monitor.ad.1593946636.pcap \
   --extract-member v2i-80211ad-dataset/2020/gps.csv \
   --extract-member v2i-80211ad-dataset/2020/trghpt.csv
+just public-corpus-eval
 ```
 
 Do not commit the archive, extracted files, or generated inventories. Review
 the source terms and the extraction receipt before using a public slice in a
 committed fixture.
+
+The on-demand evaluator verifies eight checked slices across the five archives,
+runs each PCAP projection twice, and emits a metadata-only local report. The
+[evaluation protocol](docs/public-corpus-evaluation.md) defines lineage, split
+groups, metrics, and the separate admission gate.
 
 The admitted fixture corpus also has a local, offline evaluator. It runs the
 debug binary twice per fixture and checks manifest hashes, expected WLAN

@@ -1,0 +1,160 @@
+{
+  "schema": "netbraid.public_corpus_slices.v0",
+  "archives": {
+    "sdr4iot-ble-zigbee": {
+      "bytes": 78658727,
+      "filename": "sdr4iot-ble-zigbee-dataset.zip",
+      "md5": "c966c5cbf1243b5a16f59675451de84e"
+    },
+    "v2i-80211ad": {
+      "bytes": 660248364,
+      "filename": "v2i-80211ad-dataset.zip",
+      "md5": "a37836cce4f3d37f8ef374850069fc9e"
+    },
+    "wifi-management-frames": {
+      "bytes": 4126124,
+      "filename": "wifi-management-frames.zip",
+      "md5": "835320ace908243f23cb03fc48ce44fc"
+    },
+    "wifi-probe-requests": {
+      "bytes": 49977913,
+      "filename": "wifi-probe-requests.zip",
+      "md5": "3eeab562d6140adc0891aa122e829b8b"
+    },
+    "zbds2023": {
+      "bytes": 1251060836,
+      "filename": "zigbee_dataset.zip",
+      "md5": "6e8d9fc1c76688393ccdfb6364436ac1"
+    }
+  },
+  "cases": [
+    {
+      "archive": "v2i-80211ad",
+      "expect": {
+        "reason": null,
+        "scope": "normalized_packet_subset",
+        "status": "observed"
+      },
+      "id": "v2i-2020-trace-236",
+      "member": {
+        "bytes": 517788,
+        "name": "v2i-80211ad-dataset/2020/pcap/trace-236/monitor.ad.1593946636.pcap",
+        "sha256": "86efce30bcde0d7c625c349221b0ba58186ca987205db7c27fa743c7cb0282a7"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "wifi-management-frames",
+      "expect": {
+        "reason": null,
+        "scope": "normalized_packet_subset",
+        "status": "observed"
+      },
+      "id": "wifi-management-capture-1",
+      "member": {
+        "bytes": 4440631,
+        "name": "datasets/1/capture-1.pcap",
+        "sha256": "ca6d686ab53c93ead0412dffe181590bdb09da84274653ab79216b957610c48a"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "sdr4iot-ble-zigbee",
+      "expect": {
+        "reason": "no_ieee80211_frame_evidence",
+        "scope": "complete_capture",
+        "status": "unsupported"
+      },
+      "id": "sdr4iot-zigbee-scene-38-server-9",
+      "member": {
+        "bytes": 1664,
+        "name": "zigbee/scenario6/scene38/20201124_1215/S6_s38_2020-11-24_12-15_server9.cap",
+        "sha256": "ce34428c893fcaa08acb9f356b8c744c936cefc85c0cb96b2ce3661caf0bfb91"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "zbds2023",
+      "expect": {
+        "reason": "partial_normalization_without_ieee80211_frame_evidence",
+        "scope": "normalized_packet_subset",
+        "status": "insufficient"
+      },
+      "id": "zbds-2022-07-01-hour-rpi1",
+      "member": {
+        "bytes": 4992756,
+        "name": "rpi1/rpi1-2022-07-01-19-59-58.pcap",
+        "sha256": "fee3bc8ee85aa6685cc794abdb3dc092bed07a0d286af354cc6ed9092d669c9a"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "zbds2023",
+      "expect": {
+        "reason": "partial_normalization_without_ieee80211_frame_evidence",
+        "scope": "normalized_packet_subset",
+        "status": "insufficient"
+      },
+      "id": "zbds-2022-07-01-hour-rpi2",
+      "member": {
+        "bytes": 4989899,
+        "name": "rpi2/rpi2-2022-07-01-20-00-00.pcap",
+        "sha256": "cc77bbc4e12ed783b8c201f48312eaff1c2b4850c560ab7afff25426e2cde7b8"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "zbds2023",
+      "expect": {
+        "reason": "partial_normalization_without_ieee80211_frame_evidence",
+        "scope": "normalized_packet_subset",
+        "status": "insufficient"
+      },
+      "id": "zbds-2022-07-01-hour-rpi3",
+      "member": {
+        "bytes": 4996881,
+        "name": "rpi3/rpi3-2022-07-01-20-00-03.pcap",
+        "sha256": "7243b3b3cad81092c9e99bfe528a5e6b51d09439fd3c54ea648ee56a1be553e6"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "zbds2023",
+      "expect": {
+        "reason": "partial_normalization_without_ieee80211_frame_evidence",
+        "scope": "normalized_packet_subset",
+        "status": "insufficient"
+      },
+      "id": "zbds-2022-07-01-hour-rpi4",
+      "member": {
+        "bytes": 4926246,
+        "name": "rpi4/rpi4-2022-07-01-20-00-05.pcap",
+        "sha256": "997e4beffb928156430cf44f04bd5b9fddce10dc5be6386bbe9da8393568ad0f"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "wifi-probe-requests",
+      "expect": {
+        "top_level_keys": [
+          "dataStreamId",
+          "payload"
+        ]
+      },
+      "id": "wifi-probe-request-structured-example",
+      "member": {
+        "bytes": 1374,
+        "name": "Single_PR_capture_example.json",
+        "sha256": "410b36ffb49ff9f5071c92ab86ae392f650c67ce4c19798f76848eb7a32c0328"
+      },
+      "mode": "structured-json"
+    }
+  ]
+}

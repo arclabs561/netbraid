@@ -46,6 +46,12 @@ pcap-smoke:
     cargo test --locked --manifest-path rust/Cargo.toml -p netbraid-adapter-tshark --tests -- --ignored
     cargo test --locked --manifest-path rust/Cargo.toml -p netbraid --test pcap_cli -- --ignored
 
+# Evaluate checked, bounded slices from the ignored public archives. Fetch the
+# archives first; this target never admits or writes corpus bytes into Git.
+public-corpus-eval:
+    cargo build --locked --manifest-path rust/Cargo.toml --bin netbraid
+    python3 scripts/evaluate-public-corpus-slices.py --report eval-data/public-corpus-eval-report.json
+
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000
 
