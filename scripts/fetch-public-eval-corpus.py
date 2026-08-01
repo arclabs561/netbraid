@@ -25,6 +25,7 @@ import tarfile
 import urllib.error
 import urllib.request
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -278,6 +279,12 @@ def parse_args() -> argparse.Namespace:
         default=100_000_000,
         help="aggregate uncompressed extraction limit (default: 100 MiB)",
     )
+    parser.add_argument(
+        "--verify-workers",
+        type=int,
+        default=min(4, os.cpu_count() or 1),
+        help="parallel workers for an existing artifact group (default: up to 4)",
+    )
     return parser.parse_args()
 
 
@@ -295,6 +302,10 @@ def digest_file(path: Path) -> tuple[int, str, str]:
             md5.update(chunk)
             sha256.update(chunk)
     return size, md5.hexdigest(), sha256.hexdigest()
+
+
+def archive_path(spec: dict[str, Any], output_dir: Path) -> Path:
+    return output_dir / spec["filename"]
 
 
 def write_archive_receipt(
@@ -333,20 +344,13 @@ def write_archive_receipt(
 
 def download(spec: dict[str, Any], output_dir: Path) -> Path:
     output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    archive = output_dir / spec["filename"]
+    archive = archive_path(spec, output_dir)
     if archive.is_symlink():
         raise RuntimeError(f"refusing symlink archive path: {archive}")
     if archive.exists():
-        size, md5, sha256 = digest_file(archive)
-        if (
-            size == spec["bytes"]
-            and md5 == spec["md5"]
-            and ("sha256" not in spec or sha256 == spec["sha256"])
-        ):
-            write_archive_receipt(archive, spec, size, md5, sha256)
-            print(f"reusing verified archive: {archive}")
-            return archive
-        raise RuntimeError(f"existing archive failed verification: {archive}")
+        verify_existing_archive(archive, spec)
+        print(f"reusing verified archive: {archive}")
+        return archive
 
     partial = archive.with_name(f".{archive.name}.part")
     if partial.exists():
@@ -399,6 +403,54 @@ def download(spec: dict[str, Any], output_dir: Path) -> Path:
     )
     print(f"downloaded and verified: {archive}")
     return archive
+
+
+def verify_existing_archive(archive: Path, spec: dict[str, Any]) -> None:
+    if archive.is_symlink() or not archive.is_file():
+        raise RuntimeError(f"refusing unsafe archive path: {archive}")
+    size, md5, sha256 = digest_file(archive)
+    if (
+        size != spec["bytes"]
+        or md5 != spec["md5"]
+        or "sha256" in spec
+        and sha256 != spec["sha256"]
+    ):
+        raise RuntimeError(f"existing archive failed verification: {archive}")
+    write_archive_receipt(archive, spec, size, md5, sha256)
+
+
+def fetch_selected(
+    selected: dict[str, dict[str, Any]], output_dir: Path, verify_workers: int
+) -> dict[str, Path]:
+    if verify_workers <= 0:
+        raise RuntimeError("--verify-workers must be positive")
+    output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    items = list(selected.items())
+    paths = [archive_path(spec, output_dir) for _, spec in items]
+    can_verify_in_parallel = (
+        len(items) > 1
+        and verify_workers > 1
+        and all(path.is_file() and not path.is_symlink() for path in paths)
+    )
+    if not can_verify_in_parallel:
+        return {
+            dataset: download(spec, output_dir) for dataset, spec in selected.items()
+        }
+
+    worker_count = min(verify_workers, len(items))
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = [
+            executor.submit(verify_existing_archive, path, spec)
+            for (_, spec), path in zip(items, paths, strict=True)
+        ]
+        archives: dict[str, Path] = {}
+        for ((dataset, _), path), future in zip(
+            zip(items, paths, strict=True), futures, strict=True
+        ):
+            future.result()
+            print(f"reusing verified archive: {path}")
+            archives[dataset] = path
+    return archives
 
 
 def inspect_archive(archive: Path, spec: dict[str, Any]) -> dict[str, Any]:
@@ -545,9 +597,10 @@ def main() -> int:
         }
     else:
         selected = {args.dataset: SOURCES[args.dataset]}
+    archives = fetch_selected(selected, args.output_dir.resolve(), args.verify_workers)
     inventories: dict[str, dict[str, Any]] = {}
     for dataset, spec in selected.items():
-        archive = download(spec, args.output_dir.resolve())
+        archive = archives[dataset]
         if args.inspect:
             inventories[dataset] = inspect_archive(archive, spec)
         if args.extract_member:

@@ -245,7 +245,9 @@ uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad \
 `motivating` fetches all 16 later-work artifacts (about 109.30 GB), including
 WiSig, CAEZ, OPERAnet, IoT-23 v2, and the complete Gotham archive. `all` fetches
 both groups (111,346,433,506 bytes). Group fetches verify and reuse completed
-files; they do not extract them.
+files; they do not extract them. Existing groups use up to four verification
+workers by default; pass `--verify-workers 1` when serial disk access is
+preferable.
 
 Use repeated `--extract-member` options with one named ZIP artifact to select a
 bounded slice after inspection:
