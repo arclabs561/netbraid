@@ -13,6 +13,7 @@ import stat
 import subprocess
 import tempfile
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -539,7 +540,7 @@ def evaluate_case(
     case: dict[str, Any], archive_path: Path, binary: Path, temporary: Path
 ) -> tuple[bool, dict[str, Any]]:
     case_id = case["id"]
-    member_path = temporary / f"case-{len(list(temporary.iterdir()))}"
+    member_path = temporary / "capture"
     source_bytes = extract_member(archive_path, case["member"], member_path, case_id)
     result: dict[str, Any] = {
         "case": case_id,
@@ -587,7 +588,7 @@ def evaluate_case(
         result["wlan_frames"] = basis["wlan_frames"]
     reference = case.get("reference")
     if reference is not None:
-        reference_path = temporary / f"case-{len(list(temporary.iterdir()))}"
+        reference_path = temporary / "reference"
         reference_bytes = extract_member(
             archive_path, reference["member"], reference_path, case_id
         )
@@ -606,8 +607,10 @@ def evaluate_case(
 
 
 def evaluate(
-    manifest: Path, archive_dir: Path, binary: Path
+    manifest: Path, archive_dir: Path, binary: Path, case_workers: int
 ) -> tuple[int, dict[str, Any]]:
+    if case_workers <= 0:
+        raise EvaluationError("case_workers")
     revision = netbraid_git_revision()
     archives, cases, manifest_sha256 = validate_manifest(manifest)
     binary_sha256 = digest_binary(binary)
@@ -621,10 +624,24 @@ def evaluate(
     failures = 0
     with tempfile.TemporaryDirectory(prefix="netbraid-public-corpus-") as directory:
         temporary = Path(directory)
-        for case in cases:
-            passed, result = evaluate_case(
-                case, archive_paths[case["archive"]], binary, temporary
-            )
+        case_directories = []
+        for index in range(len(cases)):
+            case_directory = temporary / f"case-{index}"
+            case_directory.mkdir()
+            case_directories.append(case_directory)
+        with ThreadPoolExecutor(max_workers=min(case_workers, len(cases))) as executor:
+            futures = [
+                executor.submit(
+                    evaluate_case,
+                    case,
+                    archive_paths[case["archive"]],
+                    binary,
+                    case_directory,
+                )
+                for case, case_directory in zip(cases, case_directories, strict=True)
+            ]
+        for future in futures:
+            passed, result = future.result()
             failures += not passed
             results.append(result)
     if digest_binary(binary) != binary_sha256:
@@ -656,6 +673,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--netbraid", type=Path, default=ROOT / "rust/target/debug/netbraid"
     )
+    parser.add_argument(
+        "--case-workers",
+        type=int,
+        default=min(4, os.cpu_count() or 1),
+        help="parallel evaluation cases (default: up to 4)",
+    )
     parser.add_argument("--report", type=Path)
     return parser.parse_args()
 
@@ -664,7 +687,10 @@ def main() -> int:
     args = parse_args()
     try:
         code, report = evaluate(
-            args.manifest.resolve(), args.archive_dir.resolve(), args.netbraid.resolve()
+            args.manifest.resolve(),
+            args.archive_dir.resolve(),
+            args.netbraid.resolve(),
+            args.case_workers,
         )
     except EvaluationError as error:
         detail: dict[str, Any] = {"stage": error.stage}
