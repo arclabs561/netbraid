@@ -58,6 +58,12 @@ counter-capture-eval-check:
 hypothesis-frame-check:
     {{ python }} eval/test-hypothesis-frame.py
 
+wlan-rff-layout-profile-check:
+    {{ python }} eval/test-profile-wlan-rff-layout.py
+
+wlan-rff-layout-profile:
+    {{ python }} eval/profile-wlan-rff-layout.py
+
 catalog-check:
     {{ python }} data/tests/test-catalogs.py
 

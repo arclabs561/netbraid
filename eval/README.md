@@ -21,6 +21,12 @@ cause, authorization, intent, and tamper evidence separate. The strict schema
 rejects bare identity or attack labels and contains no raw observations or
 deployment identifiers.
 
+`profile-wlan-rff-layout.py` verifies the two pinned WLAN RFF archives and
+profiles their strict filename grammar without opening NPZ payloads. Its
+aggregate report can establish cross-environment token reuse, but deliberately
+does not promote publisher-undocumented tokens to physical-device or
+physical-source identity.
+
 Manifest schema v1 is the frozen 24-run compatibility profile. Schema v2 adds
 an explicit policy for opaque regime tokens, per-regime split sizes, candidate
 count, truth position, and an engineering acceptance threshold. V2 also

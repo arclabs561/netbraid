@@ -131,6 +131,7 @@ cargo test --locked --manifest-path rust/Cargo.toml --test counter_capture
 cargo test --locked --manifest-path rust/Cargo.toml --test infer_facade
 just counter-capture-eval-check
 just osu-lora-profile
+just wlan-rff-layout-profile
 ```
 
 The Rust reducer and a dedicated Python exact-rational oracle must agree on
@@ -156,6 +157,13 @@ extent checks; label values, source URLs, and paths are not written to reports.
 Additional public corpora may be admitted only when they provide explicit
 physical-device, variant, acquisition-domain, or attack provenance. Dataset
 labels remain evaluation oracles and do not become production identities.
+
+The pinned WLAN RFF environment archives are profiled from ZIP central
+directories only. Their NPZ payloads are not opened. Filename tokens are
+reduced to aggregate counts, and their values, session values, paths, and
+payload bytes are excluded from the report. Cross-environment token reuse is
+layout evidence only until publisher documentation establishes the token's
+semantic referent.
 
 ## Metrics and gates
 
@@ -252,6 +260,12 @@ well-formed digest names the supplied content.
 No RF classifier, identity threshold, attack detector, or malicious-intent
 inference was executed. The downloaded public corpora therefore contribute no
 model-performance result at this checkpoint.
+
+The WLAN RFF layout checkpoint verified both publisher archive digests and 411
+NPZ members without opening a member payload. Each archive contains five
+distinct device-shaped filename tokens, all five tokens occur in both
+environments, and no session token occurs in both. This establishes a candidate
+cross-environment grouping key, not physical-device or physical-source truth.
 
 ## Conclusion
 
