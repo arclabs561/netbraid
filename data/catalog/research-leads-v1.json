@@ -293,18 +293,18 @@
     },
     {
       "id": "nlr-submission-81",
-      "title": "National Lab of the Rockies data submission 81",
-      "source_type": "dataset",
+      "title": "NLR rooftop-solar submission 81",
+      "source_type": "name_collision",
       "canonical_url": "https://data.nlr.gov/submissions/81",
       "related_urls": [],
       "access": "public_page",
-      "license": "unknown",
-      "modalities": ["rf_iq"],
-      "roles": ["candidate_corpus"],
-      "disposition": "candidate",
-      "fetch": "investigate_before_pinning",
-      "priority": "P1",
-      "note": "Resolve artifact inventory, license, size, and digest before implementing acquisition."
+      "license": "not_applicable",
+      "modalities": ["solar", "geospatial"],
+      "roles": ["disambiguation"],
+      "disposition": "name_collision",
+      "fetch": "not_applicable",
+      "priority": "P3",
+      "note": "This is a rooftop-solar dataset and is unrelated to RF evidence or capture."
     },
     {
       "id": "matter-jamming-paper",
@@ -356,15 +356,17 @@
       "title": "Bristol LoRa sensor RF fingerprinting dataset",
       "source_type": "dataset",
       "canonical_url": "https://research-information.bris.ac.uk/en/datasets/lora-sensor-data-sets-for-rf-finger-printing-via-self-organizing-/",
-      "related_urls": [],
-      "access": "public_page",
-      "license": "unknown",
+      "related_urls": [
+        "https://ieee-dataport.org/documents/lora-sensor-data-sets-rf-finger-printing-self-organizing-feature-maps"
+      ],
+      "access": "gated",
+      "license": "cc_by_4_0",
       "modalities": ["lora", "rf_iq", "device_identity"],
       "roles": ["pipeline_smoke_eval", "closed_set_eval"],
-      "disposition": "candidate",
-      "fetch": "investigate_before_pinning",
+      "disposition": "manual_only",
+      "fetch": "manual_access",
       "priority": "P0",
-      "note": "Small enough for an early adapter smoke corpus, but not evidence of channel or deployment robustness."
+      "note": "IEEE DataPort lists a 63.37 MB raw-I/Q archive but requires login and subscription; do not automate credentials."
     },
     {
       "id": "deeplora-rffi",

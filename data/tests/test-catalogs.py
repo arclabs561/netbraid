@@ -36,6 +36,7 @@ ACCESS = {
     "public_page",
 }
 LICENSES = {
+    "cc_by_4_0",
     "manual_terms",
     "not_applicable",
     "per_artifact",
