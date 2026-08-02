@@ -13,6 +13,14 @@ This directory contains executable measurements of Netbraid behavior.
 identifier-free traffic windows. Collection paths, addresses, interfaces, and
 deployment-selected runs remain outside this repository.
 
+`hypothesis_frame.py` validates evaluation-only pair labels for artifact,
+content, event, claimed-identifier, cryptographic-principal, physical-device,
+physical-source, software, configuration, variant, and lineage relations. It
+keeps integrity, admissibility, freshness, continuity, transmission, scenario
+cause, authorization, intent, and tamper evidence separate. The strict schema
+rejects bare identity or attack labels and contains no raw observations or
+deployment identifiers.
+
 Manifest schema v1 is the frozen 24-run compatibility profile. Schema v2 adds
 an explicit policy for opaque regime tokens, per-regime split sizes, candidate
 count, truth position, and an engineering acceptance threshold. V2 also

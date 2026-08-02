@@ -55,6 +55,9 @@ counter-capture-eval-check:
     {{ python }} eval/test-counter-capture-eval.py
     {{ python }} eval/test-counter-capture-campaign.py
 
+hypothesis-frame-check:
+    {{ python }} eval/test-hypothesis-frame.py
+
 catalog-check:
     {{ python }} data/tests/test-catalogs.py
 
