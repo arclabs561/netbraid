@@ -72,6 +72,35 @@ Report absolute count deltas and the exact denominator. Do not collapse parser
 failure, unsupported link types, quarantine, and genuinely absent evidence into
 one error rate.
 
+### Sorbonne same-transmission oracle audit
+
+The complete 1 m run supplies a narrow publisher-grounded event oracle:
+different sniffers observing the same source address and sequence number saw
+the same transmitted beacon within this run. The preregistered audit covers all
+ten synchronized TSVs and verifies 18,926 observations, 2,715 event keys, 2,673
+events seen by at least two sniffers, 455 events seen by all ten, and 64,149
+cross-sniffer positive pairs. There are no duplicate event keys within a
+sniffer and no contradictory channel/type/subtype/retransmission metadata
+within an event.
+
+PyPal produced the synchronized time axis from common reference frames matched
+with a composite key that included source MAC and sequence number. Accordingly,
+the 1 ms synchronized-time diagnostic contains exactly those 64,149 positive
+pairs and zero negatives. It is evidence of oracle-related synchronization,
+not perfect candidate retrieval or classification. Synchronized time is
+forbidden as predictive evidence in this campaign.
+
+Run the metadata-only audit with:
+
+```sh
+just sorbonne-same-event-audit
+```
+
+The next hypothesis baseline must either abstain on the current structural
+projection or use a packet fingerprint that masks oracle and observer-specific
+fields. A separately justified negative set is required before precision,
+recall, or false-link rates are meaningful.
+
 ### Linktop review
 
 Linktop consumes only the verified Netbraid saved-evidence stream. Its campaign
@@ -121,9 +150,10 @@ Report data validity before model or relation quality:
 - abstention count by corpus, link type, and completeness slice.
 
 Precision, recall, false-link rate, and calibration require an independently
-labeled subset. Rates must include raw numerators, denominators, and confidence
-intervals. None of the six archives, by itself, labels a Netbraid-to-Linktop or
-cross-protocol identity relation.
+labeled subset with both positive and negative cases. Rates must include raw
+numerators, denominators, and confidence intervals. Sorbonne labels one narrow
+same-transmission relation within a run; it does not label a Netbraid-to-Linktop,
+durable-device, or cross-protocol identity relation.
 
 ## Adapter-motivating corpus
 

@@ -52,6 +52,11 @@ public-corpus-eval:
     cargo build --locked --manifest-path rust/Cargo.toml --bin netbraid
     python3 scripts/evaluate-public-corpus-slices.py --report eval-data/public-corpus-eval-report.json
 
+# Audit the complete Sorbonne 1 m cross-sniffer event oracle. This reports the
+# synchronized-time leakage boundary; it does not run a predictive classifier.
+sorbonne-same-event-audit:
+    python3 scripts/evaluate-sorbonne-same-event.py --archive eval-data/220211012-SU-Outdoors-Campus.zip --campaign scripts/fixtures/sorbonne-same-event-campaign-v0.json --report eval-data/sorbonne-same-event-report.json
+
 # Profile a bounded CAEZ CSI shape slice directly from the verified local tar.
 # The target never extracts members or deserializes position/model payloads.
 caez-csi-profile:

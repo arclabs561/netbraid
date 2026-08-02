@@ -258,6 +258,7 @@ uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad \
   --extract-member v2i-80211ad-dataset/2020/gps.csv \
   --extract-member v2i-80211ad-dataset/2020/trghpt.csv
 just public-corpus-eval
+just sorbonne-same-event-audit
 ```
 
 Do not commit the archive, extracted files, or generated inventories. Review
@@ -271,6 +272,11 @@ metadata-only local report bound to both a clean revision and exact executable
 SHA-256, plus the exact campaign-manifest SHA-256. The
 [evaluation protocol](docs/public-corpus-evaluation.md) defines lineage, split
 groups, motivating corpora, metrics, and the separate admission gate.
+
+The Sorbonne audit verifies the complete ten-sniffer 1 m event oracle and also
+records why publisher-synchronized time is not admissible predictive evidence:
+its 1 ms pair set contains 64,149 positives and zero negatives after
+oracle-related clock alignment.
 
 The admitted fixture corpus also has a local, offline evaluator. It runs the
 debug binary twice per fixture and checks manifest hashes, expected WLAN
