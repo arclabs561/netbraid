@@ -7,6 +7,7 @@ use std::path::Path;
 
 mod conversation;
 mod fingerprint;
+mod same_event;
 mod saved_capture;
 mod scenario;
 mod triage;
@@ -30,6 +31,13 @@ pub use netbraid_evidence::{
     CollectionModeV0, CollectionPolicyV0, ContextKeyV0, CoverageStateV0, CoverageV0,
     HostPathObservationV0, HostPathV0, NetworkNameV0, NetworkNameVisibilityV0, ObservationOrderV0,
     SourceRefV0, ValidationError, HOST_PATH_SCHEMA_V0,
+};
+pub use same_event::{
+    assess_packet_same_event_v0, PacketSameEventBasisV0, PacketSameEventDifferenceV0,
+    PacketSameEventDimensionV0, PacketSameEventDispositionV0, PacketSameEventErrorV0,
+    PacketSameEventEvidenceRefV0, PacketSameEventHypothesisSetV0, PacketSameEventReferenceV0,
+    PacketSameEventUnknownReasonV0, PACKET_SAME_EVENT_HYPOTHESIS_SET_SCHEMA_V0,
+    PACKET_SAME_EVENT_REDUCER_V0,
 };
 pub use saved_capture::{
     parse_saved_capture_jsonl, read_saved_capture_jsonl, SavedCaptureReadError,
