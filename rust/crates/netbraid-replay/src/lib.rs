@@ -7,6 +7,7 @@ use std::path::Path;
 
 mod conversation;
 mod fingerprint;
+mod flow;
 mod same_event;
 mod saved_capture;
 mod scenario;
@@ -26,6 +27,11 @@ pub use fingerprint::{
     SavedPcapFingerprintConversationV0, SavedPcapFingerprintInsufficientReasonV0,
     SavedPcapFingerprintSourceV0, SavedPcapFingerprintStatusV0,
     SavedPcapFingerprintUnsupportedReasonV0, SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0,
+};
+pub use flow::{
+    project_saved_capture_flows_v0, PacketFlowEndBasisV0, PacketFlowExclusionReasonV0,
+    PacketFlowOriginBasisV0, PacketFlowProjectionError, PacketFlowReportV0,
+    PacketFlowSessionizationV0, PacketFlowV0,
 };
 pub use netbraid_evidence::{
     CollectionModeV0, CollectionPolicyV0, ContextKeyV0, CoverageStateV0, CoverageV0,

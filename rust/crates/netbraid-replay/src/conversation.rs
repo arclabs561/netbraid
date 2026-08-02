@@ -182,13 +182,15 @@ pub fn reduce_capture_conversations(packets: &[PacketEnvelopeV0]) -> CaptureConv
     }
 }
 
-struct Candidate {
-    key: CaptureConversationKeyV0,
-    transport: TransportProtocolV0,
-    source_is_a: bool,
+pub(crate) struct Candidate {
+    pub(crate) key: CaptureConversationKeyV0,
+    pub(crate) transport: TransportProtocolV0,
+    pub(crate) source_is_a: bool,
 }
 
-fn candidate(packet: &PacketEnvelopeV0) -> Result<Candidate, ConversationExclusionReasonV0> {
+pub(crate) fn candidate(
+    packet: &PacketEnvelopeV0,
+) -> Result<Candidate, ConversationExclusionReasonV0> {
     if packet.validate().is_err() {
         return Err(ConversationExclusionReasonV0::InvalidPacketEnvelope);
     }
