@@ -21,6 +21,33 @@ from typing import Any
 MIB = 1024 * 1024
 MANIFEST_SCHEMA = "netbraid.public_corpus_slices.v0"
 REPORT_SCHEMA = "netbraid.public_corpus_eval.v1"
+IEEE802154_PROJECTION_SCHEMA = "netmon.saved_pcap_ieee802154_projection.v0"
+IEEE802154_ORACLE_KEYS = {
+    "completeness",
+    "counts",
+    "frame_type_version_mix",
+    "address_forms",
+    "commands",
+    "fcs",
+}
+IEEE802154_LIMITATIONS = [
+    "aggregate over validated PacketEnvelopeV0.ieee802154 evidence; no raw DLT decoding",
+    "complete_capture applies to normalization completeness, not continuous RF observation",
+    "normalized_packet_subset cannot support capture-wide negative claims",
+    "address values, PAN identifiers, sequence numbers, and observer identifiers are excluded",
+    "command values are frame fields, not device, role, or behavior identity",
+    "FCS availability depends on the saved capture and upstream dissector evidence",
+    "no payload retention, cross-observer join, or device, person, place, or intent inference",
+]
+IEEE802154_FORBIDDEN_KEYS = {
+    "capture_id",
+    "destination_pan_id",
+    "observer_id",
+    "raw_row",
+    "record_id",
+    "sequence_number",
+    "source_pan_id",
+}
 MAX_MANIFEST_BYTES = MIB
 MAX_CASES = 64
 MAX_MEMBER_BYTES = 16 * MIB
@@ -80,6 +107,157 @@ def is_hex(value: Any, length: int) -> bool:
         and len(value) == length
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def is_sha256_digest(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and value.startswith("sha256:")
+        and is_hex(value.removeprefix("sha256:"), SHA256)
+    )
+
+
+def validate_ieee802154_oracle(
+    expectation: Any, packet_limit: Any, case_id: str
+) -> None:
+    if not isinstance(expectation, dict) or set(expectation) != IEEE802154_ORACLE_KEYS:
+        raise EvaluationError("expectation", case_id)
+    completeness = expectation["completeness"]
+    counts = expectation["counts"]
+    address_forms = expectation["address_forms"]
+    commands = expectation["commands"]
+    fcs = expectation["fcs"]
+    if (
+        not isinstance(completeness, dict)
+        or set(completeness)
+        != {"state", "scope", "packet_limit", "packet_limit_reached"}
+        or completeness["state"] not in {"complete", "partial"}
+        or completeness["scope"] not in {"complete_capture", "normalized_packet_subset"}
+        or type(completeness["packet_limit"]) is not int
+        or completeness["packet_limit"] != packet_limit
+        or type(completeness["packet_limit_reached"]) is not bool
+        or completeness["state"] == "complete"
+        and (
+            completeness["scope"] != "complete_capture"
+            or completeness["packet_limit_reached"]
+        )
+        or completeness["state"] == "partial"
+        and completeness["scope"] != "normalized_packet_subset"
+    ):
+        raise EvaluationError("expectation", case_id)
+
+    count_keys = {
+        "packet_envelopes",
+        "packet_quarantines",
+        "packet_rows_inspected",
+        "ieee802154_frames",
+        "other_packet_envelopes",
+    }
+    if (
+        not isinstance(counts, dict)
+        or set(counts) != count_keys
+        or any(type(counts[key]) is not int or counts[key] < 0 for key in count_keys)
+        or counts["packet_rows_inspected"]
+        != counts["packet_envelopes"] + counts["packet_quarantines"]
+        or counts["packet_envelopes"]
+        != counts["ieee802154_frames"] + counts["other_packet_envelopes"]
+        or completeness["state"] == "complete"
+        and counts["packet_quarantines"] != 0
+    ):
+        raise EvaluationError("expectation", case_id)
+
+    frame_mix = expectation["frame_type_version_mix"]
+    if not isinstance(frame_mix, list):
+        raise EvaluationError("expectation", case_id)
+    frame_keys: list[tuple[int, int]] = []
+    frame_total = 0
+    for item in frame_mix:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"frame_type", "frame_version", "frames"}
+            or any(type(item[key]) is not int for key in item)
+            or not 0 <= item["frame_type"] <= 7
+            or not 0 <= item["frame_version"] <= 3
+            or item["frames"] <= 0
+        ):
+            raise EvaluationError("expectation", case_id)
+        frame_keys.append((item["frame_type"], item["frame_version"]))
+        frame_total += item["frames"]
+    if (
+        frame_keys != sorted(set(frame_keys))
+        or frame_total != counts["ieee802154_frames"]
+    ):
+        raise EvaluationError("expectation", case_id)
+
+    if not isinstance(address_forms, dict) or set(address_forms) != {
+        "destination",
+        "source",
+    }:
+        raise EvaluationError("expectation", case_id)
+    address_keys = {"absent_frames", "short_frames", "extended_frames"}
+    for role in ("destination", "source"):
+        coverage = address_forms[role]
+        if (
+            not isinstance(coverage, dict)
+            or set(coverage) != address_keys
+            or any(
+                type(coverage[key]) is not int or coverage[key] < 0
+                for key in address_keys
+            )
+            or sum(coverage.values()) != counts["ieee802154_frames"]
+        ):
+            raise EvaluationError("expectation", case_id)
+
+    if (
+        not isinstance(commands, dict)
+        or set(commands) != {"present_frames", "unavailable_frames", "command_mix"}
+        or type(commands["present_frames"]) is not int
+        or type(commands["unavailable_frames"]) is not int
+        or commands["present_frames"] < 0
+        or commands["unavailable_frames"] < 0
+        or commands["present_frames"] + commands["unavailable_frames"]
+        != counts["ieee802154_frames"]
+        or not isinstance(commands["command_mix"], list)
+    ):
+        raise EvaluationError("expectation", case_id)
+    command_values = []
+    command_total = 0
+    for item in commands["command_mix"]:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"command", "frames"}
+            or type(item["command"]) is not int
+            or type(item["frames"]) is not int
+            or not 0 <= item["command"] <= 255
+            or item["frames"] <= 0
+        ):
+            raise EvaluationError("expectation", case_id)
+        command_values.append(item["command"])
+        command_total += item["frames"]
+    if (
+        command_values != sorted(set(command_values))
+        or command_total != commands["present_frames"]
+    ):
+        raise EvaluationError("expectation", case_id)
+
+    fcs_keys = {"valid_frames", "invalid_frames", "unavailable_frames"}
+    if (
+        not isinstance(fcs, dict)
+        or set(fcs) != fcs_keys
+        or any(type(fcs[key]) is not int or fcs[key] < 0 for key in fcs_keys)
+        or sum(fcs.values()) != counts["ieee802154_frames"]
+    ):
+        raise EvaluationError("expectation", case_id)
+
+
+def contains_forbidden_ieee802154_key(value: Any) -> bool:
+    if isinstance(value, dict):
+        return bool(IEEE802154_FORBIDDEN_KEYS & value.keys()) or any(
+            contains_forbidden_ieee802154_key(item) for item in value.values()
+        )
+    if isinstance(value, list):
+        return any(contains_forbidden_ieee802154_key(item) for item in value)
+    return False
 
 
 def read_bounded(path: Path, limit: int, stage: str) -> bytes:
@@ -152,9 +330,9 @@ def validate_manifest(
         case_id = case.get("id")
         mode = case.get("mode")
         expected_keys = {"archive", "expect", "id", "member", "mode"}
-        if mode == "netbraid-wlan":
+        if mode in {"netbraid-wlan", "netbraid-ieee802154"}:
             expected_keys.add("packet_limit")
-            if "reference" in case:
+            if mode == "netbraid-wlan" and "reference" in case:
                 expected_keys.add("reference")
         if (
             set(case) != expected_keys
@@ -162,7 +340,7 @@ def validate_manifest(
             or not case_id
             or case_id in case_ids
             or case.get("archive") not in archives
-            or mode not in {"netbraid-wlan", "structured-json"}
+            or mode not in {"netbraid-wlan", "netbraid-ieee802154", "structured-json"}
         ):
             raise EvaluationError("case_shape", case_id)
         case_ids.add(case_id)
@@ -204,6 +382,11 @@ def validate_manifest(
             total_bytes += reference_member["bytes"]
         if total_bytes > MAX_TOTAL_MEMBER_BYTES:
             raise EvaluationError("total_member_bytes")
+        if mode in {"netbraid-wlan", "netbraid-ieee802154"} and (
+            not isinstance(case["packet_limit"], int)
+            or not 1 <= case["packet_limit"] <= 100_000
+        ):
+            raise EvaluationError("expectation", case_id)
         if mode == "netbraid-wlan":
             expectation = case["expect"]
             if (
@@ -213,10 +396,10 @@ def validate_manifest(
                 or not isinstance(expectation["scope"], str)
                 or expectation["reason"] is not None
                 and not isinstance(expectation["reason"], str)
-                or not isinstance(case["packet_limit"], int)
-                or not 1 <= case["packet_limit"] <= 100_000
             ):
                 raise EvaluationError("expectation", case_id)
+        elif mode == "netbraid-ieee802154":
+            validate_ieee802154_oracle(case["expect"], case["packet_limit"], case_id)
         elif set(case["expect"]) != {"top_level_keys"} or not all(
             isinstance(key, str) for key in case["expect"]["top_level_keys"]
         ):
@@ -338,6 +521,99 @@ def parse_batch_output(
             raise EvaluationError("batch_output_identity", expected_case_id)
         fingerprints.append(output["fingerprint"])
     return fingerprints
+
+
+def run_ieee802154_driver(binary: Path, extracted: ExtractedCase) -> bytes:
+    case = extracted.case
+    case_id = case["id"]
+    argv = [
+        os.fspath(binary),
+        "pcap",
+        os.fspath(extracted.capture_path),
+        "--packet-limit",
+        str(case["packet_limit"]),
+        "--ieee802154-json",
+    ]
+    try:
+        completed = subprocess.run(
+            argv,
+            check=False,
+            capture_output=True,
+            timeout=TOOL_TIMEOUT_S,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise EvaluationError("ieee802154_driver_execution", case_id) from None
+    if (
+        completed.returncode != 0
+        or completed.stderr
+        or not completed.stdout
+        or len(completed.stdout) > MAX_TOOL_OUTPUT_BYTES
+    ):
+        raise EvaluationError("ieee802154_driver_execution", case_id)
+    return completed.stdout
+
+
+def parse_ieee802154_output(data: bytes, extracted: ExtractedCase) -> dict[str, Any]:
+    case = extracted.case
+    case_id = case["id"]
+    if not data.endswith(b"\n") or len(data.splitlines()) != 1:
+        raise EvaluationError("ieee802154_output_shape", case_id)
+    document = strict_json(data, "ieee802154_output_json", case_id)
+    if (
+        not isinstance(document, dict)
+        or set(document)
+        != {
+            "schema",
+            "source",
+            "completeness",
+            "counts",
+            "frame_type_version_mix",
+            "address_forms",
+            "commands",
+            "fcs",
+            "limitations",
+        }
+        or document["schema"] != IEEE802154_PROJECTION_SCHEMA
+        or document["limitations"] != IEEE802154_LIMITATIONS
+        or contains_forbidden_ieee802154_key(document)
+    ):
+        raise EvaluationError("ieee802154_output_shape", case_id)
+    source = document["source"]
+    if not isinstance(source, dict) or set(source) != {
+        "artifact",
+        "extractor",
+        "normalized_records_sha256",
+    }:
+        raise EvaluationError("ieee802154_source", case_id)
+    artifact = source["artifact"]
+    extractor = source["extractor"]
+    if (
+        not isinstance(artifact, dict)
+        or set(artifact) != {"content_sha256", "size_bytes"}
+        or artifact["content_sha256"] != f"sha256:{case['member']['sha256']}"
+        or artifact["size_bytes"] != case["member"]["bytes"]
+        or not isinstance(extractor, dict)
+        or set(extractor)
+        != {
+            "adapter",
+            "adapter_version",
+            "tool",
+            "tool_version",
+            "configuration_sha256",
+            "field_registry",
+        }
+        or any(not isinstance(value, str) or not value for value in extractor.values())
+        or not is_sha256_digest(extractor["configuration_sha256"])
+        or not is_sha256_digest(source["normalized_records_sha256"])
+    ):
+        raise EvaluationError("ieee802154_source", case_id)
+    canonical = (
+        json.dumps(document, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        + b"\n"
+    )
+    if data != canonical:
+        raise EvaluationError("ieee802154_output_canonical", case_id)
+    return document
 
 
 def require_preserved_inputs(cases: list[ExtractedCase]) -> None:
@@ -670,6 +946,28 @@ def evaluate_packet_case(
     return passed, result
 
 
+def evaluate_ieee802154_case(
+    extracted: ExtractedCase, document: dict[str, Any]
+) -> tuple[bool, dict[str, Any]]:
+    case = extracted.case
+    case_id = case["id"]
+    observed = {key: document[key] for key in IEEE802154_ORACLE_KEYS}
+    passed = observed == case["expect"]
+    counts = document["counts"]
+    return passed, {
+        "case": case_id,
+        "input_bytes": len(extracted.capture_bytes),
+        "mode": case["mode"],
+        "result": "pass" if passed else "expectation_failure",
+        "status": "projected",
+        "scope": document["completeness"]["scope"],
+        "normalized_packets": counts["packet_envelopes"],
+        "packet_quarantines": counts["packet_quarantines"],
+        "ieee802154_frames": counts["ieee802154_frames"],
+        "identity_inference": "not_performed",
+    }
+
+
 def evaluate(
     manifest: Path,
     archive_dir: Path,
@@ -729,14 +1027,46 @@ def evaluate(
             if first != second:
                 raise EvaluationError("batch_output_determinism")
             fingerprints_by_case = dict(zip(packet_case_ids, first))
+        ieee802154_cases = [
+            extracted
+            for extracted in extracted_cases
+            if extracted.case["mode"] == "netbraid-ieee802154"
+        ]
+        ieee802154_by_case = {}
+        if ieee802154_cases:
+            with ThreadPoolExecutor(
+                max_workers=min(case_workers, len(ieee802154_cases) * 2)
+            ) as executor:
+                executions = [
+                    (
+                        extracted,
+                        executor.submit(run_ieee802154_driver, binary, extracted),
+                        executor.submit(run_ieee802154_driver, binary, extracted),
+                    )
+                    for extracted in ieee802154_cases
+                ]
+                for extracted, first_execution, second_execution in executions:
+                    first = first_execution.result()
+                    second = second_execution.result()
+                    if first != second:
+                        raise EvaluationError(
+                            "ieee802154_output_determinism", extracted.case["id"]
+                        )
+                    ieee802154_by_case[extracted.case["id"]] = parse_ieee802154_output(
+                        first, extracted
+                    )
         require_preserved_inputs(extracted_cases)
 
         for extracted in extracted_cases:
             if extracted.case["mode"] == "structured-json":
                 passed, result = evaluate_structured_case(extracted)
-            else:
+            elif extracted.case["mode"] == "netbraid-wlan":
                 passed, result = evaluate_packet_case(
                     extracted, fingerprints_by_case[extracted.case["id"]]
+                )
+            else:
+                passed, result = evaluate_ieee802154_case(
+                    extracted, ieee802154_by_case[extracted.case["id"]]
                 )
             failures += not passed
             results.append(result)

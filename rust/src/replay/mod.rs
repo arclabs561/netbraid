@@ -8,6 +8,7 @@ use std::path::Path;
 mod conversation;
 mod fingerprint;
 mod flow;
+mod ieee802154;
 mod same_event;
 mod saved_capture;
 mod scenario;
@@ -37,6 +38,14 @@ pub use flow::{
     project_saved_capture_flows_v0, PacketFlowEndBasisV0, PacketFlowExclusionReasonV0,
     PacketFlowOriginBasisV0, PacketFlowProjectionError, PacketFlowReportV0,
     PacketFlowSessionizationV0, PacketFlowV0,
+};
+pub use ieee802154::{
+    project_saved_pcap_ieee802154_v0, SavedPcapIeee802154AddressCoverageV0,
+    SavedPcapIeee802154AddressFormsV0, SavedPcapIeee802154CommandCoverageV0,
+    SavedPcapIeee802154CommandMixV0, SavedPcapIeee802154CompletenessV0,
+    SavedPcapIeee802154CountsV0, SavedPcapIeee802154FcsCoverageV0, SavedPcapIeee802154FrameMixV0,
+    SavedPcapIeee802154ProjectionV0, SavedPcapIeee802154SourceV0,
+    SAVED_PCAP_IEEE802154_PROJECTION_SCHEMA_V0,
 };
 pub use same_event::{
     assess_packet_same_event_v0, PacketSameEventBasisV0, PacketSameEventDifferenceV0,

@@ -16,10 +16,10 @@ use netbraid::evidence::{
 };
 use netbraid::replay::{
     project_saved_capture_flows_v0, project_saved_pcap_fingerprint_v0,
-    project_saved_pcap_triage_v1, project_saved_pcap_wlan_fingerprint_v0,
-    reduce_capture_conversations, CaptureConversationV0, ConversationDirectionV0,
-    PacketFlowSessionizationV0, SavedCaptureRecordStreamV0, SavedPcapClaimScopeV0,
-    SavedPcapCompletenessV0, SavedPcapConversationTriageV0,
+    project_saved_pcap_ieee802154_v0, project_saved_pcap_triage_v1,
+    project_saved_pcap_wlan_fingerprint_v0, reduce_capture_conversations, CaptureConversationV0,
+    ConversationDirectionV0, PacketFlowSessionizationV0, SavedCaptureRecordStreamV0,
+    SavedPcapClaimScopeV0, SavedPcapCompletenessV0, SavedPcapConversationTriageV0,
     SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
     SavedPcapTopConversationV0, SavedPcapTrailingConversationTriageV1,
     SavedPcapTrailingIntervalAnchorV1, SavedPcapTrailingTopConversationV1,
@@ -128,7 +128,7 @@ pub struct PcapArgs {
     pub active_action: Vec<String>,
 
     /// Emit one finite, provenance-complete saved-PCAP triage v1 document as JSON.
-    #[arg(long, conflicts_with_all = ["jsonl", "records_jsonl", "fingerprint_json", "wlan_fingerprint_json"])]
+    #[arg(long, conflicts_with_all = ["jsonl", "records_jsonl", "fingerprint_json", "wlan_fingerprint_json", "ieee802154_json"])]
     pub json: bool,
 
     /// Emit one packet-shape fingerprint candidate as JSON.
@@ -139,7 +139,8 @@ pub struct PcapArgs {
             "jsonl",
             "records_jsonl",
             "tail_seconds",
-            "wlan_fingerprint_json"
+            "wlan_fingerprint_json",
+            "ieee802154_json"
         ]
     )]
     pub fingerprint_json: bool,
@@ -150,12 +151,27 @@ pub struct PcapArgs {
         conflicts_with_all = [
             "json",
             "fingerprint_json",
+            "ieee802154_json",
             "jsonl",
             "records_jsonl",
             "tail_seconds"
         ]
     )]
     pub wlan_fingerprint_json: bool,
+
+    /// Emit one identifier-free IEEE 802.15.4 saved-capture projection as JSON.
+    #[arg(
+        long,
+        conflicts_with_all = [
+            "json",
+            "fingerprint_json",
+            "wlan_fingerprint_json",
+            "jsonl",
+            "records_jsonl",
+            "tail_seconds"
+        ]
+    )]
+    pub ieee802154_json: bool,
 
     /// Emit versioned manifest, run receipt, packet, and quarantine records as JSONL.
     #[arg(long, conflicts_with_all = ["json", "records_jsonl"])]
@@ -172,6 +188,7 @@ pub struct PcapArgs {
             "json",
             "fingerprint_json",
             "wlan_fingerprint_json",
+            "ieee802154_json",
             "jsonl",
             "records_jsonl",
             "tail_seconds"
@@ -257,18 +274,22 @@ pub fn run(args: &PcapArgs) -> Result<()> {
     }
 
     match (
+        args.ieee802154_json,
         args.wlan_fingerprint_json,
         args.fingerprint_json,
         args.json,
         args.jsonl,
         args.records_jsonl,
     ) {
-        (true, false, false, false, false) => print_wlan_fingerprint_json(&report),
-        (false, true, false, false, false) => print_fingerprint_json(&report),
-        (false, false, true, false, false) => print_triage_json(&report, tail_window_ns),
-        (false, false, false, true, false) => print_jsonl(&report, true),
-        (false, false, false, false, true) => print_jsonl(&report, false),
-        (false, false, false, false, false) => print_summary(&args.input, &report, tail_window_ns),
+        (true, false, false, false, false, false) => print_ieee802154_json(&report),
+        (false, true, false, false, false, false) => print_wlan_fingerprint_json(&report),
+        (false, false, true, false, false, false) => print_fingerprint_json(&report),
+        (false, false, false, true, false, false) => print_triage_json(&report, tail_window_ns),
+        (false, false, false, false, true, false) => print_jsonl(&report, true),
+        (false, false, false, false, false, true) => print_jsonl(&report, false),
+        (false, false, false, false, false, false) => {
+            print_summary(&args.input, &report, tail_window_ns)
+        }
         _ => unreachable!("clap rejects conflicting output modes"),
     }
 }
@@ -342,6 +363,18 @@ fn print_wlan_fingerprint_json(report: &NormalizationReport) -> Result<()> {
     let mut output = BufWriter::new(io::stdout().lock());
     serde_json::to_writer(&mut output, &candidate)
         .context("writing saved-PCAP WLAN fingerprint candidate")?;
+    output.write_all(b"\n")?;
+    output.flush()?;
+    Ok(())
+}
+
+fn print_ieee802154_json(report: &NormalizationReport) -> Result<()> {
+    let records = records_for_report(report);
+    let projection = project_saved_pcap_ieee802154_v0(&records)
+        .context("projecting identifier-free saved-PCAP IEEE 802.15.4 summary")?;
+    let mut output = BufWriter::new(io::stdout().lock());
+    serde_json::to_writer(&mut output, &projection)
+        .context("writing saved-PCAP IEEE 802.15.4 projection")?;
     output.write_all(b"\n")?;
     output.flush()?;
     Ok(())

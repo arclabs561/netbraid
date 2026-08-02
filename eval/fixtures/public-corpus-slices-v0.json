@@ -100,9 +100,34 @@
     {
       "archive": "sdr4iot-ble-zigbee",
       "expect": {
-        "reason": "no_ieee80211_frame_evidence",
-        "scope": "complete_capture",
-        "status": "unsupported"
+        "address_forms": {
+          "destination": {"absent_frames": 20, "extended_frames": 0, "short_frames": 30},
+          "source": {"absent_frames": 20, "extended_frames": 0, "short_frames": 30}
+        },
+        "commands": {
+          "command_mix": [{"command": 4, "frames": 20}],
+          "present_frames": 20,
+          "unavailable_frames": 30
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": false,
+          "scope": "complete_capture",
+          "state": "complete"
+        },
+        "counts": {
+          "ieee802154_frames": 50,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 50,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 50
+        },
+        "fcs": {"invalid_frames": 0, "unavailable_frames": 0, "valid_frames": 50},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 0, "frames": 10},
+          {"frame_type": 2, "frame_version": 0, "frames": 20},
+          {"frame_type": 3, "frame_version": 0, "frames": 20}
+        ]
       },
       "id": "sdr4iot-zigbee-scene-38-server-9",
       "member": {
@@ -110,15 +135,41 @@
         "name": "zigbee/scenario6/scene38/20201124_1215/S6_s38_2020-11-24_12-15_server9.cap",
         "sha256": "ce34428c893fcaa08acb9f356b8c744c936cefc85c0cb96b2ce3661caf0bfb91"
       },
-      "mode": "netbraid-wlan",
+      "mode": "netbraid-ieee802154",
       "packet_limit": 1000
     },
     {
       "archive": "zbds2023",
       "expect": {
-        "reason": "partial_normalization_without_ieee80211_frame_evidence",
-        "scope": "normalized_packet_subset",
-        "status": "insufficient"
+        "address_forms": {
+          "destination": {"absent_frames": 233, "extended_frames": 0, "short_frames": 767},
+          "source": {"absent_frames": 233, "extended_frames": 0, "short_frames": 767}
+        },
+        "commands": {
+          "command_mix": [{"command": 4, "frames": 9}],
+          "present_frames": 9,
+          "unavailable_frames": 991
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": true,
+          "scope": "normalized_packet_subset",
+          "state": "partial"
+        },
+        "counts": {
+          "ieee802154_frames": 1000,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 1000,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 1000
+        },
+        "fcs": {"invalid_frames": 999, "unavailable_frames": 1, "valid_frames": 0},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 0, "frames": 758},
+          {"frame_type": 1, "frame_version": 3, "frames": 1},
+          {"frame_type": 2, "frame_version": 0, "frames": 232},
+          {"frame_type": 3, "frame_version": 0, "frames": 9}
+        ]
       },
       "id": "zbds-2022-07-01-hour-rpi1",
       "member": {
@@ -126,15 +177,40 @@
         "name": "rpi1/rpi1-2022-07-01-19-59-58.pcap",
         "sha256": "fee3bc8ee85aa6685cc794abdb3dc092bed07a0d286af354cc6ed9092d669c9a"
       },
-      "mode": "netbraid-wlan",
+      "mode": "netbraid-ieee802154",
       "packet_limit": 1000
     },
     {
       "archive": "zbds2023",
       "expect": {
-        "reason": "partial_normalization_without_ieee80211_frame_evidence",
-        "scope": "normalized_packet_subset",
-        "status": "insufficient"
+        "address_forms": {
+          "destination": {"absent_frames": 226, "extended_frames": 0, "short_frames": 774},
+          "source": {"absent_frames": 226, "extended_frames": 0, "short_frames": 774}
+        },
+        "commands": {
+          "command_mix": [{"command": 4, "frames": 10}],
+          "present_frames": 10,
+          "unavailable_frames": 990
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": true,
+          "scope": "normalized_packet_subset",
+          "state": "partial"
+        },
+        "counts": {
+          "ieee802154_frames": 1000,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 1000,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 1000
+        },
+        "fcs": {"invalid_frames": 1000, "unavailable_frames": 0, "valid_frames": 0},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 0, "frames": 764},
+          {"frame_type": 2, "frame_version": 0, "frames": 226},
+          {"frame_type": 3, "frame_version": 0, "frames": 10}
+        ]
       },
       "id": "zbds-2022-07-01-hour-rpi2",
       "member": {
@@ -142,15 +218,40 @@
         "name": "rpi2/rpi2-2022-07-01-20-00-00.pcap",
         "sha256": "cc77bbc4e12ed783b8c201f48312eaff1c2b4850c560ab7afff25426e2cde7b8"
       },
-      "mode": "netbraid-wlan",
+      "mode": "netbraid-ieee802154",
       "packet_limit": 1000
     },
     {
       "archive": "zbds2023",
       "expect": {
-        "reason": "partial_normalization_without_ieee80211_frame_evidence",
-        "scope": "normalized_packet_subset",
-        "status": "insufficient"
+        "address_forms": {
+          "destination": {"absent_frames": 228, "extended_frames": 1, "short_frames": 771},
+          "source": {"absent_frames": 228, "extended_frames": 0, "short_frames": 772}
+        },
+        "commands": {
+          "command_mix": [{"command": 4, "frames": 9}],
+          "present_frames": 9,
+          "unavailable_frames": 991
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": true,
+          "scope": "normalized_packet_subset",
+          "state": "partial"
+        },
+        "counts": {
+          "ieee802154_frames": 1000,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 1000,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 1000
+        },
+        "fcs": {"invalid_frames": 1000, "unavailable_frames": 0, "valid_frames": 0},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 0, "frames": 763},
+          {"frame_type": 2, "frame_version": 0, "frames": 228},
+          {"frame_type": 3, "frame_version": 0, "frames": 9}
+        ]
       },
       "id": "zbds-2022-07-01-hour-rpi3",
       "member": {
@@ -158,15 +259,48 @@
         "name": "rpi3/rpi3-2022-07-01-20-00-03.pcap",
         "sha256": "7243b3b3cad81092c9e99bfe528a5e6b51d09439fd3c54ea648ee56a1be553e6"
       },
-      "mode": "netbraid-wlan",
+      "mode": "netbraid-ieee802154",
       "packet_limit": 1000
     },
     {
       "archive": "zbds2023",
       "expect": {
-        "reason": "partial_normalization_without_ieee80211_frame_evidence",
-        "scope": "normalized_packet_subset",
-        "status": "insufficient"
+        "address_forms": {
+          "destination": {"absent_frames": 217, "extended_frames": 0, "short_frames": 783},
+          "source": {"absent_frames": 218, "extended_frames": 1, "short_frames": 781}
+        },
+        "commands": {
+          "command_mix": [
+            {"command": 4, "frames": 2},
+            {"command": 24, "frames": 1}
+          ],
+          "present_frames": 3,
+          "unavailable_frames": 997
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": true,
+          "scope": "normalized_packet_subset",
+          "state": "partial"
+        },
+        "counts": {
+          "ieee802154_frames": 1000,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 1000,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 1000
+        },
+        "fcs": {"invalid_frames": 996, "unavailable_frames": 4, "valid_frames": 0},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 0, "frames": 776},
+          {"frame_type": 1, "frame_version": 2, "frames": 3},
+          {"frame_type": 2, "frame_version": 0, "frames": 214},
+          {"frame_type": 2, "frame_version": 3, "frames": 1},
+          {"frame_type": 3, "frame_version": 0, "frames": 3},
+          {"frame_type": 4, "frame_version": 0, "frames": 1},
+          {"frame_type": 6, "frame_version": 0, "frames": 1},
+          {"frame_type": 7, "frame_version": 0, "frames": 1}
+        ]
       },
       "id": "zbds-2022-07-01-hour-rpi4",
       "member": {
@@ -174,7 +308,7 @@
         "name": "rpi4/rpi4-2022-07-01-20-00-05.pcap",
         "sha256": "997e4beffb928156430cf44f04bd5b9fddce10dc5be6386bbe9da8393568ad0f"
       },
-      "mode": "netbraid-wlan",
+      "mode": "netbraid-ieee802154",
       "packet_limit": 1000
     },
     {
