@@ -134,6 +134,7 @@ just hypothesis-frame-check
 just hypothesis-metrics-check
 just relation-split-audit-check
 just osu-lora-profile
+just osu-lora-oracles-check
 just wlan-rff-layout-profile
 ```
 
@@ -156,6 +157,10 @@ vary days, receiver hardware, location, distance, and radio configuration.
 Downloaded metadata, IQ payloads, local receipts, and derived reports remain
 ignored. The bounded metadata profiler retains only aggregate counts and
 extent checks; label values, source URLs, and paths are not written to reports.
+The oracle compiler hashes publisher labels into domain-separated local group
+IDs and fences source/device continuity by setup family. It groups IQ and FFT
+representations only when their path grammar and metadata agree, and leaves
+split-role assignment to a later explicit campaign builder.
 
 Additional public corpora may be admitted only when they provide explicit
 physical-device, variant, acquisition-domain, or attack provenance. Dataset
@@ -293,6 +298,11 @@ The relation-split checkpoint passed thirteen hermetic tests over all eleven
 group axes and all six role pairs. Reports retain only opaque partition IDs and
 aggregate group-intersection counts; they never emit group values or raw corpus
 labels. This validates the manifest/audit boundary, not any corpus split.
+
+The OSU oracle-compiler contract passed eleven hermetic tests plus the nine
+metadata-profiler tests. A live full-tree manifest was not produced while
+downloads were mutating the tree; the compiler failed closed on that changing
+inventory as required.
 
 ## Conclusion
 

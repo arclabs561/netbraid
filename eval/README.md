@@ -39,6 +39,12 @@ aggregate report can establish cross-environment token reuse, but deliberately
 does not promote publisher-undocumented tokens to physical-device or
 physical-source identity.
 
+`compile-osu-lora-oracles.py` converts a strict OSU LoRa SigMF tree into an
+ignored observation inventory with opaque group identifiers. Physical-device
+and physical-source groups are fenced by publisher setup family; the compiler
+does not assume cross-scenario identity continuity, assign train/test roles, or
+open IQ/FFT payload streams.
+
 Manifest schema v1 is the frozen 24-run compatibility profile. Schema v2 adds
 an explicit policy for opaque regime tokens, per-regime split sizes, candidate
 count, truth position, and an engineering acceptance threshold. V2 also

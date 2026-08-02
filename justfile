@@ -171,6 +171,12 @@ osu-lora-profile-check:
 osu-lora-profile:
     {{ python }} eval/profile-osu-lora-sigmf.py
 
+osu-lora-oracles-check:
+    {{ python }} eval/test-compile-osu-lora-oracles.py
+
+osu-lora-oracles:
+    {{ python }} eval/compile-osu-lora-oracles.py
+
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000
 
