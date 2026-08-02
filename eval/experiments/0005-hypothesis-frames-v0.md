@@ -215,6 +215,21 @@ same physical-source relation changes when symmetric inputs are swapped.
 - [RFC 9711](https://www.rfc-editor.org/rfc/rfc9711.html) makes the mapping from
   evidence claims to attestation-result claims explicitly verifier-policy
   dependent.
+- [OASIS STIX 2.1](https://docs.oasis-open.org/cti/stix/v2.1/stix-v2.1.html)
+  distinguishes raw Observed Data from the intelligence assertion represented
+  by a Sighting; observation and threat attribution are not one object.
+- [RFC 4949](https://www.rfc-editor.org/rfc/rfc4949.html) distinguishes
+  deliberate tampering from human, hardware, and software errors that also
+  alter data or behavior.
+- [SPDX 2.3 relationships](https://spdx.github.io/spdx-spec/v2.3/relationships-between-SPDX-elements/)
+  distinguish directional ancestor and descendant relations from a variant
+  whose ordering is unknown.
+- [Irfan et al.](https://arxiv.org/abs/2408.09179) demonstrate RF fingerprint
+  mutation after SDR power cycles and FPGA reloads, contradicting an assumption
+  that a learned fingerprint is permanently stable.
+- [Tyler et al.](https://arxiv.org/abs/2308.03579) demonstrate replay and
+  learned mimicry attacks against specific-emitter identification, so RF
+  similarity cannot be treated as unforgeable identity evidence.
 
 ## Results
 
