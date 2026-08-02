@@ -276,11 +276,17 @@ def extract_member(
     return destination.read_bytes()
 
 
-def batch_requests_jsonl(cases: list[ExtractedCase]) -> bytes:
+def batch_requests_jsonl(
+    cases: list[ExtractedCase], request_case_ids: list[str] | None = None
+) -> bytes:
+    if request_case_ids is None:
+        request_case_ids = [extracted.case["id"] for extracted in cases]
+    if len(request_case_ids) != len(cases):
+        raise EvaluationError("batch_request_identity")
     output = bytearray()
-    for extracted in cases:
+    for extracted, request_case_id in zip(cases, request_case_ids):
         request = {
-            "case_id": extracted.case["id"],
+            "case_id": request_case_id,
             "path": os.fspath(extracted.capture_path),
             "packet_limit": extracted.case["packet_limit"],
         }
@@ -708,14 +714,17 @@ def evaluate(
         ]
         fingerprints_by_case = {}
         if packet_cases:
-            request_bytes = batch_requests_jsonl(packet_cases)
-            first_bytes = run_batch_driver(binary, request_bytes)
-            second_bytes = run_batch_driver(binary, request_bytes)
-            if first_bytes != second_bytes:
-                raise EvaluationError("batch_output_determinism")
             packet_case_ids = [extracted.case["id"] for extracted in packet_cases]
-            first = parse_batch_output(first_bytes, packet_case_ids)
-            second = parse_batch_output(second_bytes, packet_case_ids)
+            request_case_ids = [
+                f"first-{index}" for index in range(len(packet_cases))
+            ] + [f"second-{index}" for index in range(len(packet_cases))]
+            combined_cases = packet_cases + packet_cases
+            combined_bytes = run_batch_driver(
+                binary, batch_requests_jsonl(combined_cases, request_case_ids)
+            )
+            combined = parse_batch_output(combined_bytes, request_case_ids)
+            first = combined[: len(packet_cases)]
+            second = combined[len(packet_cases) :]
             if first != second:
                 raise EvaluationError("batch_output_determinism")
             fingerprints_by_case = dict(zip(packet_case_ids, first))
