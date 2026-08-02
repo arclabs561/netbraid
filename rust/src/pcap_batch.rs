@@ -3,12 +3,14 @@ use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
 
 use anyhow::Result;
-use netbraid_adapter_tshark::{
-    normalize_saved_capture_requests, NormalizationReport, NormalizeOptions, NormalizeRequest,
-};
-use netbraid_replay::{
-    project_saved_pcap_wlan_fingerprint_v0, SavedCaptureRecordStreamV0,
-    SavedPcapWlanFingerprintCandidateV0,
+use netbraid::{
+    adapters::tshark::{
+        normalize_saved_capture_requests, NormalizationReport, NormalizeOptions, NormalizeRequest,
+    },
+    replay::{
+        project_saved_pcap_wlan_fingerprint_v0, SavedCaptureRecordStreamV0,
+        SavedPcapWlanFingerprintCandidateV0,
+    },
 };
 use serde::{Deserialize, Serialize};
 

@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"context"
 	"net"
 	"testing"
 )
@@ -32,9 +31,9 @@ func TestValidateChannel(t *testing.T) {
 
 func TestValidateInterfaceName(t *testing.T) {
 	tests := []struct {
-		name string
+		name  string
 		iface string
-		want bool
+		want  bool
 	}{
 		{"valid interface", "wlan0", true},
 		{"valid with dash", "wlan-0", true},
@@ -63,15 +62,15 @@ func TestStaticHopper(t *testing.T) {
 func TestUniformHopper(t *testing.T) {
 	t.Skip("Skipping test that requires 'iw' command - run integration tests instead")
 	hopper := NewUniformHopper()
-	ctx := context.Background()
-	
+	ctx := t.Context()
+
 	iface := Interface{
 		Interface:   net.Interface{Name: "test"},
 		Channels:    []int{1, 6, 11},
 		HopperIndex: 0,
 		HopperTotal: 1,
 	}
-	
+
 	// Test multiple hops to ensure it uses available channels
 	seenChannels := make(map[int]bool)
 	for i := 0; i < 10; i++ {
@@ -83,7 +82,7 @@ func TestUniformHopper(t *testing.T) {
 			t.Fatal("Hop() returned nil action")
 		}
 		seenChannels[action.Channel] = true
-		
+
 		// Verify channel is in the available list
 		found := false
 		for _, ch := range iface.Channels {
@@ -96,7 +95,7 @@ func TestUniformHopper(t *testing.T) {
 			t.Errorf("Hop() channel %d not in available channels %v", action.Channel, iface.Channels)
 		}
 	}
-	
+
 	// With 10 hops on 3 channels, we should see at least one channel
 	if len(seenChannels) == 0 {
 		t.Error("Hop() did not use any channels")
@@ -106,15 +105,15 @@ func TestUniformHopper(t *testing.T) {
 func TestUniformHopper_NoChannels(t *testing.T) {
 	t.Skip("Skipping test that requires 'iw' command - run integration tests instead")
 	hopper := NewUniformHopper()
-	ctx := context.Background()
-	
+	ctx := t.Context()
+
 	iface := Interface{
 		Interface:   net.Interface{Name: "test"},
 		Channels:    []int{}, // No channels specified
 		HopperIndex: 0,
 		HopperTotal: 1,
 	}
-	
+
 	// Should fall back to default channels
 	action, err := hopper.Hop(ctx, iface)
 	if err != nil {
@@ -135,11 +134,11 @@ func TestHopObservation(t *testing.T) {
 	if obs.ChannelPackets == nil {
 		t.Error("NewHopObservation() should initialize ChannelPackets")
 	}
-	
+
 	obs.Packets = 5
 	obs.ChannelPackets[6] = 3
 	obs.ChannelPackets[11] = 2
-	
+
 	if obs.IsZero() {
 		t.Error("HopObservation with data should not be zero")
 	}
@@ -149,11 +148,10 @@ func TestHopObservation(t *testing.T) {
 	if obs.ChannelPackets[6] != 3 {
 		t.Errorf("ChannelPackets[6] = %d, want 3", obs.ChannelPackets[6])
 	}
-	
+
 	// Test zero observation
 	zeroObs := HopObservation{}
 	if !zeroObs.IsZero() {
 		t.Error("Zero HopObservation should be IsZero()")
 	}
 }
-

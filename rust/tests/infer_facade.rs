@@ -6,7 +6,7 @@ use netbraid::infer::{
 
 fn packet() -> PacketEnvelopeV0 {
     serde_json::from_str(include_str!(
-        "../crates/netbraid-replay/tests/fixtures/evidence-v0/packet_envelope_v0.json"
+        "fixtures/replay/evidence-v0/packet_envelope_v0.json"
     ))
     .expect("fixture is a valid packet envelope")
 }

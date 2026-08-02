@@ -1,7 +1,7 @@
 use std::process::Command;
 
 #[test]
-fn version_flag_reports_workspace_package_version() {
+fn version_flag_reports_package_version() {
     let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
         .arg("--version")
         .output()

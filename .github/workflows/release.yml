@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: Publish an already-owned current main version before tagging
+        description: Publish the already-owned current main package before tagging
         required: true
         default: check-only
         type: choice
         options:
           - check-only
-          - publish-crates
+          - publish-crate
   push:
     tags:
       - "netbraid-v*"
@@ -38,7 +38,7 @@ jobs:
         run: |
           rustup set profile minimal
           rustup toolchain install 1.88 --no-self-update
-      - name: Validate workspace and release ref
+      - name: Validate package and release ref
         id: contract
         env:
           RELEASE_CONFIRM: ${{ inputs.confirm }}
@@ -46,33 +46,20 @@ jobs:
         run: |
           set -euo pipefail
           metadata="$(cargo +1.88 metadata --manifest-path rust/Cargo.toml --no-deps --format-version 1)"
-          version="$(jq -er '([.packages[].version] | unique) as $versions | if ($versions | length) == 1 then $versions[0] else error("workspace versions differ") end' <<<"$metadata")"
-          jq -e 'all(.packages[];
-            .publish == ["crates-io"] and
-            .rust_version == "1.88" and
-            (
-              (.name == "netbraid-replay" and
-                .license == "(MIT OR Unlicense) AND BSD-3-Clause") or
-              (.name != "netbraid-replay" and
-                .license == "MIT OR Unlicense")
-            ) and
-            .repository == "https://github.com/arclabs561/netbraid"
-          )' <<<"$metadata" >/dev/null
-          jq -e --arg version "$version" '
-            ["netbraid", "netbraid-adapter-tshark", "netbraid-evidence", "netbraid-replay"] as $internal |
-            ("^" + $version) as $requirement |
-            ([.packages[].name] | sort) == ($internal | sort) and
-            all(
-              .packages[];
-              all(
-                .dependencies[]
-                | select(.name as $name | $internal | index($name));
-                .req == $requirement
-              )
-            )
+          version="$(jq -er '
+            if (.packages | length) == 1 and .packages[0].name == "netbraid"
+            then .packages[0].version
+            else error("expected exactly one netbraid package")
+            end
+          ' <<<"$metadata")"
+          jq -e '
+            .packages[0].publish == ["crates-io"] and
+            .packages[0].rust_version == "1.88" and
+            .packages[0].license == "(MIT OR Unlicense) AND BSD-3-Clause" and
+            .packages[0].repository == "https://github.com/arclabs561/netbraid"
           ' <<<"$metadata" >/dev/null
           release_tag="netbraid-v${version}"
-          if [[ "$RELEASE_REF" == refs/tags/* || "$RELEASE_CONFIRM" == publish-crates ]]; then
+          if [[ "$RELEASE_REF" == refs/tags/* || "$RELEASE_CONFIRM" == publish-crate ]]; then
             if tagged_commit="$(git rev-parse --verify --quiet "${release_tag}^{commit}")"; then
               if [[ "$tagged_commit" != "$GITHUB_SHA" ]]; then
                 printf 'version %s is already owned by %s at %s; bump before release\n' \
@@ -84,7 +71,7 @@ jobs:
           if [[ "$RELEASE_REF" == refs/tags/* ]]; then
             expected_ref="refs/tags/${release_tag}"
             if [[ "$RELEASE_REF" != "$expected_ref" ]]; then
-              printf 'release ref %s does not match workspace version %s\n' "$RELEASE_REF" "$version" >&2
+              printf 'release ref %s does not match package version %s\n' "$RELEASE_REF" "$version" >&2
               exit 1
             fi
             if ! git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main; then
@@ -97,24 +84,17 @@ jobs:
         run: |
           cargo +1.88 install cargo-audit --locked --version 0.22.2
           cargo audit --file rust/Cargo.lock -D warnings
-      - name: Verify crates.io package inventories and leaf package
+      - name: Verify crates.io package inventory
         run: |
-          for package in netbraid-evidence netbraid-replay netbraid-adapter-tshark netbraid; do
-            cargo +1.88 package --locked --list --manifest-path rust/Cargo.toml -p "$package" >/dev/null
-          done
-          cargo +1.88 package --locked --list --manifest-path rust/Cargo.toml -p netbraid-replay >"$RUNNER_TEMP/netbraid-replay-package.txt"
-          cargo +1.88 package --locked --list --manifest-path rust/Cargo.toml -p netbraid-adapter-tshark >"$RUNNER_TEMP/netbraid-adapter-tshark-package.txt"
           cargo +1.88 package --locked --list --manifest-path rust/Cargo.toml -p netbraid >"$RUNNER_TEMP/netbraid-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          if grep -Eq '^tests/(curated_corpus\.rs|fixtures/(third-party-licenses|upstream)/)' "$RUNNER_TEMP/netbraid-adapter-tshark-package.txt"; then
-            echo "adapter package includes repository-only corpus material" >&2
+          grep -Fqx 'tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt' "$RUNNER_TEMP/netbraid-package.txt"
+          if grep -Eq '^tests/(adapter_curated_corpus\.rs$|fixtures/adapter/(third-party-licenses|upstream)/|fixtures/[^/]+\.hex$|pcap_cli\.rs$|scenario_cli\.rs$)' "$RUNNER_TEMP/netbraid-package.txt"; then
+            echo "package includes repository-only corpus material" >&2
             exit 1
           fi
-          if grep -Eq '^tests/(fixtures/|pcap_cli\.rs$|scenario_cli\.rs$)' "$RUNNER_TEMP/netbraid-package.txt"; then
-            echo "root package includes repository-only corpus material" >&2
-            exit 1
-          fi
-          cargo +1.88 package --locked --manifest-path rust/Cargo.toml -p netbraid-evidence
+          cargo +1.88 package --locked --manifest-path rust/Cargo.toml -p netbraid
+          cargo +1.88 test --locked --all-features \
+            --manifest-path "rust/target/package/netbraid-${{ steps.contract.outputs.version }}/Cargo.toml"
 
   build:
     name: Build ${{ matrix.target }}
@@ -161,7 +141,7 @@ jobs:
           mkdir -p "dist/${package}/schema-fixtures"
           cp rust/target/release/netbraid "dist/${package}/netbraid"
           cp README.md LICENSE-MIT UNLICENSE "dist/${package}/"
-          cp -R rust/crates/netbraid-evidence/tests/fixtures/v0 \
+          cp -R rust/tests/fixtures/evidence/v0 \
             "dist/${package}/schema-fixtures/"
           tar -czf "dist/${package}.tar.gz" -C dist "$package"
           mkdir -p verify
@@ -204,9 +184,9 @@ jobs:
           retention-days: 14
 
   crates:
-    name: Publish crates.io packages
+    name: Publish crates.io package
     if: |
-      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'publish-crates') ||
+      (github.event_name == 'workflow_dispatch' && inputs.confirm == 'publish-crate') ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/netbraid-v'))
     needs:
       - gate
@@ -257,42 +237,36 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
-          for package in \
-            netbraid-evidence \
-            netbraid-replay \
-            netbraid-adapter-tshark \
-            netbraid
-          do
-            if ! http_code="$(
-              curl --silent --location --connect-timeout 10 --max-time 30 \
-                --output /dev/null --write-out '%{http_code}' \
-                --user-agent 'netbraid-release-workflow (https://github.com/arclabs561/netbraid)' \
-                "https://crates.io/api/v1/crates/$package"
-            )"; then
-              printf 'crates.io ownership lookup for %s failed before an HTTP response\n' \
+          package=netbraid
+          if ! http_code="$(
+            curl --silent --location --connect-timeout 10 --max-time 30 \
+              --output /dev/null --write-out '%{http_code}' \
+              --user-agent 'netbraid-release-workflow (https://github.com/arclabs561/netbraid)' \
+              "https://crates.io/api/v1/crates/$package"
+          )"; then
+            printf 'crates.io ownership lookup for %s failed before an HTTP response\n' \
+              "$package" >&2
+            exit 1
+          fi
+          case "$http_code" in
+            200)
+              ;;
+            404)
+              printf '%s has no crates.io owner; Trusted Publishing cannot bootstrap it\n' \
                 "$package" >&2
+              printf 'publish the package from a clean current-main checkout with one scoped token, configure release.yml as its trusted publisher, revoke the token, then rerun\n' >&2
               exit 1
-            fi
-            case "$http_code" in
-              200)
-                ;;
-              404)
-                printf '%s has no crates.io owner; Trusted Publishing cannot bootstrap it\n' \
-                  "$package" >&2
-                printf 'publish all four packages from a clean current-main checkout with one scoped token, configure release.yml as their trusted publisher, revoke the token, then rerun\n' >&2
-                exit 1
-                ;;
-              *)
-                printf 'crates.io ownership lookup for %s returned HTTP %s\n' \
-                  "$package" "$http_code" >&2
-                exit 1
-                ;;
-            esac
-          done
+              ;;
+            *)
+              printf 'crates.io ownership lookup for %s returned HTTP %s\n' \
+                "$package" "$http_code" >&2
+              exit 1
+              ;;
+          esac
       - uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
         if: github.event_name == 'workflow_dispatch'
         id: auth
-      - name: Publish packages in dependency order
+      - name: Publish package
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
           RELEASE_EVENT: ${{ github.event_name }}
@@ -335,27 +309,21 @@ jobs:
               "$package" "$RELEASE_VERSION" >&2
             return 1
           }
-          for package in \
-            netbraid-evidence \
-            netbraid-replay \
-            netbraid-adapter-tshark \
-            netbraid
-          do
-            if registry_version_matches_release "$package"; then
-              printf '%s %s from this release commit is already present on crates.io\n' \
-                "$package" "$RELEASE_VERSION"
-              continue
-            fi
-            if [[ "$RELEASE_EVENT" != workflow_dispatch ]]; then
-              printf '%s %s is absent or does not match release commit %s\n' \
-                "$package" "$RELEASE_VERSION" "$GITHUB_SHA" >&2
-              printf 'publish with the confirmed manual workflow before pushing the tag\n' >&2
-              exit 1
-            fi
-            cargo +1.88 publish --locked --dry-run --manifest-path rust/Cargo.toml -p "$package"
-            cargo +1.88 publish --locked --manifest-path rust/Cargo.toml -p "$package"
-            wait_for_registry_version "$package"
-          done
+          package=netbraid
+          if registry_version_matches_release "$package"; then
+            printf '%s %s from this release commit is already present on crates.io\n' \
+              "$package" "$RELEASE_VERSION"
+            exit 0
+          fi
+          if [[ "$RELEASE_EVENT" != workflow_dispatch ]]; then
+            printf '%s %s is absent or does not match release commit %s\n' \
+              "$package" "$RELEASE_VERSION" "$GITHUB_SHA" >&2
+            printf 'publish with the confirmed manual workflow before pushing the tag\n' >&2
+            exit 1
+          fi
+          cargo +1.88 publish --locked --dry-run --manifest-path rust/Cargo.toml -p "$package"
+          cargo +1.88 publish --locked --manifest-path rust/Cargo.toml -p "$package"
+          wait_for_registry_version "$package"
 
   publish:
     name: Publish GitHub release
@@ -386,7 +354,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$RELEASE_TAG" != "netbraid-v${RELEASE_VERSION}" ]]; then
-            printf 'release tag %s does not match workspace version %s\n' "$RELEASE_TAG" "$RELEASE_VERSION" >&2
+            printf 'release tag %s does not match package version %s\n' "$RELEASE_TAG" "$RELEASE_VERSION" >&2
             exit 1
           fi
           git fetch --force --no-tags origin \

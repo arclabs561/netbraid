@@ -31,9 +31,9 @@ Sources:
 - [Wireshark configuration files](https://www.wireshark.org/docs/wsug_html_chunked/ChAppFilesConfigurationSection.html)
 - [Wireshark Lua startup](https://www.wireshark.org/docs/wsdg_html_chunked/wsluarm.html)
 
-Netbraid already separates pure evidence records (`netbraid-evidence`) from
-deterministic file/replay mechanics (`netbraid-replay`). The process boundary has
-a different dependency and failure profile from either crate.
+Netbraid already separates pure evidence records (`netbraid::evidence`) from
+deterministic file/replay mechanics (`netbraid::replay`). The process boundary
+has a different dependency and failure profile from either module.
 
 Capinfos is part of the same Wireshark tool suite and reads the same capture
 formats as TShark. Its table mode can report file type, encapsulation, timestamp
@@ -72,16 +72,16 @@ This could remove the process dependency, but it duplicates mature capture-file
 and protocol-dissection work while expanding Netbraid's security and maintenance
 surface. Rejected.
 
-### Keep the normalizer in the CLI package
+### Keep the normalizer in the CLI module
 
-This avoids a crate, but mixes process control, resource limits, parser
+This avoids a distinct boundary, but mixes process control, resource limits, parser
 quarantine, staging, effective-configuration fingerprinting, and tool provenance
 into an unrelated compatibility reader. Those invariants and dependencies form
 a reusable process boundary independently of presentation. Rejected.
 
-### Add an explicit TShark adapter crate
+### Add an explicit TShark adapter boundary
 
-`netbraid-adapter-tshark` owns one offline process boundary. It invokes TShark
+`netbraid::adapters::tshark` owns one offline process boundary. It invokes TShark
 without a shell, uses a declared `-T fields` registry, enforces a deadline and
 output/input limits, records tool, registry, and effective-configuration
 versions, and returns typed records plus quarantined rows. Chosen.
@@ -111,16 +111,16 @@ reusing the same isolated Wireshark process boundary. Chosen.
 The dependency direction is:
 
 ```text
-netbraid-evidence
-    ^              ^
-    |              |
-netbraid-replay   netbraid-adapter-tshark
-                       ^
-                       |
-                    netbraid CLI
+netbraid::evidence
+    ^                 ^
+    |                 |
+netbraid::replay   netbraid::adapters::tshark
+                          ^
+                          |
+                       netbraid CLI
 ```
 
-`netbraid-evidence` owns four pure record families:
+`netbraid::evidence` owns four pure record families:
 
 - a capture manifest with content digest, byte length, observer provenance,
   extractor provenance, optional acquisition policy, and normalization
@@ -237,7 +237,7 @@ The default CLI is a finite text summary for operators. It distinguishes
 capture-file facts from the possibly limited normalized packet subset and
 surfaces the successful run identifier and record digest. Its text projection
 also uses the pure conversation reducer specified in
-[`design/capture-conversation-reduction.md`](design/capture-conversation-reduction.md).
+[`capture-conversations.md`](capture-conversations.md).
 The projection says `capture-wide` only for complete normalization; limited or
 quarantined input is explicitly scoped to the normalized packet subset.
 `--jsonl` emits the manifest, occurrence-specific run receipt, packet
@@ -282,7 +282,7 @@ unique content identities and immutable origin coordinates, decoded size, and
 digest without network access or Wireshark. The opt-in smoke suite additionally
 normalizes every admitted capture twice using installed Capinfos and TShark. It
 constructs the full occurrence-bearing JSONL and deterministic records JSONL in
-their canonical family order, parses both through `netbraid-replay`, verifies that
+their canonical family order, parses both through `netbraid::replay`, verifies that
 the receipt binds the parser-recomputed digest, and proves equivalent runs
 produce byte-identical deterministic records and equal replayed evidence.
 Typed corpus expectations also run the replay crate's conservative conversation
@@ -290,8 +290,8 @@ reducer and pin grouped, excluded, exclusion-reason, and conversation counts.
 
 The corpus does not make the upstream artifact's original observer or
 acquisition policy knowable. Those fields remain absent. Public parser fixtures
-also do not substitute for private, sealed deployment fixtures when evaluating
-Kismet, Hypha, rtl_433, Meshtastic, controller, or fusion adapters.
+also do not establish behavior for other acquisition tools, sensor families, or
+multi-source consumers.
 
 ## Tradeoffs
 
@@ -321,23 +321,6 @@ Kismet, Hypha, rtl_433, Meshtastic, controller, or fusion adapters.
 - A successful-run receipt supports reproduction and comparison, but is not an
   attestation: it is unsigned, the configured tool path is not resolved and
   hashed, and v0 writes no durable receipt when a subprocess fails.
-
-## Implementation plan
-
-1. Add capture-manifest, packet-envelope, and quarantine records plus validation
-   to `netbraid-evidence`.
-2. Add `netbraid-adapter-tshark` with a fixed field registry, bounded process
-   execution, exact timestamp parsing, artifact hashing, and row quarantine.
-3. Add `netbraid pcap INPUT` with human text by default, `--jsonl` for a complete
-   successful-run record, and `--records-jsonl` for the deterministic
-   normalized-record stream.
-4. Add parser/golden tests and an opt-in smoke test against an installed TShark
-   using readable synthetic captures.
-5. Update the public scope and command documentation.
-6. Add bounded Capinfos metadata, a successful-run receipt, and PCAPNG replay
-   coverage without changing the crate dependency direction.
-7. Admit a compact, licensed upstream corpus through a content-addressed
-   manifest and run it through the same installed-tool smoke boundary.
 
 ## Gates
 

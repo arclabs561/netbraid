@@ -38,44 +38,41 @@ jobs:
       - run: cargo fmt --all -- --check
       - name: Exercise default feature configurations
         run: |
-          cargo build --locked --workspace
-          cargo test --locked --workspace
-          cargo clippy --locked --workspace --all-targets -- -D warnings
-          RUSTDOCFLAGS="-D warnings" cargo doc --locked --workspace --no-deps
-      - run: cargo build --locked --workspace --all-features
-      - run: cargo test --locked --workspace --all-features
+          cargo test --locked --no-default-features
+          cargo check --locked --lib --no-default-features --features scenario-fixtures,scenario-fixtures-capture-derived
+          cargo build --locked
+          cargo test --locked
+          cargo clippy --locked --all-targets -- -D warnings
+          RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
+      - run: cargo build --locked --all-features
+      - run: cargo test --locked --all-features
       - name: Exercise installed Wireshark tools and CLI projections
         run: |
-          cargo test --locked -p netbraid-adapter-tshark --tests -- --ignored
-          cargo test --locked -p netbraid --test pcap_cli -- --ignored
-      - name: Verify crates.io package inventories
+          cargo test --locked --test adapter_tshark_smoke --test adapter_curated_corpus -- --ignored
+          cargo test --locked --test pcap_cli -- --ignored
+      - name: Verify crates.io package inventory
         run: |
-          for package in netbraid-evidence netbraid-replay netbraid-adapter-tshark netbraid; do
-            cargo package --locked --list -p "$package" >/dev/null
-          done
-          cargo package --locked --list -p netbraid-replay >"$RUNNER_TEMP/netbraid-replay-package.txt"
-          cargo package --locked --list -p netbraid-adapter-tshark >"$RUNNER_TEMP/netbraid-adapter-tshark-package.txt"
           cargo package --locked --list -p netbraid >"$RUNNER_TEMP/netbraid-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/wifi-hotspot-wifi/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/host-path.jsonl' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/same-ssid-attachment-boundary/viewport.txt' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/vpn-overlay-transition/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/cache-source-gap/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/scenario.json' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-6.jsonl' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          grep -Fqx 'tests/fixtures/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt' "$RUNNER_TEMP/netbraid-replay-package.txt"
-          if grep -Eq '^tests/(curated_corpus\.rs|fixtures/(third-party-licenses|upstream)/)' "$RUNNER_TEMP/netbraid-adapter-tshark-package.txt"; then
-            echo "adapter package includes repository-only corpus material" >&2
+          grep -Fqx 'tests/fixtures/replay/scenarios/wifi-hotspot-wifi/scenario.json' "$RUNNER_TEMP/netbraid-package.txt"
+          grep -Fqx 'tests/fixtures/replay/scenarios/same-ssid-attachment-boundary/scenario.json' "$RUNNER_TEMP/netbraid-package.txt"
+          grep -Fqx 'tests/fixtures/replay/scenarios/same-ssid-attachment-boundary/host-path.jsonl' "$RUNNER_TEMP/netbraid-package.txt"
+          grep -Fqx 'tests/fixtures/replay/scenarios/same-ssid-attachment-boundary/viewport.txt' "$RUNNER_TEMP/netbraid-package.txt"
+          grep -Fqx 'tests/fixtures/replay/scenarios/vpn-overlay-transition/scenario.json' "$RUNNER_TEMP/netbraid-package.txt"
+          grep -Fqx 'tests/fixtures/replay/scenarios/cache-source-gap/scenario.json' "$RUNNER_TEMP/netbraid-package.txt"
+          grep -Fqx 'tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/scenario.json' "$RUNNER_TEMP/netbraid-package.txt"
+          grep -Fqx 'tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/prefix-6.jsonl' "$RUNNER_TEMP/netbraid-package.txt"
+          grep -Fqx 'tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl' "$RUNNER_TEMP/netbraid-package.txt"
+          grep -Fqx 'tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt' "$RUNNER_TEMP/netbraid-package.txt"
+          if grep -Eq '^tests/(adapter_curated_corpus\.rs$|fixtures/adapter/(third-party-licenses|upstream)/|fixtures/[^/]+\.hex$|pcap_cli\.rs$|scenario_cli\.rs$)' "$RUNNER_TEMP/netbraid-package.txt"; then
+            echo "package includes repository-only corpus material" >&2
             exit 1
           fi
-          if grep -Eq '^tests/(fixtures/|pcap_cli\.rs$|scenario_cli\.rs$)' "$RUNNER_TEMP/netbraid-package.txt"; then
-            echo "root package includes repository-only corpus material" >&2
-            exit 1
-          fi
-      - run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
-      - run: cargo doc --locked --workspace --all-features --no-deps
+          package_version="$(cargo metadata --no-deps --format-version 1 | jq -er '.packages[0].version')"
+          cargo package --locked -p netbraid
+          cargo test --locked --all-features \
+            --manifest-path "target/package/netbraid-${package_version}/Cargo.toml"
+      - run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - run: cargo doc --locked --all-features --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
 
@@ -96,7 +93,8 @@ jobs:
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: rust -> target
-      - run: cargo check --locked --workspace --all-targets --all-features
+      - run: cargo check --locked --lib --no-default-features
+      - run: cargo check --locked --all-targets --all-features
 
   go:
     name: Go compatibility

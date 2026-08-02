@@ -1,12 +1,11 @@
 # Changelog
 
-All notable changes to Netbraid's versioned Rust workspace and binary release are
+All notable changes to Netbraid's versioned Rust package and binary release are
 documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Netbraid uses one workspace release version. The CLI and three reusable
-libraries are prepared for crates.io publication in dependency order; GitHub
-native binary releases remain available independently.
+The public library and CLI share one `netbraid` package and release version;
+GitHub native binary releases remain available independently.
 
 ## [Unreleased]
 
@@ -17,13 +16,14 @@ native binary releases remain available independently.
   reducer. Unsupported, partial, malformed, or incompatible evidence remains
   typed abstention rather than a relation claim.
 - Pinned fetchers and deterministic local evaluators for the public capture
-  corpus, Sorbonne same-event oracle, OPERAnet archive layout, and bounded CAEZ
-  CSI metadata. Raw corpus bytes and generated reports remain outside Git.
+  corpus, Sorbonne same-event oracle, OPERAnet, CAEZ, Data4Cyber, NetsLab,
+  IoT-23 flow lineage, counter-capture campaigns, and XRF55 archives. Raw
+  corpus bytes and generated reports remain outside Git.
 
 ### Changed
 
 - Scenario artifact ingestion now retains typed host-path and saved-capture
-  sources behind a private family boundary. Replay, disclosure validation, and
+  sources behind an internal family boundary. Replay, disclosure validation, and
   checkpoint input projection reuse the validated saved-capture stream instead
   of reparsing its bytes, without changing public schemas or APIs.
 - Saved-capture request batches may carry independent packet and input bounds
@@ -31,6 +31,32 @@ native binary releases remain available independently.
   parallel normalization preserves input order and sequential result semantics;
   the public-corpus evaluator co-schedules its deterministic replicas through
   the evaluated Netbraid binary.
+
+## [0.3.1] - 2026-07-28
+
+### Changed
+
+- Replaced the internal migration-oriented README and planning ledger with a
+  concise public operator guide, contributor decisions, architecture, fixture,
+  conversation, and IEEE 802.11 evidence documentation.
+- Made maintainer ADRs and design working notes local-only while retaining
+  their durable product constraints in public documentation.
+- Replaced the legacy single-stage Docker image with an explicit multi-stage
+  build whose runtime contains only the Go compatibility binary and runtime
+  libraries; base manifests are digest-pinned and local image builds no longer
+  imply a registry push.
+- Expanded repository ignores for raw captures, local analysis, logs,
+  databases, and credential-bearing files; reduced the container context to an
+  allowlist of Go build inputs; and corrected the scenario fixture line-ending
+  rule.
+- Replaced author-specific compatibility-reader test values with documentation
+  addresses and neutral fixture names.
+
+### Fixed
+
+- Brought the legacy Go compatibility tree through the current lint suite with
+  checked integer conversions, portable platform boundaries, typed TOML tags,
+  error-chain handling, and allocation-safe buffer pooling.
 
 ## [0.3.0] - 2026-07-27
 
@@ -61,25 +87,36 @@ native binary releases remain available independently.
   observations remain useful immediately, while negative conclusions require
   complete normalization and corroborating occurrence-receipt packet bounds.
 - A one-time scoped-token boundary for initial crate ownership and a manual,
-  current-main-only Trusted Publishing gate for later dependency-order
+  current-main-only Trusted Publishing gate for later
   releases, with registry metadata and Cargo VCS identity verification before
   a release tag can create a GitHub release.
 
 ### Changed
 
+- Collapsed the unpublished four-package workspace into one publishable
+  `netbraid` library-and-CLI package. The public API retains
+  `netbraid::evidence`, `netbraid::replay`, and the feature-gated
+  `netbraid::adapters::tshark` boundaries without four registry ownership and
+  release lifecycles.
+- CLI and TShark dependencies are gated behind default `cli` and
+  `adapter-tshark` features, so evidence/replay consumers can disable default
+  features. Existing schema, digest, corpus, and producer identifiers remain
+  unchanged.
+- The single source archive declares
+  `(MIT OR Unlicense) AND BSD-3-Clause` because it contains the supported
+  capture-derived scenario; repository-only adapter and CLI corpora remain
+  excluded.
 - The offline `scenario` CLI now validates and replays both v0 and v1 bundles.
   The four `PUBLIC_SYNTHETIC` v0 built-ins and their
   `netbraid.scenario_replay.v0` receipt remain unchanged. V1 replay emits
   `netbraid.scenario_replay.v1` so declared sensitivity and disclosure metadata
   survive detached receipt transport without implying authenticated review.
 - Cargo source archives now distinguish product fixtures from repository-only
-  evaluation data. `netbraid-replay` includes BSD-3-Clause because it exposes
-  the reviewed capture-derived fixture as a non-default product feature. The
-  adapter and root CLI exclude their test-only upstream corpora, notices, and
-  workspace-only integration tests from publication and retain
-  `MIT OR Unlicense`.
-- CI now exercises all workspace features and verifies that public scenario
-  fixtures are present in the packaged `netbraid-replay` crate.
+  evaluation data. The package includes the reviewed BSD-3-Clause-derived
+  fixture while excluding test-only upstream corpora, notices, and
+  repository-only integration tests.
+- CI now exercises all package features and verifies that public scenario
+  fixtures are present in the packaged `netbraid` crate.
 - Saved-capture JSON triage is now `netmon.saved_pcap_triage.v1`, retaining the
   validated capture manifest, optional occurrence receipt, normalized-record
   digest, and optional trailing-window projection. The public v0 projection API
@@ -142,7 +179,8 @@ native binary releases remain available independently.
 - Raw PCAP, PCAPNG, and CAP artifacts are ignored recursively; reviewed
   synthetic fixtures remain readable source encodings.
 
-[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.0...HEAD
+[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.1...HEAD
+[0.3.1]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.0...netbraid-v0.3.1
 [0.3.0]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.2.0...netbraid-v0.3.0
 [0.2.0]: https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.2.0
 [0.1.0]: https://github.com/arclabs561/netbraid/releases/tag/netmon-v0.1.0

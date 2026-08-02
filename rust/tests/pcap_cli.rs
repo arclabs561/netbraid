@@ -97,7 +97,7 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         "{}",
         String::from_utf8_lossy(&jsonl.stderr)
     );
-    let parsed_stream = netbraid_replay::parse_saved_capture_jsonl(&jsonl.stdout).unwrap();
+    let parsed_stream = netbraid::replay::parse_saved_capture_jsonl(&jsonl.stdout).unwrap();
     assert!(parsed_stream.receipt.is_some());
     assert_eq!(parsed_stream.packets.len(), 6);
     assert!(parsed_stream.quarantines.is_empty());
@@ -168,7 +168,8 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
         first_records.stdout, second_records.stdout,
         "normalized-record JSONL must be byte-identical for the same artifact and configuration"
     );
-    let parsed_records = netbraid_replay::parse_saved_capture_jsonl(&first_records.stdout).unwrap();
+    let parsed_records =
+        netbraid::replay::parse_saved_capture_jsonl(&first_records.stdout).unwrap();
     assert!(parsed_records.receipt.is_none());
     assert_eq!(parsed_records.packets.len(), 6);
     assert!(parsed_records.quarantines.is_empty());
@@ -668,7 +669,7 @@ fn records_jsonl_preserves_the_six_to_seven_frame_wlan_boundary() {
             first.stdout, second.stdout,
             "receipt-free normalization must be deterministic within one extractor configuration"
         );
-        netbraid_replay::parse_saved_capture_jsonl(&first.stdout).unwrap()
+        netbraid::replay::parse_saved_capture_jsonl(&first.stdout).unwrap()
     };
 
     let six = normalize("6");
@@ -683,14 +684,14 @@ fn records_jsonl_preserves_the_six_to_seven_frame_wlan_boundary() {
         12
     );
 
-    let six_triage = netbraid_replay::project_saved_pcap_triage_v1(
+    let six_triage = netbraid::replay::project_saved_pcap_triage_v1(
         &six,
-        netbraid_replay::SavedPcapTriageOptionsV1::default(),
+        netbraid::replay::SavedPcapTriageOptionsV1::default(),
     )
     .unwrap();
-    let seven_triage = netbraid_replay::project_saved_pcap_triage_v1(
+    let seven_triage = netbraid::replay::project_saved_pcap_triage_v1(
         &seven,
-        netbraid_replay::SavedPcapTriageOptionsV1::default(),
+        netbraid::replay::SavedPcapTriageOptionsV1::default(),
     )
     .unwrap();
     let six_triage = serde_json::to_value(six_triage).unwrap();

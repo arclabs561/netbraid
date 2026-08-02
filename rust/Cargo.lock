@@ -289,49 +289,16 @@ checksum = "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8"
 
 [[package]]
 name = "netbraid"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "clap",
- "netbraid-adapter-tshark",
- "netbraid-evidence",
- "netbraid-replay",
- "serde",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "netbraid-adapter-tshark"
-version = "0.3.0"
-dependencies = [
  "csv",
- "netbraid-evidence",
- "netbraid-replay",
- "serde",
- "serde_json",
- "sha1",
- "sha2",
- "tempfile",
-]
-
-[[package]]
-name = "netbraid-evidence"
-version = "0.3.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "netbraid-replay"
-version = "0.3.0"
-dependencies = [
  "libc",
- "netbraid-evidence",
  "proptest",
  "serde",
  "serde_json",
+ "sha1",
  "sha2",
  "tempfile",
 ]

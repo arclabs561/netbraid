@@ -510,7 +510,7 @@ fn cmd_here(s: &Snapshot, source: &Path) {
 }
 
 fn cmd_evidence(log: &PathBuf) -> Result<()> {
-    let state = netbraid_replay::read_jsonl(log).with_context(|| {
+    let state = netbraid::replay::read_jsonl(log).with_context(|| {
         format!(
             "replaying {}",
             operator_text(log.as_os_str().to_string_lossy().as_ref())
@@ -519,21 +519,21 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
     let exact_keys = state
         .records
         .iter()
-        .map(netbraid_replay::HostPathObservationV0::context_key)
+        .map(netbraid::replay::HostPathObservationV0::context_key)
         .collect::<std::collections::BTreeSet<_>>()
         .len();
     let changed = state
         .transitions
         .iter()
         .filter(|transition| {
-            transition.relation == netbraid_replay::ContextRelationV0::ContextChanged
+            transition.relation == netbraid::replay::ContextRelationV0::ContextChanged
         })
         .count();
     let compatible = state
         .transitions
         .iter()
         .filter(|transition| {
-            transition.relation == netbraid_replay::ContextRelationV0::CompatibleContext
+            transition.relation == netbraid::replay::ContextRelationV0::CompatibleContext
         })
         .count();
     println!(
@@ -541,7 +541,7 @@ fn cmd_evidence(log: &PathBuf) -> Result<()> {
         state.records.len()
     );
     if let Some(latest) = state.records.last() {
-        let recurrence = netbraid_replay::summarize_context_recurrence(&state.records, latest);
+        let recurrence = netbraid::replay::summarize_context_recurrence(&state.records, latest);
         println!(
             "latest: {} via {} ({})",
             latest
@@ -676,66 +676,66 @@ fn evidence_list<T: AsRef<str>>(values: &[T], empty: &str) -> String {
     }
 }
 
-fn collection_mode_label(mode: netbraid_replay::CollectionModeV0) -> &'static str {
+fn collection_mode_label(mode: netbraid::replay::CollectionModeV0) -> &'static str {
     match mode {
-        netbraid_replay::CollectionModeV0::PassiveHostLocal => "passive_host_local",
-        netbraid_replay::CollectionModeV0::ActiveBounded => "active_bounded",
+        netbraid::replay::CollectionModeV0::PassiveHostLocal => "passive_host_local",
+        netbraid::replay::CollectionModeV0::ActiveBounded => "active_bounded",
     }
 }
 
-fn coverage_state_label(state: netbraid_replay::CoverageStateV0) -> &'static str {
+fn coverage_state_label(state: netbraid::replay::CoverageStateV0) -> &'static str {
     match state {
-        netbraid_replay::CoverageStateV0::Complete => "complete",
-        netbraid_replay::CoverageStateV0::Partial => "partial",
-        netbraid_replay::CoverageStateV0::Unavailable => "unavailable",
+        netbraid::replay::CoverageStateV0::Complete => "complete",
+        netbraid::replay::CoverageStateV0::Partial => "partial",
+        netbraid::replay::CoverageStateV0::Unavailable => "unavailable",
     }
 }
 
-fn network_name_text(name: &netbraid_replay::NetworkNameV0) -> String {
+fn network_name_text(name: &netbraid::replay::NetworkNameV0) -> String {
     match name.visibility {
-        netbraid_replay::NetworkNameVisibilityV0::Observed => format!(
+        netbraid::replay::NetworkNameVisibilityV0::Observed => format!(
             "observed {:?}",
             operator_text(name.value.as_deref().unwrap_or_default())
         ),
-        netbraid_replay::NetworkNameVisibilityV0::Restricted => {
+        netbraid::replay::NetworkNameVisibilityV0::Restricted => {
             "restricted by platform policy".into()
         }
-        netbraid_replay::NetworkNameVisibilityV0::Unavailable => "unavailable".into(),
+        netbraid::replay::NetworkNameVisibilityV0::Unavailable => "unavailable".into(),
     }
 }
 
-fn context_relation_label(relation: netbraid_replay::ContextRelationV0) -> &'static str {
+fn context_relation_label(relation: netbraid::replay::ContextRelationV0) -> &'static str {
     match relation {
-        netbraid_replay::ContextRelationV0::FirstObservation => "first_observation",
-        netbraid_replay::ContextRelationV0::SameContext => "same_context",
-        netbraid_replay::ContextRelationV0::CompatibleContext => "compatible_context",
-        netbraid_replay::ContextRelationV0::ContextChanged => "context_changed",
+        netbraid::replay::ContextRelationV0::FirstObservation => "first_observation",
+        netbraid::replay::ContextRelationV0::SameContext => "same_context",
+        netbraid::replay::ContextRelationV0::CompatibleContext => "compatible_context",
+        netbraid::replay::ContextRelationV0::ContextChanged => "context_changed",
     }
 }
 
-fn exact_context_match_label(value: netbraid_replay::ExactContextMatchV0) -> &'static str {
+fn exact_context_match_label(value: netbraid::replay::ExactContextMatchV0) -> &'static str {
     match value {
-        netbraid_replay::ExactContextMatchV0::NoPriorExactKeyMatch => "no prior exact key match",
-        netbraid_replay::ExactContextMatchV0::UnanchoredExactKeyMatch => {
+        netbraid::replay::ExactContextMatchV0::NoPriorExactKeyMatch => "no prior exact key match",
+        netbraid::replay::ExactContextMatchV0::UnanchoredExactKeyMatch => {
             "unanchored exact key match; no recurring network-context claim"
         }
-        netbraid_replay::ExactContextMatchV0::AnchoredExactRecurrence => {
+        netbraid::replay::ExactContextMatchV0::AnchoredExactRecurrence => {
             "anchored exact recurrence via gateway link address"
         }
     }
 }
 
 fn attachment_corroboration_label(
-    value: netbraid_replay::AttachmentCorroborationV0,
+    value: netbraid::replay::AttachmentCorroborationV0,
 ) -> &'static str {
     match value {
-        netbraid_replay::AttachmentCorroborationV0::NotObserved => {
+        netbraid::replay::AttachmentCorroborationV0::NotObserved => {
             "attachment corroboration unavailable"
         }
-        netbraid_replay::AttachmentCorroborationV0::NotSeenBefore => {
+        netbraid::replay::AttachmentCorroborationV0::NotSeenBefore => {
             "current BSSID not seen in prior exact key matches"
         }
-        netbraid_replay::AttachmentCorroborationV0::SeenBefore => {
+        netbraid::replay::AttachmentCorroborationV0::SeenBefore => {
             "current BSSID seen in a prior exact key match"
         }
     }
@@ -786,18 +786,18 @@ mod tests {
     fn evidence_labels_distinguish_key_match_from_anchored_recurrence() {
         assert_eq!(
             exact_context_match_label(
-                netbraid_replay::ExactContextMatchV0::UnanchoredExactKeyMatch
+                netbraid::replay::ExactContextMatchV0::UnanchoredExactKeyMatch
             ),
             "unanchored exact key match; no recurring network-context claim"
         );
         assert_eq!(
             exact_context_match_label(
-                netbraid_replay::ExactContextMatchV0::AnchoredExactRecurrence
+                netbraid::replay::ExactContextMatchV0::AnchoredExactRecurrence
             ),
             "anchored exact recurrence via gateway link address"
         );
         assert_eq!(
-            attachment_corroboration_label(netbraid_replay::AttachmentCorroborationV0::SeenBefore),
+            attachment_corroboration_label(netbraid::replay::AttachmentCorroborationV0::SeenBefore),
             "current BSSID seen in a prior exact key match"
         );
     }
@@ -805,21 +805,21 @@ mod tests {
     #[test]
     fn evidence_projection_uses_schema_vocabulary_and_escapes_controls() {
         assert_eq!(
-            collection_mode_label(netbraid_replay::CollectionModeV0::PassiveHostLocal),
+            collection_mode_label(netbraid::replay::CollectionModeV0::PassiveHostLocal),
             "passive_host_local"
         );
         assert_eq!(
-            coverage_state_label(netbraid_replay::CoverageStateV0::Partial),
+            coverage_state_label(netbraid::replay::CoverageStateV0::Partial),
             "partial"
         );
         assert_eq!(
-            context_relation_label(netbraid_replay::ContextRelationV0::ContextChanged),
+            context_relation_label(netbraid::replay::ContextRelationV0::ContextChanged),
             "context_changed"
         );
         assert_eq!(operator_text("observer\n\u{1b}"), "observer\\n\\u{1b}");
         assert_eq!(
-            network_name_text(&netbraid_replay::NetworkNameV0 {
-                visibility: netbraid_replay::NetworkNameVisibilityV0::Restricted,
+            network_name_text(&netbraid::replay::NetworkNameV0 {
+                visibility: netbraid::replay::NetworkNameVisibilityV0::Restricted,
                 value: None,
             }),
             "restricted by platform policy"
@@ -832,8 +832,8 @@ mod tests {
             ts: 1,
             aps: BTreeMap::new(),
             clients: vec![
-                test_client("arc", "192.0.2.1"),
-                test_client("arcade", "192.0.2.2"),
+                test_client("workstation", "192.0.2.1"),
+                test_client("workstation-lab", "192.0.2.2"),
             ],
             clients_wireless: 2,
             clients_wired: 0,
@@ -842,15 +842,16 @@ mod tests {
             wan_status: None,
         };
         assert!(matches!(
-            match_clients(&snapshot, "ARC"),
-            ClientMatch::Exact(client) if client.name.as_deref() == Some("arc")
+            match_clients(&snapshot, "WORKSTATION"),
+            ClientMatch::Exact(client) if client.name.as_deref() == Some("workstation")
         ));
         assert!(matches!(
-            match_clients(&snapshot, "cade"),
-            ClientMatch::UniquePartial(client) if client.name.as_deref() == Some("arcade")
+            match_clients(&snapshot, "-lab"),
+            ClientMatch::UniquePartial(client)
+                if client.name.as_deref() == Some("workstation-lab")
         ));
         assert!(matches!(
-            match_clients(&snapshot, "ar"),
+            match_clients(&snapshot, "work"),
             ClientMatch::Ambiguous(clients) if clients.len() == 2
         ));
     }
@@ -883,7 +884,7 @@ mod tests {
         let j = r#"{"ts":1,"clients_wireless":2,"clients_wired":1,"sat_min":96,"wan_status":"ok",
             "aps":{"AP1":{"uptime_h":51.5,"uplink":"wire","clients":2,
                 "radios":{"na":{"channel":48,"airtime":7,"neighbors":19}}}},
-            "clients":[{"name":"MacBookPro","ip":"192.168.1.35","ap":"AP1","radio":"na","signal":-42,"sat":100,"tx_bytes":100},
+            "clients":[{"name":"workstation","ip":"192.0.2.35","ap":"AP1","radio":"na","signal":-42,"sat":100,"tx_bytes":100},
                        {"name":"nas","wired":true,"ap":"SW1"}]}"#;
         let s: Snapshot = serde_json::from_str(j).expect("snapshot parses");
         assert_eq!(s.clients_wireless, 2);

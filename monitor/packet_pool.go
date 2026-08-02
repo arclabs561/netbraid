@@ -10,19 +10,22 @@ import (
 // PacketBufferPool provides reusable buffers for packet processing
 var PacketBufferPool = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, DefaultSnapshotLength)
+		buf := make([]byte, DefaultSnapshotLength)
+		return &buf
 	},
 }
 
 // GetPacketBuffer retrieves a buffer from the pool
 func GetPacketBuffer() []byte {
-	return PacketBufferPool.Get().([]byte)
+	buf := PacketBufferPool.Get().(*[]byte)
+	return (*buf)[:cap(*buf)]
 }
 
 // PutPacketBuffer returns a buffer to the pool
 func PutPacketBuffer(buf []byte) {
 	if cap(buf) >= DefaultSnapshotLength {
-		PacketBufferPool.Put(buf[:cap(buf)])
+		buf = buf[:cap(buf)]
+		PacketBufferPool.Put(&buf)
 	}
 }
 
@@ -92,4 +95,3 @@ func (pp *PacketProcessor) ProcessPacket(data []byte, linkType layers.LinkType) 
 	packet := gopacket.NewPacket(data, linkType, gopacket.DecodeOptions{Lazy: true, NoCopy: true})
 	return analyzePacket(packet), true
 }
-
