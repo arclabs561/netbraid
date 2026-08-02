@@ -38,6 +38,7 @@ ACCESS = {
 LICENSES = {
     "cc_by_4_0",
     "manual_terms",
+    "mit",
     "not_applicable",
     "per_artifact",
     "research_terms",

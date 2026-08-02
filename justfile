@@ -70,6 +70,15 @@ wlan-rff-layout-profile-check:
 wlan-rff-layout-profile:
     {{ python }} eval/profile-wlan-rff-layout.py
 
+smorffi-fetcher-check:
+    uv run --python 3.10 data/tests/test-fetch-smorffi.py
+
+smorffi-status:
+    uv run --script data/fetch/fetch-smorffi.py status
+
+smorffi-fetch:
+    uv run --script data/fetch/fetch-smorffi.py fetch
+
 catalog-check:
     {{ python }} data/tests/test-catalogs.py
 

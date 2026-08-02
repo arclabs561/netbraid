@@ -400,7 +400,7 @@
     },
     {
       "id": "cross-layer-wireless-paper-2511-07770",
-      "title": "Cross-layer wireless research preprint",
+      "title": "SMoRFFI same-model Wi-Fi fingerprinting preprint",
       "source_type": "paper",
       "canonical_url": "https://arxiv.org/html/2511.07770v1",
       "related_urls": [],
@@ -411,7 +411,22 @@
       "disposition": "reference_only",
       "fetch": "not_applicable",
       "priority": "P1",
-      "note": "Use as a hypothesis lead; verify claims against the paper and available artifacts."
+      "note": "The paper motivates same-model open-set fingerprinting, but its reported model metrics are not Netbraid results. Use the separately pinned Kaggle v3 artifact for local evaluation."
+    },
+    {
+      "id": "kaggle-smorffi-v3",
+      "title": "SMoRFFI same-model IEEE 802.11g raw-IQ dataset",
+      "source_type": "dataset",
+      "canonical_url": "https://www.kaggle.com/datasets/yinchen1986/rffi-123-m5stack-iq-wifi-802-11g-2-4g",
+      "related_urls": [],
+      "access": "direct_download",
+      "license": "mit",
+      "modalities": ["wlan", "rf_iq", "same_model_physical_source_observation"],
+      "roles": ["physical_source_relation_eval", "same_variant_different_source_eval", "open_set_eval"],
+      "disposition": "candidate",
+      "fetch": "existing_fetcher",
+      "priority": "P0",
+      "note": "The fetcher pins Kaggle dataset version 3 (952,050,247 bytes, 123 same-model devices). Kaggle publishes no per-file checksums, so the ignored receipt records deterministic local SHA-256 values after download; version pinning is provenance, not publisher-backed artifact integrity."
     },
     {
       "id": "networks-paper-s138912862600321x",
