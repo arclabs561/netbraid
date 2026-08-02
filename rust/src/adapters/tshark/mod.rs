@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, SystemTimeError, UNIX_EPOCH};
 
+use crate::evidence::digest::NormalizedRecordsDigest;
 use crate::evidence::{
     CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureManifestV0, CaptureNormalizationV0,
     CaptureRunReceiptV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
@@ -990,39 +991,25 @@ fn normalized_records_sha256(
     packets: &[PacketEnvelopeV0],
     quarantines: &[PacketQuarantineV0],
 ) -> Result<String, AdapterError> {
-    let mut hasher = Sha256::new();
-    hasher.update(b"netmon.normalized_records.v0\0");
-
-    let manifest = serde_json::to_vec(manifest).map_err(AdapterError::RecordSerialization)?;
-    hash_indexed_record(&mut hasher, "manifest", 0, &manifest);
+    let mut digest = NormalizedRecordsDigest::new();
+    digest
+        .update("manifest", 0, manifest)
+        .map_err(AdapterError::RecordSerialization)?;
     for (index, packet) in packets.iter().enumerate() {
-        let packet = serde_json::to_vec(packet).map_err(AdapterError::RecordSerialization)?;
-        hash_indexed_record(
-            &mut hasher,
-            "packet",
-            u64::try_from(index).unwrap_or(u64::MAX),
-            &packet,
-        );
+        digest
+            .update("packet", u64::try_from(index).unwrap_or(u64::MAX), packet)
+            .map_err(AdapterError::RecordSerialization)?;
     }
     for (index, quarantine) in quarantines.iter().enumerate() {
-        let quarantine =
-            serde_json::to_vec(quarantine).map_err(AdapterError::RecordSerialization)?;
-        hash_indexed_record(
-            &mut hasher,
-            "quarantine",
-            u64::try_from(index).unwrap_or(u64::MAX),
-            &quarantine,
-        );
+        digest
+            .update(
+                "quarantine",
+                u64::try_from(index).unwrap_or(u64::MAX),
+                quarantine,
+            )
+            .map_err(AdapterError::RecordSerialization)?;
     }
-    Ok(format!("sha256:{:x}", hasher.finalize()))
-}
-
-fn hash_indexed_record(hasher: &mut Sha256, kind: &str, index: u64, bytes: &[u8]) {
-    hasher.update(kind.as_bytes());
-    hasher.update([0]);
-    hasher.update(index.to_le_bytes());
-    hasher.update(u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_le_bytes());
-    hasher.update(bytes);
+    Ok(digest.finish())
 }
 
 fn sha256_bytes(bytes: &[u8]) -> String {

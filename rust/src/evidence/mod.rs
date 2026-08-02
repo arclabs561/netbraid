@@ -9,6 +9,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 mod capture;
+pub(crate) mod digest;
 
 pub use capture::{
     CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureFileMetadataV0, CaptureManifestV0,
