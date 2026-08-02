@@ -135,6 +135,9 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
     }
 
     let frame_number = parse_required(fields[0], FIELDS[0])?;
+    let original_len = parse_required(fields[2], FIELDS[2])?;
+    let captured_len = parse_required(fields[3], FIELDS[3])?;
+    let capture_truncated = captured_len < original_len;
     let ethernet = if fields[8].is_empty() && fields[9].is_empty() {
         None
     } else {
@@ -143,8 +146,8 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
             destination: canonical_ethernet(fields[9])?,
         })
     };
-    let ipv4 = parse_ipv4(&fields)?;
-    let ipv6 = parse_ipv6(&fields)?;
+    let ipv4 = parse_ipv4(&fields, capture_truncated)?;
+    let ipv6 = parse_ipv6(&fields, capture_truncated)?;
     let tcp = parse_tcp(&fields)?;
     let udp = parse_udp(&fields)?;
     let ieee80211 = parse_ieee80211(&fields)?;
@@ -157,8 +160,8 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
         frame: PacketFrameV0 {
             number: frame_number,
             event_time_unix_ns: parse_epoch_ns(fields[1])?,
-            original_len: parse_required(fields[2], FIELDS[2])?,
-            captured_len: parse_required(fields[3], FIELDS[3])?,
+            original_len,
+            captured_len,
             section_number: parse_optional(fields[4], FIELDS[4])?,
             interface_id: parse_optional(fields[5], FIELDS[5])?,
             encapsulation_type: parse_optional(fields[6], FIELDS[6])?,
@@ -201,7 +204,7 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
     Ok(packet)
 }
 
-fn parse_ipv4(fields: &[&str]) -> Result<Option<Ipv4FieldsV0>, String> {
+fn parse_ipv4(fields: &[&str], capture_truncated: bool) -> Result<Option<Ipv4FieldsV0>, String> {
     match (
         fields[10].is_empty(),
         fields[11].is_empty(),
@@ -209,6 +212,7 @@ fn parse_ipv4(fields: &[&str]) -> Result<Option<Ipv4FieldsV0>, String> {
         fields[IP_LENGTH_INDEX].is_empty(),
     ) {
         (true, true, true, true) => Ok(None),
+        (true, true, true, false) if capture_truncated => Ok(None),
         (false, false, false, _) => Ok(Some(Ipv4FieldsV0 {
             source: fields[10]
                 .parse::<Ipv4Addr>()
@@ -225,7 +229,7 @@ fn parse_ipv4(fields: &[&str]) -> Result<Option<Ipv4FieldsV0>, String> {
     }
 }
 
-fn parse_ipv6(fields: &[&str]) -> Result<Option<Ipv6FieldsV0>, String> {
+fn parse_ipv6(fields: &[&str], capture_truncated: bool) -> Result<Option<Ipv6FieldsV0>, String> {
     match (
         fields[13].is_empty(),
         fields[14].is_empty(),
@@ -233,6 +237,7 @@ fn parse_ipv6(fields: &[&str]) -> Result<Option<Ipv6FieldsV0>, String> {
         fields[IPV6_PAYLOAD_LENGTH_INDEX].is_empty(),
     ) {
         (true, true, true, true) => Ok(None),
+        (true, true, true, false) if capture_truncated => Ok(None),
         (false, false, false, _) => Ok(Some(Ipv6FieldsV0 {
             source: fields[13]
                 .parse::<Ipv6Addr>()
@@ -761,6 +766,48 @@ mod tests {
         assert_eq!(packet.frame.original_len, 74);
         assert_eq!(packet.frame.captured_len, 54);
         assert_eq!(packet.ipv4.as_ref().unwrap().total_length_octets, Some(60));
+    }
+
+    #[test]
+    fn parser_treats_length_only_network_fields_as_capture_truncation() {
+        let mut ipv4 = tcp_row().split('\t').map(str::to_owned).collect::<Vec<_>>();
+        ipv4[2] = "98".into();
+        ipv4[3] = "20".into();
+        ipv4[7] = "eth:ethertype:ip".into();
+        for field in &mut ipv4[10..=12] {
+            field.clear();
+        }
+        for field in &mut ipv4[16..=18] {
+            field.clear();
+        }
+        ipv4[TCP_STREAM_INDEX].clear();
+
+        let mut ipv6 = ipv6_udp_row()
+            .split('\t')
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        ipv6[0] = "2".into();
+        ipv6[2] = "110".into();
+        ipv6[3] = "20".into();
+        ipv6[7] = "eth:ethertype:ipv6".into();
+        for field in &mut ipv6[13..=15] {
+            field.clear();
+        }
+        for field in &mut ipv6[19..=20] {
+            field.clear();
+        }
+
+        let parsed = parse_rows(
+            format!("{}\n{}\n", ipv4.join("\t"), ipv6.join("\t")).as_bytes(),
+            CAPTURE_ID,
+        );
+
+        assert!(parsed.quarantines.is_empty());
+        assert_eq!(parsed.packets.len(), 2);
+        assert_eq!(parsed.packets[0].frame.captured_len, 20);
+        assert!(parsed.packets[0].ipv4.is_none());
+        assert_eq!(parsed.packets[1].frame.captured_len, 20);
+        assert!(parsed.packets[1].ipv6.is_none());
     }
 
     #[test]
