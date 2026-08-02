@@ -27,9 +27,11 @@ just sorbonne-structural-reducer-eval
 Locked implementation revision:
 `459db84b1dafdb4f44e55b1e84853ba6c656bdaf`.
 
-Revision 1 records a post-lock semantic-validator hardening: evidence digests now
-reject uppercase hexadecimal. Reducer fields, pair construction, expected
-results, and failure gates did not change, and the campaign remained unexecuted.
+Revision 2 supersedes revision 1 before execution. It records byte-exact,
+domain-separated negative sampling; locks intermediate population counts and
+digests; separates sampling identity from reducer canonical order; expands the
+expected dispositions; and binds the final semantic-validator hardening for
+canonical frame IDs and structural values. The campaign remained unexecuted.
 
 ## Data provenance
 
