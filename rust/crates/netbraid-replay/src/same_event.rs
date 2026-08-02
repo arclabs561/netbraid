@@ -8,8 +8,8 @@ pub const PACKET_SAME_EVENT_REDUCER_V0: &str = "netbraid.packet_same_event.struc
 
 const LIMITATIONS: &[&str] = &[
     "matching packet structure is non-discriminating and never supports same_event",
-    "source and sequence addresses, timestamps, frame numbers, capture lengths, protocols, SSID, RSSI, and paths are excluded from the comparative decision basis",
-    "envelope digests bind cited content but do not authenticate its source",
+    "source and sequence addresses, timestamps, frame numbers, capture lengths, protocols, radio metadata, SSID, RSSI, and paths are excluded from the comparative decision basis",
+    "evidence references and envelope digests are audit-only, bind cited content, and do not authenticate its source",
     "capture identity does not establish observer identity",
     "no transitive join, durable device identity, track, person, place, presence, or confidence score",
 ];
@@ -31,8 +31,6 @@ pub enum PacketSameEventDispositionV0 {
 pub enum PacketSameEventDimensionV0 {
     Ieee80211FrameType,
     Ieee80211FrameSubtype,
-    WlanChannel,
-    WlanCenterFrequencyMhz,
 }
 
 /// One observed conflict between the canonically ordered packet envelopes.
@@ -109,6 +107,111 @@ pub struct PacketSameEventHypothesisSetV0 {
     pub limitations: Vec<String>,
 }
 
+/// Semantic failure in a deserialized or internally constructed hypothesis set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PacketSameEventValidationErrorV0 {
+    UnsupportedSchema,
+    UnsupportedReducer,
+    InvalidEvidenceReference,
+    NonCanonicalEvidenceOrder,
+    InvalidBasis,
+    IncoherentDisposition,
+    UnexpectedLimitations,
+}
+
+impl std::fmt::Display for PacketSameEventValidationErrorV0 {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::UnsupportedSchema => "unsupported packet same-event schema",
+            Self::UnsupportedReducer => "unsupported packet same-event reducer",
+            Self::InvalidEvidenceReference => "invalid packet same-event evidence reference",
+            Self::NonCanonicalEvidenceOrder => {
+                "packet evidence references are not canonically ordered"
+            }
+            Self::InvalidBasis => "packet same-event decision basis is incoherent",
+            Self::IncoherentDisposition => {
+                "packet same-event dispositions contradict the reference"
+            }
+            Self::UnexpectedLimitations => {
+                "packet same-event limitations differ from the v0 contract"
+            }
+        })
+    }
+}
+
+impl std::error::Error for PacketSameEventValidationErrorV0 {}
+
+impl PacketSameEventHypothesisSetV0 {
+    /// Validate the semantic invariants that serde shape checks cannot express.
+    pub fn validate(&self) -> Result<(), PacketSameEventValidationErrorV0> {
+        if self.schema != PACKET_SAME_EVENT_HYPOTHESIS_SET_SCHEMA_V0 {
+            return Err(PacketSameEventValidationErrorV0::UnsupportedSchema);
+        }
+        if self.reducer != PACKET_SAME_EVENT_REDUCER_V0 {
+            return Err(PacketSameEventValidationErrorV0::UnsupportedReducer);
+        }
+        if !valid_evidence_reference(&self.left) || !valid_evidence_reference(&self.right) {
+            return Err(PacketSameEventValidationErrorV0::InvalidEvidenceReference);
+        }
+        if evidence_order(&self.left) > evidence_order(&self.right) {
+            return Err(PacketSameEventValidationErrorV0::NonCanonicalEvidenceOrder);
+        }
+        if self
+            .limitations
+            .iter()
+            .map(String::as_str)
+            .ne(LIMITATIONS.iter().copied())
+        {
+            return Err(PacketSameEventValidationErrorV0::UnexpectedLimitations);
+        }
+
+        let empty_basis = self.basis.compared_dimensions.is_empty()
+            && self.basis.compatible_dimensions.is_empty()
+            && self.basis.conflicting_dimensions.is_empty()
+            && self.basis.missing_dimensions.is_empty();
+        let compared_basis = self.basis.compared_dimensions
+            == [
+                PacketSameEventDimensionV0::Ieee80211FrameType,
+                PacketSameEventDimensionV0::Ieee80211FrameSubtype,
+            ]
+            && self.basis.missing_dimensions.is_empty()
+            && basis_partition_is_valid(&self.basis);
+        if !empty_basis && !compared_basis {
+            return Err(PacketSameEventValidationErrorV0::InvalidBasis);
+        }
+
+        let dispositions_valid = match self.reference {
+            PacketSameEventReferenceV0::DifferentEvent => {
+                compared_basis
+                    && !self.basis.conflicting_dimensions.is_empty()
+                    && self.same_event == PacketSameEventDispositionV0::Contradicted
+                    && self.different_event == PacketSameEventDispositionV0::Supported
+                    && self.unknown == PacketSameEventDispositionV0::Contradicted
+            }
+            PacketSameEventReferenceV0::Unknown {
+                reason: PacketSameEventUnknownReasonV0::NoDiscriminatingStructuralConflict,
+            } => {
+                compared_basis
+                    && self.basis.conflicting_dimensions.is_empty()
+                    && self.same_event == PacketSameEventDispositionV0::Underdetermined
+                    && self.different_event == PacketSameEventDispositionV0::Underdetermined
+                    && self.unknown == PacketSameEventDispositionV0::Supported
+            }
+            PacketSameEventReferenceV0::Unknown { .. } => {
+                empty_basis
+                    && self.same_event == PacketSameEventDispositionV0::Underdetermined
+                    && self.different_event == PacketSameEventDispositionV0::Underdetermined
+                    && self.unknown == PacketSameEventDispositionV0::Supported
+            }
+        };
+        if !dispositions_valid {
+            return Err(PacketSameEventValidationErrorV0::IncoherentDisposition);
+        }
+        Ok(())
+    }
+}
+
 /// Failure to validate or content-bind one input envelope.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -116,6 +219,7 @@ pub enum PacketSameEventErrorV0 {
     LeftInvalid(CaptureValidationError),
     RightInvalid(CaptureValidationError),
     EnvelopeSerialization(serde_json::Error),
+    InternalInvariant(PacketSameEventValidationErrorV0),
 }
 
 impl std::fmt::Display for PacketSameEventErrorV0 {
@@ -126,6 +230,7 @@ impl std::fmt::Display for PacketSameEventErrorV0 {
             Self::EnvelopeSerialization(source) => {
                 write!(formatter, "serialize packet evidence: {source}")
             }
+            Self::InternalInvariant(source) => write!(formatter, "validate assessment: {source}"),
         }
     }
 }
@@ -135,6 +240,7 @@ impl std::error::Error for PacketSameEventErrorV0 {
         match self {
             Self::LeftInvalid(source) | Self::RightInvalid(source) => Some(source),
             Self::EnvelopeSerialization(source) => Some(source),
+            Self::InternalInvariant(source) => Some(source),
         }
     }
 }
@@ -142,11 +248,13 @@ impl std::error::Error for PacketSameEventErrorV0 {
 /// Assess whether two packet envelopes can represent the same transmission.
 ///
 /// Inputs are validated and then canonically ordered. Only IEEE 802.11 frame
-/// type/subtype and mutually observed radio channel/frequency participate in
-/// the decision. Capture lengths are used only to reject truncated evidence,
+/// type/subtype participate in the decision. Capture lengths are used only to
+/// reject truncated evidence,
 /// because capture encapsulation can differ by observer. The reducer is
 /// intentionally asymmetric: a conflict can support `different_event`, while
-/// a match can only support `unknown`.
+/// a match can only support `unknown`. Successful assessments are canonical
+/// under input swapping; validation errors remain positional so callers can
+/// identify which argument failed.
 pub fn assess_packet_same_event_v0(
     left: &PacketEnvelopeV0,
     right: &PacketEnvelopeV0,
@@ -200,25 +308,6 @@ pub fn assess_packet_same_event_v0(
             u64::from(left_wlan.frame_subtype),
             u64::from(right_wlan.frame_subtype),
         );
-        compare_optional(
-            &mut basis,
-            PacketSameEventDimensionV0::WlanChannel,
-            left.wlan_radio.as_ref().and_then(|radio| radio.channel),
-            right.wlan_radio.as_ref().and_then(|radio| radio.channel),
-        );
-        compare_optional(
-            &mut basis,
-            PacketSameEventDimensionV0::WlanCenterFrequencyMhz,
-            left.wlan_radio
-                .as_ref()
-                .and_then(|radio| radio.center_frequency_mhz)
-                .map(u32::from),
-            right
-                .wlan_radio
-                .as_ref()
-                .and_then(|radio| radio.center_frequency_mhz)
-                .map(u32::from),
-        );
         None
     } else {
         Some(PacketSameEventUnknownReasonV0::MissingIeee80211Evidence)
@@ -248,7 +337,7 @@ pub fn assess_packet_same_event_v0(
         ),
     };
 
-    Ok(PacketSameEventHypothesisSetV0 {
+    let assessment = PacketSameEventHypothesisSetV0 {
         schema: PACKET_SAME_EVENT_HYPOTHESIS_SET_SCHEMA_V0.to_owned(),
         reducer: PACKET_SAME_EVENT_REDUCER_V0.to_owned(),
         left: left_ref,
@@ -262,7 +351,11 @@ pub fn assess_packet_same_event_v0(
             .iter()
             .map(|limitation| (*limitation).to_owned())
             .collect(),
-    })
+    };
+    assessment
+        .validate()
+        .map_err(PacketSameEventErrorV0::InternalInvariant)?;
+    Ok(assessment)
 }
 
 fn bound_packet(
@@ -298,18 +391,56 @@ fn compare_required(
     }
 }
 
-fn compare_optional(
-    basis: &mut PacketSameEventBasisV0,
-    dimension: PacketSameEventDimensionV0,
-    left: Option<u32>,
-    right: Option<u32>,
-) {
-    match (left, right) {
-        (Some(left), Some(right)) => {
-            compare_required(basis, dimension, u64::from(left), u64::from(right));
-        }
-        _ => basis.missing_dimensions.push(dimension),
-    }
+fn evidence_order(reference: &PacketSameEventEvidenceRefV0) -> (&str, &str, &str) {
+    (
+        &reference.capture_id,
+        &reference.record_id,
+        &reference.envelope_sha256,
+    )
+}
+
+fn valid_evidence_reference(reference: &PacketSameEventEvidenceRefV0) -> bool {
+    let digest = reference.envelope_sha256.as_bytes();
+    reference.capture_id.starts_with("sha256:")
+        && reference.capture_id.len() == 71
+        && reference
+            .capture_id
+            .as_bytes()
+            .get(7..)
+            .is_some_and(|value| value.iter().all(u8::is_ascii_hexdigit))
+        && reference
+            .record_id
+            .strip_prefix(&reference.capture_id)
+            .and_then(|suffix| suffix.strip_prefix(":frame:"))
+            .and_then(|number| number.parse::<u64>().ok())
+            .is_some_and(|number| number > 0)
+        && digest.len() == 64
+        && digest
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+}
+
+fn basis_partition_is_valid(basis: &PacketSameEventBasisV0) -> bool {
+    basis.compared_dimensions.iter().all(|dimension| {
+        let compatible_count = basis
+            .compatible_dimensions
+            .iter()
+            .filter(|candidate| *candidate == dimension)
+            .count();
+        let conflict_count = basis
+            .conflicting_dimensions
+            .iter()
+            .filter(|difference| difference.dimension == *dimension)
+            .count();
+        compatible_count + conflict_count == 1
+    }) && basis
+        .compatible_dimensions
+        .iter()
+        .all(|dimension| basis.compared_dimensions.contains(dimension))
+        && basis.conflicting_dimensions.iter().all(|difference| {
+            basis.compared_dimensions.contains(&difference.dimension)
+                && difference.left_value != difference.right_value
+        })
 }
 
 #[cfg(test)]
@@ -384,7 +515,7 @@ mod tests {
             PacketSameEventDispositionV0::Underdetermined
         );
         assert_eq!(result.unknown, PacketSameEventDispositionV0::Supported);
-        assert_eq!(result.basis.compared_dimensions.len(), 4);
+        assert_eq!(result.basis.compared_dimensions.len(), 2);
         assert!(result.basis.conflicting_dimensions.is_empty());
     }
 
@@ -411,19 +542,18 @@ mod tests {
     }
 
     #[test]
-    fn missing_radio_evidence_does_not_create_a_conflict() {
+    fn radio_metadata_is_audit_only() {
         let left = packet(CAPTURE_A, 1);
         let mut right = packet(CAPTURE_B, 1);
-        right.wlan_radio = None;
+        let baseline = assess_packet_same_event_v0(&left, &right).unwrap();
+        right.wlan_radio.as_mut().unwrap().channel = Some(6);
+        right.wlan_radio.as_mut().unwrap().center_frequency_mhz = Some(2_437);
 
         let result = assess_packet_same_event_v0(&left, &right).expect("valid assessment");
 
-        assert!(result.basis.conflicting_dimensions.is_empty());
-        assert_eq!(result.basis.missing_dimensions.len(), 2);
-        assert!(matches!(
-            result.reference,
-            PacketSameEventReferenceV0::Unknown { .. }
-        ));
+        assert_eq!(result.basis, baseline.basis);
+        assert_eq!(result.reference, baseline.reference);
+        assert_ne!(result.right.envelope_sha256, baseline.right.envelope_sha256);
     }
 
     #[test]
@@ -526,13 +656,26 @@ mod tests {
             serde_json::from_value::<PacketSameEventHypothesisSetV0>(encoded.clone()).unwrap(),
             assessment
         );
+        serde_json::from_value::<PacketSameEventHypothesisSetV0>(encoded.clone())
+            .unwrap()
+            .validate()
+            .unwrap();
 
-        let mut with_unknown = encoded;
+        let mut with_unknown = encoded.clone();
         with_unknown
             .as_object_mut()
             .unwrap()
             .insert("unexpected".into(), serde_json::Value::Bool(true));
         assert!(serde_json::from_value::<PacketSameEventHypothesisSetV0>(with_unknown).is_err());
+
+        let mut incoherent = encoded;
+        incoherent["same_event"] = serde_json::Value::String("supported".into());
+        assert_eq!(
+            serde_json::from_value::<PacketSameEventHypothesisSetV0>(incoherent)
+                .unwrap()
+                .validate(),
+            Err(PacketSameEventValidationErrorV0::IncoherentDisposition)
+        );
     }
 
     proptest! {
