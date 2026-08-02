@@ -362,12 +362,14 @@ mod tests {
                 destination: Some("02:00:00:00:00:02".into()),
             }),
             ipv4: Some(Ipv4FieldsV0 {
+                total_length_octets: None,
                 source: source.into(),
                 destination: destination.into(),
                 protocol: 6,
             }),
             ipv6: None,
             tcp: Some(TcpFieldsV0 {
+                stream_index: None,
                 source_port,
                 destination_port,
                 flags,
@@ -417,6 +419,7 @@ mod tests {
         packet.frame.protocols[2] = "ipv6".into();
         packet.ipv4 = None;
         packet.ipv6 = Some(Ipv6FieldsV0 {
+            total_length_octets: None,
             source: source.into(),
             destination: destination.into(),
             next_header: 6,

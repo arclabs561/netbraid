@@ -46,7 +46,9 @@ fn installed_tshark_normalizes_synthetic_capture() {
     assert_eq!(packet.frame.event_time_unix_ns, 1_700_000_000_123_456_000);
     assert_eq!(packet.ipv4.as_ref().unwrap().source, "192.0.2.1");
     assert_eq!(packet.ipv4.as_ref().unwrap().destination, "198.51.100.2");
+    assert_eq!(packet.ipv4.as_ref().unwrap().total_length_octets, Some(40));
     assert_eq!(packet.tcp.as_ref().unwrap().destination_port, 443);
+    assert_eq!(packet.tcp.as_ref().unwrap().stream_index, Some(0));
 
     let udp = normalize_fixture(
         directory.path(),
@@ -56,6 +58,7 @@ fn installed_tshark_normalizes_synthetic_capture() {
     let packet = &udp.packets[0];
     assert_eq!(packet.ipv6.as_ref().unwrap().source, "2001:db8::1");
     assert_eq!(packet.ipv6.as_ref().unwrap().destination, "2001:db8::2");
+    assert_eq!(packet.ipv6.as_ref().unwrap().total_length_octets, Some(48));
     assert_eq!(packet.udp.as_ref().unwrap().destination_port, 5353);
 
     let arp = normalize_fixture(
@@ -116,8 +119,14 @@ fn installed_tshark_normalizes_synthetic_capture() {
     assert_eq!(packet.frame.captured_len, 54);
     assert_eq!(packet.ipv4.as_ref().unwrap().source, "192.0.2.5");
     assert_eq!(packet.ipv4.as_ref().unwrap().destination, "198.51.100.6");
+    assert_eq!(packet.ipv4.as_ref().unwrap().total_length_octets, Some(60));
+    assert_ne!(
+        packet.ipv4.as_ref().unwrap().total_length_octets,
+        Some(packet.frame.captured_len)
+    );
     assert_eq!(packet.tcp.as_ref().unwrap().source_port, 41000);
     assert_eq!(packet.tcp.as_ref().unwrap().destination_port, 443);
+    assert_eq!(packet.tcp.as_ref().unwrap().stream_index, Some(0));
 
     let vlan = normalize_fixture(
         directory.path(),

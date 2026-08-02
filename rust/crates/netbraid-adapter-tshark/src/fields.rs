@@ -6,7 +6,7 @@ use netbraid_evidence::{
     PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
 };
 
-pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v2";
+pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v3";
 
 pub const FIELDS: &[&str] = &[
     "frame.number",
@@ -52,7 +52,15 @@ pub const FIELDS: &[&str] = &[
     "wpan.src64",
     "wpan.cmd",
     "wpan.fcs_ok",
+    "ip.len",
+    "ipv6.plen",
+    "tcp.stream",
 ];
+
+const IP_LENGTH_INDEX: usize = 43;
+const IPV6_PAYLOAD_LENGTH_INDEX: usize = 44;
+const TCP_STREAM_INDEX: usize = 45;
+const IPV6_HEADER_LENGTH_OCTETS: u32 = 40;
 
 struct ParsedIeee802154Fields {
     frame_type: u8,
@@ -198,9 +206,10 @@ fn parse_ipv4(fields: &[&str]) -> Result<Option<Ipv4FieldsV0>, String> {
         fields[10].is_empty(),
         fields[11].is_empty(),
         fields[12].is_empty(),
+        fields[IP_LENGTH_INDEX].is_empty(),
     ) {
-        (true, true, true) => Ok(None),
-        (false, false, false) => Ok(Some(Ipv4FieldsV0 {
+        (true, true, true, true) => Ok(None),
+        (false, false, false, _) => Ok(Some(Ipv4FieldsV0 {
             source: fields[10]
                 .parse::<Ipv4Addr>()
                 .map_err(|_| format!("{} is not an IPv4 address", fields[10]))?
@@ -210,6 +219,7 @@ fn parse_ipv4(fields: &[&str]) -> Result<Option<Ipv4FieldsV0>, String> {
                 .map_err(|_| format!("{} is not an IPv4 address", fields[11]))?
                 .to_string(),
             protocol: parse_required(fields[12], FIELDS[12])?,
+            total_length_octets: parse_optional(fields[IP_LENGTH_INDEX], FIELDS[IP_LENGTH_INDEX])?,
         })),
         _ => Err("incomplete first-occurrence IPv4 field group".into()),
     }
@@ -220,9 +230,10 @@ fn parse_ipv6(fields: &[&str]) -> Result<Option<Ipv6FieldsV0>, String> {
         fields[13].is_empty(),
         fields[14].is_empty(),
         fields[15].is_empty(),
+        fields[IPV6_PAYLOAD_LENGTH_INDEX].is_empty(),
     ) {
-        (true, true, true) => Ok(None),
-        (false, false, false) => Ok(Some(Ipv6FieldsV0 {
+        (true, true, true, true) => Ok(None),
+        (false, false, false, _) => Ok(Some(Ipv6FieldsV0 {
             source: fields[13]
                 .parse::<Ipv6Addr>()
                 .map_err(|_| format!("{} is not an IPv6 address", fields[13]))?
@@ -232,6 +243,7 @@ fn parse_ipv6(fields: &[&str]) -> Result<Option<Ipv6FieldsV0>, String> {
                 .map_err(|_| format!("{} is not an IPv6 address", fields[14]))?
                 .to_string(),
             next_header: parse_required(fields[15], FIELDS[15])?,
+            total_length_octets: parse_ipv6_total_length(fields[IPV6_PAYLOAD_LENGTH_INDEX])?,
         })),
         _ => Err("incomplete first-occurrence IPv6 field group".into()),
     }
@@ -242,12 +254,14 @@ fn parse_tcp(fields: &[&str]) -> Result<Option<TcpFieldsV0>, String> {
         fields[16].is_empty(),
         fields[17].is_empty(),
         fields[18].is_empty(),
+        fields[TCP_STREAM_INDEX].is_empty(),
     ) {
-        (true, true, true) => Ok(None),
-        (false, false, false) => Ok(Some(TcpFieldsV0 {
+        (true, true, true, true) => Ok(None),
+        (false, false, false, _) => Ok(Some(TcpFieldsV0 {
             source_port: parse_required(fields[16], FIELDS[16])?,
             destination_port: parse_required(fields[17], FIELDS[17])?,
             flags: parse_u16_auto_radix(fields[18], FIELDS[18])?,
+            stream_index: parse_optional(fields[TCP_STREAM_INDEX], FIELDS[TCP_STREAM_INDEX])?,
         })),
         _ => Err("incomplete first-occurrence TCP field group".into()),
     }
@@ -351,6 +365,21 @@ where
     } else {
         parse_required(value, field).map(Some)
     }
+}
+
+fn parse_ipv6_total_length(value: &str) -> Result<Option<u32>, String> {
+    parse_optional::<u32>(value, FIELDS[IPV6_PAYLOAD_LENGTH_INDEX])?
+        .map(|payload_length| {
+            payload_length
+                .checked_add(IPV6_HEADER_LENGTH_OCTETS)
+                .ok_or_else(|| {
+                    format!(
+                        "{} total length overflows u32",
+                        FIELDS[IPV6_PAYLOAD_LENGTH_INDEX]
+                    )
+                })
+        })
+        .transpose()
 }
 
 fn parse_u16_auto_radix(value: &str, field: &str) -> Result<u16, String> {
@@ -559,8 +588,33 @@ mod tests {
             "",
             "",
             "",
+            "40",
+            "",
+            "7",
         ]
         .join("\t")
+    }
+
+    fn ipv6_udp_row() -> String {
+        let mut fields = tcp_row().split('\t').map(str::to_owned).collect::<Vec<_>>();
+        fields[2] = "62".into();
+        fields[3] = "62".into();
+        fields[7] = "eth:ethertype:ipv6:udp".into();
+        for field in &mut fields[10..=12] {
+            field.clear();
+        }
+        fields[13] = "2001:db8::1".into();
+        fields[14] = "2001:db8::2".into();
+        fields[15] = "17".into();
+        for field in &mut fields[16..=18] {
+            field.clear();
+        }
+        fields[19] = "5353".into();
+        fields[20] = "5353".into();
+        fields[IP_LENGTH_INDEX].clear();
+        fields[IPV6_PAYLOAD_LENGTH_INDEX] = "8".into();
+        fields[TCP_STREAM_INDEX].clear();
+        fields.join("\t")
     }
 
     fn wireless_row() -> String {
@@ -597,6 +651,9 @@ mod tests {
             "1",
             "2412",
             "-74",
+            "",
+            "",
+            "",
             "",
             "",
             "",
@@ -657,6 +714,9 @@ mod tests {
             "02:00:00:00:00:00:00:01",
             "0x04",
             "True",
+            "",
+            "",
+            "",
         ]
         .join("\t")
     }
@@ -670,7 +730,88 @@ mod tests {
         let packet = &parsed.packets[0];
         assert_eq!(packet.frame.event_time_unix_ns, 1_700_000_000_123_456_789);
         assert_eq!(packet.frame.protocols, ["eth", "ethertype", "ip", "tcp"]);
+        assert_eq!(packet.ipv4.as_ref().unwrap().total_length_octets, Some(40));
         assert_eq!(packet.tcp.as_ref().unwrap().destination_port, 443);
+        assert_eq!(packet.tcp.as_ref().unwrap().stream_index, Some(7));
+    }
+
+    #[test]
+    fn parser_normalizes_ipv6_payload_length_to_total_length() {
+        let parsed = parse_rows(format!("{}\n", ipv6_udp_row()).as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.quarantines.is_empty());
+        assert_eq!(parsed.packets.len(), 1);
+        let packet = &parsed.packets[0];
+        assert_eq!(packet.ipv6.as_ref().unwrap().total_length_octets, Some(48));
+        assert_eq!(packet.udp.as_ref().unwrap().destination_port, 5353);
+    }
+
+    #[test]
+    fn parser_preserves_ip_length_across_truncated_capture_boundary() {
+        let mut fields = tcp_row().split('\t').map(str::to_owned).collect::<Vec<_>>();
+        fields[2] = "74".into();
+        fields[3] = "54".into();
+        fields[IP_LENGTH_INDEX] = "60".into();
+        let row = fields.join("\t");
+
+        let parsed = parse_rows(format!("{row}\n").as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.quarantines.is_empty());
+        let packet = &parsed.packets[0];
+        assert_eq!(packet.frame.original_len, 74);
+        assert_eq!(packet.frame.captured_len, 54);
+        assert_eq!(packet.ipv4.as_ref().unwrap().total_length_octets, Some(60));
+    }
+
+    #[test]
+    fn malformed_or_inconsistent_flow_fields_are_quarantined() {
+        let mutate = |base: String, frame_number: usize, index: usize, value: &str| {
+            let mut fields = base.split('\t').map(str::to_owned).collect::<Vec<_>>();
+            fields[0] = frame_number.to_string();
+            fields[index] = value.into();
+            fields.join("\t")
+        };
+        let mut orphan_ip_length = tcp_row().split('\t').map(str::to_owned).collect::<Vec<_>>();
+        orphan_ip_length[0] = "4".into();
+        for field in &mut orphan_ip_length[10..=12] {
+            field.clear();
+        }
+        let mut orphan_stream = tcp_row().split('\t').map(str::to_owned).collect::<Vec<_>>();
+        orphan_stream[0] = "5".into();
+        for field in &mut orphan_stream[16..=18] {
+            field.clear();
+        }
+        let rows = [
+            mutate(tcp_row(), 1, IP_LENGTH_INDEX, "0"),
+            mutate(tcp_row(), 2, IP_LENGTH_INDEX, "55"),
+            mutate(
+                ipv6_udp_row(),
+                3,
+                IPV6_PAYLOAD_LENGTH_INDEX,
+                &u32::MAX.to_string(),
+            ),
+            orphan_ip_length.join("\t"),
+            orphan_stream.join("\t"),
+        ];
+
+        let parsed = parse_rows(format!("{}\n", rows.join("\n")).as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.packets.is_empty());
+        for reason in [
+            "IPv4 total length must be greater than zero",
+            "IPv4 total length exceeds original frame length",
+            "ipv6.plen total length overflows u32",
+            "incomplete first-occurrence IPv4 field group",
+            "incomplete first-occurrence TCP field group",
+        ] {
+            assert!(
+                parsed
+                    .quarantines
+                    .iter()
+                    .any(|quarantine| quarantine.reason.contains(reason)),
+                "missing quarantine reason for {reason}"
+            );
+        }
     }
 
     #[test]
@@ -730,7 +871,10 @@ mod tests {
         assert_eq!(ieee802154["command"], 4);
         assert_eq!(ieee802154["fcs_status"], "valid");
         assert!(ieee802154.get("payload").is_none());
+        assert_eq!(FIELD_REGISTRY_ID, "netmon.tshark.packet_envelope.v3");
         assert!(FIELDS.iter().all(|field| !field.contains("payload")));
+        assert!(!FIELDS.contains(&"tcp.seq"));
+        assert!(!FIELDS.contains(&"tcp.ack"));
     }
 
     #[test]

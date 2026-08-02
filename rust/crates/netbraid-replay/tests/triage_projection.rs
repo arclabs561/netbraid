@@ -1303,12 +1303,14 @@ fn tcp_packet(
             destination: Some("02:00:00:00:00:02".into()),
         }),
         ipv4: Some(Ipv4FieldsV0 {
+            total_length_octets: None,
             source: source.into(),
             destination: destination.into(),
             protocol: 6,
         }),
         ipv6: None,
         tcp: Some(TcpFieldsV0 {
+            stream_index: None,
             source_port,
             destination_port,
             flags,

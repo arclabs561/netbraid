@@ -143,6 +143,8 @@ pub struct Ipv4FieldsV0 {
     pub source: String,
     pub destination: String,
     pub protocol: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_length_octets: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -150,6 +152,8 @@ pub struct Ipv6FieldsV0 {
     pub source: String,
     pub destination: String,
     pub next_header: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_length_octets: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -157,6 +161,8 @@ pub struct TcpFieldsV0 {
     pub source_port: u16,
     pub destination_port: u16,
     pub flags: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_index: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -286,6 +292,10 @@ pub enum CaptureValidationError {
     ZeroFrameNumber,
     UnexpectedRecordId,
     CapturedLengthExceedsOriginal,
+    ZeroIpv4TotalLength,
+    Ipv4TotalLengthExceedsOriginal,
+    ZeroIpv6TotalLength,
+    Ipv6TotalLengthExceedsOriginal,
     InvalidEthernetAddress(String),
     InvalidIpv4Address(String),
     InvalidIpv6Address(String),
@@ -364,6 +374,18 @@ impl std::fmt::Display for CaptureValidationError {
             }
             Self::CapturedLengthExceedsOriginal => {
                 formatter.write_str("captured frame length exceeds original frame length")
+            }
+            Self::ZeroIpv4TotalLength => {
+                formatter.write_str("IPv4 total length must be greater than zero")
+            }
+            Self::Ipv4TotalLengthExceedsOriginal => {
+                formatter.write_str("IPv4 total length exceeds original frame length")
+            }
+            Self::ZeroIpv6TotalLength => {
+                formatter.write_str("IPv6 total length must be greater than zero")
+            }
+            Self::Ipv6TotalLengthExceedsOriginal => {
+                formatter.write_str("IPv6 total length exceeds original frame length")
             }
             Self::InvalidEthernetAddress(value) => {
                 write!(formatter, "invalid Ethernet address {value:?}")
@@ -525,6 +547,15 @@ impl PacketEnvelopeV0 {
             }
         }
         if let Some(ipv4) = &self.ipv4 {
+            if ipv4.total_length_octets == Some(0) {
+                return Err(CaptureValidationError::ZeroIpv4TotalLength);
+            }
+            if ipv4
+                .total_length_octets
+                .is_some_and(|length| length > self.frame.original_len)
+            {
+                return Err(CaptureValidationError::Ipv4TotalLengthExceedsOriginal);
+            }
             for address in [&ipv4.source, &ipv4.destination] {
                 if address.parse::<Ipv4Addr>().is_err() {
                     return Err(CaptureValidationError::InvalidIpv4Address(
@@ -534,6 +565,15 @@ impl PacketEnvelopeV0 {
             }
         }
         if let Some(ipv6) = &self.ipv6 {
+            if ipv6.total_length_octets == Some(0) {
+                return Err(CaptureValidationError::ZeroIpv6TotalLength);
+            }
+            if ipv6
+                .total_length_octets
+                .is_some_and(|length| length > self.frame.original_len)
+            {
+                return Err(CaptureValidationError::Ipv6TotalLengthExceedsOriginal);
+            }
             for address in [&ipv6.source, &ipv6.destination] {
                 if address.parse::<Ipv6Addr>().is_err() {
                     return Err(CaptureValidationError::InvalidIpv6Address(
@@ -882,12 +922,14 @@ mod tests {
                 source: "192.0.2.1".into(),
                 destination: "198.51.100.2".into(),
                 protocol: 6,
+                total_length_octets: None,
             }),
             ipv6: None,
             tcp: Some(TcpFieldsV0 {
                 source_port: 40_000,
                 destination_port: 443,
                 flags: 2,
+                stream_index: None,
             }),
             udp: None,
             ieee802154: None,
@@ -1028,6 +1070,58 @@ mod tests {
             value.validate(),
             Err(CaptureValidationError::InvalidIpv4Address(_))
         ));
+    }
+
+    #[test]
+    fn packet_validates_optional_ip_lengths_against_original_not_captured_frame() {
+        let mut value = packet();
+        value.frame.captured_len = 54;
+        value.ipv4.as_mut().unwrap().total_length_octets = Some(60);
+        value.validate().unwrap();
+
+        value.ipv4.as_mut().unwrap().total_length_octets = Some(0);
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::ZeroIpv4TotalLength)
+        );
+
+        value.ipv4.as_mut().unwrap().total_length_octets = Some(75);
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::Ipv4TotalLengthExceedsOriginal)
+        );
+
+        value.ipv4 = None;
+        value.tcp = None;
+        value.ipv6 = Some(Ipv6FieldsV0 {
+            source: "2001:db8::1".into(),
+            destination: "2001:db8::2".into(),
+            next_header: 17,
+            total_length_octets: Some(40),
+        });
+        value.validate().unwrap();
+
+        value.ipv6.as_mut().unwrap().total_length_octets = Some(0);
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::ZeroIpv6TotalLength)
+        );
+
+        value.ipv6.as_mut().unwrap().total_length_octets = Some(75);
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::Ipv6TotalLengthExceedsOriginal)
+        );
+    }
+
+    #[test]
+    fn packet_legacy_json_without_flow_fields_remains_compatible() {
+        let value: PacketEnvelopeV0 =
+            serde_json::from_str(include_str!("../tests/fixtures/v0/packet_envelope_v0.json"))
+                .unwrap();
+
+        assert_eq!(value.ipv4.unwrap().total_length_octets, None);
+        assert_eq!(value.tcp.unwrap().stream_index, None);
     }
 
     #[test]
