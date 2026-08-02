@@ -76,6 +76,14 @@ operanet-layout-profile:
 caez-csi-profile:
     python3 scripts/profile-caez-csi-slices.py
 
+# Stream the publisher position CSV and a fixed frame-metadata sample directly
+# from the verified CAEZ tar. Column/time semantics remain explicitly unknown.
+caez-alignment-profile:
+    python3 scripts/test-profile-caez-alignment.py
+    python3 scripts/profile-caez-alignment.py --report eval-data/caez-alignment-profile.json
+    python3 scripts/profile-caez-alignment.py --report eval-data/caez-alignment-profile-repeat.json
+    cmp eval-data/caez-alignment-profile.json eval-data/caez-alignment-profile-repeat.json
+
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000
 
