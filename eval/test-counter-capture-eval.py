@@ -2,6 +2,7 @@
 """Hermetic checks for the finite counter/capture evaluator."""
 
 import importlib.util
+import json
 import sys
 import unittest
 from decimal import Decimal
@@ -47,6 +48,30 @@ def packet(source, destination, size=100):
 
 
 class CounterCaptureTests(unittest.TestCase):
+    def test_exact_rational_scorer_matches_shared_rust_fixture(self):
+        fixture_path = (
+            HERE.parent
+            / "rust"
+            / "tests"
+            / "fixtures"
+            / "infer"
+            / "v0"
+            / "exact-rational-counter-capture.json"
+        )
+        fixture = json.loads(fixture_path.read_text())
+        counter = MODULE.TrafficWindow(**fixture["counter"]["window"])
+        capture = MODULE.TrafficWindow(**fixture["capture"]["window"])
+        score = MODULE.exact_distance_ppb(
+            counter, capture, fixture["profile"]["scales_ppb"]
+        )
+        self.assertEqual(score, fixture["expected"]["scaled_residual_sum_ppb"])
+        self.assertEqual(score, 45_000_000_000)
+
+        invalid_scales = dict(fixture["profile"]["scales_ppb"])
+        invalid_scales["received_bytes"] = MODULE.SCALE_FLOOR_PPB - 1
+        with self.assertRaisesRegex(MODULE.CandidateError, "invalid_exact_scales_ppb"):
+            MODULE.exact_distance_ppb(counter, capture, invalid_scales)
+
     def test_counter_delta_rejects_generation_interface_and_reset(self):
         window = MODULE.counter_window(
             counters(),

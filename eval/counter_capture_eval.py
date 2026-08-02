@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from decimal import Decimal
+from fractions import Fraction
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
 FEATURE_NAMES = (
@@ -25,6 +26,8 @@ FEATURE_NAMES = (
     "mean_transmitted_bits_per_second",
 )
 SCALE_FLOOR = Decimal("0.05")
+PPB = 1_000_000_000
+SCALE_FLOOR_PPB = 50_000_000
 
 
 class CandidateError(ValueError):
@@ -308,6 +311,61 @@ def distance(
         raise CandidateError("invalid_calibration_scales")
     values = residuals(counter, capture)
     return sum((values[name] / scales[name] for name in FEATURE_NAMES), Decimal(0))
+
+
+def _exact_features(window: TrafficWindow) -> dict[str, Optional[Fraction]]:
+    packet_total = window.received_packets + window.transmitted_packets
+
+    def ratio(numerator: int, denominator: int) -> Optional[Fraction]:
+        return None if denominator == 0 else Fraction(numerator, denominator)
+
+    return {
+        "received_bytes": Fraction(window.received_bytes),
+        "transmitted_bytes": Fraction(window.transmitted_bytes),
+        "received_packets": Fraction(window.received_packets),
+        "transmitted_packets": Fraction(window.transmitted_packets),
+        "received_share": ratio(window.received_packets, packet_total),
+        "transmitted_share": ratio(window.transmitted_packets, packet_total),
+        "mean_received_packet_bytes": ratio(
+            window.received_bytes, window.received_packets
+        ),
+        "mean_transmitted_packet_bytes": ratio(
+            window.transmitted_bytes, window.transmitted_packets
+        ),
+        "mean_received_bits_per_second": Fraction(
+            window.received_bytes * 8000, window.duration_ms
+        ),
+        "mean_transmitted_bits_per_second": Fraction(
+            window.transmitted_bytes * 8000, window.duration_ms
+        ),
+    }
+
+
+def exact_distance_ppb(
+    counter: TrafficWindow, capture: TrafficWindow, scales_ppb: Mapping[str, int]
+) -> int:
+    """Mirror the v0 Rust reducer's exact-rational score and final PPB floor."""
+
+    if set(scales_ppb) != set(FEATURE_NAMES) or any(
+        isinstance(value, bool) or not isinstance(value, int) or value < SCALE_FLOOR_PPB
+        for value in scales_ppb.values()
+    ):
+        raise CandidateError("invalid_exact_scales_ppb")
+    counter_features = _exact_features(counter)
+    capture_features = _exact_features(capture)
+    score = Fraction(0)
+    for name in FEATURE_NAMES:
+        expected = counter_features[name]
+        observed = capture_features[name]
+        if expected is None or observed is None:
+            if expected is observed:
+                residual = Fraction(0)
+            else:
+                raise CandidateError("incomparable_sparse_feature")
+        else:
+            residual = abs(expected - observed) / max(abs(expected), Fraction(1))
+        score += residual / Fraction(scales_ppb[name], PPB)
+    return (score.numerator * PPB) // score.denominator
 
 
 def rank_candidates(
