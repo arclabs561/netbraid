@@ -133,6 +133,7 @@ just counter-capture-eval-check
 just hypothesis-frame-check
 just hypothesis-metrics-check
 just relation-split-audit-check
+just gnss-rff-layout-profile-check
 just osu-lora-profile
 just osu-lora-oracles-check
 just ruff-uwb-oracles-check
@@ -174,6 +175,12 @@ across distance campaigns, location and source/location groups are fenced by
 campaign. Publisher evidence supports cross-day source/device continuity, one
 fixed receiver, and channel 5. Source ID and the single hardware variant remain
 separate axes; individual capture event and session are not observed.
+
+The pinned GNSS RFF archive is profiled from its ZIP central directory after
+publisher-MD5 verification. The profiler accepts no password and opens no MAT
+or H5 payload streams. Filename labels support controlled clean/spoof, day, and
+acquisition-category coverage only; they do not establish event, actor,
+physical-source, malicious-intent, or tamper truth.
 
 The pinned WLAN RFF environment archives are profiled from ZIP central
 directories only. Their NPZ payloads are not opened. Filename tokens are
@@ -319,6 +326,13 @@ source/location/campaign cells covering 13 source labels, one declared variant,
 two collection days, one fixed receiver, channel 5, and 150 campaign-fenced
 location groups. It opened zero waveform members. These are oracle inventory
 counts, not model predictions or independent event samples.
+
+The GNSS RFF layout profiler passed nine hermetic tests and verified the public
+6,358,035,306-byte archive. Its central directory contains 13,354 data members:
+8,000 from the first day and 5,354 from the second. Six of eight
+category/scenario pairs have members on both days. All 13,363 file members are
+traditionally encrypted, and the profiler opened zero member payload streams
+and used no password. These are layout counts, not classifier results.
 
 ## Conclusion
 

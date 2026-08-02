@@ -39,6 +39,13 @@ aggregate report can establish cross-environment token reuse, but deliberately
 does not promote publisher-undocumented tokens to physical-device or
 physical-source identity.
 
+`profile-gnss-rff-layout.py` verifies the pinned GNSS RFF archive and profiles
+its encrypted ZIP central directory without accepting a password or opening a
+member payload. It reports controlled clean/spoof, day, and acquisition-category
+coverage while keeping sequence tokens and member paths out of the report.
+Spoof is a controlled cause label, not proof of malicious intent, tamper, actor
+identity, event identity, or physical-source identity.
+
 `compile-osu-lora-oracles.py` converts a strict OSU LoRa SigMF tree into an
 ignored observation inventory with opaque group identifiers. Physical-device
 and physical-source groups are fenced by publisher setup family; the compiler

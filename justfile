@@ -183,6 +183,12 @@ ruff-uwb-oracles-check:
 ruff-uwb-oracles:
     {{ python }} eval/compile-ruff-uwb-oracles.py
 
+gnss-rff-layout-profile-check:
+    {{ python }} eval/test-profile-gnss-rff-layout.py
+
+gnss-rff-layout-profile:
+    {{ python }} eval/profile-gnss-rff-layout.py
+
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000
 

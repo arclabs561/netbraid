@@ -471,7 +471,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The fetcher pins all three artifacts (6,358,042,574 bytes). Treat clean versus spoofed as an observation/cause task, not physical-identity truth. The archive digest checks transfer integrity only; it is not a tamper label."
+      "note": "The fetcher pins all three artifacts (6,358,042,574 bytes). The data archive exposes controlled clean/spoof, day, and acquisition-category labels in its encrypted member names; layout profiling does not open payloads or establish physical identity. The archive digest checks transfer integrity only; it is not a tamper label."
     },
     {
       "id": "zenodo-6516954-mmwave-jamming",
