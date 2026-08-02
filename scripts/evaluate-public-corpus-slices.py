@@ -715,16 +715,17 @@ def evaluate(
         fingerprints_by_case = {}
         if packet_cases:
             packet_case_ids = [extracted.case["id"] for extracted in packet_cases]
-            request_case_ids = [
-                f"first-{index}" for index in range(len(packet_cases))
-            ] + [f"second-{index}" for index in range(len(packet_cases))]
-            combined_cases = packet_cases + packet_cases
+            request_case_ids = []
+            combined_cases = []
+            for index, packet_case in enumerate(packet_cases):
+                request_case_ids.extend((f"first-{index}", f"second-{index}"))
+                combined_cases.extend((packet_case, packet_case))
             combined_bytes = run_batch_driver(
                 binary, batch_requests_jsonl(combined_cases, request_case_ids)
             )
             combined = parse_batch_output(combined_bytes, request_case_ids)
-            first = combined[: len(packet_cases)]
-            second = combined[len(packet_cases) :]
+            first = combined[::2]
+            second = combined[1::2]
             if first != second:
                 raise EvaluationError("batch_output_determinism")
             fingerprints_by_case = dict(zip(packet_case_ids, first))
