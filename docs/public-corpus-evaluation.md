@@ -240,10 +240,12 @@ co-ships synchronized PCAPNG, one-second process telemetry, state logs, and
 attack-phase labels in one 134 MB archive. NetsLab-5GORAN-IDD co-ships packet
 captures with independent lower-layer radio telemetry; the first bounded slice
 is its benign archive plus the lower- and network-layer summary databases.
-Neither Zenodo record declares a license field, so these remain local-only
-evaluation inputs unless a later rights review establishes redistribution
-terms. They can motivate cross-layer adapter and alignment work; they do not
-label Netbraid's counter-to-capture relation or establish identity.
+The Data4Cyber archive includes a CC BY 4.0 `LICENSE.txt`; its Zenodo metadata
+omits the license field. The NetsLab Zenodo record also omits that field, so
+its artifacts remain local-only evaluation inputs unless a later rights review
+establishes redistribution terms. They can motivate cross-layer adapter and
+alignment work; they do not label Netbraid's counter-to-capture relation or
+establish identity.
 
 The first such seam is an archive-backed CAEZ CSI profile:
 

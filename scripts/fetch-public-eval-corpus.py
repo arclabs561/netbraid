@@ -241,7 +241,7 @@ SOURCES: dict[str, dict[str, Any]] = {
         "filename": "data4cyber_dataset.zip",
         "bytes": 134_034_872,
         "md5": "a540979c63120c9a0295ff974933580f",
-        "license": "unspecified on the Zenodo record",
+        "license": "CC BY 4.0 (archive LICENSE.txt)",
         "doi": "10.5281/zenodo.19965384",
         "group": "fusion",
     },
