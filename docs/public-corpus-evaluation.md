@@ -96,6 +96,17 @@ Run the metadata-only audit with:
 just sorbonne-same-event-audit
 ```
 
+Run the separate full-normalization reducer contract with:
+
+```sh
+just sorbonne-structural-reducer-eval
+```
+
+That campaign uses a byte-exact, oracle-conditioned negative sample only to
+exercise the registered abstention boundary. It reports weighted dispositions
+and distinct structural classes, not accuracy, precision, recall, calibration,
+or generalization.
+
 The next hypothesis baseline must either abstain on the current structural
 projection or use a packet fingerprint that masks oracle and observer-specific
 fields. A separately justified negative set is required before precision,

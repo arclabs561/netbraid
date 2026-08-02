@@ -57,6 +57,15 @@ public-corpus-eval:
 sorbonne-same-event-audit:
     python3 scripts/evaluate-sorbonne-same-event.py --archive eval-data/220211012-SU-Outdoors-Campus.zip --campaign scripts/fixtures/sorbonne-same-event-campaign-v0.json --report eval-data/sorbonne-same-event-report.json
 
+# Normalize the complete Sorbonne 1 m run, join the publisher event labels,
+# and exercise the structural reducer once per distinct weighted pair basis.
+sorbonne-structural-reducer-eval:
+    cargo build --locked --manifest-path rust/Cargo.toml --bin netbraid
+    cargo build --locked --manifest-path rust/Cargo.toml -p netbraid-replay --example packet_same_event_jsonl
+    python3 scripts/evaluate-sorbonne-structural-reducer.py --archive eval-data/220211012-SU-Outdoors-Campus.zip --campaign scripts/fixtures/sorbonne-structural-reducer-campaign-v0.json --netbraid-bin rust/target/debug/netbraid --reducer-bin rust/target/debug/examples/packet_same_event_jsonl --report eval-data/sorbonne-structural-reducer-report.json
+    python3 scripts/evaluate-sorbonne-structural-reducer.py --archive eval-data/220211012-SU-Outdoors-Campus.zip --campaign scripts/fixtures/sorbonne-structural-reducer-campaign-v0.json --netbraid-bin rust/target/debug/netbraid --reducer-bin rust/target/debug/examples/packet_same_event_jsonl --report eval-data/sorbonne-structural-reducer-report-repeat.json
+    cmp eval-data/sorbonne-structural-reducer-report.json eval-data/sorbonne-structural-reducer-report-repeat.json
+
 # Profile a bounded CAEZ CSI shape slice directly from the verified local tar.
 # The target never extracts members or deserializes position/model payloads.
 caez-csi-profile:
