@@ -402,6 +402,95 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
 
 #[test]
 #[ignore = "requires installed tshark and capinfos; run through `just pcap-smoke`"]
+fn pcap_flows_tsv_is_deterministic_and_feeds_the_synthetic_lineage_oracle() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("synthetic.pcap");
+    fs::write(
+        &input,
+        decode_hex(include_str!("fixtures/ethernet_mixed_conversations.hex")),
+    )
+    .unwrap();
+
+    let arguments = [
+        "pcap",
+        input.to_str().unwrap(),
+        "--packet-limit",
+        "10",
+        "--flows-tsv",
+        "--tcp-inactivity-seconds",
+        "60.000000001",
+        "--udp-inactivity-seconds",
+        "30",
+    ];
+    let first = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+        .args(arguments)
+        .output()
+        .unwrap();
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let second = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+        .args(arguments)
+        .output()
+        .unwrap();
+    assert!(
+        second.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    assert_eq!(first.stdout, second.stdout);
+
+    let expected = concat!(
+        "start_time\tend_time\tsrc_ip\tsrc_port\tdst_ip\tdst_port\tprotocol\t",
+        "orig_packets\torig_ip_bytes\tresp_packets\tresp_ip_bytes\n",
+        "1700000000.123456000\t1700000000.423456000\t192.0.2.1\t40000\t",
+        "198.51.100.2\t443\ttcp\t2\t80\t2\t80\n",
+        "1700000000.523456000\t1700000000.623456000\t203.0.113.10\t53000\t",
+        "203.0.113.53\t53\tudp\t1\t40\t1\t40\n",
+    );
+    assert_eq!(String::from_utf8(first.stdout.clone()).unwrap(), expected);
+    assert!(!expected.contains(input.to_str().unwrap()));
+    for forbidden in ["sha256:", "payload", "capture_id", "record_id"] {
+        assert!(!expected.contains(forbidden));
+    }
+
+    let packet_flows = directory.path().join("packet-flows.tsv");
+    fs::write(&packet_flows, &first.stdout).unwrap();
+    let zeek_log = directory.path().join("synthetic-zeek.log");
+    fs::write(&zeek_log, SYNTHETIC_ZEEK_FLOW_LOG).unwrap();
+    let report = directory.path().join("lineage-report.json");
+    let evaluator = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../scripts/evaluate-iot23-flow-lineage.py");
+    let evaluation = Command::new("python3")
+        .arg(evaluator)
+        .args(["--zeek-log", zeek_log.to_str().unwrap()])
+        .args(["--packet-flows", packet_flows.to_str().unwrap()])
+        .args(["--report", report.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        evaluation.status.success(),
+        "{}",
+        String::from_utf8_lossy(&evaluation.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&fs::read(report).unwrap()).unwrap();
+    assert_eq!(report["inputs"]["publisher_flows"], 2);
+    assert_eq!(report["inputs"]["packet_derived_flows"], 2);
+    assert_eq!(report["raw_lineage"]["one_to_one_pairs"], 2);
+    assert_eq!(
+        report["raw_lineage"]["packet_derived_matched"],
+        serde_json::json!({"numerator": 2, "denominator": 2})
+    );
+    assert_eq!(
+        report["counter_deltas"]["total_ip_bytes"]["signed_packet_minus_publisher"],
+        0
+    );
+}
+
+#[test]
+#[ignore = "requires installed tshark and capinfos; run through `just pcap-smoke`"]
 fn pcap_command_surfaces_bounded_wireless_operator_evidence() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("ieee80211-radiotap.pcap");
@@ -644,6 +733,68 @@ fn pcap_jsonl_modes_are_mutually_exclusive() {
 }
 
 #[test]
+fn pcap_flows_tsv_requires_explicit_thresholds_and_rejects_other_output_modes() {
+    let missing_thresholds = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+        .args(["pcap", "does-not-need-to-exist.pcap", "--flows-tsv"])
+        .output()
+        .unwrap();
+    assert!(!missing_thresholds.status.success());
+    let stderr = String::from_utf8(missing_thresholds.stderr).unwrap();
+    assert!(stderr.contains("--tcp-inactivity-seconds"));
+    assert!(stderr.contains("--udp-inactivity-seconds"));
+    assert!(!stderr.contains("normalizing does-not-need-to-exist.pcap"));
+
+    for conflicting_mode in [
+        "--json",
+        "--fingerprint-json",
+        "--wlan-fingerprint-json",
+        "--jsonl",
+        "--records-jsonl",
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+            .args([
+                "pcap",
+                "does-not-need-to-exist.pcap",
+                "--flows-tsv",
+                "--tcp-inactivity-seconds",
+                "60",
+                "--udp-inactivity-seconds",
+                "30",
+                conflicting_mode,
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{conflicting_mode} must conflict");
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(stderr.contains("--flows-tsv"));
+        assert!(stderr.contains(conflicting_mode));
+        assert!(stderr.contains("cannot be used with"));
+        assert!(!stderr.contains("normalizing does-not-need-to-exist.pcap"));
+    }
+
+    let tail_conflict = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+        .args([
+            "pcap",
+            "does-not-need-to-exist.pcap",
+            "--flows-tsv",
+            "--tcp-inactivity-seconds",
+            "60",
+            "--udp-inactivity-seconds",
+            "30",
+            "--tail-seconds",
+            "1",
+        ])
+        .output()
+        .unwrap();
+    assert!(!tail_conflict.status.success());
+    let stderr = String::from_utf8(tail_conflict.stderr).unwrap();
+    assert!(stderr.contains("--flows-tsv"));
+    assert!(stderr.contains("--tail-seconds"));
+    assert!(stderr.contains("cannot be used with"));
+    assert!(!stderr.contains("normalizing does-not-need-to-exist.pcap"));
+}
+
+#[test]
 fn pcap_fingerprint_json_is_separate_from_other_json_modes() {
     let output = Command::new(env!("CARGO_BIN_EXE_netbraid"))
         .args([
@@ -739,3 +890,24 @@ fn decode_hex(input: &str) -> Vec<u8> {
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect()
 }
+
+const SYNTHETIC_ZEEK_FLOW_LOG: &str = concat!(
+    "#separator \\x09\n",
+    "#set_separator\t,\n",
+    "#empty_field\t(empty)\n",
+    "#unset_field\t-\n",
+    "#path\tconn\n",
+    "#open\t2020-01-01-00-00-00\n",
+    "#fields\tts\tuid\tid.orig_h\tid.orig_p\tid.resp_h\tid.resp_p\tproto\tservice\t",
+    "duration\torig_bytes\tresp_bytes\tconn_state\tlocal_orig\tlocal_resp\tmissed_bytes\t",
+    "history\torig_pkts\torig_ip_bytes\tresp_pkts\tresp_ip_bytes\ttunnel_parents\tlabel\t",
+    "detailed-label\n",
+    "#types\ttime\tstring\taddr\tport\taddr\tport\tenum\tstring\tinterval\tcount\tcount\t",
+    "string\tbool\tbool\tcount\tstring\tcount\tcount\tcount\tcount\tset[string]\tstring\t",
+    "string\n",
+    "1700000000.123456000\tsynthetic-tcp\t192.0.2.1\t40000\t198.51.100.2\t443\ttcp\t-\t",
+    "0.300000000\t0\t0\tSF\t-\t-\t0\tShADf\t2\t80\t2\t80\t-\tBenign\tNormal\n",
+    "1700000000.523456000\tsynthetic-udp\t203.0.113.10\t53000\t203.0.113.53\t53\tudp\t",
+    "dns\t0.100000000\t12\t12\tSF\t-\t-\t0\tDd\t1\t40\t1\t40\t-\tBenign\tNormal\n",
+    "#close\t2020-01-01-00-01-00\n",
+);

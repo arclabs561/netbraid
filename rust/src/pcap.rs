@@ -15,9 +15,10 @@ use netbraid_evidence::{
     CollectionModeV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
 };
 use netbraid_replay::{
-    project_saved_pcap_fingerprint_v0, project_saved_pcap_triage_v1,
-    project_saved_pcap_wlan_fingerprint_v0, reduce_capture_conversations, CaptureConversationV0,
-    ConversationDirectionV0, SavedCaptureRecordStreamV0, SavedPcapClaimScopeV0,
+    project_saved_capture_flows_v0, project_saved_pcap_fingerprint_v0,
+    project_saved_pcap_triage_v1, project_saved_pcap_wlan_fingerprint_v0,
+    reduce_capture_conversations, CaptureConversationV0, ConversationDirectionV0,
+    PacketFlowSessionizationV0, SavedCaptureRecordStreamV0, SavedPcapClaimScopeV0,
     SavedPcapCompletenessV0, SavedPcapConversationTriageV0,
     SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
     SavedPcapTopConversationV0, SavedPcapTrailingConversationTriageV1,
@@ -28,6 +29,44 @@ use netbraid_replay::{
 
 const MIB: u64 = 1024 * 1024;
 const NANOS_PER_SECOND: u64 = 1_000_000_000;
+const FLOW_TSV_HEADER: &str = "start_time\tend_time\tsrc_ip\tsrc_port\tdst_ip\tdst_port\tprotocol\torig_packets\torig_ip_bytes\tresp_packets\tresp_ip_bytes";
+
+fn parse_fixed_seconds_ns(value: &str) -> Result<u64, String> {
+    let (whole, fractional) = value.split_once('.').unwrap_or((value, ""));
+    if whole.is_empty()
+        || !whole.bytes().all(|byte| byte.is_ascii_digit())
+        || !fractional.bytes().all(|byte| byte.is_ascii_digit())
+        || fractional.len() > 9
+    {
+        return Err(
+            "must be a non-negative decimal number of seconds with at most 9 fractional digits"
+                .into(),
+        );
+    }
+    let whole = whole
+        .parse::<u64>()
+        .map_err(|_| "duration is too large".to_string())?;
+    let fractional_ns = if fractional.is_empty() {
+        0
+    } else {
+        let digits = fractional
+            .parse::<u64>()
+            .map_err(|_| "duration is too large".to_string())?;
+        digits
+            .checked_mul(10_u64.pow(u32::try_from(9 - fractional.len()).unwrap()))
+            .ok_or_else(|| "duration is too large".to_string())?
+    };
+    whole
+        .checked_mul(NANOS_PER_SECOND)
+        .and_then(|value| value.checked_add(fractional_ns))
+        .filter(|value| *value <= i64::MAX as u64)
+        .ok_or_else(|| {
+            format!(
+                "must be no greater than {} seconds",
+                i64::MAX as u64 / NANOS_PER_SECOND
+            )
+        })
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct TailSecondsArg {
@@ -38,41 +77,26 @@ impl FromStr for TailSecondsArg {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let (whole, fractional) = value.split_once('.').unwrap_or((value, ""));
-        if whole.is_empty()
-            || !whole.bytes().all(|byte| byte.is_ascii_digit())
-            || !fractional.bytes().all(|byte| byte.is_ascii_digit())
-            || fractional.len() > 9
-        {
-            return Err(
-                "must be a positive decimal number of seconds with at most 9 fractional digits"
-                    .into(),
-            );
+        let nanoseconds = parse_fixed_seconds_ns(value)?;
+        if nanoseconds == 0 {
+            return Err("must be at least 0.000000001 seconds".into());
         }
-        let whole = whole
-            .parse::<u64>()
-            .map_err(|_| "tail duration is too large".to_string())?;
-        let fractional_ns = if fractional.is_empty() {
-            0
-        } else {
-            let digits = fractional
-                .parse::<u64>()
-                .map_err(|_| "tail duration is too large".to_string())?;
-            digits
-                .checked_mul(10_u64.pow(u32::try_from(9 - fractional.len()).unwrap()))
-                .ok_or_else(|| "tail duration is too large".to_string())?
-        };
-        let nanoseconds = whole
-            .checked_mul(NANOS_PER_SECOND)
-            .and_then(|value| value.checked_add(fractional_ns))
-            .filter(|value| *value > 0 && *value <= i64::MAX as u64)
-            .ok_or_else(|| {
-                format!(
-                    "must be between 0.000000001 and {} seconds",
-                    i64::MAX as u64 / NANOS_PER_SECOND
-                )
-            })?;
         Ok(Self { nanoseconds })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct InactivitySecondsArg {
+    nanoseconds: u64,
+}
+
+impl FromStr for InactivitySecondsArg {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Ok(Self {
+            nanoseconds: parse_fixed_seconds_ns(value)?,
+        })
     }
 }
 
@@ -141,6 +165,29 @@ pub struct PcapArgs {
     #[arg(long, conflicts_with_all = ["json", "jsonl"])]
     pub records_jsonl: bool,
 
+    /// Emit evaluator-compatible deterministic packet flows as TSV.
+    #[arg(
+        long,
+        conflicts_with_all = [
+            "json",
+            "fingerprint_json",
+            "wlan_fingerprint_json",
+            "jsonl",
+            "records_jsonl",
+            "tail_seconds"
+        ],
+        requires_all = ["tcp_inactivity_seconds", "udp_inactivity_seconds"]
+    )]
+    pub flows_tsv: bool,
+
+    /// TCP inactivity threshold used by --flows-tsv; decimal seconds are accepted.
+    #[arg(long, value_name = "SECONDS", requires = "flows_tsv")]
+    pub tcp_inactivity_seconds: Option<InactivitySecondsArg>,
+
+    /// UDP inactivity threshold used by --flows-tsv; decimal seconds are accepted.
+    #[arg(long, value_name = "SECONDS", requires = "flows_tsv")]
+    pub udp_inactivity_seconds: Option<InactivitySecondsArg>,
+
     /// Analyze a source-artifact trailing interval; decimal seconds are accepted.
     #[arg(long, conflicts_with_all = ["jsonl", "records_jsonl"], value_name = "SECONDS")]
     pub tail_seconds: Option<TailSecondsArg>,
@@ -176,6 +223,7 @@ pub struct PcapArgs {
 
 pub fn run(args: &PcapArgs) -> Result<()> {
     let acquisition_policy = acquisition_policy(args)?;
+    let flow_sessionization = flow_sessionization(args)?;
     let tail_window_ns = args.tail_seconds.map(|duration| duration.nanoseconds);
     let max_input_bytes = args
         .max_input_mib
@@ -204,6 +252,10 @@ pub fn run(args: &PcapArgs) -> Result<()> {
     )
     .with_context(|| format!("normalizing {}", args.input.display()))?;
 
+    if let Some(policy) = flow_sessionization {
+        return print_flows_tsv(&report, policy);
+    }
+
     match (
         args.wlan_fingerprint_json,
         args.fingerprint_json,
@@ -219,6 +271,69 @@ pub fn run(args: &PcapArgs) -> Result<()> {
         (false, false, false, false, false) => print_summary(&args.input, &report, tail_window_ns),
         _ => unreachable!("clap rejects conflicting output modes"),
     }
+}
+
+fn flow_sessionization(args: &PcapArgs) -> Result<Option<PacketFlowSessionizationV0>> {
+    match (
+        args.flows_tsv,
+        args.tcp_inactivity_seconds,
+        args.udp_inactivity_seconds,
+    ) {
+        (false, None, None) => Ok(None),
+        (true, Some(tcp), Some(udp)) => Ok(Some(PacketFlowSessionizationV0 {
+            tcp_inactivity_ns: Some(tcp.nanoseconds),
+            udp_inactivity_ns: Some(udp.nanoseconds),
+        })),
+        (true, _, _) => {
+            bail!("--flows-tsv requires both --tcp-inactivity-seconds and --udp-inactivity-seconds")
+        }
+        (false, _, _) => bail!("inactivity thresholds require --flows-tsv"),
+    }
+}
+
+fn print_flows_tsv(report: &NormalizationReport, policy: PacketFlowSessionizationV0) -> Result<()> {
+    let records = records_for_report(report);
+    let flows = project_saved_capture_flows_v0(&records, policy)
+        .context("projecting deterministic saved-capture flows")?;
+    if flows
+        .flows
+        .iter()
+        .any(|flow| flow.start_time_unix_ns.is_negative() || flow.end_time_unix_ns.is_negative())
+    {
+        bail!("evaluator-compatible flow TSV cannot represent pre-epoch packet times");
+    }
+
+    let mut output = BufWriter::new(io::stdout().lock());
+    writeln!(output, "{FLOW_TSV_HEADER}")?;
+    for flow in flows.flows {
+        let protocol = match flow.transport {
+            TransportProtocolV0::Tcp => "tcp",
+            TransportProtocolV0::Udp => "udp",
+        };
+        writeln!(
+            output,
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            format_fixed_seconds_ns(flow.start_time_unix_ns),
+            format_fixed_seconds_ns(flow.end_time_unix_ns),
+            flow.originator.address,
+            flow.originator.port,
+            flow.responder.address,
+            flow.responder.port,
+            protocol,
+            flow.orig_packets,
+            flow.orig_ip_bytes,
+            flow.resp_packets,
+            flow.resp_ip_bytes,
+        )?;
+    }
+    output.flush()?;
+    Ok(())
+}
+
+fn format_fixed_seconds_ns(value: i64) -> String {
+    let seconds = value / i64::try_from(NANOS_PER_SECOND).unwrap();
+    let nanoseconds = value % i64::try_from(NANOS_PER_SECOND).unwrap();
+    format!("{seconds}.{nanoseconds:09}")
 }
 
 fn print_wlan_fingerprint_json(report: &NormalizationReport) -> Result<()> {
