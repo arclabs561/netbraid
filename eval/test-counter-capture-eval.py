@@ -170,6 +170,29 @@ class CounterCaptureTests(unittest.TestCase):
         ):
             MODULE.summarize_holdout([])
 
+    def test_declared_campaign_sizes_and_truth_positions_are_generic(self):
+        true = MODULE.TrafficWindow(1000, 1000, 200, 10, 2)
+        decoy = MODULE.TrafficWindow(1000, 100, 2000, 1, 20)
+        scales = MODULE.calibration_scales(
+            [MODULE.residuals(true, true)] * 3,
+            expected_runs=3,
+        )
+        ranked = MODULE.rank_candidates(
+            true,
+            [decoy, true],
+            scales,
+            expected_candidates=2,
+        )
+        self.assertEqual(ranked.winner_index, 1)
+        summary = MODULE.summarize_holdout(
+            [ranked, ranked],
+            expected_winner_indices=[1, 1],
+            expected_runs=2,
+            minimum_successes=2,
+        )
+        self.assertEqual(summary["recall_at_1"], {"numerator": 2, "denominator": 2})
+        self.assertEqual(summary["gate"], "pass")
+
     def test_malformed_metadata_fails_closed(self):
         with self.assertRaisesRegex(MODULE.CandidateError, "invalid_path_generation"):
             MODULE.counter_window(

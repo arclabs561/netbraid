@@ -275,15 +275,26 @@ def residuals(counter: TrafficWindow, capture: TrafficWindow) -> dict[str, Decim
 
 def calibration_scales(
     calibration_residuals: Sequence[Mapping[str, Decimal]],
+    *,
+    expected_runs: int = 8,
 ) -> dict[str, Decimal]:
-    """Lock one robust feature scale from exactly eight calibration pairs."""
+    """Lock one robust feature scale from a declared calibration split."""
 
-    if len(calibration_residuals) != 8:
-        raise CandidateError("calibration_requires_eight_runs")
+    if expected_runs <= 0 or len(calibration_residuals) != expected_runs:
+        code = (
+            "calibration_requires_eight_runs"
+            if expected_runs == 8
+            else "calibration_run_count_mismatch"
+        )
+        raise CandidateError(code)
     scales = {}
     for name in FEATURE_NAMES:
         values = sorted(item[name] for item in calibration_residuals)
-        median = (values[3] + values[4]) / Decimal(2)
+        midpoint = len(values) // 2
+        if len(values) % 2 == 0:
+            median = (values[midpoint - 1] + values[midpoint]) / Decimal(2)
+        else:
+            median = values[midpoint]
         scales[name] = max(median, SCALE_FLOOR)
     return scales
 
@@ -303,11 +314,18 @@ def rank_candidates(
     counter: TrafficWindow,
     captures: Sequence[Optional[TrafficWindow]],
     scales: Mapping[str, Decimal],
+    *,
+    expected_candidates: int = 4,
 ) -> RankOutcome:
-    """Rank four captures; ties and exclusions abstain."""
+    """Rank a declared candidate set; ties and exclusions abstain."""
 
-    if len(captures) != 4:
-        raise CandidateError("ranking_requires_four_candidates")
+    if expected_candidates < 2 or len(captures) != expected_candidates:
+        code = (
+            "ranking_requires_four_candidates"
+            if expected_candidates == 4
+            else "ranking_candidate_count_mismatch"
+        )
+        raise CandidateError(code)
     scores: list[Optional[Decimal]] = []
     for capture in captures:
         if capture is None:
@@ -369,11 +387,32 @@ def clopper_pearson(
     return lower, upper
 
 
-def summarize_holdout(outcomes: Sequence[RankOutcome]) -> dict[str, Any]:
-    if len(outcomes) != 16:
-        raise CandidateError("holdout_requires_sixteen_runs")
+def summarize_holdout(
+    outcomes: Sequence[RankOutcome],
+    *,
+    expected_winner_indices: Optional[Sequence[int]] = None,
+    expected_runs: int = 16,
+    minimum_successes: int = 12,
+) -> dict[str, Any]:
+    if expected_runs <= 0 or len(outcomes) != expected_runs:
+        code = (
+            "holdout_requires_sixteen_runs"
+            if expected_runs == 16
+            else "holdout_run_count_mismatch"
+        )
+        raise CandidateError(code)
+    if expected_winner_indices is None:
+        expected_winner_indices = (0,) * len(outcomes)
+    if len(expected_winner_indices) != len(outcomes) or any(
+        isinstance(index, bool) or not isinstance(index, int) or index < 0
+        for index in expected_winner_indices
+    ):
+        raise CandidateError("invalid_expected_winner_indices")
+    if not 0 <= minimum_successes <= len(outcomes):
+        raise CandidateError("invalid_minimum_successes")
     successes = sum(
-        outcome.status == "ranked" and outcome.winner_index == 0 for outcome in outcomes
+        outcome.status == "ranked" and outcome.winner_index == expected_index
+        for outcome, expected_index in zip(outcomes, expected_winner_indices)
     )
     abstentions = sum(outcome.status == "unknown" for outcome in outcomes)
     lower, upper = clopper_pearson(successes, len(outcomes))
@@ -381,5 +420,5 @@ def summarize_holdout(outcomes: Sequence[RankOutcome]) -> dict[str, Any]:
         "recall_at_1": {"numerator": successes, "denominator": len(outcomes)},
         "exact_95_percent_interval": {"lower": lower, "upper": upper},
         "abstentions": abstentions,
-        "gate": "pass" if successes >= 12 else "fail",
+        "gate": "pass" if successes >= minimum_successes else "fail",
     }

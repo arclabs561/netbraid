@@ -53,6 +53,7 @@ pcap-smoke:
 
 counter-capture-eval-check:
     {{ python }} eval/test-counter-capture-eval.py
+    {{ python }} eval/test-counter-capture-campaign.py
 
 catalog-check:
     {{ python }} data/tests/test-catalogs.py
