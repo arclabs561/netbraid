@@ -22,6 +22,8 @@ categories = ["command-line-utilities", "network-programming"]
 [features]
 default = ["cli"]
 adapter-tshark = ["dep:csv", "dep:tempfile"]
+adapter-kismetdb = ["dep:rusqlite"]
+adapter-kismetdb-bundled = ["adapter-kismetdb", "rusqlite/bundled"]
 cli = ["adapter-tshark", "dep:anyhow", "dep:clap"]
 scenario-fixtures = []
 scenario-fixtures-capture-derived = []
@@ -40,6 +42,11 @@ required-features = ["adapter-tshark"]
 name = "adapter_tshark_smoke"
 path = "tests/adapter_tshark_smoke.rs"
 required-features = ["adapter-tshark"]
+
+[[test]]
+name = "adapter_kismetdb"
+path = "tests/adapter_kismetdb.rs"
+required-features = ["adapter-kismetdb"]
 
 [[test]]
 name = "cli_identity"
@@ -67,6 +74,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10.9"
 tempfile = { version = "3", optional = true }
+rusqlite = { version = "0.40.1", optional = true, default-features = false, features = ["libsqlite3-sys"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
