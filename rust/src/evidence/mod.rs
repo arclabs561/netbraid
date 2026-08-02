@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 
 mod capture;
 pub(crate) mod digest;
+#[cfg(feature = "adapter-sigmf")]
+mod iq;
 
 pub use capture::{
     CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureFileMetadataV0, CaptureManifestV0,
@@ -19,6 +21,13 @@ pub use capture::{
     PacketQuarantineV0, TcpFieldsV0, ToolRunReceiptV0, UdpFieldsV0, WlanRadioFieldsV0,
     CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
     NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
+};
+#[cfg(feature = "adapter-sigmf")]
+pub use iq::{
+    IqByteOrderProvenanceV0, IqByteOrderStateV0, IqByteOrderV0, IqComponentAggregateV0,
+    IqComponentTypeV0, IqDeterministicAggregatesV0, IqDialectV0, IqSampleIntervalV0,
+    IqValueCountsV0, IqWindowCompletenessV0, IqWindowEvidenceV0, IQ_WINDOW_EVIDENCE_SCHEMA_V0,
+    IQ_WINDOW_LINKABILITY_NOTICE_V0,
 };
 
 pub const HOST_PATH_SCHEMA_V0: &str = "netmon.host_path_observation.v0";

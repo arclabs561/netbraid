@@ -1,0 +1,74 @@
+{
+  "version": "2.0.0",
+  "schema": {
+    "global": {},
+    "captures": {},
+    "annotations": {}
+  },
+  "_metadata": {
+    "global": {
+      "core:author": "synthetic",
+      "core:datatype": "cf32",
+      "core:description": "synthetic bounded adapter fixture",
+      "core:sample_rate": "1 MS/s"
+    },
+    "captures": [
+      {
+        "core:date": "2000-01-01T00:00:00Z",
+        "core:sample_start": 0,
+        "frequency": "915 MHz"
+      }
+    ],
+    "annotations": [
+      {
+        "core:sample_count": 2,
+        "core:sample_start": 0,
+        "wines:reciever": {
+          "antenna": {
+            "gain": 1,
+            "model": "synthetic-rx-antenna",
+            "type": "omnidirectional"
+          },
+          "model": "synthetic-rx"
+        },
+        "wines:transmitter": {
+          "ID": {
+            "Transmission ID": 1,
+            "Transmitter ID": "synthetic-tx-1"
+          },
+          "antenna": {
+            "gain": 1,
+            "model": "synthetic-tx-antenna",
+            "type": "omnidirectional"
+          },
+          "model": "synthetic-tx"
+        }
+      },
+      {
+        "core:sample_count": 2,
+        "core:sample_start": 2,
+        "wines:reciever": {
+          "antenna": {
+            "gain": 1,
+            "model": "synthetic-rx-antenna",
+            "type": "omnidirectional"
+          },
+          "model": "synthetic-rx"
+        },
+        "wines:transmitter": {
+          "ID": {
+            "Transmission ID": 2,
+            "Transmitter ID": "synthetic-tx-2"
+          },
+          "antenna": {
+            "gain": 1,
+            "model": "synthetic-tx-antenna",
+            "type": "omnidirectional"
+          },
+          "model": "synthetic-tx"
+        }
+      }
+    ]
+  },
+  "data_file": "osu.dat"
+}

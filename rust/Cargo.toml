@@ -24,6 +24,7 @@ default = ["cli"]
 adapter-tshark = ["dep:csv", "dep:tempfile"]
 adapter-kismetdb = ["dep:rusqlite"]
 adapter-kismetdb-bundled = ["adapter-kismetdb", "rusqlite/bundled"]
+adapter-sigmf = []
 cli = ["adapter-tshark", "dep:anyhow", "dep:clap"]
 scenario-fixtures = []
 scenario-fixtures-capture-derived = []
@@ -47,6 +48,11 @@ required-features = ["adapter-tshark"]
 name = "adapter_kismetdb"
 path = "tests/adapter_kismetdb.rs"
 required-features = ["adapter-kismetdb"]
+
+[[test]]
+name = "adapter_sigmf"
+path = "tests/adapter_sigmf.rs"
+required-features = ["adapter-sigmf"]
 
 [[test]]
 name = "cli_identity"

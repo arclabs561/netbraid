@@ -1,0 +1,6 @@
+# Four synthetic cf32_le samples:
+# (1.0, -2.0), (0.0, -0.0), (+inf, qNaN), (smallest subnormal, -1.5)
+0000803f 000000c0
+00000000 00000080
+0000807f 0000c07f
+01000000 0000c0bf
