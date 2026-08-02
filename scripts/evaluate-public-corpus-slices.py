@@ -334,6 +334,24 @@ def parse_batch_output(
     return fingerprints
 
 
+def run_batch_round(
+    binary: Path, cases: list[ExtractedCase], workers: int
+) -> list[dict[str, Any]]:
+    worker_count = min(workers, len(cases))
+    shards = [cases[offset::worker_count] for offset in range(worker_count)]
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = [
+            executor.submit(run_batch_driver, binary, batch_requests_jsonl(shard))
+            for shard in shards
+        ]
+    fingerprints_by_case = {}
+    for shard, future in zip(shards, futures):
+        case_ids = [extracted.case["id"] for extracted in shard]
+        fingerprints = parse_batch_output(future.result(), case_ids)
+        fingerprints_by_case.update(zip(case_ids, fingerprints))
+    return [fingerprints_by_case[extracted.case["id"]] for extracted in cases]
+
+
 def require_preserved_inputs(cases: list[ExtractedCase]) -> None:
     for extracted in cases:
         try:
@@ -708,14 +726,12 @@ def evaluate(
         ]
         fingerprints_by_case = {}
         if packet_cases:
-            request_bytes = batch_requests_jsonl(packet_cases)
-            first = run_batch_driver(binary, request_bytes)
-            second = run_batch_driver(binary, request_bytes)
+            first = run_batch_round(binary, packet_cases, case_workers)
+            second = run_batch_round(binary, packet_cases, case_workers)
             if first != second:
                 raise EvaluationError("batch_output_determinism")
             packet_case_ids = [extracted.case["id"] for extracted in packet_cases]
-            fingerprints = parse_batch_output(first, packet_case_ids)
-            fingerprints_by_case = dict(zip(packet_case_ids, fingerprints))
+            fingerprints_by_case = dict(zip(packet_case_ids, first))
         require_preserved_inputs(extracted_cases)
 
         for extracted in extracted_cases:
