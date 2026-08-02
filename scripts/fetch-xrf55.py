@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+"""Fetch pinned XRF55 Kaggle bundles without extracting or tracking raw data.
+
+Kaggle does not publish an artifact digest through its dataset metadata API.
+The first acquisition is therefore pinned by dataset ref, version, and exact
+byte count. It writes a local SHA-256 receipt; every later reuse verifies that
+digest before accepting the bundle.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import stat
+import sys
+import tempfile
+import urllib.error
+import urllib.request
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any, BinaryIO
+
+OFFICIAL_PAGE = "https://aiotgroup.github.io/XRF55/"
+LICENSE = "CC BY-NC 4.0"
+METADATA_LIMIT = 1_000_000
+CHUNK_BYTES = 8 * 1024 * 1024
+CONTENT_RANGE = re.compile(
+    r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)\Z"
+)
+SOURCES: dict[str, dict[str, Any]] = {
+    "part1": {
+        "kaggle_ref": "xrfdataset/xrf55",
+        "version": 3,
+        "bytes": 97_148_480_000,
+        "filename": "xrf55-part1-v3.zip",
+    },
+    "part2": {
+        "kaggle_ref": "whisperyi/xrf55-2",
+        "version": 1,
+        "bytes": 92_291_056_000,
+        "filename": "xrf55-part2-v1.zip",
+    },
+    "raw": {
+        "kaggle_ref": "xrfdataset/xrf55-rawdata",
+        "version": 1,
+        "bytes": 46_057_035_505,
+        "filename": "xrf55-wifi-rfid-raw-v1.zip",
+    },
+}
+
+
+class FetchError(RuntimeError):
+    """Stable failure at the remote-metadata or artifact boundary."""
+
+
+def metadata_url(spec: Mapping[str, Any]) -> str:
+    return f"https://www.kaggle.com/api/v1/datasets/view/{spec['kaggle_ref']}"
+
+
+def download_url(spec: Mapping[str, Any]) -> str:
+    return (
+        "https://www.kaggle.com/api/v1/datasets/download/"
+        f"{spec['kaggle_ref']}?datasetVersionNumber={spec['version']}"
+    )
+
+
+def _request(url: str, *, offset: int | None = None) -> urllib.request.Request:
+    headers = {"User-Agent": "netbraid-xrf55-fetcher/1"}
+    if offset is not None:
+        headers["Range"] = f"bytes={offset}-"
+    return urllib.request.Request(url, headers=headers)
+
+
+def _bounded_json(response: BinaryIO) -> Mapping[str, Any]:
+    payload = response.read(METADATA_LIMIT + 1)
+    if len(payload) > METADATA_LIMIT:
+        raise FetchError("metadata_response_too_large")
+    try:
+        value = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise FetchError("invalid_metadata_json") from error
+    if not isinstance(value, Mapping):
+        raise FetchError("invalid_metadata_schema")
+    return value
+
+
+def validate_remote_metadata(spec: Mapping[str, Any]) -> None:
+    try:
+        with urllib.request.urlopen(
+            _request(metadata_url(spec)), timeout=30
+        ) as response:
+            value = _bounded_json(response)
+    except (OSError, urllib.error.URLError) as error:
+        raise FetchError("metadata_request_failed") from error
+    expected = {
+        "ref": spec["kaggle_ref"],
+        "currentVersionNumber": spec["version"],
+        "totalBytes": spec["bytes"],
+        "isPrivate": False,
+    }
+    if any(
+        value.get(name) != expected_value for name, expected_value in expected.items()
+    ):
+        raise FetchError("remote_metadata_drift")
+
+
+def digest_file(path: Path) -> tuple[int, str]:
+    size = 0
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while chunk := source.read(CHUNK_BYTES):
+            size += len(chunk)
+            digest.update(chunk)
+    return size, digest.hexdigest()
+
+
+def receipt_path(archive: Path) -> Path:
+    return archive.with_suffix(archive.suffix + ".json")
+
+
+def source_receipt(spec: Mapping[str, Any], size: int, sha256: str) -> dict[str, Any]:
+    return {
+        "schema": "local.xrf55_archive.v1",
+        "source": {
+            "official_page": OFFICIAL_PAGE,
+            "kaggle_ref": spec["kaggle_ref"],
+            "version": spec["version"],
+            "bytes": spec["bytes"],
+            "license": LICENSE,
+        },
+        "integrity": {
+            "first_acquisition": "kaggle_version_and_exact_bytes",
+            "subsequent_reuse": "sha256_receipt",
+        },
+        "bytes": size,
+        "sha256": sha256,
+        "archive": spec["filename"],
+    }
+
+
+def write_receipt(archive: Path, value: Mapping[str, Any]) -> None:
+    target = receipt_path(archive)
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=f".{target.name}.", dir=target.parent
+    )
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(value, output, indent=2, sort_keys=True)
+            output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, target)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def verify_existing(archive: Path, spec: Mapping[str, Any]) -> None:
+    receipt = receipt_path(archive)
+    if archive.is_symlink() or not archive.is_file():
+        raise FetchError("unsafe_archive_path")
+    if receipt.is_symlink() or not receipt.is_file():
+        raise FetchError("receipt_missing_or_unsafe")
+    try:
+        value = json.loads(receipt.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise FetchError("invalid_receipt") from error
+    size, sha256 = digest_file(archive)
+    if value != source_receipt(spec, size, sha256):
+        raise FetchError("archive_or_receipt_verification_failed")
+
+
+def _resume_state(partial: Path, expected_bytes: int) -> tuple[int, Any]:
+    if partial.is_symlink():
+        raise FetchError("unsafe_partial_path")
+    if not partial.exists():
+        return 0, hashlib.sha256()
+    if not partial.is_file():
+        raise FetchError("unsafe_partial_path")
+    digest = hashlib.sha256()
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(partial, flags)
+    except OSError as error:
+        raise FetchError("unsafe_partial_path") from error
+    with os.fdopen(descriptor, "rb") as source:
+        before = os.fstat(source.fileno())
+        if not stat.S_ISREG(before.st_mode) or before.st_size >= expected_bytes:
+            raise FetchError("invalid_partial_size")
+        size = 0
+        while chunk := source.read(CHUNK_BYTES):
+            size += len(chunk)
+            digest.update(chunk)
+        after = os.fstat(source.fileno())
+        if size != before.st_size or (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
+            raise FetchError("partial_changed_during_verification")
+    return size, digest
+
+
+def _validate_download_response(response: Any, offset: int, total: int) -> None:
+    status = getattr(response, "status", None)
+    if offset == 0:
+        if status != 200:
+            raise FetchError("full_download_requires_http_200")
+        return
+    if status != 206:
+        raise FetchError("resume_requires_http_206")
+    content_range = response.headers.get("Content-Range")
+    match = CONTENT_RANGE.fullmatch(content_range or "")
+    if (
+        match is None
+        or int(match.group("start")) != offset
+        or int(match.group("total")) != total
+    ):
+        raise FetchError("invalid_content_range")
+
+
+def download(spec: Mapping[str, Any], output_dir: Path) -> Path:
+    output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    archive = output_dir / str(spec["filename"])
+    partial = output_dir / f".{spec['filename']}.part"
+    if archive.exists() or archive.is_symlink():
+        verify_existing(archive, spec)
+        print(f"reusing verified archive: {archive}")
+        return archive
+
+    validate_remote_metadata(spec)
+    offset, digest = _resume_state(partial, int(spec["bytes"]))
+    try:
+        with urllib.request.urlopen(
+            _request(download_url(spec), offset=offset if offset else None), timeout=120
+        ) as response:
+            _validate_download_response(response, offset, int(spec["bytes"]))
+            flags = os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+            flags |= os.O_APPEND if offset else os.O_TRUNC
+            descriptor = os.open(partial, flags, 0o600)
+            mode = "ab" if offset else "wb"
+            with os.fdopen(descriptor, mode) as output:
+                os.fchmod(output.fileno(), 0o600)
+                if os.fstat(output.fileno()).st_size != offset:
+                    raise FetchError("partial_changed_before_append")
+                received = offset
+                while chunk := response.read(CHUNK_BYTES):
+                    received += len(chunk)
+                    if received > spec["bytes"]:
+                        raise FetchError("download_exceeded_declared_bytes")
+                    output.write(chunk)
+                    digest.update(chunk)
+                output.flush()
+                os.fsync(output.fileno())
+    except (OSError, urllib.error.URLError) as error:
+        raise FetchError("download_request_failed") from error
+    if received != spec["bytes"]:
+        raise FetchError("download_incomplete")
+    os.replace(partial, archive)
+    write_receipt(archive, source_receipt(spec, received, digest.hexdigest()))
+    print(f"downloaded and receipt-pinned: {archive}")
+    return archive
+
+
+def _catalog() -> dict[str, Any]:
+    return {
+        name: {
+            **spec,
+            "official_page": OFFICIAL_PAGE,
+            "license": LICENSE,
+            "integrity": "version+bytes first; SHA-256 receipt thereafter",
+        }
+        for name, spec in SOURCES.items()
+    }
+
+
+def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("dataset", choices=["list", "all", *SOURCES])
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "eval-data",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    arguments = _arguments(argv)
+    if arguments.dataset == "list":
+        print(json.dumps(_catalog(), indent=2, sort_keys=True))
+        return 0
+    selected = (
+        SOURCES
+        if arguments.dataset == "all"
+        else {arguments.dataset: SOURCES[arguments.dataset]}
+    )
+    try:
+        for spec in selected.values():
+            download(spec, arguments.output_dir)
+    except FetchError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

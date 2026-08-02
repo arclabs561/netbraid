@@ -84,6 +84,30 @@ caez-alignment-profile:
     python3 scripts/profile-caez-alignment.py --report eval-data/caez-alignment-profile-repeat.json
     cmp eval-data/caez-alignment-profile.json eval-data/caez-alignment-profile-repeat.json
 
+# Verify the complete Data4Cyber archive and profile only bounded structural
+# evidence needed to assess whether a future cross-layer join is possible.
+data4cyber-alignment-profile:
+    python3 scripts/test-profile-data4cyber-alignment.py
+    python3 scripts/profile-data4cyber-alignment.py --report eval-data/data4cyber-alignment-profile.json
+    python3 scripts/profile-data4cyber-alignment.py --report eval-data/data4cyber-alignment-profile-repeat.json
+    cmp eval-data/data4cyber-alignment-profile.json eval-data/data4cyber-alignment-profile-repeat.json
+
+# Exercise the strict packet-to-publisher-flow oracle without requiring the
+# ignored IoT-23 corpus. Production use supplies externally sessionized flows.
+iot23-flow-lineage-check:
+    python3 scripts/test-evaluate-iot23-flow-lineage.py
+
+iot23-flow-lineage zeek_log packet_flows report="eval-data/iot23-flow-lineage-report.json":
+    python3 scripts/evaluate-iot23-flow-lineage.py --zeek-log {{ zeek_log }} --packet-flows {{ packet_flows }} --report {{ report }}
+
+# Fetch pinned XRF55 bundles into the ignored corpus directory. Archives are
+# never extracted; a local SHA-256 receipt protects reuse after acquisition.
+xrf55-fetcher-check:
+    python3 scripts/test-fetch-xrf55.py
+
+xrf55-fetch dataset="list":
+    python3 scripts/fetch-xrf55.py {{ dataset }}
+
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000
 

@@ -247,6 +247,45 @@ establishes redistribution terms. They can motivate cross-layer adapter and
 alignment work; they do not label Netbraid's counter-to-capture relation or
 establish identity.
 
+Run the bounded Data4Cyber alignment profile with:
+
+```sh
+just data4cyber-alignment-profile
+```
+
+The profile verifies the complete archive and exact digest, requires the
+publisher's eight-scenario layout, compares only tabular headers and README
+synchronization claims, and structurally scans bounded PCAPNG prefixes. It does
+not read table rows or packet payloads. Matching timestamp-bearing structures
+make a later alignment adapter testable; they do not establish clock offset,
+event correspondence, device identity, packet semantics, or model quality.
+
+IoT-23 supplies a separate packet-to-flow lineage oracle. The evaluator accepts
+strict, externally sessionized packet-flow metadata and the publisher's Zeek
+log, then reports aggregate five-tuple/time-envelope match, split, merge,
+unmatched, counter-delta, and label-lineage metrics. Reports omit paths,
+endpoints, payloads, and hashes. Because Netbraid does not yet produce
+IP-length-backed sessions, this is an adapter oracle rather than production
+packet-to-flow support. Run its hermetic contract with:
+
+```sh
+just iot23-flow-lineage-check
+```
+
+XRF55 is a larger deferred multimodal corpus: its three official Kaggle bundles
+total 235,496,571,505 bytes and cover synchronized Wi-Fi, RFID, and mmWave
+observations. `scripts/fetch-xrf55.py` pins the public dataset references,
+versions, and byte counts, downloads resumably without extraction, and writes a
+local SHA-256 receipt. Kaggle does not expose an artifact digest through its
+metadata response, so first-acquisition integrity is limited to version and
+exact byte count; every later reuse is SHA-256 verified. The corpus remains
+deferred until bounded Wi-Fi/RFID adapters and a grouped cross-environment split
+exist. Its video data is not required for the initial radio-fusion hypothesis.
+
+```sh
+just xrf55-fetch all
+```
+
 The first such seam is an archive-backed CAEZ CSI profile:
 
 ```sh
