@@ -139,6 +139,14 @@ osu-lora-discover setup:
 osu-lora-fetch setup max_total_bytes="10737418240":
     {{ python }} data/fetch/fetch-osu-lora.py fetch {{ setup }} --max-total-bytes {{ max_total_bytes }}
 
+# Validate the bounded metadata-only profiler without requiring corpus bytes.
+osu-lora-profile-check:
+    {{ python }} eval/test-profile-osu-lora-sigmf.py
+
+# Profile the ignored local tree without opening IQ payload streams.
+osu-lora-profile:
+    {{ python }} eval/profile-osu-lora-sigmf.py
+
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000
 
