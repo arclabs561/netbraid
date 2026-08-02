@@ -8,7 +8,7 @@ so `assess_packet_same_event_v0` selects `unknown` for every weighted pair.
 
 ## Method
 
-Status: contract campaign locked before evaluator implementation, not executed.
+Status: contract campaign revised before execution, not executed.
 
 The locked campaign is
 `scripts/fixtures/sorbonne-structural-reducer-campaign-v0.json`. It was committed
@@ -25,7 +25,11 @@ just sorbonne-structural-reducer-eval
 ```
 
 Locked implementation revision:
-`248afd4a41145b59b9c17ee780721d2d7dadefcf`.
+`459db84b1dafdb4f44e55b1e84853ba6c656bdaf`.
+
+Revision 1 records a post-lock semantic-validator hardening: evidence digests now
+reject uppercase hexadecimal. Reducer fields, pair construction, expected
+results, and failure gates did not change, and the campaign remained unexecuted.
 
 ## Data provenance
 

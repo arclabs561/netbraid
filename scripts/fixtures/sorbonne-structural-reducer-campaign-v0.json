@@ -2,8 +2,10 @@
   "schema": "netbraid.sorbonne_structural_reducer_campaign.v0",
   "campaign_id": "sorbonne-campus-1m-structural-reducer-v0",
   "preregistration": {
-    "status": "locked_before_campaign_evaluator_implementation",
-    "registered_against_netbraid_revision": "248afd4a41145b59b9c17ee780721d2d7dadefcf",
+    "status": "revised_before_execution",
+    "revision": 1,
+    "revision_reason": "the semantic validator was tightened to reject uppercase evidence digests after the initial lock; reducer fields, pair construction, expected results, and failure gates are unchanged",
+    "registered_against_netbraid_revision": "459db84b1dafdb4f44e55b1e84853ba6c656bdaf",
     "execution_state": "not_executed",
     "unknown_manifest_fields": "reject",
     "missing_required_fields": "reject"
