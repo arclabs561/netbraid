@@ -275,9 +275,13 @@ IoT-23 supplies a separate packet-to-flow lineage oracle. The evaluator accepts
 strict, externally sessionized packet-flow metadata and the publisher's Zeek
 log, then reports aggregate five-tuple/time-envelope match, split, merge,
 unmatched, counter-delta, and label-lineage metrics. Reports omit paths,
-endpoints, payloads, and hashes. Because Netbraid does not yet produce
-IP-length-backed sessions, this is an adapter oracle rather than production
-packet-to-flow support. Run its hermetic contract with:
+endpoints, payloads, and hashes. Netbraid can now emit the evaluator's locked
+TSV directly with `pcap --flows-tsv`; callers must explicitly supply both TCP
+and UDP inactivity thresholds. The projection uses normalized IP lengths and
+TCP stream indices, records split/orientation boundaries, and excludes legacy
+or ambiguous packets. Corpus-level agreement with the publisher remains an
+evaluation result, not a production-parity claim. Run its hermetic contract
+with:
 
 ```sh
 just iot23-flow-lineage-check
