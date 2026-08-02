@@ -18,3 +18,10 @@ emits a deterministic, bounded Apache-index inventory; `fetch` stores bytes and
 local SHA-256 receipts only under the ignored `data/raw/` and `data/receipts/`
 trees. Fetching defaults to a 10 GiB aggregate cap because the full release is
 larger than 1.2 TB.
+
+`controlled-jamming-artifacts-v1.json` is the exact acquisition boundary for
+two Zenodo controlled-jamming records. It pins 112 publisher artifacts, sizes,
+and MD5 digests without admitting their scenario labels as malicious-intent or
+tamper truth. `fetch-controlled-jamming.py` downloads complete selected records
+with strict byte caps, resumable ranges, local SHA-256 receipts, and no payload
+extraction.

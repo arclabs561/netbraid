@@ -79,6 +79,18 @@ smorffi-status:
 smorffi-fetch:
     uv run --script data/fetch/fetch-smorffi.py fetch
 
+controlled-jamming-fetcher-check:
+    uv run --python 3.11 data/tests/test-fetch-controlled-jamming.py
+
+controlled-jamming-list record="all":
+    uv run --script data/fetch/fetch-controlled-jamming.py list {{ record }}
+
+controlled-jamming-status record="all":
+    uv run --script data/fetch/fetch-controlled-jamming.py status {{ record }}
+
+controlled-jamming-fetch record max_total_bytes="137438953472" max_file_bytes="8589934592" workers="2":
+    uv run --script data/fetch/fetch-controlled-jamming.py fetch {{ record }} --max-total-bytes {{ max_total_bytes }} --max-file-bytes {{ max_file_bytes }} --workers {{ workers }}
+
 catalog-check:
     {{ python }} data/tests/test-catalogs.py
 

@@ -362,7 +362,7 @@
       "modalities": ["lora", "rf_iq", "device_identity"],
       "roles": ["day_shift_eval", "location_shift_eval", "receiver_shift_eval"],
       "disposition": "candidate",
-      "fetch": "investigate_before_pinning",
+      "fetch": "existing_fetcher",
       "priority": "P0",
       "note": "The corpus is very large; pin its exact public file inventory and terms before acquisition."
     },
@@ -486,7 +486,7 @@
       "disposition": "candidate",
       "fetch": "investigate_before_pinning",
       "priority": "P0",
-      "note": "The publisher record exposes 80 MAT artifacts (738,542,988 bytes) spanning four receiver elements, two radar regimes, with/without-jammer conditions, and one-to-five-target scenes. These are controlled scenario labels, not malicious-intent or tamper labels; receiver, regime, and target count must remain explicit confounders."
+      "note": "The exact fetch manifest pins 80 MAT artifacts (738,542,988 bytes) spanning four receiver elements, two radar regimes, with/without-jammer conditions, and one-to-five-target scenes. These are controlled scenario labels, not malicious-intent or tamper labels; receiver, regime, and target count must remain explicit confounders."
     },
     {
       "id": "zenodo-7119040-indoor-jamming-iq",
@@ -499,9 +499,9 @@
       "modalities": ["rf_iq", "bpsk", "controlled_jamming_observation"],
       "roles": ["jamming_cause_eval", "jammer_source_relation_eval", "distance_shift_eval", "power_shift_eval"],
       "disposition": "candidate",
-      "fetch": "investigate_before_pinning",
+      "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The publisher record exposes one workbook and 31 MAT artifacts (118,452,765,452 bytes). It holds transmitter and receiver hardware fixed while varying silent, tone, and Gaussian-noise conditions, distance, power, and five same-model jammer radios. Workbook semantics must be profiled before labels are admitted; controlled jamming does not establish malicious intent."
+      "note": "The exact fetch manifest pins one workbook and 31 MAT artifacts (118,452,765,452 bytes). The setup holds transmitter and receiver hardware fixed while varying silent, tone, and Gaussian-noise conditions, distance, power, and five same-model jammer radios. Workbook semantics must be profiled before labels are admitted; controlled jamming does not establish malicious intent."
     },
     {
       "id": "zenodo-18481702-mmwave-5g-rff",
