@@ -411,7 +411,9 @@ class FlowLineageTests(unittest.TestCase):
             [{"label": "Benign", "publisher_flows": 1}],
         )
 
-    def test_report_is_deterministic_aggregate_only_and_states_oracle_gap(self) -> None:
+    def test_report_is_deterministic_aggregate_only_and_states_provenance_gap(
+        self,
+    ) -> None:
         self.write_fixture()
         first = MODULE.evaluate(self.zeek, self.packet)
         second = MODULE.evaluate(self.zeek, self.packet)
@@ -429,10 +431,25 @@ class FlowLineageTests(unittest.TestCase):
         self.assertEqual(first["limits"]["retained_payload_bytes"], 0)
         self.assertEqual(first["limits"]["retained_endpoint_values"], 0)
         self.assertEqual(first["limits"]["retained_hashes"], 0)
-        self.assertIn(
-            "does not supply IP-length-backed sessionization",
-            first["limitations"]["current_netbraid_executable"],
+        limitations = first["limitations"]
+        self.assertEqual(
+            limitations["claim"],
+            "oracle_evaluator_does_not_infer_packet_flow_provenance",
         )
+        self.assertEqual(
+            limitations["packet_flow_provenance"],
+            (
+                "not encoded in the TSV schema and not inferred by this evaluator; "
+                "producer identity and sessionization settings must be established "
+                "externally"
+            ),
+        )
+        self.assertNotIn("current_netbraid_executable", limitations)
+        self.assertIn("packet_flow_producer_identity", limitations["not_established"])
+        self.assertIn(
+            "packet_flow_sessionization_policy", limitations["not_established"]
+        )
+        self.assertNotIn("does not supply IP-length-backed sessionization", rendered)
 
     def test_fixed_direction_and_time_envelope_do_not_invent_matches(self) -> None:
         self.zeek.write_text(

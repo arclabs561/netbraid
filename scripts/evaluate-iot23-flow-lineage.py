@@ -825,15 +825,18 @@ def evaluate(
             "retained_hashes": 0,
         },
         "limitations": {
-            "claim": "oracle_evaluator_not_production_packet_to_flow_support",
+            "claim": "oracle_evaluator_does_not_infer_packet_flow_provenance",
             "candidate_input": (
-                "externally sessionized packet-derived metadata with IP-length counters"
+                "already-sessionized packet-derived metadata with IP-length counters"
             ),
-            "current_netbraid_executable": (
-                "does not supply IP-length-backed sessionization; its conversation "
-                "reducer is capture-wide and explicitly non-sessionized"
+            "packet_flow_provenance": (
+                "not encoded in the TSV schema and not inferred by this evaluator; "
+                "producer identity and sessionization settings must be established "
+                "externally"
             ),
             "not_established": [
+                "packet_flow_producer_identity",
+                "packet_flow_sessionization_policy",
                 "production_adapter_correctness",
                 "cross-capture_clock_alignment",
                 "identity_or_device_lineage",
