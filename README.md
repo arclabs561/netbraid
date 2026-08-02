@@ -215,6 +215,8 @@ netbraid = { version = "0.3", default-features = false }
 | Feature | Default | Adds |
 | --- | --- | --- |
 | `cli` | yes | operator binary and TShark adapter |
+| `adapter-kismetdb` | no | read-only KismetDB packet-metadata normalization |
+| `adapter-kismetdb-bundled` | no | KismetDB adapter with bundled SQLite |
 | `adapter-tshark` | via `cli` | bounded saved-capture process boundary |
 | `scenario-fixtures` | no | public-synthetic scenario accessors |
 | `scenario-fixtures-capture-derived` | no | reviewed capture-derived scenario |
@@ -224,6 +226,7 @@ The primary public modules are:
 - `netbraid::evidence`: versioned, policy-neutral record types;
 - `netbraid::replay`: strict JSONL, scenario, triage, and pure reduction;
 - `netbraid::infer`: conservative, revisable hypothesis projections;
+- `netbraid::adapters::kismetdb`: optional read-only KismetDB boundary;
 - `netbraid::adapters::tshark`: optional offline normalization boundary.
 
 Schema IDs retain the historical `netmon.*` namespace where changing them
