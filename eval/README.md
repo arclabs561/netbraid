@@ -13,6 +13,14 @@ This directory contains executable measurements of Netbraid behavior.
 identifier-free traffic windows. Collection paths, addresses, interfaces, and
 deployment-selected runs remain outside this repository.
 
+Manifest schema v1 is the frozen 24-run compatibility profile. Schema v2 adds
+an explicit policy for opaque regime tokens, per-regime split sizes, candidate
+count, truth position, and an engineering acceptance threshold. V2 also
+requires campaign-local split-group IDs and rejects group overlap between
+calibration and held-out runs. Because outcomes share calibration scales and
+can reuse candidate windows, v2 reports raw numerators, denominators, and
+abstentions without a binomial confidence interval.
+
 Evaluators read ignored artifacts from `data/raw/` and write ignored results to
 `data/derived/eval/`. A dataset result is not a unit test and is not part of the
 default CI gate unless its oracle is exact and corpus-independent.
