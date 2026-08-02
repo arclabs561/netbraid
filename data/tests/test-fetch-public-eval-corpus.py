@@ -184,6 +184,7 @@ class FetcherMetadataTests(unittest.TestCase):
     def test_group_and_ignored_payload_contract(self):
         self.assertIn("rf-fingerprinting", MODULE.GROUPS)
         self.assertIn("rfid-exsim", MODULE.GROUPS)
+        self.assertIn("matter-traces", MODULE.GROUPS)
         ignores = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
         self.assertTrue(
             {"/data/raw/", "/data/derived/", "/data/receipts/"}.issubset(ignores)
@@ -214,6 +215,36 @@ class FetcherMetadataTests(unittest.TestCase):
         )
         self.assertEqual(source["doi"], "10.5281/zenodo.17854328")
         self.assertIn("unspecified on the Zenodo record", source["license"])
+
+    def test_matter_trace_record_v2_pins(self):
+        selected = {
+            name: source
+            for name, source in MODULE.SOURCES.items()
+            if source["group"] == "matter-traces"
+        }
+        self.assertEqual(len(selected), 16)
+        self.assertEqual(
+            sum(source["bytes"] for source in selected.values()),
+            MODULE.MATTER_TRACE_RECORD_BYTES,
+        )
+        self.assertTrue(
+            all(source["doi"] == "10.34810/DATA1813" for source in selected.values())
+        )
+        self.assertTrue(
+            all(
+                source["record"] == "matter-protocol-traces-v2"
+                and source["record_bytes"] == MODULE.MATTER_TRACE_RECORD_BYTES
+                and source["license"] == "CC BY 4.0"
+                and source["url"].startswith(
+                    "https://dataverse.csuc.cat/api/access/datafile/"
+                )
+                for source in selected.values()
+            )
+        )
+        self.assertEqual(
+            selected["matter-trace-wifi-e8"]["md5"],
+            "0b82acb65e11596a7696d9298e6e2ca9",
+        )
 
     def test_rfid_exsim_sha256_pin_is_enforced_hermetically(self):
         payload = b"synthetic RFID JSONL bundle"

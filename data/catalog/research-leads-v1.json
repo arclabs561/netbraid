@@ -322,6 +322,21 @@
       "note": "Paper evidence, not a public packet or waveform corpus."
     },
     {
+      "id": "data1813-matter-protocol-traces-v2",
+      "title": "Matter protocol PCAPNG traces from Thread and Wi-Fi testbeds",
+      "source_type": "dataset",
+      "canonical_url": "https://dataverse.csuc.cat/dataset.xhtml?persistentId=doi:10.34810/DATA1813",
+      "related_urls": ["https://doi.org/10.34810/DATA1813"],
+      "access": "direct_download",
+      "license": "cc_by_4_0",
+      "modalities": ["matter", "thread", "wifi", "packet_capture"],
+      "roles": ["adapter_conformance", "cross_transport_protocol_eval", "multi_hop_trace_eval"],
+      "disposition": "candidate",
+      "fetch": "existing_fetcher",
+      "priority": "P0",
+      "note": "The fetcher pins Dataverse release v2: 13 PCAPNG traces and three documentation files (2,431,184 bytes). These are baseline protocol/testbed observations without jamming or malicious-cause labels."
+    },
+    {
       "id": "liverpool-lora-rffi",
       "title": "Liverpool LoRa RF fingerprinting dataset",
       "source_type": "dataset",

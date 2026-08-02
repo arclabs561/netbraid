@@ -466,6 +466,132 @@ SOURCES: dict[str, dict[str, Any]] = {
     },
 }
 
+# Dataverse record v2, DOI 10.34810/DATA1813. Keep publisher file IDs in this
+# static allowlist so acquisition never depends on mutable search results.
+MATTER_TRACE_FILES = (
+    (
+        "thread-n1",
+        128301,
+        "2hop_ThreadN1.pcapng",
+        26_008,
+        "af7b471ae4c8e48f2afa36238f943b5e",
+    ),
+    (
+        "thread-n2",
+        128294,
+        "2hop_ThreadN2.pcapng",
+        57_120,
+        "e5cbd922e7f7d89d70b9013807e4ced6",
+    ),
+    (
+        "thread-n3",
+        128295,
+        "2hop_ThreadN3.pcapng",
+        74_924,
+        "68d61cae3b03d6b5c0cd1e6938d2f1b8",
+    ),
+    (
+        "thread-n4",
+        128299,
+        "2hop_ThreadN4.pcapng",
+        85_236,
+        "527f06b0f7dcf31072cee99eee1c0e18",
+    ),
+    (
+        "thread-n5",
+        128291,
+        "2hop_ThreadN5.pcapng",
+        37_184,
+        "b7e5ac3d48be344998851f6e0e96922d",
+    ),
+    (
+        "wifi-e1",
+        128289,
+        "2hop_WiFiE1.pcapng",
+        42_572,
+        "87a393e3500a883576c5d8dcf6eb2721",
+    ),
+    (
+        "wifi-e2",
+        128288,
+        "2hop_WiFiE2.pcapng",
+        42_368,
+        "fdb272493409482d5ad0cfd670fd567d",
+    ),
+    (
+        "wifi-e3",
+        128300,
+        "2hop_WiFiE3.pcapng",
+        41_332,
+        "cefa4ee77fdf3ade499347b111ee4456",
+    ),
+    (
+        "wifi-e4",
+        128302,
+        "2hop_WiFiE4.pcapng",
+        42_768,
+        "c4866f41a76cb7cba8c77cb9e50773ac",
+    ),
+    (
+        "wifi-e5",
+        128296,
+        "2hop_WiFiE5.pcapng",
+        59_080,
+        "97022c6797a71315ce43f9d63f80af70",
+    ),
+    (
+        "wifi-e6",
+        128297,
+        "2hop_WiFiE6.pcapng",
+        39_772,
+        "881474d0fc5fc8fe9f0f838b802304e4",
+    ),
+    (
+        "wifi-e7",
+        128292,
+        "2hop_WiFiE7.pcapng",
+        39_508,
+        "63aa5c65476960c3c7238bee507610ba",
+    ),
+    (
+        "wifi-e8",
+        128290,
+        "2hop_WiFiE8.pcapng",
+        1_829_564,
+        "0b82acb65e11596a7696d9298e6e2ca9",
+    ),
+    (
+        "thread-doc",
+        128293,
+        "Documentation_Thread.txt",
+        1_614,
+        "9d512ed5d6069b552cc8af519b0d47b3",
+    ),
+    (
+        "wifi-doc",
+        128298,
+        "Documentation_WIFI.txt",
+        1_787,
+        "279da9ceb7b753a138c502d0f2a12128",
+    ),
+    ("readme", 252118, "Readme.txt", 10_347, "4a9ee7d3db28ad6d26fdcb003f6445b9"),
+)
+MATTER_TRACE_RECORD_BYTES = 2_431_184
+for key, file_id, source_filename, size, md5 in MATTER_TRACE_FILES:
+    SOURCES["matter-trace-" + key] = {
+        "url": f"https://dataverse.csuc.cat/api/access/datafile/{file_id}",
+        "filename": "matter-" + source_filename,
+        "source_filename": source_filename,
+        "bytes": size,
+        "md5": md5,
+        "format": "file",
+        "license": "CC BY 4.0",
+        "doi": "10.34810/DATA1813",
+        "record": "matter-protocol-traces-v2",
+        "record_bytes": MATTER_TRACE_RECORD_BYTES,
+        "group": "matter-traces",
+    }
+
 GROUPS = frozenset(spec["group"] for spec in SOURCES.values())
 
 
