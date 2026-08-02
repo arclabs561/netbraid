@@ -260,6 +260,7 @@ uv run --script scripts/fetch-public-eval-corpus.py v2i-80211ad \
 just public-corpus-eval
 just sorbonne-same-event-audit
 just sorbonne-structural-reducer-eval
+just operanet-layout-profile
 ```
 
 Do not commit the archive, extracted files, or generated inventories. Review
@@ -284,6 +285,11 @@ joins every packet to its publisher row by observer and frame number, constructs
 the locked same-event and different-event populations, and calls the Rust v0
 reducer once per distinct weighted structural class. It is a contract and
 abstention-boundary check, not a discrimination benchmark.
+
+The OPERAnet layout profile verifies all seven pinned archives and reports only
+bounded ZIP metadata. It finds 36 of 61 experiment-number tokens across every
+sensing modality, but treats filename overlap as insufficient evidence of
+shared participants, activities, clocks, or capture windows.
 
 The admitted fixture corpus also has a local, offline evaluator. It runs the
 debug binary twice per fixture and checks manifest hashes, expected WLAN

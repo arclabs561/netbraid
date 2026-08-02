@@ -112,6 +112,20 @@ projection or use a packet fingerprint that masks oracle and observer-specific
 fields. A separately justified negative set is required before precision,
 recall, or false-link rates are meaningful.
 
+### OPERAnet layout profile
+
+Run the archive-metadata profile with:
+
+```sh
+just operanet-layout-profile
+```
+
+The profiler verifies the seven pinned archives and receipts, then reads ZIP
+central-directory metadata without opening member payload streams. Thirty-six
+of 61 observed experiment-number tokens occur in every sensing modality.
+Incomplete modality coverage, ambiguous Wi-Fi CSI 2 suffixes, and absent
+participant/activity/clock metadata block any stronger alignment claim.
+
 ### Linktop review
 
 Linktop consumes only the verified Netbraid saved-evidence stream. Its campaign

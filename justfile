@@ -66,6 +66,11 @@ sorbonne-structural-reducer-eval:
     python3 scripts/evaluate-sorbonne-structural-reducer.py --archive eval-data/220211012-SU-Outdoors-Campus.zip --campaign scripts/fixtures/sorbonne-structural-reducer-campaign-v0.json --netbraid-bin rust/target/debug/netbraid --reducer-bin rust/target/debug/examples/packet_same_event_jsonl --report eval-data/sorbonne-structural-reducer-report-repeat.json
     cmp eval-data/sorbonne-structural-reducer-report.json eval-data/sorbonne-structural-reducer-report-repeat.json
 
+# Verify all pinned OPERAnet archives and profile only their ZIP metadata.
+# Member payload streams are never opened, extracted, or deserialized.
+operanet-layout-profile:
+    python3 scripts/profile-operanet-layout.py
+
 # Profile a bounded CAEZ CSI shape slice directly from the verified local tar.
 # The target never extracts members or deserializes position/model payloads.
 caez-csi-profile:
