@@ -27,6 +27,12 @@ only opaque frame and stratum identifiers, reports raw confusion/support and
 abstention counts, and keeps unknown references separate from predictions that
 decline to decide.
 
+`relation_split_audit.py` checks opaque observation-group manifests across
+train, calibration, validation, and test roles. Policies declare forbidden
+role-pair overlap separately for event, source, device, variant, session, and
+domain-shift axes; unknown coverage makes a required comparison unknown rather
+than silently passing it.
+
 `profile-wlan-rff-layout.py` verifies the two pinned WLAN RFF archives and
 profiles their strict filename grammar without opening NPZ payloads. Its
 aggregate report can establish cross-environment token reuse, but deliberately

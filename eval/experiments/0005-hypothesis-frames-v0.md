@@ -132,6 +132,7 @@ cargo test --locked --manifest-path rust/Cargo.toml --test infer_facade
 just counter-capture-eval-check
 just hypothesis-frame-check
 just hypothesis-metrics-check
+just relation-split-audit-check
 just osu-lora-profile
 just wlan-rff-layout-profile
 ```
@@ -195,6 +196,14 @@ explicitly represents their dependence. Confidence intervals are reported
 only for units that satisfy their independence or grouped-resampling
 assumptions. Exact pass thresholds require a separate preregistration after
 class balance and achievable power are known.
+
+The split auditor represents train, calibration, validation, and test as four
+exact nonempty roles. Event and session groups must be disjoint across every
+role pair. Other axes declare the exact forbidden role pairs required by the
+campaign, allowing intentional reuse such as known sources shared between
+training and calibration while still holding them out from final test. A
+required pair containing unknown or unobserved group coverage is unknown and
+fails the CLI gate; it cannot pass by absence of a known intersection.
 
 The structural gate fails if any positive physical-source decision is possible
 when integrity fails, the input is out of domain, an unknown device is forced
@@ -279,6 +288,11 @@ cross-environment grouping key, not physical-device or physical-source truth.
 The hypothesis-metrics checkpoint passed seven hermetic tests and the existing
 twelve hypothesis-frame tests. These are contract checks over synthetic opaque
 identifiers; they are not classifier-performance results.
+
+The relation-split checkpoint passed thirteen hermetic tests over all eleven
+group axes and all six role pairs. Reports retain only opaque partition IDs and
+aggregate group-intersection counts; they never emit group values or raw corpus
+labels. This validates the manifest/audit boundary, not any corpus split.
 
 ## Conclusion
 

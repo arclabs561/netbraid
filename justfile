@@ -61,6 +61,9 @@ hypothesis-frame-check:
 hypothesis-metrics-check:
     {{ python }} eval/test-hypothesis-metrics.py
 
+relation-split-audit-check:
+    {{ python }} eval/test-relation-split-audit.py
+
 wlan-rff-layout-profile-check:
     {{ python }} eval/test-profile-wlan-rff-layout.py
 
