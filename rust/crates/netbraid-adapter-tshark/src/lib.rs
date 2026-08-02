@@ -72,6 +72,33 @@ impl Default for NormalizeOptions {
     }
 }
 
+/// One saved-capture normalization request in an atomic batch.
+#[derive(Debug, Clone)]
+pub struct NormalizeRequest {
+    path: PathBuf,
+    options: NormalizeOptions,
+}
+
+impl NormalizeRequest {
+    /// Creates a request whose options are validated with the complete batch.
+    pub fn new(path: impl Into<PathBuf>, options: NormalizeOptions) -> Self {
+        Self {
+            path: path.into(),
+            options,
+        }
+    }
+
+    /// Returns the saved-capture path for this request.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Returns the normalization options for this request.
+    pub fn options(&self) -> &NormalizeOptions {
+        &self.options
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizationReport {
     pub manifest: CaptureManifestV0,
@@ -84,6 +111,10 @@ pub struct NormalizationReport {
 #[non_exhaustive]
 pub enum AdapterError {
     InvalidOption(&'static str),
+    BatchConfigurationMismatch {
+        request_index: usize,
+        option: &'static str,
+    },
     InputMetadata {
         path: PathBuf,
         source: io::Error,
@@ -154,6 +185,13 @@ impl std::fmt::Display for AdapterError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidOption(option) => write!(formatter, "{option} must be greater than zero"),
+            Self::BatchConfigurationMismatch {
+                request_index,
+                option,
+            } => write!(
+                formatter,
+                "batch request {request_index} has a different {option} configuration-discovery option"
+            ),
             Self::InputMetadata { path, source } => {
                 write!(formatter, "reading metadata for {}: {source}", path.display())
             }
@@ -315,6 +353,35 @@ pub fn normalize_saved_captures(
         },
         |input, snapshot| {
             normalize_saved_capture_with_snapshot(input, options, Some((&environment, snapshot)))
+        },
+    )
+}
+
+/// Normalize per-request options under one TShark configuration fence.
+///
+/// All request options are validated before any tool starts. Packet limits,
+/// input bounds, Capinfos settings, and provenance metadata may differ, while
+/// the TShark executable, plugin policy, and discovery process bounds must be
+/// shared. An empty request set returns no reports without starting a tool.
+pub fn normalize_saved_capture_requests(
+    requests: &[NormalizeRequest],
+) -> Result<Vec<NormalizationReport>, AdapterError> {
+    let Some(discovery_options) = validate_batch_requests(requests)? else {
+        return Ok(Vec::new());
+    };
+    let environment = WiresharkEnvironment::new()?;
+    run_atomic_batch(
+        requests,
+        || {
+            reject_personal_plugins_unless_allowed(discovery_options.allow_personal_plugins)?;
+            discover_tshark_snapshot(discovery_options, &environment)
+        },
+        |request, snapshot| {
+            normalize_saved_capture_with_snapshot(
+                &request.path,
+                &request.options,
+                Some((&environment, snapshot)),
+            )
         },
     )
 }
@@ -485,17 +552,17 @@ fn normalize_saved_capture_with_snapshot(
     })
 }
 
-fn run_atomic_batch<T, Discover, Normalize>(
-    inputs: &[PathBuf],
+fn run_atomic_batch<Request, T, Discover, Normalize>(
+    requests: &[Request],
     mut discover: Discover,
     mut normalize: Normalize,
 ) -> Result<Vec<T>, AdapterError>
 where
     Discover: FnMut() -> Result<TsharkSnapshot, AdapterError>,
-    Normalize: FnMut(&Path, &TsharkSnapshot) -> Result<T, AdapterError>,
+    Normalize: FnMut(&Request, &TsharkSnapshot) -> Result<T, AdapterError>,
 {
     let before = discover()?;
-    let reports = inputs
+    let reports = requests
         .iter()
         .map(|input| normalize(input, &before))
         .collect::<Result<Vec<_>, _>>();
@@ -509,6 +576,41 @@ where
         });
     }
     reports
+}
+
+fn validate_batch_requests(
+    requests: &[NormalizeRequest],
+) -> Result<Option<&NormalizeOptions>, AdapterError> {
+    for request in requests {
+        validate_options(&request.options)?;
+    }
+    let Some(first) = requests.first() else {
+        return Ok(None);
+    };
+    let shared = &first.options;
+    for (request_index, request) in requests.iter().enumerate().skip(1) {
+        let options = &request.options;
+        let mismatch = if options.tshark_path != shared.tshark_path {
+            Some("tshark_path")
+        } else if options.allow_personal_plugins != shared.allow_personal_plugins {
+            Some("allow_personal_plugins")
+        } else if options.timeout != shared.timeout {
+            Some("timeout")
+        } else if options.max_stdout_bytes != shared.max_stdout_bytes {
+            Some("max_stdout_bytes")
+        } else if options.max_stderr_bytes != shared.max_stderr_bytes {
+            Some("max_stderr_bytes")
+        } else {
+            None
+        };
+        if let Some(option) = mismatch {
+            return Err(AdapterError::BatchConfigurationMismatch {
+                request_index,
+                option,
+            });
+        }
+    }
+    Ok(Some(shared))
 }
 
 fn validate_options(options: &NormalizeOptions) -> Result<(), AdapterError> {
@@ -1068,6 +1170,16 @@ mod tests {
         }
     }
 
+    fn request(path: &str, packet_limit: usize) -> NormalizeRequest {
+        NormalizeRequest {
+            path: PathBuf::from(path),
+            options: NormalizeOptions {
+                packet_limit,
+                ..NormalizeOptions::default()
+            },
+        }
+    }
+
     #[test]
     fn command_is_offline_name_resolution_free_and_registry_owned() {
         let args = tshark_args(Path::new("capture file.pcap"), 17);
@@ -1150,6 +1262,93 @@ mod tests {
     }
 
     #[test]
+    fn request_batch_accepts_heterogeneous_packet_limits_under_one_fence() {
+        let mut requests = vec![request("first.pcap", 17), request("second.pcap", 23)];
+        requests[1].options.capinfos_path = PathBuf::from("alternate-capinfos");
+        requests[1].options.max_input_bytes = 4096;
+        let shared = validate_batch_requests(&requests).unwrap().unwrap();
+        assert_eq!(shared.packet_limit, 17);
+
+        let stable = snapshot("TShark 4.4.0", "sha256:stable");
+        let mut discoveries = vec![stable.clone(), stable].into_iter();
+        let mut observed = Vec::new();
+        let reports = run_atomic_batch(
+            &requests,
+            || Ok(discoveries.next().unwrap()),
+            |request, discovered| {
+                observed.push((
+                    request.path.clone(),
+                    request.options.packet_limit,
+                    discovered.clone(),
+                ));
+                Ok(request.options.packet_limit)
+            },
+        )
+        .unwrap();
+
+        assert_eq!(reports, vec![17, 23]);
+        assert_eq!(observed[0].0, PathBuf::from("first.pcap"));
+        assert_eq!(observed[1].0, PathBuf::from("second.pcap"));
+        assert_eq!(observed[0].1, 17);
+        assert_eq!(observed[1].1, 23);
+        assert_eq!(observed[0].2, observed[1].2);
+        assert!(discoveries.next().is_none());
+    }
+
+    #[test]
+    fn request_batch_rejects_each_configuration_discovery_mismatch() {
+        let shared = NormalizeOptions::default();
+        let mut mismatches = Vec::new();
+
+        let mut changed = shared.clone();
+        changed.tshark_path = PathBuf::from("other-tshark");
+        mismatches.push(("tshark_path", changed));
+        let mut changed = shared.clone();
+        changed.allow_personal_plugins = true;
+        mismatches.push(("allow_personal_plugins", changed));
+        let mut changed = shared.clone();
+        changed.timeout += Duration::from_secs(1);
+        mismatches.push(("timeout", changed));
+        let mut changed = shared.clone();
+        changed.max_stdout_bytes += 1;
+        mismatches.push(("max_stdout_bytes", changed));
+        let mut changed = shared.clone();
+        changed.max_stderr_bytes += 1;
+        mismatches.push(("max_stderr_bytes", changed));
+
+        for (option, changed) in mismatches {
+            let requests = vec![
+                NormalizeRequest {
+                    path: PathBuf::from("first.pcap"),
+                    options: shared.clone(),
+                },
+                NormalizeRequest {
+                    path: PathBuf::from("second.pcap"),
+                    options: changed,
+                },
+            ];
+            assert!(matches!(
+                validate_batch_requests(&requests),
+                Err(AdapterError::BatchConfigurationMismatch {
+                    request_index: 1,
+                    option: actual,
+                }) if actual == option
+            ));
+        }
+    }
+
+    #[test]
+    fn request_batch_validates_every_request_before_opening_the_fence() {
+        let requests = vec![request("first.pcap", 17), request("second.pcap", 0)];
+
+        assert!(matches!(
+            validate_batch_requests(&requests),
+            Err(AdapterError::InvalidOption("packet_limit"))
+        ));
+        assert!(validate_batch_requests(&[]).unwrap().is_none());
+    }
+
+    #[test]
     fn atomic_batch_reuses_entry_snapshot_and_preserves_input_order() {
         let inputs = vec![PathBuf::from("first.pcap"), PathBuf::from("second.pcap")];
         let expected = snapshot("TShark 4.4.0", "sha256:stable");
@@ -1217,7 +1416,7 @@ mod tests {
         let mut discoveries = vec![stable.clone(), stable].into_iter();
         let mut attempts = 0;
 
-        let error = run_atomic_batch::<(), _, _>(
+        let error = run_atomic_batch::<_, (), _, _>(
             &inputs,
             || Ok(discoveries.next().unwrap()),
             |_, _| {

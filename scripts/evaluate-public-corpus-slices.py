@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +43,14 @@ class EvaluationError(Exception):
         super().__init__(stage, case)
         self.stage = stage
         self.case = case
+
+
+@dataclass(frozen=True)
+class ExtractedCase:
+    case: dict[str, Any]
+    capture_path: Path
+    capture_bytes: bytes
+    reference_bytes: bytes | None
 
 
 def strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -267,37 +276,72 @@ def extract_member(
     return destination.read_bytes()
 
 
-def run_netbraid(binary: Path, capture: Path, packet_limit: int, case_id: str) -> bytes:
-    argv = [
-        os.fspath(binary),
-        "pcap",
-        os.fspath(capture),
-        "--wlan-fingerprint-json",
-        "--packet-limit",
-        str(packet_limit),
-        "--max-input-mib",
-        "16",
-        "--max-output-mib",
-        "128",
-        "--timeout-seconds",
-        "60",
-    ]
+def batch_requests_jsonl(cases: list[ExtractedCase]) -> bytes:
+    output = bytearray()
+    for extracted in cases:
+        request = {
+            "case_id": extracted.case["id"],
+            "path": os.fspath(extracted.capture_path),
+            "packet_limit": extracted.case["packet_limit"],
+        }
+        output.extend(
+            json.dumps(request, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        )
+        output.extend(b"\n")
+    return bytes(output)
+
+
+def run_batch_driver(binary: Path, requests: bytes) -> bytes:
+    argv = [os.fspath(binary), "pcap-batch-wlan-fingerprint-jsonl"]
     try:
         completed = subprocess.run(
             argv,
             check=False,
             capture_output=True,
+            input=requests,
             timeout=TOOL_TIMEOUT_S,
         )
     except (OSError, subprocess.TimeoutExpired):
-        raise EvaluationError("netbraid_execution", case_id) from None
+        raise EvaluationError("batch_driver_execution") from None
     if (
         completed.returncode != 0
         or completed.stderr
         or len(completed.stdout) > MAX_TOOL_OUTPUT_BYTES
     ):
-        raise EvaluationError("netbraid_execution", case_id)
+        raise EvaluationError("batch_driver_execution")
     return completed.stdout
+
+
+def parse_batch_output(
+    data: bytes, expected_case_ids: list[str]
+) -> list[dict[str, Any]]:
+    if not data.endswith(b"\n"):
+        raise EvaluationError("batch_output_shape")
+    lines = data.splitlines()
+    if len(lines) != len(expected_case_ids):
+        raise EvaluationError("batch_output_identity")
+    fingerprints = []
+    for line, expected_case_id in zip(lines, expected_case_ids):
+        output = strict_json(line, "batch_output_json", expected_case_id)
+        if (
+            not isinstance(output, dict)
+            or set(output) != {"case_id", "fingerprint"}
+            or output["case_id"] != expected_case_id
+            or not isinstance(output["fingerprint"], dict)
+        ):
+            raise EvaluationError("batch_output_identity", expected_case_id)
+        fingerprints.append(output["fingerprint"])
+    return fingerprints
+
+
+def require_preserved_inputs(cases: list[ExtractedCase]) -> None:
+    for extracted in cases:
+        try:
+            observed = extracted.capture_path.read_bytes()
+        except OSError:
+            raise EvaluationError("input_preservation", extracted.case["id"]) from None
+        if observed != extracted.capture_bytes:
+            raise EvaluationError("input_preservation", extracted.case["id"])
 
 
 def netbraid_git_revision() -> str:
@@ -536,36 +580,52 @@ def reconcile_sorbonne_rssi_tsv(
     }
 
 
-def evaluate_case(
-    case: dict[str, Any], archive_path: Path, binary: Path, temporary: Path
-) -> tuple[bool, dict[str, Any]]:
+def extract_case(
+    case: dict[str, Any], archive_path: Path, temporary: Path
+) -> ExtractedCase:
     case_id = case["id"]
-    member_path = temporary / "capture"
-    source_bytes = extract_member(archive_path, case["member"], member_path, case_id)
+    capture_path = temporary / "capture"
+    capture_bytes = extract_member(archive_path, case["member"], capture_path, case_id)
+    reference_bytes = None
+    if "reference" in case:
+        reference_bytes = extract_member(
+            archive_path,
+            case["reference"]["member"],
+            temporary / "reference",
+            case_id,
+        )
+    return ExtractedCase(case, capture_path, capture_bytes, reference_bytes)
+
+
+def evaluate_structured_case(
+    extracted: ExtractedCase,
+) -> tuple[bool, dict[str, Any]]:
+    case = extracted.case
+    case_id = case["id"]
+    document = strict_json(extracted.capture_bytes, "structured_json", case_id)
+    observed_keys = sorted(document) if isinstance(document, dict) else []
+    expected_keys = sorted(case["expect"]["top_level_keys"])
+    passed = observed_keys == expected_keys
+    return passed, {
+        "case": case_id,
+        "input_bytes": len(extracted.capture_bytes),
+        "mode": case["mode"],
+        "result": "pass" if passed else "expectation_failure",
+        "status": "structured_only",
+        "top_level_key_count": len(observed_keys),
+    }
+
+
+def evaluate_packet_case(
+    extracted: ExtractedCase, document: dict[str, Any]
+) -> tuple[bool, dict[str, Any]]:
+    case = extracted.case
+    case_id = case["id"]
     result: dict[str, Any] = {
         "case": case_id,
-        "input_bytes": len(source_bytes),
+        "input_bytes": len(extracted.capture_bytes),
         "mode": case["mode"],
     }
-    if case["mode"] == "structured-json":
-        document = strict_json(source_bytes, "structured_json", case_id)
-        observed_keys = sorted(document) if isinstance(document, dict) else []
-        expected_keys = sorted(case["expect"]["top_level_keys"])
-        passed = observed_keys == expected_keys
-        result.update(
-            {
-                "result": "pass" if passed else "expectation_failure",
-                "status": "structured_only",
-                "top_level_key_count": len(observed_keys),
-            }
-        )
-        return passed, result
-
-    first = run_netbraid(binary, member_path, case["packet_limit"], case_id)
-    second = run_netbraid(binary, member_path, case["packet_limit"], case_id)
-    if first != second or member_path.read_bytes() != source_bytes:
-        raise EvaluationError("determinism_or_input_mutation", case_id)
-    document = strict_json(first, "netbraid_json", case_id)
     try:
         status = document["status"]
         observed = {
@@ -588,17 +648,15 @@ def evaluate_case(
         result["wlan_frames"] = basis["wlan_frames"]
     reference = case.get("reference")
     if reference is not None:
-        reference_path = temporary / "reference"
-        reference_bytes = extract_member(
-            archive_path, reference["member"], reference_path, case_id
-        )
+        if extracted.reference_bytes is None:
+            raise EvaluationError("reference_missing", case_id)
         if reference["format"] == "wifi-management-csv-v1":
             reference_passed, reconciliation = reconcile_wifi_management_csv(
-                reference_bytes, basis, case_id
+                extracted.reference_bytes, basis, case_id
             )
         else:
             reference_passed, reconciliation = reconcile_sorbonne_rssi_tsv(
-                reference_bytes, basis, case_id
+                extracted.reference_bytes, basis, case_id
             )
         passed = passed and reference_passed
         result["reference_reconciliation"] = reconciliation
@@ -607,7 +665,10 @@ def evaluate_case(
 
 
 def evaluate(
-    manifest: Path, archive_dir: Path, binary: Path, case_workers: int
+    manifest: Path,
+    archive_dir: Path,
+    binary: Path,
+    case_workers: int,
 ) -> tuple[int, dict[str, Any]]:
     if case_workers <= 0:
         raise EvaluationError("case_workers")
@@ -632,16 +693,38 @@ def evaluate(
         with ThreadPoolExecutor(max_workers=min(case_workers, len(cases))) as executor:
             futures = [
                 executor.submit(
-                    evaluate_case,
+                    extract_case,
                     case,
                     archive_paths[case["archive"]],
-                    binary,
                     case_directory,
                 )
                 for case, case_directory in zip(cases, case_directories)
             ]
-        for future in futures:
-            passed, result = future.result()
+        extracted_cases = [future.result() for future in futures]
+        packet_cases = [
+            extracted
+            for extracted in extracted_cases
+            if extracted.case["mode"] == "netbraid-wlan"
+        ]
+        fingerprints_by_case = {}
+        if packet_cases:
+            request_bytes = batch_requests_jsonl(packet_cases)
+            first = run_batch_driver(binary, request_bytes)
+            second = run_batch_driver(binary, request_bytes)
+            if first != second:
+                raise EvaluationError("batch_output_determinism")
+            packet_case_ids = [extracted.case["id"] for extracted in packet_cases]
+            fingerprints = parse_batch_output(first, packet_case_ids)
+            fingerprints_by_case = dict(zip(packet_case_ids, fingerprints))
+        require_preserved_inputs(extracted_cases)
+
+        for extracted in extracted_cases:
+            if extracted.case["mode"] == "structured-json":
+                passed, result = evaluate_structured_case(extracted)
+            else:
+                passed, result = evaluate_packet_case(
+                    extracted, fingerprints_by_case[extracted.case["id"]]
+                )
             failures += not passed
             results.append(result)
     if digest_binary(binary) != binary_sha256:

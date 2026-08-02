@@ -4,6 +4,7 @@
 // core.
 
 mod pcap;
+mod pcap_batch;
 mod scenario;
 
 use anyhow::{Context, Result};
@@ -47,6 +48,9 @@ enum Cmd {
     },
     /// Normalize and summarize one saved PCAP or PCAPNG artifact through Wireshark tools.
     Pcap(pcap::PcapArgs),
+    /// Normalize a bounded JSONL batch for repository evaluation.
+    #[command(hide = true)]
+    PcapBatchWlanFingerprintJsonl,
     /// Validate or replay a finite, offline scenario bundle.
     Scenario(scenario::ScenarioArgs),
 }
@@ -742,6 +746,7 @@ fn main() -> Result<()> {
     match &cli.cmd {
         Cmd::Evidence { log } => return cmd_evidence(log),
         Cmd::Pcap(args) => return pcap::run(args),
+        Cmd::PcapBatchWlanFingerprintJsonl => return pcap_batch::run(),
         Cmd::Scenario(args) => return scenario::run(args),
         _ => {}
     }
@@ -752,6 +757,9 @@ fn main() -> Result<()> {
         Cmd::Here => cmd_here(&loaded.snapshot, &loaded.source),
         Cmd::Evidence { .. } => unreachable!("evidence command returned before snapshot loading"),
         Cmd::Pcap(_) => unreachable!("pcap command returned before snapshot loading"),
+        Cmd::PcapBatchWlanFingerprintJsonl => {
+            unreachable!("PCAP batch command returned before snapshot loading")
+        }
         Cmd::Scenario(_) => unreachable!("scenario command returned before snapshot loading"),
     }
     Ok(())
