@@ -383,36 +383,12 @@ pub fn normalize_saved_capture_requests(
     let environment = WiresharkEnvironment::new()?;
     reject_personal_plugins_unless_allowed(discovery_options.allow_personal_plugins)?;
     let before = discover_tshark_snapshot(discovery_options, &environment)?;
-    let reports = std::thread::scope(|scope| {
-        let mut reports = Vec::with_capacity(requests.len());
-        for (chunk_index, chunk) in requests.chunks(max_parallelism).enumerate() {
-            let request_offset = chunk_index * max_parallelism;
-            let workers = chunk
-                .iter()
-                .enumerate()
-                .map(|(index, request)| {
-                    let environment = &environment;
-                    let before = &before;
-                    (
-                        request_offset + index,
-                        scope.spawn(move || {
-                            normalize_saved_capture_with_snapshot(
-                                &request.path,
-                                &request.options,
-                                Some((environment, before)),
-                            )
-                        }),
-                    )
-                })
-                .collect::<Vec<_>>();
-            for (request_index, worker) in workers {
-                let report = worker
-                    .join()
-                    .map_err(|_| AdapterError::BatchWorkerPanicked { request_index })??;
-                reports.push(report);
-            }
-        }
-        Ok::<_, AdapterError>(reports)
+    let reports = run_bounded_parallel(requests, max_parallelism, |request| {
+        normalize_saved_capture_with_snapshot(
+            &request.path,
+            &request.options,
+            Some((&environment, &before)),
+        )
     });
     let after = discover_tshark_snapshot(discovery_options, &environment)?;
     if before != after {
@@ -424,6 +400,42 @@ pub fn normalize_saved_capture_requests(
         });
     }
     reports
+}
+
+fn run_bounded_parallel<Request, T, Normalize>(
+    requests: &[Request],
+    max_parallelism: usize,
+    normalize: Normalize,
+) -> Result<Vec<T>, AdapterError>
+where
+    Request: Sync,
+    T: Send,
+    Normalize: Fn(&Request) -> Result<T, AdapterError> + Sync,
+{
+    std::thread::scope(|scope| {
+        let mut reports = Vec::with_capacity(requests.len());
+        for (chunk_index, chunk) in requests.chunks(max_parallelism).enumerate() {
+            let request_offset = chunk_index * max_parallelism;
+            let workers = chunk
+                .iter()
+                .enumerate()
+                .map(|(index, request)| {
+                    let normalize = &normalize;
+                    (
+                        request_offset + index,
+                        scope.spawn(move || normalize(request)),
+                    )
+                })
+                .collect::<Vec<_>>();
+            for (request_index, worker) in workers {
+                let report = worker
+                    .join()
+                    .map_err(|_| AdapterError::BatchWorkerPanicked { request_index })??;
+                reports.push(report);
+            }
+        }
+        Ok(reports)
+    })
 }
 
 fn normalize_saved_capture_with_snapshot(
@@ -1391,6 +1403,22 @@ mod tests {
             Err(AdapterError::InvalidOption("max_parallelism"))
         ));
         assert!(normalize_saved_capture_requests(&[], 1).unwrap().is_empty());
+    }
+
+    #[test]
+    fn bounded_parallel_mapping_preserves_sequential_semantics() {
+        let inputs = (0_u64..97).collect::<Vec<_>>();
+        let expected = inputs
+            .iter()
+            .map(|value| value * value + 3)
+            .collect::<Vec<_>>();
+
+        for max_parallelism in 1..=16 {
+            let observed =
+                run_bounded_parallel(&inputs, max_parallelism, |value| Ok(value * value + 3))
+                    .unwrap();
+            assert_eq!(observed, expected);
+        }
     }
 
     #[test]
