@@ -58,6 +58,9 @@ counter-capture-eval-check:
 hypothesis-frame-check:
     {{ python }} eval/test-hypothesis-frame.py
 
+hypothesis-metrics-check:
+    {{ python }} eval/test-hypothesis-metrics.py
+
 wlan-rff-layout-profile-check:
     {{ python }} eval/test-profile-wlan-rff-layout.py
 

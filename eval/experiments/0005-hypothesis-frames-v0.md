@@ -130,6 +130,8 @@ Planned commands are:
 cargo test --locked --manifest-path rust/Cargo.toml --test counter_capture
 cargo test --locked --manifest-path rust/Cargo.toml --test infer_facade
 just counter-capture-eval-check
+just hypothesis-frame-check
+just hypothesis-metrics-check
 just osu-lora-profile
 just wlan-rff-layout-profile
 ```
@@ -179,6 +181,13 @@ No single aggregate fingerprint accuracy is admitted. Report separately:
 - integrity detection coverage and false alarms on declared legitimate
   transformations;
 - exclusion, missing-coverage, out-of-domain, and ambiguous counts.
+
+The implemented metrics manifest enforces this separation for every qualified
+relation axis. It reports exact integer numerators and denominators for
+coverage, abstention, and decided-known-reference risk; unknown references do
+not become errors or negatives merely because the evaluator lacks an oracle.
+Optional strata are bounded opaque tokens so reports can expose domain skew
+without carrying corpus labels or deployment identifiers.
 
 Threshold selection, calibration, and test groups must be disjoint. Correlated
 features are not summed as independent evidence unless the calibration model
@@ -266,6 +275,10 @@ NPZ members without opening a member payload. Each archive contains five
 distinct device-shaped filename tokens, all five tokens occur in both
 environments, and no session token occurs in both. This establishes a candidate
 cross-environment grouping key, not physical-device or physical-source truth.
+
+The hypothesis-metrics checkpoint passed seven hermetic tests and the existing
+twelve hypothesis-frame tests. These are contract checks over synthetic opaque
+identifiers; they are not classifier-performance results.
 
 ## Conclusion
 

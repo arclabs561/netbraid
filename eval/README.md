@@ -21,6 +21,12 @@ cause, authorization, intent, and tamper evidence separate. The strict schema
 rejects bare identity or attack labels and contains no raw observations or
 deployment identifiers.
 
+`hypothesis_metrics.py` evaluates those qualified relation axes without
+collapsing them into one identity or attack score. Its strict manifest accepts
+only opaque frame and stratum identifiers, reports raw confusion/support and
+abstention counts, and keeps unknown references separate from predictions that
+decline to decide.
+
 `profile-wlan-rff-layout.py` verifies the two pinned WLAN RFF archives and
 profiles their strict filename grammar without opening NPZ payloads. Its
 aggregate report can establish cross-environment token reuse, but deliberately
