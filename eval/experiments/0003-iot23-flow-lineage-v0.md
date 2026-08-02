@@ -19,7 +19,7 @@ The path-bearing operands are deliberately omitted from this public ledger:
 netbraid pcap <omitted> --flows-tsv \
   --tcp-inactivity-seconds 300 \
   --udp-inactivity-seconds 60
-python3 scripts/evaluate-iot23-flow-lineage.py \
+python3 eval/evaluate-iot23-flow-lineage.py \
   --zeek-log <omitted> --packet-flows <omitted> --report <omitted>
 ```
 

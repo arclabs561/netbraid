@@ -463,7 +463,7 @@ fn pcap_flows_tsv_is_deterministic_and_feeds_the_synthetic_lineage_oracle() {
     fs::write(&zeek_log, SYNTHETIC_ZEEK_FLOW_LOG).unwrap();
     let report = directory.path().join("lineage-report.json");
     let evaluator = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../scripts/evaluate-iot23-flow-lineage.py");
+        .join("../eval/evaluate-iot23-flow-lineage.py");
     let evaluation = Command::new("python3")
         .arg(evaluator)
         .args(["--zeek-log", zeek_log.to_str().unwrap()])

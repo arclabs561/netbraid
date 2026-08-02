@@ -1,5 +1,7 @@
 image := "arclabs561/netbraid"
 python := env_var_or_default("PYTHON", "python3")
+raw_data := "data/raw"
+eval_output := "data/derived/eval"
 
 docker: lint test docker-bare
 
@@ -50,77 +52,77 @@ pcap-smoke:
     cargo test --locked --manifest-path rust/Cargo.toml --test pcap_cli -- --ignored
 
 counter-capture-eval-check:
-    {{ python }} scripts/test-counter-capture-eval.py
+    {{ python }} eval/test-counter-capture-eval.py
 
 # Evaluate checked, bounded slices from the ignored public archives. Fetch the
 # archives first; this target never admits or writes corpus bytes into Git.
 public-corpus-eval:
     cargo build --locked --manifest-path rust/Cargo.toml --bin netbraid
-    {{ python }} scripts/evaluate-public-corpus-slices.py --report eval-data/public-corpus-eval-report.json
+    {{ python }} eval/evaluate-public-corpus-slices.py --report {{ eval_output }}/public-corpus-eval-report.json
 
 # Audit the complete Sorbonne 1 m cross-sniffer event oracle. This reports the
 # synchronized-time leakage boundary; it does not run a predictive classifier.
 sorbonne-same-event-audit:
-    {{ python }} scripts/evaluate-sorbonne-same-event.py --archive eval-data/220211012-SU-Outdoors-Campus.zip --campaign scripts/fixtures/sorbonne-same-event-campaign-v0.json --report eval-data/sorbonne-same-event-report.json
+    {{ python }} eval/evaluate-sorbonne-same-event.py --archive {{ raw_data }}/220211012-SU-Outdoors-Campus.zip --campaign eval/fixtures/sorbonne-same-event-campaign-v0.json --report {{ eval_output }}/sorbonne-same-event-report.json
 
 # Normalize the complete Sorbonne 1 m run, join the publisher event labels,
 # and exercise the structural reducer once per distinct weighted pair basis.
 sorbonne-structural-reducer-eval:
     cargo build --locked --manifest-path rust/Cargo.toml --bin netbraid
     cargo build --locked --manifest-path rust/Cargo.toml --example packet_same_event_jsonl
-    {{ python }} scripts/evaluate-sorbonne-structural-reducer.py --archive eval-data/220211012-SU-Outdoors-Campus.zip --campaign scripts/fixtures/sorbonne-structural-reducer-campaign-v0.json --netbraid-bin rust/target/debug/netbraid --reducer-bin rust/target/debug/examples/packet_same_event_jsonl --report eval-data/sorbonne-structural-reducer-report.json
-    {{ python }} scripts/evaluate-sorbonne-structural-reducer.py --archive eval-data/220211012-SU-Outdoors-Campus.zip --campaign scripts/fixtures/sorbonne-structural-reducer-campaign-v0.json --netbraid-bin rust/target/debug/netbraid --reducer-bin rust/target/debug/examples/packet_same_event_jsonl --report eval-data/sorbonne-structural-reducer-report-repeat.json
-    cmp eval-data/sorbonne-structural-reducer-report.json eval-data/sorbonne-structural-reducer-report-repeat.json
+    {{ python }} eval/evaluate-sorbonne-structural-reducer.py --archive {{ raw_data }}/220211012-SU-Outdoors-Campus.zip --campaign eval/fixtures/sorbonne-structural-reducer-campaign-v0.json --netbraid-bin rust/target/debug/netbraid --reducer-bin rust/target/debug/examples/packet_same_event_jsonl --report {{ eval_output }}/sorbonne-structural-reducer-report.json
+    {{ python }} eval/evaluate-sorbonne-structural-reducer.py --archive {{ raw_data }}/220211012-SU-Outdoors-Campus.zip --campaign eval/fixtures/sorbonne-structural-reducer-campaign-v0.json --netbraid-bin rust/target/debug/netbraid --reducer-bin rust/target/debug/examples/packet_same_event_jsonl --report {{ eval_output }}/sorbonne-structural-reducer-report-repeat.json
+    cmp {{ eval_output }}/sorbonne-structural-reducer-report.json {{ eval_output }}/sorbonne-structural-reducer-report-repeat.json
 
 # Verify all pinned OPERAnet archives and profile only their ZIP metadata.
 # Member payload streams are never opened, extracted, or deserialized.
 operanet-layout-profile:
-    {{ python }} scripts/profile-operanet-layout.py
+    {{ python }} eval/profile-operanet-layout.py
 
 # Profile a bounded CAEZ CSI shape slice directly from the verified local tar.
 # The target never extracts members or deserializes position/model payloads.
 caez-csi-profile:
-    {{ python }} scripts/profile-caez-csi-slices.py
+    {{ python }} eval/profile-caez-csi-slices.py
 
 # Stream the publisher position CSV and a fixed frame-metadata sample directly
 # from the verified CAEZ tar. Column/time semantics remain explicitly unknown.
 caez-alignment-profile:
-    {{ python }} scripts/test-profile-caez-alignment.py
-    {{ python }} scripts/profile-caez-alignment.py --report eval-data/caez-alignment-profile.json
-    {{ python }} scripts/profile-caez-alignment.py --report eval-data/caez-alignment-profile-repeat.json
-    cmp eval-data/caez-alignment-profile.json eval-data/caez-alignment-profile-repeat.json
+    {{ python }} eval/test-profile-caez-alignment.py
+    {{ python }} eval/profile-caez-alignment.py --report {{ eval_output }}/caez-alignment-profile.json
+    {{ python }} eval/profile-caez-alignment.py --report {{ eval_output }}/caez-alignment-profile-repeat.json
+    cmp {{ eval_output }}/caez-alignment-profile.json {{ eval_output }}/caez-alignment-profile-repeat.json
 
 # Verify the complete Data4Cyber archive and profile only bounded structural
 # evidence needed to assess whether a future cross-layer join is possible.
 data4cyber-alignment-profile:
-    {{ python }} scripts/test-profile-data4cyber-alignment.py
-    {{ python }} scripts/profile-data4cyber-alignment.py --report eval-data/data4cyber-alignment-profile.json
-    {{ python }} scripts/profile-data4cyber-alignment.py --report eval-data/data4cyber-alignment-profile-repeat.json
-    cmp eval-data/data4cyber-alignment-profile.json eval-data/data4cyber-alignment-profile-repeat.json
+    {{ python }} eval/test-profile-data4cyber-alignment.py
+    {{ python }} eval/profile-data4cyber-alignment.py --report {{ eval_output }}/data4cyber-alignment-profile.json
+    {{ python }} eval/profile-data4cyber-alignment.py --report {{ eval_output }}/data4cyber-alignment-profile-repeat.json
+    cmp {{ eval_output }}/data4cyber-alignment-profile.json {{ eval_output }}/data4cyber-alignment-profile-repeat.json
 
 # Verify the pinned NetsLab archive/databases, using bounded read-only SQLite
 # mmap where available, and emit aggregate schema/alignment metadata only.
 netslab-alignment-profile:
-    {{ python }} scripts/test-profile-netslab-alignment.py
-    {{ python }} scripts/profile-netslab-alignment.py --report eval-data/netslab-alignment-profile.json
-    {{ python }} scripts/profile-netslab-alignment.py --report eval-data/netslab-alignment-profile-repeat.json
-    cmp eval-data/netslab-alignment-profile.json eval-data/netslab-alignment-profile-repeat.json
+    {{ python }} eval/test-profile-netslab-alignment.py
+    {{ python }} eval/profile-netslab-alignment.py --report {{ eval_output }}/netslab-alignment-profile.json
+    {{ python }} eval/profile-netslab-alignment.py --report {{ eval_output }}/netslab-alignment-profile-repeat.json
+    cmp {{ eval_output }}/netslab-alignment-profile.json {{ eval_output }}/netslab-alignment-profile-repeat.json
 
 # Exercise the strict packet-to-publisher-flow oracle without requiring the
 # ignored IoT-23 corpus. Production use supplies externally sessionized flows.
 iot23-flow-lineage-check:
-    {{ python }} scripts/test-evaluate-iot23-flow-lineage.py
+    {{ python }} eval/test-evaluate-iot23-flow-lineage.py
 
-iot23-flow-lineage zeek_log packet_flows report="eval-data/iot23-flow-lineage-report.json":
-    {{ python }} scripts/evaluate-iot23-flow-lineage.py --zeek-log {{ zeek_log }} --packet-flows {{ packet_flows }} --report {{ report }}
+iot23-flow-lineage zeek_log packet_flows report="data/derived/eval/iot23-flow-lineage-report.json":
+    {{ python }} eval/evaluate-iot23-flow-lineage.py --zeek-log {{ zeek_log }} --packet-flows {{ packet_flows }} --report {{ report }}
 
 # Fetch pinned XRF55 bundles into the ignored corpus directory. Archives are
 # never extracted; a local SHA-256 receipt protects reuse after acquisition.
 xrf55-fetcher-check:
-    {{ python }} scripts/test-fetch-xrf55.py
+    {{ python }} data/tests/test-fetch-xrf55.py
 
 xrf55-fetch dataset="list":
-    {{ python }} scripts/fetch-xrf55.py {{ dataset }}
+    {{ python }} data/fetch/fetch-xrf55.py {{ dataset }}
 
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000

@@ -3,7 +3,7 @@
 Six allowlisted public archives are available to the bounded local evaluation
 workflow. Together they contain 2,047,216,276 archive bytes, 2,241 ZIP members,
 and 10,968,439,159 uncompressed member bytes. They remain ignored under
-`eval-data/`: successful fetching is not admission into Netbraid's committed
+`data/raw/`: successful fetching is not admission into Netbraid's committed
 fixture ledger.
 
 ## Data lineage
@@ -287,13 +287,13 @@ with:
 just iot23-flow-lineage-check
 ```
 
-XRF55 is a larger deferred multimodal corpus: its three official Kaggle bundles
-total 235,496,571,505 bytes and cover synchronized Wi-Fi, RFID, and mmWave
-observations. `scripts/fetch-xrf55.py` pins the public dataset references,
-versions, and byte counts, downloads resumably without extraction, and writes a
-local SHA-256 receipt. Kaggle does not expose an artifact digest through its
-metadata response, so first-acquisition integrity is limited to version and
-exact byte count; every later reuse is SHA-256 verified. The corpus remains
+XRF55 is a larger deferred multimodal corpus: its three official Kaggle dataset
+records total 235,496,571,505 metadata bytes, while the compressed archives
+total 195,896,168,944 bytes and cover synchronized Wi-Fi, RFID, and mmWave
+observations. `data/fetch/fetch-xrf55.py` pins the public dataset references,
+versions, metadata sizes, compressed sizes, and archive MD5 values. It
+downloads resumably without extraction and writes a local SHA-256 receipt.
+The corpus remains
 deferred until bounded Wi-Fi/RFID adapters and a grouped cross-environment split
 exist. Its video data is not required for the initial radio-fusion hypothesis.
 

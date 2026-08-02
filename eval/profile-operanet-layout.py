@@ -96,7 +96,7 @@ def experiment_pattern(prefix: str, extension: str, variant: str = "") -> Patter
     )
 
 
-# This lock mirrors scripts/fetch-public-eval-corpus.py:SOURCES. SHA-256 values
+# This lock mirrors data/fetch/fetch-public-eval-corpus.py:SOURCES. SHA-256 values
 # absent from older source entries are explicitly locked from verified receipts.
 SPECS = (
     ArchiveSpec(
@@ -696,7 +696,7 @@ def profile(archive_dir: Path) -> Dict[str, Any]:
             "member_payloads_extracted_or_deserialized": 0,
             "member_streams_opened": 0,
             "receipt_source": (
-                "locked constants mirrored from scripts/fetch-public-eval-corpus.py:SOURCES "
+                "locked constants mirrored from data/fetch/fetch-public-eval-corpus.py:SOURCES "
                 "and verified local receipts"
             ),
         },
@@ -710,13 +710,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--archive-dir",
         type=Path,
-        default=ROOT / "eval-data",
+        default=ROOT / "data" / "raw",
         help="directory containing the seven pinned OPERAnet ZIPs and receipts",
     )
     parser.add_argument(
         "--report",
         type=Path,
-        default=ROOT / "eval-data" / "operanet-layout-profile.json",
+        default=ROOT / "data" / "derived" / "eval" / "operanet-layout-profile.json",
         help="local JSON report path",
     )
     return parser.parse_args()

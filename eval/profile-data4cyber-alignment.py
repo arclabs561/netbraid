@@ -28,7 +28,7 @@ ARCHIVE_MD5 = "a540979c63120c9a0295ff974933580f"
 CATALOG_DOI = "10.5281/zenodo.19965384"
 ROOT_MEMBER = "data4cyber_dataset"
 
-# This lock mirrors scripts/fetch-public-eval-corpus.py:SOURCES["data4cyber"].
+# This lock mirrors data/fetch/fetch-public-eval-corpus.py:SOURCES["data4cyber"].
 EXPECTED_SCENARIOS = (
     "S0_benign_baseline",
     "S1_industroyer_pv",
@@ -756,7 +756,7 @@ def write_report(path: Path, rendered: bytes) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--archive", type=Path, default=ROOT / "eval-data" / ARCHIVE_NAME
+        "--archive", type=Path, default=ROOT / "data" / "raw" / ARCHIVE_NAME
     )
     parser.add_argument(
         "--report",

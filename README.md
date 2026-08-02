@@ -162,17 +162,19 @@ and
 
 ## Maintainer evaluation data
 
-Public corpora and generated reports stay under the ignored `eval-data/`
-directory. The fetchers verify publisher-declared sizes and checksums where
-available, resume completed work, and write local receipts; they do not admit
-downloaded bytes into Git.
+Tracked source metadata and fetchers live under `data/`. Public corpora stay in
+ignored `data/raw/`, generated products stay in ignored `data/derived/`, and
+local integrity receipts stay in ignored `data/receipts/`. The fetchers verify
+publisher-declared sizes and checksums where available, resume completed work,
+and never admit downloaded bytes into Git. Evaluation harnesses, fixtures, and
+aggregate experiment ledgers live under `eval/`.
 
 ```sh
-uv run --script scripts/fetch-public-eval-corpus.py list
-uv run --script scripts/fetch-public-eval-corpus.py baseline
-uv run --script scripts/fetch-public-eval-corpus.py motivating
-uv run --script scripts/fetch-public-eval-corpus.py fusion
-uv run --script scripts/fetch-public-eval-corpus.py all
+uv run --script data/fetch/fetch-public-eval-corpus.py list
+uv run --script data/fetch/fetch-public-eval-corpus.py baseline
+uv run --script data/fetch/fetch-public-eval-corpus.py motivating
+uv run --script data/fetch/fetch-public-eval-corpus.py fusion
+uv run --script data/fetch/fetch-public-eval-corpus.py all
 just xrf55-fetch list
 ```
 

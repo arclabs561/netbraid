@@ -312,7 +312,7 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(__file__).resolve().parents[1] / "eval-data",
+        default=Path(__file__).resolve().parents[2] / "data" / "raw",
     )
     return parser.parse_args(argv)
 

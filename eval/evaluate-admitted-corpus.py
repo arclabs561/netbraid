@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out",
         type=Path,
-        default=REPO / "eval-data/corpus-report.json",
+        default=REPO / "data/derived/eval/corpus-report.json",
         help="Metadata-only JSON report path",
     )
     parser.add_argument(

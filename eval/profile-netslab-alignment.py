@@ -813,7 +813,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--artifact-dir",
         type=Path,
-        default=ROOT / "eval-data",
+        default=ROOT / "data" / "raw",
         help="directory containing the three pinned public NetsLab artifacts",
     )
     parser.add_argument(
@@ -825,7 +825,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--report",
         type=Path,
-        default=ROOT / "eval-data" / "netslab-alignment-profile.json",
+        default=ROOT / "data" / "derived" / "eval" / "netslab-alignment-profile.json",
         help="atomic deterministic JSON output",
     )
     return parser.parse_args(argv)

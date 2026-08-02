@@ -65,6 +65,19 @@ Fixtures prove named inference, abstention, provenance, or presentation
 boundaries. Quantity and packet volume are not substitutes for semantic
 coverage.
 
+## Separate data acquisition from evaluation
+
+`data/` owns tracked public-source descriptions, bounded fetchers, and their
+hermetic integrity tests. Downloaded archives and captures, generated products,
+and machine-local receipts remain ignored under `data/raw/`, `data/derived/`,
+and `data/receipts/`.
+
+`eval/` owns dataset-backed evaluators, bounded fixtures, harness tests, and
+aggregate experiment ledgers. Evaluation may consume ignored artifacts but may
+not silently promote source bytes, labels, or dataset-specific policy into the
+library contract. Deployment-specific campaign configuration remains outside
+the reusable evaluator.
+
 ## Keep historical wire names stable
 
 Some published schema, producer, registry, and digest identifiers use the

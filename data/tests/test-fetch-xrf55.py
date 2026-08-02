@@ -15,7 +15,9 @@ from unittest import mock
 
 sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
-SPEC = importlib.util.spec_from_file_location("fetch_xrf55", HERE / "fetch-xrf55.py")
+SPEC = importlib.util.spec_from_file_location(
+    "fetch_xrf55", HERE.parent / "fetch" / "fetch-xrf55.py"
+)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE

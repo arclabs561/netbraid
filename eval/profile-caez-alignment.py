@@ -224,12 +224,12 @@ def profile_alignment(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--archive", type=Path, default=ROOT / "eval-data" / BASE.ARCHIVE_NAME
+        "--archive", type=Path, default=ROOT / "data" / "raw" / BASE.ARCHIVE_NAME
     )
     parser.add_argument(
         "--report",
         type=Path,
-        default=ROOT / "eval-data" / "caez-alignment-profile.json",
+        default=ROOT / "data" / "derived" / "eval" / "caez-alignment-profile.json",
     )
     return parser.parse_args()
 

@@ -765,7 +765,7 @@ def evaluate(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
-    parser.add_argument("--archive-dir", type=Path, default=ROOT / "eval-data")
+    parser.add_argument("--archive-dir", type=Path, default=ROOT / "data" / "raw")
     parser.add_argument(
         "--netbraid", type=Path, default=ROOT / "rust/target/debug/netbraid"
     )

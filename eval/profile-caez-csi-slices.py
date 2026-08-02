@@ -309,10 +309,12 @@ def profile_archive(path: Path) -> dict[str, Any]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--archive", type=Path, default=ROOT / "eval-data" / ARCHIVE_NAME
+        "--archive", type=Path, default=ROOT / "data" / "raw" / ARCHIVE_NAME
     )
     parser.add_argument(
-        "--report", type=Path, default=ROOT / "eval-data" / "caez-csi-profile.json"
+        "--report",
+        type=Path,
+        default=ROOT / "data" / "derived" / "eval" / "caez-csi-profile.json",
     )
     return parser.parse_args()
 

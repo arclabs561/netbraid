@@ -1,0 +1,7 @@
+# Dataset catalog
+
+Catalog entries describe public sources without embedding source data. Each
+entry should identify the publisher, canonical URL or DOI, version, license or
+access terms, expected artifact size and digest when available, modality,
+labels, and the evaluation role it can support. Discovery indexes do not grant
+redistribution rights for the artifacts they link.

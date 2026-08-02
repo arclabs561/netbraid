@@ -11,7 +11,7 @@ so `assess_packet_same_event_v0` selects `unknown` for every weighted pair.
 Status: executed once through the canonical target, with its required repeat.
 
 The locked campaign is
-`scripts/fixtures/sorbonne-structural-reducer-campaign-v0.json`. It was committed
+`eval/fixtures/sorbonne-structural-reducer-campaign-v0.json`. It was committed
 before the evaluator was implemented or run. The evaluator normalized all
 ten one-metre PCAP traces through Netbraid, join packet records to publisher rows
 by observer and exact frame number, construct the registered positive and
@@ -76,7 +76,7 @@ produced byte-identical 4,307-byte reports with SHA-256
 - The canonical decision projection SHA-256 was
   `20b47442e49695c6f1289a4f7cb5ff31c1042fd4a0c07122717d1417f59dac45`.
 
-The reports remain local under ignored `eval-data/`; this ledger records only
+The reports remain local under ignored `data/derived/`; this ledger records only
 bounded metadata and content digests.
 
 ## Conclusion

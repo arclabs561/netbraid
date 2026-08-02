@@ -11,10 +11,10 @@ source-address or sequence-number labels into predictive features.
 Preregistered before execution at Netbraid commit `98399c8`.
 
 ```text
-python3 scripts/evaluate-sorbonne-same-event.py \
-  --archive eval-data/220211012-SU-Outdoors-Campus.zip \
-  --campaign scripts/fixtures/sorbonne-same-event-campaign-v0.json \
-  --report eval-data/sorbonne-same-event-report.json
+python3 eval/evaluate-sorbonne-same-event.py \
+  --archive data/raw/220211012-SU-Outdoors-Campus.zip \
+  --campaign eval/fixtures/sorbonne-same-event-campaign-v0.json \
+  --report data/derived/eval/sorbonne-same-event-report.json
 ```
 
 The evaluator must read exactly the ten `1m/csvTracesSynchronized` TSV members,
@@ -34,9 +34,9 @@ it is not a three-way evaluation set.
 ## Data provenance
 
 - Publisher DOI: `10.57745/HAOPHF`.
-- Local archive: `eval-data/220211012-SU-Outdoors-Campus.zip`.
+- Local archive: `data/raw/220211012-SU-Outdoors-Campus.zip`.
 - Archive receipt and digest: maintained by
-  `scripts/fetch-public-eval-corpus.py`.
+  `data/fetch/fetch-public-eval-corpus.py`.
 - Slice: complete 1 m run, all ten synchronized sniffer TSVs.
 - Split: one locked publisher experiment; no row, event, or observer-pair
   train/test split.
@@ -72,7 +72,7 @@ Command exited 0 in 0.193 seconds; an immediate second execution exited 0 in
 - Pairs inside the inclusive absolute 1 ms synchronized-time diagnostic:
   64,149 same-event, 0 different-event.
 
-The report was written only under ignored `eval-data/`; no corpus rows or
+The report was written only under ignored `data/derived/`; no corpus rows or
 generated report are committed.
 
 ## Conclusion

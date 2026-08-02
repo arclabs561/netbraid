@@ -6,7 +6,7 @@
 
 """Fetch and inspect allowlisted public network evaluation artifacts.
 
-Archives are stored outside Git under ``eval-data/`` by default. The source
+Archives are stored outside Git under ``data/raw/`` by default. The source
 allowlist, byte count, and pinned digests are kept here so a local fetch is
 repeatable and fails closed on a changed download.
 """
@@ -286,7 +286,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(__file__).resolve().parents[1] / "eval-data",
+        default=Path(__file__).resolve().parents[2] / "data" / "raw",
         help="ignored local archive directory",
     )
     parser.add_argument(
