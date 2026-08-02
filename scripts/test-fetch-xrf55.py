@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import io
 import json
 import sys
@@ -38,7 +39,9 @@ def synthetic_spec(payload):
     return {
         "kaggle_ref": "synthetic/example",
         "version": 2,
-        "bytes": len(payload),
+        "metadata_bytes": len(payload) + 7,
+        "archive_bytes": len(payload),
+        "archive_md5": hashlib.md5(payload, usedforsecurity=False).hexdigest(),
         "filename": "synthetic-v2.zip",
     }
 
@@ -48,7 +51,7 @@ def metadata(spec):
         {
             "ref": spec["kaggle_ref"],
             "currentVersionNumber": spec["version"],
-            "totalBytes": spec["bytes"],
+            "totalBytes": spec["metadata_bytes"],
             "isPrivate": False,
         }
     ).encode()
@@ -59,7 +62,12 @@ class FetchXrf55Tests(unittest.TestCase):
         catalog = MODULE._catalog()
         self.assertEqual(set(catalog), {"part1", "part2", "raw"})
         self.assertEqual(
-            sum(item["bytes"] for item in catalog.values()), 235_496_571_505
+            sum(item["metadata_bytes"] for item in catalog.values()),
+            235_496_571_505,
+        )
+        self.assertEqual(
+            sum(item["archive_bytes"] for item in catalog.values()),
+            195_896_168_944,
         )
         self.assertTrue(
             all(item["license"] == "CC BY-NC 4.0" for item in catalog.values())
@@ -89,6 +97,37 @@ class FetchXrf55Tests(unittest.TestCase):
             )
             MODULE.download(spec, Path(directory))
             self.assertEqual(urlopen.call_count, 2)
+
+    def test_complete_partial_is_verified_and_finalized_without_redownload(self):
+        payload = b"already complete compressed archive"
+        spec = synthetic_spec(payload)
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory)
+            partial = output_dir / f".{spec['filename']}.part"
+            partial.write_bytes(payload)
+            with mock.patch.object(
+                MODULE.urllib.request,
+                "urlopen",
+                return_value=Response(metadata(spec)),
+            ) as urlopen:
+                archive = MODULE.download(spec, output_dir)
+            self.assertEqual(archive.read_bytes(), payload)
+            self.assertFalse(partial.exists())
+            self.assertEqual(urlopen.call_count, 1)
+
+            archive.unlink()
+            MODULE.receipt_path(archive).unlink()
+            partial.write_bytes(payload)
+            wrong = {**spec, "archive_md5": "0" * 32}
+            with (
+                mock.patch.object(
+                    MODULE.urllib.request,
+                    "urlopen",
+                    return_value=Response(metadata(wrong)),
+                ),
+                self.assertRaisesRegex(MODULE.FetchError, "archive_md5_mismatch"),
+            ):
+                MODULE.download(wrong, output_dir)
 
     def test_partial_download_resumes_only_with_matching_content_range(self):
         payload = b"0123456789"

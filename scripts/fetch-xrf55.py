@@ -34,19 +34,25 @@ SOURCES: dict[str, dict[str, Any]] = {
     "part1": {
         "kaggle_ref": "xrfdataset/xrf55",
         "version": 3,
-        "bytes": 97_148_480_000,
+        "metadata_bytes": 97_148_480_000,
+        "archive_bytes": 86_334_807_153,
+        "archive_md5": "e637608020c9dca1165d09d55ae20c91",
         "filename": "xrf55-part1-v3.zip",
     },
     "part2": {
         "kaggle_ref": "whisperyi/xrf55-2",
         "version": 1,
-        "bytes": 92_291_056_000,
+        "metadata_bytes": 92_291_056_000,
+        "archive_bytes": 81_963_525_329,
+        "archive_md5": "4f2094698b1d0164fef0c62833c2aead",
         "filename": "xrf55-part2-v1.zip",
     },
     "raw": {
         "kaggle_ref": "xrfdataset/xrf55-rawdata",
         "version": 1,
-        "bytes": 46_057_035_505,
+        "metadata_bytes": 46_057_035_505,
+        "archive_bytes": 27_597_836_462,
+        "archive_md5": "3820ac43b0f4e6bf96b685ea73c825a5",
         "filename": "xrf55-wifi-rfid-raw-v1.zip",
     },
 }
@@ -98,7 +104,7 @@ def validate_remote_metadata(spec: Mapping[str, Any]) -> None:
     expected = {
         "ref": spec["kaggle_ref"],
         "currentVersionNumber": spec["version"],
-        "totalBytes": spec["bytes"],
+        "totalBytes": spec["metadata_bytes"],
         "isPrivate": False,
     }
     if any(
@@ -128,11 +134,13 @@ def source_receipt(spec: Mapping[str, Any], size: int, sha256: str) -> dict[str,
             "official_page": OFFICIAL_PAGE,
             "kaggle_ref": spec["kaggle_ref"],
             "version": spec["version"],
-            "bytes": spec["bytes"],
+            "metadata_bytes": spec["metadata_bytes"],
+            "archive_bytes": spec["archive_bytes"],
+            "archive_md5": spec["archive_md5"],
             "license": LICENSE,
         },
         "integrity": {
-            "first_acquisition": "kaggle_version_and_exact_bytes",
+            "first_acquisition": "kaggle_version_metadata_and_archive_md5",
             "subsequent_reuse": "sha256_receipt",
         },
         "bytes": size,
@@ -174,14 +182,15 @@ def verify_existing(archive: Path, spec: Mapping[str, Any]) -> None:
         raise FetchError("archive_or_receipt_verification_failed")
 
 
-def _resume_state(partial: Path, expected_bytes: int) -> tuple[int, Any]:
+def _resume_state(partial: Path, expected_bytes: int) -> tuple[int, Any, Any]:
     if partial.is_symlink():
         raise FetchError("unsafe_partial_path")
     if not partial.exists():
-        return 0, hashlib.sha256()
+        return 0, hashlib.sha256(), hashlib.md5(usedforsecurity=False)
     if not partial.is_file():
         raise FetchError("unsafe_partial_path")
-    digest = hashlib.sha256()
+    sha256 = hashlib.sha256()
+    md5 = hashlib.md5(usedforsecurity=False)
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(partial, flags)
@@ -189,12 +198,13 @@ def _resume_state(partial: Path, expected_bytes: int) -> tuple[int, Any]:
         raise FetchError("unsafe_partial_path") from error
     with os.fdopen(descriptor, "rb") as source:
         before = os.fstat(source.fileno())
-        if not stat.S_ISREG(before.st_mode) or before.st_size >= expected_bytes:
+        if not stat.S_ISREG(before.st_mode) or before.st_size > expected_bytes:
             raise FetchError("invalid_partial_size")
         size = 0
         while chunk := source.read(CHUNK_BYTES):
             size += len(chunk)
-            digest.update(chunk)
+            sha256.update(chunk)
+            md5.update(chunk)
         after = os.fstat(source.fileno())
         if size != before.st_size or (
             before.st_dev,
@@ -203,7 +213,25 @@ def _resume_state(partial: Path, expected_bytes: int) -> tuple[int, Any]:
             before.st_mtime_ns,
         ) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
             raise FetchError("partial_changed_during_verification")
-    return size, digest
+    return size, sha256, md5
+
+
+def _finalize_partial(
+    partial: Path,
+    archive: Path,
+    spec: Mapping[str, Any],
+    size: int,
+    sha256: Any,
+    md5: Any,
+) -> Path:
+    if size != spec["archive_bytes"]:
+        raise FetchError("download_incomplete")
+    if md5.hexdigest() != spec["archive_md5"]:
+        raise FetchError("archive_md5_mismatch")
+    os.replace(partial, archive)
+    write_receipt(archive, source_receipt(spec, size, sha256.hexdigest()))
+    print(f"downloaded and receipt-pinned: {archive}")
+    return archive
 
 
 def _validate_download_response(response: Any, offset: int, total: int) -> None:
@@ -234,12 +262,15 @@ def download(spec: Mapping[str, Any], output_dir: Path) -> Path:
         return archive
 
     validate_remote_metadata(spec)
-    offset, digest = _resume_state(partial, int(spec["bytes"]))
+    expected_bytes = int(spec["archive_bytes"])
+    offset, sha256, md5 = _resume_state(partial, expected_bytes)
+    if offset == expected_bytes:
+        return _finalize_partial(partial, archive, spec, offset, sha256, md5)
     try:
         with urllib.request.urlopen(
             _request(download_url(spec), offset=offset if offset else None), timeout=120
         ) as response:
-            _validate_download_response(response, offset, int(spec["bytes"]))
+            _validate_download_response(response, offset, expected_bytes)
             flags = os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
             flags |= os.O_APPEND if offset else os.O_TRUNC
             descriptor = os.open(partial, flags, 0o600)
@@ -251,20 +282,16 @@ def download(spec: Mapping[str, Any], output_dir: Path) -> Path:
                 received = offset
                 while chunk := response.read(CHUNK_BYTES):
                     received += len(chunk)
-                    if received > spec["bytes"]:
+                    if received > expected_bytes:
                         raise FetchError("download_exceeded_declared_bytes")
                     output.write(chunk)
-                    digest.update(chunk)
+                    sha256.update(chunk)
+                    md5.update(chunk)
                 output.flush()
                 os.fsync(output.fileno())
     except (OSError, urllib.error.URLError) as error:
         raise FetchError("download_request_failed") from error
-    if received != spec["bytes"]:
-        raise FetchError("download_incomplete")
-    os.replace(partial, archive)
-    write_receipt(archive, source_receipt(spec, received, digest.hexdigest()))
-    print(f"downloaded and receipt-pinned: {archive}")
-    return archive
+    return _finalize_partial(partial, archive, spec, received, sha256, md5)
 
 
 def _catalog() -> dict[str, Any]:
@@ -273,7 +300,7 @@ def _catalog() -> dict[str, Any]:
             **spec,
             "official_page": OFFICIAL_PAGE,
             "license": LICENSE,
-            "integrity": "version+bytes first; SHA-256 receipt thereafter",
+            "integrity": "version+metadata+archive MD5 first; SHA-256 receipt thereafter",
         }
         for name, spec in SOURCES.items()
     }
