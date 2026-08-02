@@ -173,6 +173,43 @@ Use these corpora to develop the smallest adapter seams and to motivate hardware
 work with evidence. Do not promote a relation type merely because a public
 dataset makes a model trainable.
 
+Prioritize later-work experiments by expected information gain, not archive
+size or adapter convenience:
+
+1. **OPERAnet multimodal complementarity.** Keep complete
+   experiment/participant/room groups together. Compare every fused condition
+   with its best single modality under registered missing-modality masks. The
+   hypothesis fails when grouped macro-F1 or balanced-accuracy improvement has
+   no positive paired confidence bound. Time overlap is not cross-protocol
+   identity evidence.
+2. **CAEZ multi-AP spatial fusion.** Align CSI/frame metadata to publisher
+   position rows, then hold out complete takes and contiguous spatial regions.
+   Report median and 90th-percentile localization error plus selective
+   risk-versus-coverage. The hypothesis fails when fusion does not improve on
+   the best single AP or abstention does not monotonically reduce error.
+3. **V2I mobility/throughput episodes.** Keep whole traces together and reserve
+   a collection day or year for temporal shift. Compare radio-plus-GPS evidence
+   with each component using throughput-drop AUPRC and detection lead time at a
+   fixed false-alarm rate.
+4. **WiSig nuisance robustness.** Use a bounded non-executing pickle/IQ reader;
+   never deserialize the downloaded pickle. Split by transmitter, receiver,
+   acquisition, and day rather than waveform windows. Report EER and TPR at a
+   preregistered low FPR on held-out receiver/day conditions.
+5. **Zigbee multi-observer coverage.** Keep all four ZBDS observers for an hour
+   in one split. Admit same-event labels only after validating clocks and a
+   protocol-derived or immutable-byte key. Fail on any unjustified merge or
+   non-positive unique-event coverage gain over the best observer.
+6. **Gotham and IoT-23 flow lineage.** Reconcile raw packets to processed flows
+   and retain the matching rule as provenance. Report join precision/recall,
+   unmatched-flow rate, labels without rule lineage, per-attack AUPRC, and
+   bounded throughput. One scenario or emulated hardware cannot establish
+   generalization.
+
+Every experiment reports per-group results, firing and abstention counts, raw
+metric numerators and denominators, and a confidence interval where a rate is
+used. A new adapter is not evidence for a fusion claim until the corresponding
+held-out comparison passes.
+
 The first such seam is an archive-backed CAEZ CSI profile:
 
 ```sh
