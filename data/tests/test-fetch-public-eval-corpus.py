@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import ssl
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -181,10 +183,53 @@ class FetcherMetadataTests(unittest.TestCase):
 
     def test_group_and_ignored_payload_contract(self):
         self.assertIn("rf-fingerprinting", MODULE.GROUPS)
+        self.assertIn("rfid-exsim", MODULE.GROUPS)
         ignores = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
         self.assertTrue(
             {"/data/raw/", "/data/derived/", "/data/receipts/"}.issubset(ignores)
         )
+
+    def test_rfid_exsim_zenodo_pin(self):
+        source = MODULE.SOURCES["rfid-exsim-v1"]
+        self.assertEqual(
+            source["url"],
+            "https://zenodo.org/api/records/17854328/files/"
+            "yasserhmimou9/RFID-ExSim-Dataset-v1.0.zip/content",
+        )
+        self.assertEqual(
+            (source["filename"], source["source_filename"]),
+            (
+                "RFID-ExSim-Dataset-v1.0.zip",
+                "yasserhmimou9/RFID-ExSim-Dataset-v1.0.zip",
+            ),
+        )
+        self.assertEqual((source["bytes"], source["record_bytes"]), (299_566, 299_566))
+        self.assertEqual(source["md5"], "1e0f4712a158c7dde5d2d31aaa84c071")
+        self.assertEqual(
+            source["sha256"],
+            "aaa39788d4c757bb9b0f6ce46f2e976be6ce650d4f28161f52e885bb41c24c20",
+        )
+        self.assertEqual(
+            source["sha256_provenance"], "computed_from_zenodo_api_content"
+        )
+        self.assertEqual(source["doi"], "10.5281/zenodo.17854328")
+        self.assertIn("unspecified on the Zenodo record", source["license"])
+
+    def test_rfid_exsim_sha256_pin_is_enforced_hermetically(self):
+        payload = b"synthetic RFID JSONL bundle"
+        spec = {
+            "filename": "rfid-exsim.zip",
+            "bytes": len(payload),
+            "md5": hashlib.md5(payload, usedforsecurity=False).hexdigest(),
+            "sha256": "0" * 64,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / spec["filename"]
+            archive.write_bytes(payload)
+            with self.assertRaisesRegex(
+                RuntimeError, "existing archive failed verification"
+            ):
+                MODULE.verify_existing_archive(archive, spec)
 
     def test_catalog_axes_are_separate(self):
         entries = {
@@ -217,9 +262,26 @@ class FetcherMetadataTests(unittest.TestCase):
                 "layout_profile",
                 "domain_shift_candidate",
             },
+            "zenodo-17854328-rfid-exsim": {
+                "controlled_baseline_eval",
+                "collision_eval",
+                "uid_cloning_eval",
+                "replay_software_injection_eval",
+                "flooding_eval",
+            },
         }
         for entry_id, roles in expected.items():
             self.assertEqual(set(entries[entry_id]["roles"]), roles)
+        rfid_exsim = entries["zenodo-17854328-rfid-exsim"]
+        self.assertEqual(
+            set(rfid_exsim["modalities"]),
+            {"rfid_read_event", "scenario_observation"},
+        )
+        self.assertNotIn("rf_iq", rfid_exsim["modalities"])
+        self.assertIn(
+            "do not establish production intent",
+            rfid_exsim["note"],
+        )
 
 
 if __name__ == "__main__":

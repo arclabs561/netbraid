@@ -450,6 +450,20 @@ SOURCES: dict[str, dict[str, Any]] = {
         "record_bytes": 244_817_005,
         "group": "rf-fingerprinting",
     },
+    "rfid-exsim-v1": {
+        "url": "https://zenodo.org/api/records/17854328/files/yasserhmimou9/RFID-ExSim-Dataset-v1.0.zip/content",
+        "filename": "RFID-ExSim-Dataset-v1.0.zip",
+        "source_filename": "yasserhmimou9/RFID-ExSim-Dataset-v1.0.zip",
+        "bytes": 299_566,
+        "md5": "1e0f4712a158c7dde5d2d31aaa84c071",
+        "sha256": "aaa39788d4c757bb9b0f6ce46f2e976be6ce650d4f28161f52e885bb41c24c20",
+        "sha256_provenance": "computed_from_zenodo_api_content",
+        "license": "unspecified on the Zenodo record; archive includes an MIT LICENSE file",
+        "doi": "10.5281/zenodo.17854328",
+        "record": "rfid-exsim",
+        "record_bytes": 299_566,
+        "group": "rfid-exsim",
+    },
 }
 
 GROUPS = frozenset(spec["group"] for spec in SOURCES.values())
