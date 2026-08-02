@@ -400,24 +400,29 @@ fn evidence_order(reference: &PacketSameEventEvidenceRefV0) -> (&str, &str, &str
 }
 
 fn valid_evidence_reference(reference: &PacketSameEventEvidenceRefV0) -> bool {
-    let digest = reference.envelope_sha256.as_bytes();
     reference.capture_id.starts_with("sha256:")
         && reference.capture_id.len() == 71
         && reference
             .capture_id
             .as_bytes()
             .get(7..)
-            .is_some_and(|value| value.iter().all(u8::is_ascii_hexdigit))
+            .is_some_and(|value| value.iter().all(is_lower_hex_digit))
         && reference
             .record_id
             .strip_prefix(&reference.capture_id)
             .and_then(|suffix| suffix.strip_prefix(":frame:"))
             .and_then(|number| number.parse::<u64>().ok())
             .is_some_and(|number| number > 0)
-        && digest.len() == 64
-        && digest
+        && reference.envelope_sha256.len() == 64
+        && reference
+            .envelope_sha256
+            .as_bytes()
             .iter()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+            .all(is_lower_hex_digit)
+}
+
+fn is_lower_hex_digit(byte: &u8) -> bool {
+    byte.is_ascii_digit() || (b'a'..=b'f').contains(byte)
 }
 
 fn basis_partition_is_valid(basis: &PacketSameEventBasisV0) -> bool {
@@ -675,6 +680,15 @@ mod tests {
                 .unwrap()
                 .validate(),
             Err(PacketSameEventValidationErrorV0::IncoherentDisposition)
+        );
+
+        let mut invalid_reference = serde_json::to_value(&assessment).unwrap();
+        invalid_reference["left"]["envelope_sha256"] = serde_json::Value::String("A".repeat(64));
+        assert_eq!(
+            serde_json::from_value::<PacketSameEventHypothesisSetV0>(invalid_reference)
+                .unwrap()
+                .validate(),
+            Err(PacketSameEventValidationErrorV0::InvalidEvidenceReference)
         );
     }
 
