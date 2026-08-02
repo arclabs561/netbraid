@@ -235,6 +235,16 @@ metric numerators and denominators, and a confidence interval where a rate is
 used. A new adapter is not evidence for a fusion claim until the corresponding
 held-out comparison passes.
 
+The separate `fusion` fetch group pins two cross-layer corpora. Data4Cyber
+co-ships synchronized PCAPNG, one-second process telemetry, state logs, and
+attack-phase labels in one 134 MB archive. NetsLab-5GORAN-IDD co-ships packet
+captures with independent lower-layer radio telemetry; the first bounded slice
+is its benign archive plus the lower- and network-layer summary databases.
+Neither Zenodo record declares a license field, so these remain local-only
+evaluation inputs unless a later rights review establishes redistribution
+terms. They can motivate cross-layer adapter and alignment work; they do not
+label Netbraid's counter-to-capture relation or establish identity.
+
 The first such seam is an archive-backed CAEZ CSI profile:
 
 ```sh

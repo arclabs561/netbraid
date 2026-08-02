@@ -236,6 +236,44 @@ SOURCES: dict[str, dict[str, Any]] = {
         "doi": "10.5281/zenodo.14502760",
         "group": "motivating",
     },
+    "data4cyber": {
+        "url": "https://zenodo.org/api/records/19965384/files/data4cyber_dataset.zip/content",
+        "filename": "data4cyber_dataset.zip",
+        "bytes": 134_034_872,
+        "md5": "a540979c63120c9a0295ff974933580f",
+        "license": "unspecified on the Zenodo record",
+        "doi": "10.5281/zenodo.19965384",
+        "group": "fusion",
+    },
+    "netslab-5g-oran-benign": {
+        "url": "https://zenodo.org/api/records/18923275/files/Benign.zip/content",
+        "filename": "netslab-5g-oran-benign.zip",
+        "bytes": 5_936_426_197,
+        "md5": "3739c67aab617d0937629ac29633992b",
+        "license": "unspecified on the Zenodo record",
+        "doi": "10.1109/IEEEDATA.2025.3614167",
+        "group": "fusion",
+    },
+    "netslab-5g-oran-lower-summary": {
+        "url": "https://zenodo.org/api/records/18923275/files/Lower_Layer_Data.db/content",
+        "filename": "netslab-5g-oran-lower-layer.db",
+        "bytes": 5_402_624,
+        "md5": "c3af05f535b12c547a4dbaf858a25458",
+        "format": "file",
+        "license": "unspecified on the Zenodo record",
+        "doi": "10.1109/IEEEDATA.2025.3614167",
+        "group": "fusion",
+    },
+    "netslab-5g-oran-network-summary": {
+        "url": "https://zenodo.org/api/records/18923275/files/Network_Dataset.db/content",
+        "filename": "netslab-5g-oran-network.db",
+        "bytes": 210_690_048,
+        "md5": "03a235bd089cc2e7c01f96f82b14f065",
+        "format": "file",
+        "license": "unspecified on the Zenodo record",
+        "doi": "10.1109/IEEEDATA.2025.3614167",
+        "group": "fusion",
+    },
 }
 
 
@@ -243,7 +281,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "dataset",
-        choices=["list", "baseline", "motivating", "all", *SOURCES],
+        choices=["list", "baseline", "motivating", "fusion", "all", *SOURCES],
     )
     parser.add_argument(
         "--output-dir",
@@ -587,11 +625,18 @@ def main() -> int:
     if args.dataset == "list":
         print_catalog()
         return 0
-    if args.dataset in {"baseline", "motivating", "all"} and args.extract_member:
+    if (
+        args.dataset in {"baseline", "motivating", "fusion", "all"}
+        and args.extract_member
+    ):
         raise RuntimeError("--extract-member requires one named artifact")
 
-    if args.dataset in {"baseline", "motivating", "all"}:
-        groups = {args.dataset} if args.dataset != "all" else {"baseline", "motivating"}
+    if args.dataset in {"baseline", "motivating", "fusion", "all"}:
+        groups = (
+            {args.dataset}
+            if args.dataset != "all"
+            else {"baseline", "motivating", "fusion"}
+        )
         selected = {
             name: spec for name, spec in SOURCES.items() if spec["group"] in groups
         }
@@ -616,7 +661,7 @@ def main() -> int:
 
     if args.inspect:
         inventory: dict[str, Any]
-        if args.dataset in {"baseline", "motivating", "all"}:
+        if args.dataset in {"baseline", "motivating", "fusion", "all"}:
             inventory = {
                 "schema": "local.public_wireless_archive_inventory.v1",
                 "datasets": inventories,
