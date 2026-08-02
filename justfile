@@ -54,6 +54,9 @@ pcap-smoke:
 counter-capture-eval-check:
     {{ python }} eval/test-counter-capture-eval.py
 
+catalog-check:
+    {{ python }} data/tests/test-catalogs.py
+
 # Evaluate checked, bounded slices from the ignored public archives. Fetch the
 # archives first; this target never admits or writes corpus bytes into Git.
 public-corpus-eval:
