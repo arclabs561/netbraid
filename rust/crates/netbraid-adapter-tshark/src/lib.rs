@@ -115,6 +115,9 @@ pub enum AdapterError {
         request_index: usize,
         option: &'static str,
     },
+    BatchWorkerPanicked {
+        request_index: usize,
+    },
     InputMetadata {
         path: PathBuf,
         source: io::Error,
@@ -192,6 +195,9 @@ impl std::fmt::Display for AdapterError {
                 formatter,
                 "batch request {request_index} has a different {option} configuration-discovery option"
             ),
+            Self::BatchWorkerPanicked { request_index } => {
+                write!(formatter, "batch request {request_index} worker panicked")
+            }
             Self::InputMetadata { path, source } => {
                 write!(formatter, "reading metadata for {}: {source}", path.display())
             }
@@ -362,28 +368,62 @@ pub fn normalize_saved_captures(
 /// All request options are validated before any tool starts. Packet limits,
 /// input bounds, Capinfos settings, and provenance metadata may differ, while
 /// the TShark executable, plugin policy, and discovery process bounds must be
-/// shared. An empty request set returns no reports without starting a tool.
+/// shared. At most `max_parallelism` normalizations run concurrently. An empty
+/// request set returns no reports without starting a tool.
 pub fn normalize_saved_capture_requests(
     requests: &[NormalizeRequest],
+    max_parallelism: usize,
 ) -> Result<Vec<NormalizationReport>, AdapterError> {
+    if max_parallelism == 0 {
+        return Err(AdapterError::InvalidOption("max_parallelism"));
+    }
     let Some(discovery_options) = validate_batch_requests(requests)? else {
         return Ok(Vec::new());
     };
     let environment = WiresharkEnvironment::new()?;
-    run_atomic_batch(
-        requests,
-        || {
-            reject_personal_plugins_unless_allowed(discovery_options.allow_personal_plugins)?;
-            discover_tshark_snapshot(discovery_options, &environment)
-        },
-        |request, snapshot| {
-            normalize_saved_capture_with_snapshot(
-                &request.path,
-                &request.options,
-                Some((&environment, snapshot)),
-            )
-        },
-    )
+    reject_personal_plugins_unless_allowed(discovery_options.allow_personal_plugins)?;
+    let before = discover_tshark_snapshot(discovery_options, &environment)?;
+    let reports = std::thread::scope(|scope| {
+        let mut reports = Vec::with_capacity(requests.len());
+        for (chunk_index, chunk) in requests.chunks(max_parallelism).enumerate() {
+            let request_offset = chunk_index * max_parallelism;
+            let workers = chunk
+                .iter()
+                .enumerate()
+                .map(|(index, request)| {
+                    let environment = &environment;
+                    let before = &before;
+                    (
+                        request_offset + index,
+                        scope.spawn(move || {
+                            normalize_saved_capture_with_snapshot(
+                                &request.path,
+                                &request.options,
+                                Some((environment, before)),
+                            )
+                        }),
+                    )
+                })
+                .collect::<Vec<_>>();
+            for (request_index, worker) in workers {
+                let report = worker
+                    .join()
+                    .map_err(|_| AdapterError::BatchWorkerPanicked { request_index })??;
+                reports.push(report);
+            }
+        }
+        Ok::<_, AdapterError>(reports)
+    });
+    let after = discover_tshark_snapshot(discovery_options, &environment)?;
+    if before != after {
+        return Err(AdapterError::TsharkConfigurationChanged {
+            before_version: before.tool_version,
+            before_configuration_sha256: before.configuration_sha256,
+            after_version: after.tool_version,
+            after_configuration_sha256: after.configuration_sha256,
+        });
+    }
+    reports
 }
 
 fn normalize_saved_capture_with_snapshot(
@@ -1346,6 +1386,11 @@ mod tests {
             Err(AdapterError::InvalidOption("packet_limit"))
         ));
         assert!(validate_batch_requests(&[]).unwrap().is_none());
+        assert!(matches!(
+            normalize_saved_capture_requests(&[], 0),
+            Err(AdapterError::InvalidOption("max_parallelism"))
+        ));
+        assert!(normalize_saved_capture_requests(&[], 1).unwrap().is_empty());
     }
 
     #[test]

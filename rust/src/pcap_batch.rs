@@ -134,7 +134,7 @@ fn run_io(reader: impl Read, writer: impl Write) -> Result<(), String> {
         case_ids.push(request.case_id);
         normalize_requests.push(request.normalize);
     }
-    let reports = normalize_saved_capture_requests(&normalize_requests)
+    let reports = normalize_saved_capture_requests(&normalize_requests, 4)
         .map_err(|error| format!("normalize request batch: {error}"))?;
     if reports.len() != request_count {
         return Err("normalizer returned a different report count".into());
