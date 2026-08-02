@@ -45,6 +45,14 @@ and physical-source groups are fenced by publisher setup family; the compiler
 does not assume cross-scenario identity continuity, assign train/test roles, or
 open IQ/FFT payload streams.
 
+`compile-ruff-uwb-oracles.py` verifies the two pinned RUFF-UWB archives and
+reads only their bounded label arrays. It aggregates observed
+source/location/campaign cells, preserves cross-day source and device identity,
+and fences locations by distance campaign. The fixed receiver, channel 5, and
+collection day are explicit controls; event and session remain unobserved. The
+compiler emits opaque groups without opening waveform members or synthesizing
+missing source/location combinations.
+
 Manifest schema v1 is the frozen 24-run compatibility profile. Schema v2 adds
 an explicit policy for opaque regime tokens, per-regime split sizes, candidate
 count, truth position, and an engineering acceptance threshold. V2 also

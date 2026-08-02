@@ -177,6 +177,12 @@ osu-lora-oracles-check:
 osu-lora-oracles:
     {{ python }} eval/compile-osu-lora-oracles.py
 
+ruff-uwb-oracles-check:
+    {{ python }} eval/test-compile-ruff-uwb-oracles.py
+
+ruff-uwb-oracles:
+    {{ python }} eval/compile-ruff-uwb-oracles.py
+
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000
 

@@ -538,7 +538,10 @@
       "title": "RUFF -- Rotating UWB For Fingerprint",
       "source_type": "dataset",
       "canonical_url": "https://zenodo.org/records/11083153",
-      "related_urls": ["https://doi.org/10.5281/zenodo.11083153"],
+      "related_urls": [
+        "https://doi.org/10.5281/zenodo.11083153",
+        "https://arxiv.org/abs/2501.04401"
+      ],
       "access": "direct_download",
       "license": "cc_by_4_0",
       "modalities": ["uwb", "uwb_cir", "physical_source_observation", "location_observation"],
@@ -546,7 +549,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The record covers 13 boards across 100 positions (3,835,056,792 bytes). Split by both source and location; the fetcher pins only the two NPY archives and leaves duplicate CSV encodings unfetched."
+      "note": "The record covers 13 boards across 100 positions (3,835,056,792 bytes). The associated paper establishes identical DWM3001CDK hardware, reuse of the same boards, one fixed receiver and channel 5, and two distinct collection days/distance campaigns. Split by source, campaign-scoped location, and day; the fetcher pins only the two NPY archives and leaves duplicate CSV encodings unfetched."
     },
     {
       "id": "zenodo-18515187-wlan-rff",

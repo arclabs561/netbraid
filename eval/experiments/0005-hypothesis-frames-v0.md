@@ -135,6 +135,7 @@ just hypothesis-metrics-check
 just relation-split-audit-check
 just osu-lora-profile
 just osu-lora-oracles-check
+just ruff-uwb-oracles-check
 just wlan-rff-layout-profile
 ```
 
@@ -165,6 +166,14 @@ split-role assignment to a later explicit campaign builder.
 Additional public corpora may be admitted only when they provide explicit
 physical-device, variant, acquisition-domain, or attack provenance. Dataset
 labels remain evaluation oracles and do not become production identities.
+
+The RUFF-UWB compiler admits publisher source and position labels from the two
+pinned NPY archives without deserializing waveform arrays. Because numeric
+position labels are not assumed to denote one physical coordinate system
+across distance campaigns, location and source/location groups are fenced by
+campaign. Publisher evidence supports cross-day source/device continuity, one
+fixed receiver, and channel 5. Source ID and the single hardware variant remain
+separate axes; individual capture event and session are not observed.
 
 The pinned WLAN RFF environment archives are profiled from ZIP central
 directories only. Their NPZ payloads are not opened. Filename tokens are
@@ -303,6 +312,13 @@ The OSU oracle-compiler contract passed eleven hermetic tests plus the nine
 metadata-profiler tests. A live full-tree manifest was not produced while
 downloads were mutating the tree; the compiler failed closed on that changing
 inventory as required.
+
+The RUFF-UWB compiler passed seven hermetic tests and a receipt-enforced run on
+both public archives. It reduced 1,923,723 label rows to 1,790 observed
+source/location/campaign cells covering 13 source labels, one declared variant,
+two collection days, one fixed receiver, channel 5, and 150 campaign-fenced
+location groups. It opened zero waveform members. These are oracle inventory
+counts, not model predictions or independent event samples.
 
 ## Conclusion
 
