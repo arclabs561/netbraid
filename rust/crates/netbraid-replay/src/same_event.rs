@@ -400,6 +400,11 @@ fn evidence_order(reference: &PacketSameEventEvidenceRefV0) -> (&str, &str, &str
 }
 
 fn valid_evidence_reference(reference: &PacketSameEventEvidenceRefV0) -> bool {
+    let frame_number = reference
+        .record_id
+        .strip_prefix(&reference.capture_id)
+        .and_then(|suffix| suffix.strip_prefix(":frame:"))
+        .and_then(|number| number.parse::<u64>().ok());
     reference.capture_id.starts_with("sha256:")
         && reference.capture_id.len() == 71
         && reference
@@ -407,12 +412,9 @@ fn valid_evidence_reference(reference: &PacketSameEventEvidenceRefV0) -> bool {
             .as_bytes()
             .get(7..)
             .is_some_and(|value| value.iter().all(is_lower_hex_digit))
-        && reference
-            .record_id
-            .strip_prefix(&reference.capture_id)
-            .and_then(|suffix| suffix.strip_prefix(":frame:"))
-            .and_then(|number| number.parse::<u64>().ok())
-            .is_some_and(|number| number > 0)
+        && frame_number.is_some_and(|number| {
+            number > 0 && reference.record_id == format!("{}:frame:{number}", reference.capture_id)
+        })
         && reference.envelope_sha256.len() == 64
         && reference
             .envelope_sha256
@@ -445,7 +447,16 @@ fn basis_partition_is_valid(basis: &PacketSameEventBasisV0) -> bool {
         && basis.conflicting_dimensions.iter().all(|difference| {
             basis.compared_dimensions.contains(&difference.dimension)
                 && difference.left_value != difference.right_value
+                && valid_dimension_value(difference.dimension, difference.left_value)
+                && valid_dimension_value(difference.dimension, difference.right_value)
         })
+}
+
+fn valid_dimension_value(dimension: PacketSameEventDimensionV0, value: u64) -> bool {
+    match dimension {
+        PacketSameEventDimensionV0::Ieee80211FrameType => value <= 3,
+        PacketSameEventDimensionV0::Ieee80211FrameSubtype => value <= 15,
+    }
 }
 
 #[cfg(test)]
@@ -689,6 +700,24 @@ mod tests {
                 .unwrap()
                 .validate(),
             Err(PacketSameEventValidationErrorV0::InvalidEvidenceReference)
+        );
+
+        let mut noncanonical_record = assessment.clone();
+        noncanonical_record.left.record_id =
+            format!("{}:frame:01", noncanonical_record.left.capture_id);
+        assert_eq!(
+            noncanonical_record.validate(),
+            Err(PacketSameEventValidationErrorV0::InvalidEvidenceReference)
+        );
+
+        let mut conflicting_packet = packet(CAPTURE_B, 1);
+        conflicting_packet.ieee80211.as_mut().unwrap().frame_subtype = 4;
+        let mut invalid_basis =
+            assess_packet_same_event_v0(&packet(CAPTURE_A, 1), &conflicting_packet).unwrap();
+        invalid_basis.basis.conflicting_dimensions[0].right_value = 999;
+        assert_eq!(
+            invalid_basis.validate(),
+            Err(PacketSameEventValidationErrorV0::InvalidBasis)
         );
     }
 
