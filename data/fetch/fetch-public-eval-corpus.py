@@ -274,14 +274,192 @@ SOURCES: dict[str, dict[str, Any]] = {
         "doi": "10.1109/IEEEDATA.2025.3614167",
         "group": "fusion",
     },
+    "gnss-rff-readme": {
+        "url": "https://zenodo.org/api/records/13846381/files/readme.txt/content",
+        "filename": "gnss-rff-readme.txt",
+        "bytes": 2_556,
+        "md5": "7a19ff1553fba9030567d5e724d45467",
+        "format": "file",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.13846381",
+        "record": "gnss-rff",
+        "record_bytes": 6_358_042_574,
+        "group": "rf-fingerprinting",
+    },
+    "gnss-rff-demo": {
+        "url": "https://zenodo.org/api/records/13846381/files/demo.py/content",
+        "filename": "gnss-rff-demo.py",
+        "bytes": 4_712,
+        "md5": "80283bad9185b09aeaad154ae541fdba",
+        "format": "file",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.13846381",
+        "record": "gnss-rff",
+        "record_bytes": 6_358_042_574,
+        "group": "rf-fingerprinting",
+    },
+    "gnss-rff-data": {
+        "url": "https://zenodo.org/api/records/13846381/files/Data.zip/content",
+        "filename": "gnss-rff-Data.zip",
+        "bytes": 6_358_035_306,
+        "md5": "e6ded5b0cb014265d321f61a801686c4",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.13846381",
+        "record": "gnss-rff",
+        "record_bytes": 6_358_042_574,
+        "group": "rf-fingerprinting",
+    },
+    "mmwave-5g-rff-bfk06002-long": {
+        "url": "https://zenodo.org/api/records/18481702/files/bfk06002_long.mat/content",
+        "filename": "mmwave-5g-rff-bfk06002_long.mat",
+        "bytes": 11_796_492_464,
+        "md5": "6986b42361428742020b361cf4160ed6",
+        "format": "file",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.18481702",
+        "record": "mmwave-5g-rff",
+        "record_bytes": 35_878_437_473,
+        "group": "rf-fingerprinting",
+    },
+    "mmwave-5g-rff-bfk06003-long": {
+        "url": "https://zenodo.org/api/records/18481702/files/bfk06003_long.mat/content",
+        "filename": "mmwave-5g-rff-bfk06003_long.mat",
+        "bytes": 11_796_492_464,
+        "md5": "71f034ea573bd985d4702d5f8ae3f963",
+        "format": "file",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.18481702",
+        "record": "mmwave-5g-rff",
+        "record_bytes": 35_878_437_473,
+        "group": "rf-fingerprinting",
+    },
+    "mmwave-5g-rff-bfk06003-20ms": {
+        "url": "https://zenodo.org/api/records/18481702/files/bfk06003_20ms.mat/content",
+        "filename": "mmwave-5g-rff-bfk06003_20ms.mat",
+        "bytes": 157_298_864,
+        "md5": "bed9b0f9f706622ab9fa2c55d453de0b",
+        "format": "file",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.18481702",
+        "record": "mmwave-5g-rff",
+        "record_bytes": 35_878_437_473,
+        "group": "rf-fingerprinting",
+    },
+    "mmwave-5g-rff-box-long": {
+        "url": "https://zenodo.org/api/records/18481702/files/box_long.mat/content",
+        "filename": "mmwave-5g-rff-box_long.mat",
+        "bytes": 11_796_492_464,
+        "md5": "d0c06d6cb219258ed14f643698618e7a",
+        "format": "file",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.18481702",
+        "record": "mmwave-5g-rff",
+        "record_bytes": 35_878_437_473,
+        "group": "rf-fingerprinting",
+    },
+    "mmwave-5g-rff-tx-5g-ssb": {
+        "url": "https://zenodo.org/api/records/18481702/files/TX_5G_SSB.mat/content",
+        "filename": "mmwave-5g-rff-TX_5G_SSB.mat",
+        "bytes": 17_063_489,
+        "md5": "87fae9fd1d1a03d967637b13806e16cc",
+        "format": "file",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.18481702",
+        "record": "mmwave-5g-rff",
+        "record_bytes": 35_878_437_473,
+        "group": "rf-fingerprinting",
+    },
+    "mmwave-5g-rff-box-20ms": {
+        "url": "https://zenodo.org/api/records/18481702/files/box_20ms.mat/content",
+        "filename": "mmwave-5g-rff-box_20ms.mat",
+        "bytes": 157_298_864,
+        "md5": "12c70486fac2feef1fe01a16fe3be1f7",
+        "format": "file",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.18481702",
+        "record": "mmwave-5g-rff",
+        "record_bytes": 35_878_437_473,
+        "group": "rf-fingerprinting",
+    },
+    "mmwave-5g-rff-bfk06002-20ms": {
+        "url": "https://zenodo.org/api/records/18481702/files/bfk06002_20ms.mat/content",
+        "filename": "mmwave-5g-rff-bfk06002_20ms.mat",
+        "bytes": 157_298_864,
+        "md5": "97fbe537ac0069fc805ed2af9e9da74c",
+        "format": "file",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.18481702",
+        "record": "mmwave-5g-rff",
+        "record_bytes": 35_878_437_473,
+        "group": "rf-fingerprinting",
+    },
+    "inria-pla-rff": {
+        "url": "https://zenodo.org/api/records/18268648/files/PLA_dataset.zip/content",
+        "filename": "inria-PLA_dataset.zip",
+        "bytes": 710_685_409,
+        "md5": "aff583bee6f4efccd08fe78c731bf03d",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.18268648",
+        "record": "inria-pla-rff",
+        "record_bytes": 710_685_409,
+        "group": "rf-fingerprinting",
+    },
+    "ruff-uwb-2m-npy": {
+        "url": "https://zenodo.org/api/records/11083153/files/UWB_mesures2meters.npy_format.zip/content",
+        "filename": "RUFF-UWB_mesures2meters.npy_format.zip",
+        "bytes": 1_724_857_002,
+        "md5": "cf0a3274285bb6fc58fecfb4cb252d7d",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.11083153",
+        "record": "ruff-uwb-rff",
+        "record_bytes": 3_835_056_792,
+        "representation": "npy",
+        "group": "rf-fingerprinting",
+    },
+    "ruff-uwb-1m-npy": {
+        "url": "https://zenodo.org/api/records/11083153/files/UWB_mesures1meter.npy_format.zip/content",
+        "filename": "RUFF-UWB_mesures1meter.npy_format.zip",
+        "bytes": 793_083_301,
+        "md5": "035d22d657c84b77df980a482cff47b1",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.11083153",
+        "record": "ruff-uwb-rff",
+        "record_bytes": 3_835_056_792,
+        "representation": "npy",
+        "group": "rf-fingerprinting",
+    },
+    "wlan-rff-anechoic": {
+        "url": "https://zenodo.org/api/records/18515187/files/anechoic_chamber.zip/content",
+        "filename": "wlan-rff-anechoic_chamber.zip",
+        "bytes": 137_021_472,
+        "md5": "9af7491dc891d89969832f0efdee89de",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.18515187",
+        "record": "wlan-rff",
+        "record_bytes": 244_817_005,
+        "group": "rf-fingerprinting",
+    },
+    "wlan-rff-office": {
+        "url": "https://zenodo.org/api/records/18515187/files/office_room.zip/content",
+        "filename": "wlan-rff-office_room.zip",
+        "bytes": 107_795_533,
+        "md5": "8cb50121448016a6c7a1293051b26e1b",
+        "license": "CC BY 4.0",
+        "doi": "10.5281/zenodo.18515187",
+        "record": "wlan-rff",
+        "record_bytes": 244_817_005,
+        "group": "rf-fingerprinting",
+    },
 }
+
+GROUPS = frozenset(spec["group"] for spec in SOURCES.values())
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "dataset",
-        choices=["list", "baseline", "motivating", "fusion", "all", *SOURCES],
+        choices=["list", *sorted(GROUPS), "all", *SOURCES],
     )
     parser.add_argument(
         "--output-dir",
@@ -625,18 +803,12 @@ def main() -> int:
     if args.dataset == "list":
         print_catalog()
         return 0
-    if (
-        args.dataset in {"baseline", "motivating", "fusion", "all"}
-        and args.extract_member
-    ):
+    is_group = args.dataset in GROUPS or args.dataset == "all"
+    if is_group and args.extract_member:
         raise RuntimeError("--extract-member requires one named artifact")
 
-    if args.dataset in {"baseline", "motivating", "fusion", "all"}:
-        groups = (
-            {args.dataset}
-            if args.dataset != "all"
-            else {"baseline", "motivating", "fusion"}
-        )
+    if is_group:
+        groups = {args.dataset} if args.dataset != "all" else GROUPS
         selected = {
             name: spec for name, spec in SOURCES.items() if spec["group"] in groups
         }
@@ -661,7 +833,7 @@ def main() -> int:
 
     if args.inspect:
         inventory: dict[str, Any]
-        if args.dataset in {"baseline", "motivating", "fusion", "all"}:
+        if is_group:
             inventory = {
                 "schema": "local.public_wireless_archive_inventory.v1",
                 "datasets": inventories,
