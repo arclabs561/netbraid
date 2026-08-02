@@ -10,12 +10,27 @@ native binary releases remain available independently.
 
 ## [Unreleased]
 
+### Added
+
+- Identifier-free packet-shape and WLAN fingerprint candidates, conservative
+  comparison results, and an explicitly promotion-gated same-event hypothesis
+  reducer. Unsupported, partial, malformed, or incompatible evidence remains
+  typed abstention rather than a relation claim.
+- Pinned fetchers and deterministic local evaluators for the public capture
+  corpus, Sorbonne same-event oracle, OPERAnet archive layout, and bounded CAEZ
+  CSI metadata. Raw corpus bytes and generated reports remain outside Git.
+
 ### Changed
 
 - Scenario artifact ingestion now retains typed host-path and saved-capture
   sources behind a private family boundary. Replay, disclosure validation, and
   checkpoint input projection reuse the validated saved-capture stream instead
   of reparsing its bytes, without changing public schemas or APIs.
+- Saved-capture request batches may carry independent packet and input bounds
+  while sharing one opening/closing TShark configuration fence. Bounded
+  parallel normalization preserves input order and sequential result semantics;
+  the public-corpus evaluator co-schedules its deterministic replicas through
+  the evaluated Netbraid binary.
 
 ## [0.3.0] - 2026-07-27
 
