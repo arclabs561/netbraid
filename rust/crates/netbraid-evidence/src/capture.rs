@@ -166,6 +166,40 @@ pub struct UdpFieldsV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind", content = "value")]
+pub enum Ieee802154AddressV0 {
+    Short(u16),
+    Extended(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Ieee802154FcsStatusV0 {
+    Valid,
+    Invalid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Ieee802154FieldsV0 {
+    pub frame_type: u8,
+    pub frame_version: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sequence_number: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination_pan_id: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<Ieee802154AddressV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_pan_id: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<Ieee802154AddressV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fcs_status: Option<Ieee802154FcsStatusV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ieee80211FieldsV0 {
     pub frame_type: u8,
     pub frame_subtype: u8,
@@ -209,6 +243,8 @@ pub struct PacketEnvelopeV0 {
     pub tcp: Option<TcpFieldsV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub udp: Option<UdpFieldsV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ieee802154: Option<Box<Ieee802154FieldsV0>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ieee80211: Option<Ieee80211FieldsV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -255,6 +291,10 @@ pub enum CaptureValidationError {
     InvalidIpv6Address(String),
     InvalidIeee80211FrameType(u8),
     InvalidIeee80211FrameSubtype(u8),
+    InvalidIeee802154FrameType(u8),
+    InvalidIeee802154FrameVersion(u8),
+    ConflictingIeee802154Address(&'static str),
+    InvalidIeee802154ExtendedAddress(String),
     InvalidSsidHex,
     EmptyWlanRadioFields,
     ZeroWlanChannel,
@@ -336,6 +376,22 @@ impl std::fmt::Display for CaptureValidationError {
             Self::InvalidIeee80211FrameSubtype(value) => {
                 write!(formatter, "invalid IEEE 802.11 frame subtype {value}")
             }
+            Self::InvalidIeee802154FrameType(value) => {
+                write!(formatter, "invalid IEEE 802.15.4 frame type {value}")
+            }
+            Self::InvalidIeee802154FrameVersion(value) => {
+                write!(formatter, "invalid IEEE 802.15.4 frame version {value}")
+            }
+            Self::ConflictingIeee802154Address(role) => write!(
+                formatter,
+                "IEEE 802.15.4 {role} has both short and extended addresses"
+            ),
+            Self::InvalidIeee802154ExtendedAddress(value) => {
+                write!(
+                    formatter,
+                    "invalid IEEE 802.15.4 extended address {value:?}"
+                )
+            }
             Self::InvalidSsidHex => formatter.write_str(
                 "IEEE 802.11 SSID must be 1..=32 octets encoded as lowercase hexadecimal",
             ),
@@ -408,6 +464,42 @@ impl CaptureManifestV0 {
 }
 
 impl PacketEnvelopeV0 {
+    pub fn set_ieee802154_fields(
+        &mut self,
+        header: (u8, u8),
+        sequence_number: Option<u8>,
+        destination: (Option<u16>, Option<u16>, Option<String>),
+        source: (Option<u16>, Option<u16>, Option<String>),
+        command: Option<u8>,
+        fcs_valid: Option<bool>,
+    ) -> Result<(), CaptureValidationError> {
+        let (frame_type, frame_version) = header;
+        let (destination_pan_id, destination_short, destination_extended) = destination;
+        let (source_pan_id, source_short, source_extended) = source;
+        self.ieee802154 = Some(Box::new(Ieee802154FieldsV0 {
+            frame_type,
+            frame_version,
+            sequence_number,
+            destination_pan_id,
+            destination: ieee802154_address(
+                destination_short,
+                destination_extended,
+                "destination",
+            )?,
+            source_pan_id,
+            source: ieee802154_address(source_short, source_extended, "source")?,
+            command,
+            fcs_status: fcs_valid.map(|valid| {
+                if valid {
+                    Ieee802154FcsStatusV0::Valid
+                } else {
+                    Ieee802154FcsStatusV0::Invalid
+                }
+            }),
+        }));
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), CaptureValidationError> {
         validate_schema(&self.schema, PACKET_ENVELOPE_SCHEMA_V0)?;
         validate_capture_id(&self.capture_id)?;
@@ -447,6 +539,30 @@ impl PacketEnvelopeV0 {
                     return Err(CaptureValidationError::InvalidIpv6Address(
                         address.to_string(),
                     ));
+                }
+            }
+        }
+        if let Some(ieee802154) = &self.ieee802154 {
+            if ieee802154.frame_type > 7 {
+                return Err(CaptureValidationError::InvalidIeee802154FrameType(
+                    ieee802154.frame_type,
+                ));
+            }
+            if ieee802154.frame_version > 3 {
+                return Err(CaptureValidationError::InvalidIeee802154FrameVersion(
+                    ieee802154.frame_version,
+                ));
+            }
+            for address in [ieee802154.destination.as_ref(), ieee802154.source.as_ref()]
+                .into_iter()
+                .flatten()
+            {
+                if let Ieee802154AddressV0::Extended(value) = address {
+                    if !is_eui64_address(value) {
+                        return Err(CaptureValidationError::InvalidIeee802154ExtendedAddress(
+                            value.clone(),
+                        ));
+                    }
                 }
             }
         }
@@ -686,6 +802,28 @@ fn is_ethernet_address(value: &str) -> bool {
     }) && parts.next().is_none()
 }
 
+fn ieee802154_address(
+    short: Option<u16>,
+    extended: Option<String>,
+    role: &'static str,
+) -> Result<Option<Ieee802154AddressV0>, CaptureValidationError> {
+    match (short, extended) {
+        (Some(_), Some(_)) => Err(CaptureValidationError::ConflictingIeee802154Address(role)),
+        (Some(value), None) => Ok(Some(Ieee802154AddressV0::Short(value))),
+        (None, Some(value)) => Ok(Some(Ieee802154AddressV0::Extended(value))),
+        (None, None) => Ok(None),
+    }
+}
+
+fn is_eui64_address(value: &str) -> bool {
+    let mut parts = value.split(':');
+    (0..8).all(|_| {
+        parts.next().is_some_and(|part| {
+            part.len() == 2 && part.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+    }) && parts.next().is_none()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -752,6 +890,7 @@ mod tests {
                 flags: 2,
             }),
             udp: None,
+            ieee802154: None,
             ieee80211: None,
             wlan_radio: None,
         }
@@ -777,6 +916,7 @@ mod tests {
             ipv6: None,
             tcp: None,
             udp: None,
+            ieee802154: None,
             ieee80211: Some(Ieee80211FieldsV0 {
                 frame_type: 0,
                 frame_subtype: 5,
@@ -954,6 +1094,90 @@ mod tests {
             value.validate(),
             Err(CaptureValidationError::ZeroWlanCenterFrequency)
         );
+    }
+
+    #[test]
+    fn packet_validates_typed_ieee802154_evidence_without_payload_bytes() {
+        let mut value = packet();
+        value
+            .set_ieee802154_fields(
+                (3, 1),
+                Some(42),
+                (Some(0x1234), Some(0x5678), None),
+                (None, None, Some("02:00:00:00:00:00:00:01".into())),
+                Some(4),
+                Some(true),
+            )
+            .unwrap();
+        value.validate().unwrap();
+
+        let encoded = serde_json::to_value(&value).unwrap();
+        let ieee802154 = &encoded["ieee802154"];
+        assert_eq!(ieee802154["frame_type"], 3);
+        assert_eq!(ieee802154["frame_version"], 1);
+        assert_eq!(ieee802154["sequence_number"], 42);
+        assert_eq!(ieee802154["destination_pan_id"], 0x1234);
+        assert_eq!(ieee802154["destination"]["kind"], "short");
+        assert_eq!(ieee802154["destination"]["value"], 0x5678);
+        assert_eq!(ieee802154["source"]["kind"], "extended");
+        assert_eq!(ieee802154["fcs_status"], "valid");
+        assert!(ieee802154.get("payload").is_none());
+    }
+
+    #[test]
+    fn packet_rejects_invalid_ieee802154_typed_values() {
+        let mut value = packet();
+        value
+            .set_ieee802154_fields(
+                (8, 1),
+                None,
+                (None, None, None),
+                (None, None, None),
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidIeee802154FrameType(8))
+        );
+
+        let mut value = packet();
+        assert_eq!(
+            value.set_ieee802154_fields(
+                (1, 1),
+                None,
+                (None, Some(0x5678), Some("02:00:00:00:00:00:00:02".into())),
+                (None, None, None),
+                None,
+                None,
+            ),
+            Err(CaptureValidationError::ConflictingIeee802154Address(
+                "destination"
+            ))
+        );
+
+        let mut value = packet();
+        value
+            .set_ieee802154_fields(
+                (1, 4),
+                None,
+                (None, None, None),
+                (None, None, Some("not-an-eui64".into())),
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidIeee802154FrameVersion(4))
+        );
+
+        value.ieee802154.as_mut().unwrap().frame_version = 1;
+        assert!(matches!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidIeee802154ExtendedAddress(_))
+        ));
     }
 
     #[test]

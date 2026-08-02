@@ -605,6 +605,7 @@ fn unsupported_triage_projection_matches_contract_golden() {
         ipv6: None,
         tcp: None,
         udp: None,
+        ieee802154: None,
         ieee80211: None,
         wlan_radio: None,
     }];
@@ -1313,6 +1314,7 @@ fn tcp_packet(
             flags,
         }),
         udp: None,
+        ieee802154: None,
         ieee80211: None,
         wlan_radio: None,
     }
@@ -1363,6 +1365,7 @@ fn wlan_packet(frame_number: u64, frame_subtype: u8) -> PacketEnvelopeV0 {
         ipv6: None,
         tcp: None,
         udp: None,
+        ieee802154: None,
         ieee80211: Some(Ieee80211FieldsV0 {
             frame_type: 0,
             frame_subtype,

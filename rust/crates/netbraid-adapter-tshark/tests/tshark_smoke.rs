@@ -74,6 +74,25 @@ fn installed_tshark_normalizes_synthetic_capture() {
         .iter()
         .any(|protocol| protocol == "arp"));
 
+    let ieee802154 = normalize_fixture(
+        directory.path(),
+        "ieee802154-command",
+        include_str!("fixtures/ieee802154_command.hex"),
+    );
+    let packet = serde_json::to_value(&ieee802154.packets[0]).unwrap();
+    let fields = &packet["ieee802154"];
+    assert_eq!(fields["frame_type"], 3);
+    assert_eq!(fields["frame_version"], 1);
+    assert_eq!(fields["sequence_number"], 42);
+    assert_eq!(fields["destination_pan_id"], 0x1234);
+    assert_eq!(fields["destination"]["kind"], "short");
+    assert_eq!(fields["destination"]["value"], 0x5678);
+    assert_eq!(fields["source"]["kind"], "extended");
+    assert_eq!(fields["source"]["value"], "02:00:00:00:00:00:00:01");
+    assert_eq!(fields["command"], 4);
+    assert_eq!(fields["fcs_status"], "valid");
+    assert!(fields.get("payload").is_none());
+
     let truncated = normalize_fixture(
         directory.path(),
         "ethernet-ipv4-tcp-truncated",

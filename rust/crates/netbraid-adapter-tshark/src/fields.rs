@@ -6,7 +6,7 @@ use netbraid_evidence::{
     PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
 };
 
-pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v1";
+pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v2";
 
 pub const FIELDS: &[&str] = &[
     "frame.number",
@@ -41,7 +41,32 @@ pub const FIELDS: &[&str] = &[
     "wlan_radio.channel",
     "wlan_radio.frequency",
     "wlan_radio.signal_dbm",
+    "wpan.frame_type",
+    "wpan.version",
+    "wpan.seq_no",
+    "wpan.dst_pan",
+    "wpan.dst16",
+    "wpan.dst64",
+    "wpan.src_pan",
+    "wpan.src16",
+    "wpan.src64",
+    "wpan.cmd",
+    "wpan.fcs_ok",
 ];
+
+struct ParsedIeee802154Fields {
+    frame_type: u8,
+    frame_version: u8,
+    sequence_number: Option<u8>,
+    destination_pan_id: Option<u16>,
+    destination_short: Option<u16>,
+    destination_extended: Option<String>,
+    source_pan_id: Option<u16>,
+    source_short: Option<u16>,
+    source_extended: Option<String>,
+    command: Option<u8>,
+    fcs_valid: Option<bool>,
+}
 
 pub(crate) struct ParsedRows {
     pub packets: Vec<PacketEnvelopeV0>,
@@ -116,7 +141,8 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
     let udp = parse_udp(&fields)?;
     let ieee80211 = parse_ieee80211(&fields)?;
     let wlan_radio = parse_wlan_radio(&fields)?;
-    let packet = PacketEnvelopeV0 {
+    let ieee802154 = parse_ieee802154(&fields)?;
+    let mut packet = PacketEnvelopeV0 {
         schema: PACKET_ENVELOPE_SCHEMA_V0.into(),
         record_id: format!("{capture_id}:frame:{frame_number}"),
         capture_id: capture_id.into(),
@@ -139,9 +165,30 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
         ipv6,
         tcp,
         udp,
+        ieee802154: None,
         ieee80211,
         wlan_radio,
     };
+    if let Some(fields) = ieee802154 {
+        packet
+            .set_ieee802154_fields(
+                (fields.frame_type, fields.frame_version),
+                fields.sequence_number,
+                (
+                    fields.destination_pan_id,
+                    fields.destination_short,
+                    fields.destination_extended,
+                ),
+                (
+                    fields.source_pan_id,
+                    fields.source_short,
+                    fields.source_extended,
+                ),
+                fields.command,
+                fields.fcs_valid,
+            )
+            .map_err(|error| error.to_string())?;
+    }
     packet.validate().map_err(|error| error.to_string())?;
     Ok(packet)
 }
@@ -252,6 +299,37 @@ fn parse_wlan_radio(fields: &[&str]) -> Result<Option<WlanRadioFieldsV0>, String
     }
 }
 
+fn parse_ieee802154(fields: &[&str]) -> Result<Option<ParsedIeee802154Fields>, String> {
+    if fields[32..=42].iter().all(|field| field.is_empty()) {
+        return Ok(None);
+    }
+    if fields[32].is_empty() || fields[33].is_empty() {
+        return Err(
+            "IEEE 802.15.4 attributes exist without complete frame type and version".into(),
+        );
+    }
+    if !fields[36].is_empty() && !fields[37].is_empty() {
+        return Err("IEEE 802.15.4 destination has both short and extended addresses".into());
+    }
+    if !fields[39].is_empty() && !fields[40].is_empty() {
+        return Err("IEEE 802.15.4 source has both short and extended addresses".into());
+    }
+
+    Ok(Some(ParsedIeee802154Fields {
+        frame_type: parse_u8_auto_radix(fields[32], FIELDS[32])?,
+        frame_version: parse_u8_auto_radix(fields[33], FIELDS[33])?,
+        sequence_number: parse_optional_u8_auto_radix(fields[34], FIELDS[34])?,
+        destination_pan_id: parse_optional_u16_auto_radix(fields[35], FIELDS[35])?,
+        destination_short: parse_optional_u16_auto_radix(fields[36], FIELDS[36])?,
+        destination_extended: canonical_eui64(fields[37], FIELDS[37])?,
+        source_pan_id: parse_optional_u16_auto_radix(fields[38], FIELDS[38])?,
+        source_short: parse_optional_u16_auto_radix(fields[39], FIELDS[39])?,
+        source_extended: canonical_eui64(fields[40], FIELDS[40])?,
+        command: parse_optional_u8_auto_radix(fields[41], FIELDS[41])?,
+        fcs_valid: parse_optional_tshark_bool(fields[42], FIELDS[42])?,
+    }))
+}
+
 fn parse_required<T>(value: &str, field: &str) -> Result<T, String>
 where
     T: std::str::FromStr,
@@ -276,10 +354,48 @@ where
 }
 
 fn parse_u16_auto_radix(value: &str, field: &str) -> Result<u16, String> {
-    if let Some(hex) = value.strip_prefix("0x") {
-        u16::from_str_radix(hex, 16).map_err(|_| format!("{field} has invalid value {value:?}"))
+    parse_unsigned_auto_radix(value, field)
+}
+
+fn parse_u8_auto_radix(value: &str, field: &str) -> Result<u8, String> {
+    parse_unsigned_auto_radix(value, field)
+}
+
+fn parse_unsigned_auto_radix<T>(value: &str, field: &str) -> Result<T, String>
+where
+    T: TryFrom<u64>,
+{
+    let parsed = if let Some(hex) = value.strip_prefix("0x") {
+        u64::from_str_radix(hex, 16)
     } else {
-        parse_required(value, field)
+        value.parse()
+    }
+    .map_err(|_| format!("{field} has invalid value {value:?}"))?;
+    T::try_from(parsed).map_err(|_| format!("{field} has invalid value {value:?}"))
+}
+
+fn parse_optional_u8_auto_radix(value: &str, field: &str) -> Result<Option<u8>, String> {
+    if value.is_empty() {
+        Ok(None)
+    } else {
+        parse_u8_auto_radix(value, field).map(Some)
+    }
+}
+
+fn parse_optional_u16_auto_radix(value: &str, field: &str) -> Result<Option<u16>, String> {
+    if value.is_empty() {
+        Ok(None)
+    } else {
+        parse_u16_auto_radix(value, field).map(Some)
+    }
+}
+
+fn parse_optional_tshark_bool(value: &str, field: &str) -> Result<Option<bool>, String> {
+    match value {
+        "" => Ok(None),
+        "True" | "true" | "1" => Ok(Some(true)),
+        "False" | "false" | "0" => Ok(Some(false)),
+        _ => Err(format!("{field} has invalid value {value:?}")),
     }
 }
 
@@ -318,6 +434,24 @@ fn canonical_ssid_hex(value: &str) -> Result<Option<String>, String> {
             "{} has invalid nonempty SSID bytes {value:?}",
             FIELDS[28]
         ))
+    }
+}
+
+fn canonical_eui64(value: &str, field: &str) -> Result<Option<String>, String> {
+    if value.is_empty() {
+        return Ok(None);
+    }
+    let value = value.to_ascii_lowercase();
+    let mut parts = value.split(':');
+    let valid = (0..8).all(|_| {
+        parts.next().is_some_and(|part| {
+            part.len() == 2 && part.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+    }) && parts.next().is_none();
+    if valid {
+        Ok(Some(value))
+    } else {
+        Err(format!("{field} is not an EUI-64 address: {value:?}"))
     }
 }
 
@@ -414,6 +548,17 @@ mod tests {
             "",
             "",
             "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
         ]
         .join("\t")
     }
@@ -452,6 +597,66 @@ mod tests {
             "1",
             "2412",
             "-74",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ]
+        .join("\t")
+    }
+
+    fn ieee802154_row() -> String {
+        [
+            "3",
+            "1700000000.323456789",
+            "18",
+            "18",
+            "0",
+            "0",
+            "104",
+            "wpan",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "0x0003",
+            "1",
+            "42",
+            "0x1234",
+            "0x5678",
+            "",
+            "",
+            "",
+            "02:00:00:00:00:00:00:01",
+            "0x04",
+            "True",
         ]
         .join("\t")
     }
@@ -505,6 +710,110 @@ mod tests {
                 .ssid_hex,
             None
         );
+    }
+
+    #[test]
+    fn parser_matches_synthetic_tshark_ieee802154_output() {
+        let parsed = parse_rows(format!("{}\n", ieee802154_row()).as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.quarantines.is_empty());
+        assert_eq!(parsed.packets.len(), 1);
+        let encoded = serde_json::to_value(&parsed.packets[0]).unwrap();
+        let ieee802154 = &encoded["ieee802154"];
+        assert_eq!(ieee802154["frame_type"], 3);
+        assert_eq!(ieee802154["frame_version"], 1);
+        assert_eq!(ieee802154["sequence_number"], 42);
+        assert_eq!(ieee802154["destination_pan_id"], 0x1234);
+        assert_eq!(ieee802154["destination"]["kind"], "short");
+        assert_eq!(ieee802154["destination"]["value"], 0x5678);
+        assert_eq!(ieee802154["source"]["value"], "02:00:00:00:00:00:00:01");
+        assert_eq!(ieee802154["command"], 4);
+        assert_eq!(ieee802154["fcs_status"], "valid");
+        assert!(ieee802154.get("payload").is_none());
+        assert!(FIELDS.iter().all(|field| !field.contains("payload")));
+    }
+
+    #[test]
+    fn parser_tolerates_absent_optional_ieee802154_fields() {
+        let mut fields = ieee802154_row()
+            .split('\t')
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        for field in &mut fields[34..=42] {
+            field.clear();
+        }
+        let row = fields.join("\t");
+
+        let parsed = parse_rows(format!("{row}\n").as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.quarantines.is_empty());
+        assert_eq!(parsed.packets.len(), 1);
+        let encoded = serde_json::to_value(&parsed.packets[0]).unwrap();
+        let ieee802154 = encoded["ieee802154"].as_object().unwrap();
+        assert_eq!(ieee802154.len(), 2);
+        assert_eq!(ieee802154["frame_type"], 3);
+        assert_eq!(ieee802154["frame_version"], 1);
+    }
+
+    #[test]
+    fn malformed_present_ieee802154_fields_are_quarantined() {
+        let mutate = |frame_number: usize, index: usize, value: &str| {
+            let mut fields = ieee802154_row()
+                .split('\t')
+                .map(str::to_owned)
+                .collect::<Vec<_>>();
+            fields[0] = frame_number.to_string();
+            fields[index] = value.into();
+            fields.join("\t")
+        };
+        let rows = [
+            mutate(3, 32, ""),
+            mutate(4, 35, "0xzzzz"),
+            mutate(5, 37, "02:00:00:00:00:00:00:02"),
+            mutate(6, 40, "not-an-eui64"),
+            mutate(7, 42, "Unknown"),
+            mutate(8, 32, "0x0008"),
+            mutate(9, 33, "4"),
+        ];
+        let input = format!("{}\n", rows.join("\n"));
+
+        let parsed = parse_rows(input.as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.packets.is_empty());
+        assert_eq!(parsed.quarantines.len(), rows.len());
+        for field in [
+            "frame type and version",
+            "wpan.dst_pan",
+            "both short and extended",
+            "EUI-64",
+            "wpan.fcs_ok",
+            "invalid IEEE 802.15.4 frame type",
+            "invalid IEEE 802.15.4 frame version",
+        ] {
+            assert!(
+                parsed
+                    .quarantines
+                    .iter()
+                    .any(|quarantine| quarantine.reason.contains(field)),
+                "missing quarantine reason for {field}"
+            );
+        }
+    }
+
+    #[test]
+    fn unsigned_parser_has_decimal_and_tshark_hex_parity() {
+        for value in u8::MIN..=u8::MAX {
+            assert_eq!(
+                parse_u8_auto_radix(&value.to_string(), "u8"),
+                parse_u8_auto_radix(&format!("0x{value:04x}"), "u8")
+            );
+        }
+        for value in u16::MIN..=u16::MAX {
+            assert_eq!(
+                parse_u16_auto_radix(&value.to_string(), "u16"),
+                parse_u16_auto_radix(&format!("0x{value:04x}"), "u16")
+            );
+        }
     }
 
     #[test]

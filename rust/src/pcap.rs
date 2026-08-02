@@ -1624,6 +1624,7 @@ mod tests {
             ipv6: None,
             tcp: None,
             udp: None,
+            ieee802154: None,
             ieee80211: Some(Ieee80211FieldsV0 {
                 frame_type,
                 frame_subtype,

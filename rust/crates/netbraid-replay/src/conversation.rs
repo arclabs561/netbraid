@@ -373,6 +373,7 @@ mod tests {
                 flags,
             }),
             udp: None,
+            ieee802154: None,
             ieee80211: None,
             wlan_radio: None,
         }
