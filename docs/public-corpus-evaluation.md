@@ -260,6 +260,17 @@ not read table rows or packet payloads. Matching timestamp-bearing structures
 make a later alignment adapter testable; they do not establish clock offset,
 event correspondence, device identity, packet semantics, or model quality.
 
+The NetsLab profile verifies the benign capture archive and both SQLite
+summaries, inventories the ZIP without extraction, and queries exact schemas
+read-only with a bounded 256 MiB mmap request. It emits aggregate row, null, and
+category-cardinality metadata only. The lower-layer table has a timestamp; the
+network summary does not, so filename/scenario lineage must be established
+before any cross-layer join. Run it with:
+
+```sh
+just netslab-alignment-profile
+```
+
 IoT-23 supplies a separate packet-to-flow lineage oracle. The evaluator accepts
 strict, externally sessionized packet-flow metadata and the publisher's Zeek
 log, then reports aggregate five-tuple/time-envelope match, split, merge,

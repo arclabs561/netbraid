@@ -92,6 +92,14 @@ data4cyber-alignment-profile:
     python3 scripts/profile-data4cyber-alignment.py --report eval-data/data4cyber-alignment-profile-repeat.json
     cmp eval-data/data4cyber-alignment-profile.json eval-data/data4cyber-alignment-profile-repeat.json
 
+# Verify the pinned NetsLab archive/databases, using bounded read-only SQLite
+# mmap where available, and emit aggregate schema/alignment metadata only.
+netslab-alignment-profile:
+    python3 scripts/test-profile-netslab-alignment.py
+    python3 scripts/profile-netslab-alignment.py --report eval-data/netslab-alignment-profile.json
+    python3 scripts/profile-netslab-alignment.py --report eval-data/netslab-alignment-profile-repeat.json
+    cmp eval-data/netslab-alignment-profile.json eval-data/netslab-alignment-profile-repeat.json
+
 # Exercise the strict packet-to-publisher-flow oracle without requiring the
 # ignored IoT-23 corpus. Production use supplies externally sessionized flows.
 iot23-flow-lineage-check:
