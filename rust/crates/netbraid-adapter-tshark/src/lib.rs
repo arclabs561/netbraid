@@ -81,6 +81,7 @@ pub struct NormalizationReport {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum AdapterError {
     InvalidOption(&'static str),
     InputMetadata {
@@ -134,6 +135,12 @@ pub enum AdapterError {
         file_packets: u64,
         rows_seen: u64,
         packet_limit: u64,
+    },
+    TsharkConfigurationChanged {
+        before_version: String,
+        before_configuration_sha256: String,
+        after_version: String,
+        after_configuration_sha256: String,
     },
     NonUtf8Executable(&'static str),
     ClockBeforeUnixEpoch(SystemTimeError),
@@ -241,6 +248,15 @@ impl std::fmt::Display for AdapterError {
                 formatter,
                 "Capinfos reported {file_packets} packets but TShark emitted {rows_seen} rows with limit {packet_limit}"
             ),
+            Self::TsharkConfigurationChanged {
+                before_version,
+                before_configuration_sha256,
+                after_version,
+                after_configuration_sha256,
+            } => write!(
+                formatter,
+                "TShark configuration changed during batch normalization: {before_version} ({before_configuration_sha256}) became {after_version} ({after_configuration_sha256})"
+            ),
             Self::NonUtf8Executable(tool) => {
                 write!(formatter, "configured {tool} executable path is not valid UTF-8")
             }
@@ -277,14 +293,53 @@ pub fn normalize_saved_capture(
     input: &Path,
     options: &NormalizeOptions,
 ) -> Result<NormalizationReport, AdapterError> {
+    normalize_saved_capture_with_snapshot(input, options, None)
+}
+
+/// Normalize a batch under one opening and closing TShark configuration fence.
+///
+/// Each capture retains independent staging, tool receipts, clocks, and source
+/// integrity checks. No reports are returned if normalization fails or if the
+/// complete TShark version/configuration snapshot changes during the batch.
+pub fn normalize_saved_captures(
+    inputs: &[PathBuf],
+    options: &NormalizeOptions,
+) -> Result<Vec<NormalizationReport>, AdapterError> {
+    validate_options(options)?;
+    let environment = WiresharkEnvironment::new()?;
+    run_atomic_batch(
+        inputs,
+        || {
+            reject_personal_plugins_unless_allowed(options.allow_personal_plugins)?;
+            discover_tshark_snapshot(options, &environment)
+        },
+        |input, snapshot| {
+            normalize_saved_capture_with_snapshot(input, options, Some((&environment, snapshot)))
+        },
+    )
+}
+
+fn normalize_saved_capture_with_snapshot(
+    input: &Path,
+    options: &NormalizeOptions,
+    tshark_context: Option<(&WiresharkEnvironment, &TsharkSnapshot)>,
+) -> Result<NormalizationReport, AdapterError> {
     validate_options(options)?;
     let started_time_unix_ns = unix_time_ns(SystemTime::now())?;
     let started = Instant::now();
     let staged = stage_capture(input, options.max_input_bytes)?;
-    reject_personal_plugins_unless_allowed(options.allow_personal_plugins)?;
-    let environment = WiresharkEnvironment::new()?;
 
-    let capinfos_identity = capinfos_version(options, &environment)?;
+    let owned_environment;
+    let (environment, supplied_snapshot) = match tshark_context {
+        Some((environment, snapshot)) => (environment, Some(snapshot)),
+        None => {
+            reject_personal_plugins_unless_allowed(options.allow_personal_plugins)?;
+            owned_environment = WiresharkEnvironment::new()?;
+            (&owned_environment, None)
+        }
+    };
+
+    let capinfos_identity = capinfos_version(options, environment)?;
     let capinfos_args = capinfos::arguments(&staged.path);
     let capinfos_output = run_bounded(
         &options.capinfos_path,
@@ -305,9 +360,14 @@ pub fn normalize_saved_capture(
         });
     }
 
-    let tool_identity = tshark_version(options, &environment)?;
-    let configuration_sha256 =
-        tshark_configuration_sha256(options, &environment, &tool_identity.full_output)?;
+    let owned_snapshot;
+    let snapshot = match supplied_snapshot {
+        Some(snapshot) => snapshot,
+        None => {
+            owned_snapshot = discover_tshark_snapshot(options, environment)?;
+            &owned_snapshot
+        }
+    };
     let tshark_args = tshark_args(&staged.path, options.packet_limit);
     let output = run_bounded(
         &options.tshark_path,
@@ -364,8 +424,8 @@ pub fn normalize_saved_capture(
             adapter: TSHARK_ADAPTER_ID.into(),
             adapter_version: env!("CARGO_PKG_VERSION").into(),
             tool: "tshark".into(),
-            tool_version: tool_identity.version.clone(),
-            configuration_sha256,
+            tool_version: snapshot.tool_version.clone(),
+            configuration_sha256: snapshot.configuration_sha256.clone(),
             field_registry: FIELD_REGISTRY_ID.into(),
         },
         acquisition_policy: options.acquisition_policy.clone(),
@@ -406,7 +466,7 @@ pub fn normalize_saved_capture(
         tshark: tool_run_receipt(
             "tshark",
             &options.tshark_path,
-            &tool_identity.version,
+            &snapshot.tool_version,
             tshark_argument_template(options.packet_limit),
             &output,
         )?,
@@ -423,6 +483,32 @@ pub fn normalize_saved_capture(
         packets: parsed.packets,
         quarantines: parsed.quarantines,
     })
+}
+
+fn run_atomic_batch<T, Discover, Normalize>(
+    inputs: &[PathBuf],
+    mut discover: Discover,
+    mut normalize: Normalize,
+) -> Result<Vec<T>, AdapterError>
+where
+    Discover: FnMut() -> Result<TsharkSnapshot, AdapterError>,
+    Normalize: FnMut(&Path, &TsharkSnapshot) -> Result<T, AdapterError>,
+{
+    let before = discover()?;
+    let reports = inputs
+        .iter()
+        .map(|input| normalize(input, &before))
+        .collect::<Result<Vec<_>, _>>();
+    let after = discover()?;
+    if before != after {
+        return Err(AdapterError::TsharkConfigurationChanged {
+            before_version: before.tool_version,
+            before_configuration_sha256: before.configuration_sha256,
+            after_version: after.tool_version,
+            after_configuration_sha256: after.configuration_sha256,
+        });
+    }
+    reports
 }
 
 fn validate_options(options: &NormalizeOptions) -> Result<(), AdapterError> {
@@ -524,6 +610,12 @@ struct ToolIdentity {
     full_output: Vec<u8>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TsharkSnapshot {
+    tool_version: String,
+    configuration_sha256: String,
+}
+
 fn capinfos_version(
     options: &NormalizeOptions,
     environment: &WiresharkEnvironment,
@@ -603,6 +695,19 @@ fn tshark_version(
     Ok(ToolIdentity {
         version,
         full_output: output.stdout,
+    })
+}
+
+fn discover_tshark_snapshot(
+    options: &NormalizeOptions,
+    environment: &WiresharkEnvironment,
+) -> Result<TsharkSnapshot, AdapterError> {
+    let identity = tshark_version(options, environment)?;
+    let configuration_sha256 =
+        tshark_configuration_sha256(options, environment, &identity.full_output)?;
+    Ok(TsharkSnapshot {
+        tool_version: identity.version,
+        configuration_sha256,
     })
 }
 
@@ -956,6 +1061,13 @@ impl std::fmt::Display for ProcessError {
 mod tests {
     use super::*;
 
+    fn snapshot(version: &str, configuration_sha256: &str) -> TsharkSnapshot {
+        TsharkSnapshot {
+            tool_version: version.into(),
+            configuration_sha256: configuration_sha256.into(),
+        }
+    }
+
     #[test]
     fn command_is_offline_name_resolution_free_and_registry_owned() {
         let args = tshark_args(Path::new("capture file.pcap"), 17);
@@ -1035,6 +1147,89 @@ mod tests {
         let mut changed = Sha256::new();
         hash_named_report(&mut changed, "fields", b"a\nc\n");
         assert_ne!(right, changed.finalize());
+    }
+
+    #[test]
+    fn atomic_batch_reuses_entry_snapshot_and_preserves_input_order() {
+        let inputs = vec![PathBuf::from("first.pcap"), PathBuf::from("second.pcap")];
+        let expected = snapshot("TShark 4.4.0", "sha256:stable");
+        let mut discoveries = vec![expected.clone(), expected.clone()].into_iter();
+        let mut observed = Vec::new();
+
+        let reports = run_atomic_batch(
+            &inputs,
+            || Ok(discoveries.next().unwrap()),
+            |input, discovered| {
+                observed.push((input.to_owned(), discovered.clone()));
+                Ok(input.to_owned())
+            },
+        )
+        .unwrap();
+
+        assert_eq!(reports, inputs);
+        assert_eq!(
+            observed,
+            vec![
+                (PathBuf::from("first.pcap"), expected.clone()),
+                (PathBuf::from("second.pcap"), expected),
+            ]
+        );
+        assert!(discoveries.next().is_none());
+    }
+
+    #[test]
+    fn atomic_batch_rejects_snapshot_mismatch_after_normalizing_every_input() {
+        let inputs = vec![PathBuf::from("first.pcap"), PathBuf::from("second.pcap")];
+        let before = snapshot("TShark 4.4.0", "sha256:before");
+        let after = snapshot("TShark 4.4.1", "sha256:after");
+        let mut discoveries = vec![before, after].into_iter();
+        let mut normalized = Vec::new();
+
+        let error = run_atomic_batch(
+            &inputs,
+            || Ok(discoveries.next().unwrap()),
+            |input, _| {
+                normalized.push(input.to_owned());
+                Ok(())
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(normalized, inputs);
+        assert!(matches!(
+            error,
+            AdapterError::TsharkConfigurationChanged {
+                before_version,
+                before_configuration_sha256,
+                after_version,
+                after_configuration_sha256,
+            } if before_version == "TShark 4.4.0"
+                && before_configuration_sha256 == "sha256:before"
+                && after_version == "TShark 4.4.1"
+                && after_configuration_sha256 == "sha256:after"
+        ));
+    }
+
+    #[test]
+    fn atomic_batch_preserves_normalization_error_after_stable_closing_fence() {
+        let inputs = vec![PathBuf::from("first.pcap"), PathBuf::from("second.pcap")];
+        let stable = snapshot("TShark 4.4.0", "sha256:stable");
+        let mut discoveries = vec![stable.clone(), stable].into_iter();
+        let mut attempts = 0;
+
+        let error = run_atomic_batch::<(), _, _>(
+            &inputs,
+            || Ok(discoveries.next().unwrap()),
+            |_, _| {
+                attempts += 1;
+                Err(AdapterError::InvalidOption("fixture"))
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(attempts, 1);
+        assert!(matches!(error, AdapterError::InvalidOption("fixture")));
+        assert!(discoveries.next().is_none());
     }
 
     #[test]
