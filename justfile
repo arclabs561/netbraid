@@ -1,4 +1,5 @@
 image := "arclabs561/netbraid"
+python := env_var_or_default("PYTHON", "python3")
 
 docker: lint test docker-bare
 
@@ -45,6 +46,9 @@ scenario-check:
 pcap-smoke:
     cargo test --locked --manifest-path rust/Cargo.toml -p netbraid-adapter-tshark --tests -- --ignored
     cargo test --locked --manifest-path rust/Cargo.toml -p netbraid --test pcap_cli -- --ignored
+
+counter-capture-eval-check:
+    {{ python }} scripts/test-counter-capture-eval.py
 
 # Evaluate checked, bounded slices from the ignored public archives. Fetch the
 # archives first; this target never admits or writes corpus bytes into Git.
