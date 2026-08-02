@@ -128,6 +128,17 @@ xrf55-fetcher-check:
 xrf55-fetch dataset="list":
     {{ python }} data/fetch/fetch-xrf55.py {{ dataset }}
 
+# Inventory or explicitly fetch one Oregon State LoRa RFFI setup. The fetcher
+# rejects redirects and traversal, and defaults to a 10 GiB aggregate cap.
+osu-lora-fetcher-check:
+    {{ python }} data/tests/test-fetch-osu-lora.py
+
+osu-lora-discover setup:
+    {{ python }} data/fetch/fetch-osu-lora.py discover {{ setup }}
+
+osu-lora-fetch setup max_total_bytes="10737418240":
+    {{ python }} data/fetch/fetch-osu-lora.py fetch {{ setup }} --max-total-bytes {{ max_total_bytes }}
+
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000
 

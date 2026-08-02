@@ -11,3 +11,10 @@ It distinguishes datasets from specifications, tools, system-oracle references,
 and secondary indexes. A `candidate` is not downloadable merely because it is
 listed: acquisition requires a canonical artifact inventory, explicit access
 terms, bounded size, and a publisher digest or a reviewed local pin.
+
+`fetch-osu-lora.py` lists the seven Oregon State LoRa RFFI setup roots from the
+publisher's release note without network access. Its explicit `discover` action
+emits a deterministic, bounded Apache-index inventory; `fetch` stores bytes and
+local SHA-256 receipts only under the ignored `data/raw/` and `data/receipts/`
+trees. Fetching defaults to a 10 GiB aggregate cap because the full release is
+larger than 1.2 TB.
