@@ -1,9 +1,10 @@
 use serde::Serialize;
 
 use crate::infer::{
-    CounterCaptureDispositionV0, CounterCaptureHypothesisSetV0, PacketSameEventDispositionV0,
-    PacketSameEventHypothesisSetV0, SavedPcapFingerprintDispositionV0,
-    SavedPcapFingerprintHypothesisSetV0,
+    CounterCaptureDispositionV0, CounterCaptureHypothesisSetV0, CounterCaptureValidationErrorV0,
+    PacketSameEventDispositionV0, PacketSameEventHypothesisSetV0, PacketSameEventValidationErrorV0,
+    SavedPcapFingerprintDispositionV0, SavedPcapFingerprintHypothesisSetV0,
+    SavedPcapFingerprintValidationErrorV0,
 };
 
 pub const FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0: &str = "netbraid.finite_hypothesis_projection.v0";
@@ -26,7 +27,6 @@ pub enum FiniteHypothesisDispositionV0 {
 /// One named alternative in a finite, mutually exclusive hypothesis set.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
 pub struct FiniteHypothesisAlternativeV0 {
     role: String,
     disposition: FiniteHypothesisDispositionV0,
@@ -34,7 +34,7 @@ pub struct FiniteHypothesisAlternativeV0 {
 
 impl FiniteHypothesisAlternativeV0 {
     /// Parse one stable snake-case role label.
-    pub fn try_new(
+    pub(crate) fn try_new(
         role: impl Into<String>,
         disposition: FiniteHypothesisDispositionV0,
     ) -> Result<Self, FiniteHypothesisProjectionErrorV0> {
@@ -58,11 +58,11 @@ impl FiniteHypothesisAlternativeV0 {
 ///
 /// This is an operator and evaluation seam, not a replacement for the source
 /// family's assessment. It deliberately omits evidence, decision bases,
-/// limitations, scores, probabilities, rankings, and identity claims. Call the
-/// source family's validator when those semantics must also be checked.
+/// limitations, scores, probabilities, rankings, and identity claims. Known
+/// family adapters validate serialized structure before projecting; content
+/// resolution still requires the source family's `validate_against` method.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
 pub struct FiniteHypothesisProjectionV0 {
     schema: String,
     family_schema: String,
@@ -77,7 +77,7 @@ impl FiniteHypothesisProjectionV0 {
     /// alternative is supported. Supporting `unknown` requires every
     /// substantive alternative to remain underdetermined; supporting a
     /// substantive alternative contradicts every other retained alternative.
-    pub fn try_new(
+    pub(crate) fn try_new(
         family_schema: impl Into<String>,
         reducer: impl Into<String>,
         alternatives: Vec<FiniteHypothesisAlternativeV0>,
@@ -160,6 +160,9 @@ impl FiniteHypothesisProjectionV0 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FiniteHypothesisProjectionErrorV0 {
+    InvalidCounterCaptureAssessment(CounterCaptureValidationErrorV0),
+    InvalidPacketSameEventAssessment(PacketSameEventValidationErrorV0),
+    InvalidSavedPcapFingerprintAssessment(SavedPcapFingerprintValidationErrorV0),
     InvalidFamilySchema,
     InvalidReducer,
     InvalidAlternativeRole,
@@ -171,24 +174,86 @@ pub enum FiniteHypothesisProjectionErrorV0 {
 
 impl std::fmt::Display for FiniteHypothesisProjectionErrorV0 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(match self {
-            Self::InvalidFamilySchema => "invalid finite-hypothesis family schema",
-            Self::InvalidReducer => "invalid finite-hypothesis reducer",
-            Self::InvalidAlternativeRole => "invalid finite-hypothesis alternative role",
-            Self::InvalidAlternativeCount => "invalid finite-hypothesis alternative count",
-            Self::DuplicateAlternativeRole => "duplicate finite-hypothesis alternative role",
-            Self::MissingUnknownAlternative => {
-                "finite-hypothesis projection has no unknown alternative"
+        match self {
+            Self::InvalidCounterCaptureAssessment(source) => {
+                write!(formatter, "invalid counter/capture assessment: {source}")
             }
-            Self::IncoherentDisposition => "finite-hypothesis dispositions are incoherent",
-        })
+            Self::InvalidPacketSameEventAssessment(source) => {
+                write!(formatter, "invalid packet same-event assessment: {source}")
+            }
+            Self::InvalidSavedPcapFingerprintAssessment(source) => {
+                write!(
+                    formatter,
+                    "invalid saved-PCAP fingerprint assessment: {source}"
+                )
+            }
+            Self::InvalidFamilySchema => {
+                formatter.write_str("invalid finite-hypothesis family schema")
+            }
+            Self::InvalidReducer => formatter.write_str("invalid finite-hypothesis reducer"),
+            Self::InvalidAlternativeRole => {
+                formatter.write_str("invalid finite-hypothesis alternative role")
+            }
+            Self::InvalidAlternativeCount => {
+                formatter.write_str("invalid finite-hypothesis alternative count")
+            }
+            Self::DuplicateAlternativeRole => {
+                formatter.write_str("duplicate finite-hypothesis alternative role")
+            }
+            Self::MissingUnknownAlternative => {
+                formatter.write_str("finite-hypothesis projection has no unknown alternative")
+            }
+            Self::IncoherentDisposition => {
+                formatter.write_str("finite-hypothesis dispositions are incoherent")
+            }
+        }
     }
 }
 
-impl std::error::Error for FiniteHypothesisProjectionErrorV0 {}
+impl std::error::Error for FiniteHypothesisProjectionErrorV0 {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::InvalidCounterCaptureAssessment(source) => Some(source),
+            Self::InvalidPacketSameEventAssessment(source) => Some(source),
+            Self::InvalidSavedPcapFingerprintAssessment(source) => Some(source),
+            _ => None,
+        }
+    }
+}
 
-/// Project a family assessment without merging its evidence semantics.
-pub trait ProjectFiniteHypothesesV0 {
+mod private {
+    pub trait Sealed {}
+}
+
+impl private::Sealed for CounterCaptureHypothesisSetV0 {}
+impl private::Sealed for PacketSameEventHypothesisSetV0 {}
+impl private::Sealed for SavedPcapFingerprintHypothesisSetV0 {}
+
+/// Project a structurally valid family assessment without merging its evidence semantics.
+///
+/// Implementations validate the complete serialized family assessment before
+/// dropping its evidence, basis, and limitations. They cannot resolve cited
+/// evidence that is not supplied to this projection boundary.
+///
+/// Downstream crates cannot add unvalidated family adapters:
+///
+/// ```compile_fail
+/// use netbraid::infer::{
+///     FiniteHypothesisProjectionErrorV0, FiniteHypothesisProjectionV0,
+///     ProjectFiniteHypothesesV0,
+/// };
+///
+/// struct ExternalFamily;
+///
+/// impl ProjectFiniteHypothesesV0 for ExternalFamily {
+///     fn project_finite_hypotheses_v0(
+///         &self,
+///     ) -> Result<FiniteHypothesisProjectionV0, FiniteHypothesisProjectionErrorV0> {
+///         unreachable!()
+///     }
+/// }
+/// ```
+pub trait ProjectFiniteHypothesesV0: private::Sealed {
     fn project_finite_hypotheses_v0(
         &self,
     ) -> Result<FiniteHypothesisProjectionV0, FiniteHypothesisProjectionErrorV0>;
@@ -228,6 +293,8 @@ impl ProjectFiniteHypothesesV0 for CounterCaptureHypothesisSetV0 {
     fn project_finite_hypotheses_v0(
         &self,
     ) -> Result<FiniteHypothesisProjectionV0, FiniteHypothesisProjectionErrorV0> {
+        self.validate_structure()
+            .map_err(FiniteHypothesisProjectionErrorV0::InvalidCounterCaptureAssessment)?;
         project_three(
             &self.schema,
             &self.reducer,
@@ -250,6 +317,8 @@ impl ProjectFiniteHypothesesV0 for PacketSameEventHypothesisSetV0 {
     fn project_finite_hypotheses_v0(
         &self,
     ) -> Result<FiniteHypothesisProjectionV0, FiniteHypothesisProjectionErrorV0> {
+        self.validate()
+            .map_err(FiniteHypothesisProjectionErrorV0::InvalidPacketSameEventAssessment)?;
         project_three(
             &self.schema,
             &self.reducer,
@@ -266,6 +335,8 @@ impl ProjectFiniteHypothesesV0 for SavedPcapFingerprintHypothesisSetV0 {
     fn project_finite_hypotheses_v0(
         &self,
     ) -> Result<FiniteHypothesisProjectionV0, FiniteHypothesisProjectionErrorV0> {
+        self.validate()
+            .map_err(FiniteHypothesisProjectionErrorV0::InvalidSavedPcapFingerprintAssessment)?;
         project_three(
             &self.schema,
             &self.reducer,
@@ -511,17 +582,64 @@ mod tests {
     }
 
     #[test]
-    fn malformed_public_family_dispositions_fail_closed() {
+    fn malformed_public_family_assessments_fail_closed() {
         let mut right = packet();
         right.capture_id =
             "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789".into();
         right.record_id = format!("{}:frame:1", right.capture_id);
         let mut assessment = assess_packet_same_event_v0(&packet(), &right).unwrap();
-        assessment.same_event = PacketSameEventDispositionV0::Supported;
+        assessment.limitations.clear();
 
+        let error = assessment.project_finite_hypotheses_v0().unwrap_err();
+        assert_eq!(
+            error,
+            FiniteHypothesisProjectionErrorV0::InvalidPacketSameEventAssessment(
+                PacketSameEventValidationErrorV0::UnexpectedLimitations
+            )
+        );
+        assert_eq!(
+            std::error::Error::source(&error)
+                .and_then(|source| source.downcast_ref::<PacketSameEventValidationErrorV0>()),
+            Some(&PacketSameEventValidationErrorV0::UnexpectedLimitations)
+        );
+
+        let window = TrafficWindowV0::new(1_000, 1_200, 400, 12, 4).unwrap();
+        let counter = TrafficWindowEvidenceV0::declared_complete("counter:projection:0", window);
+        let capture = TrafficWindowEvidenceV0::declared_complete("capture:projection:0", window);
+        let profile = CounterCaptureProfileV0::new(
+            "profile:projection:0",
+            CounterCaptureScaleVectorPpbV0::from_values([50_000_000; 10]),
+            0,
+            1,
+        )
+        .unwrap();
+        let mut assessment = assess_counter_capture_v0(&counter, &capture, &profile).unwrap();
+        assessment.schema = "netbraid.invalid.v0".into();
         assert_eq!(
             assessment.project_finite_hypotheses_v0(),
-            Err(FiniteHypothesisProjectionErrorV0::IncoherentDisposition)
+            Err(
+                FiniteHypothesisProjectionErrorV0::InvalidCounterCaptureAssessment(
+                    CounterCaptureValidationErrorV0::UnsupportedSchema
+                )
+            )
+        );
+
+        let left = unsupported_candidate('a');
+        let right = unsupported_candidate('b');
+        let mut assessment = assess_saved_pcap_fingerprint_v0(&left, &right).unwrap();
+        assessment.reducer = "netbraid.invalid.v0".into();
+        assert_eq!(
+            assessment.project_finite_hypotheses_v0(),
+            Err(
+                FiniteHypothesisProjectionErrorV0::InvalidSavedPcapFingerprintAssessment(
+                    SavedPcapFingerprintValidationErrorV0::UnsupportedReducer
+                )
+            )
+        );
+
+        assert!(
+            std::error::Error::source(&FiniteHypothesisProjectionErrorV0::InvalidFamilySchema)
+                .is_none()
         );
     }
 }
