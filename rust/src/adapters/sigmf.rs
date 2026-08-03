@@ -982,7 +982,7 @@ fn summarize_cf32(
     let mut zero = 0u64;
     let mut in_phase = ComponentAccumulator::default();
     let mut quadrature = ComponentAccumulator::default();
-    for sample in bytes.chunks_exact(8) {
+    for sample in bytes.as_chunks::<8>().0 {
         let decode = |component: &[u8]| {
             let encoded: [u8; 4] = component.try_into().expect("component is four bytes");
             match byte_order {
