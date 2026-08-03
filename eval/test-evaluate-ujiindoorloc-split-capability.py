@@ -245,6 +245,142 @@ class UjiIndoorLocSplitCapabilityTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, "archive_changed_during_evaluation")
 
+    def test_default_publisher_split_v0_matches_requirement_oracle(self):
+        archive, receipt, contract = fixture(self.temporary_directory())
+
+        report = MODULE.evaluate_archive(archive, receipt, contract)
+
+        expected = {
+            "schema": "netbraid.ujiindoorloc_split_capability.v0",
+            "status": "pass",
+            "integrity": {
+                "bytes": contract.source["bytes"],
+                "md5": contract.source["md5"],
+                "sha256": contract.source["sha256"],
+            },
+            "schema_summary": {
+                "columns": 529,
+                "rssi_columns": 520,
+                "metadata_columns": 9,
+                "csv_members": 2,
+            },
+            "rows": {
+                "train": 3,
+                "validation": 2,
+                "total": 5,
+                "observed_rssi_cells": 5,
+            },
+            "axes": [
+                {
+                    "axis": "user",
+                    "policy": "identity_holdout",
+                    "train_group_count": 2,
+                    "validation_group_count": 1,
+                    "intersection_group_count": 0,
+                    "train_only_group_count": 2,
+                    "validation_only_group_count": 1,
+                    "train_observed_row_count": 3,
+                    "validation_observed_row_count": 2,
+                },
+                {
+                    "axis": "phone",
+                    "policy": "acquisition_domain_holdout",
+                    "train_group_count": 2,
+                    "validation_group_count": 2,
+                    "intersection_group_count": 1,
+                    "train_only_group_count": 1,
+                    "validation_only_group_count": 1,
+                    "train_observed_row_count": 3,
+                    "validation_observed_row_count": 2,
+                },
+                {
+                    "axis": "user_phone",
+                    "policy": "joint_identity_domain_holdout",
+                    "train_group_count": 2,
+                    "validation_group_count": 2,
+                    "intersection_group_count": 0,
+                    "train_only_group_count": 2,
+                    "validation_only_group_count": 2,
+                    "train_observed_row_count": 3,
+                    "validation_observed_row_count": 2,
+                },
+                {
+                    "axis": "building",
+                    "policy": "target_coverage",
+                    "train_group_count": 2,
+                    "validation_group_count": 2,
+                    "intersection_group_count": 2,
+                    "train_only_group_count": 0,
+                    "validation_only_group_count": 0,
+                    "train_observed_row_count": 3,
+                    "validation_observed_row_count": 2,
+                },
+                {
+                    "axis": "floor",
+                    "policy": "target_coverage",
+                    "train_group_count": 2,
+                    "validation_group_count": 2,
+                    "intersection_group_count": 2,
+                    "train_only_group_count": 0,
+                    "validation_only_group_count": 0,
+                    "train_observed_row_count": 3,
+                    "validation_observed_row_count": 2,
+                },
+                {
+                    "axis": "building_floor",
+                    "policy": "target_coverage",
+                    "train_group_count": 2,
+                    "validation_group_count": 2,
+                    "intersection_group_count": 2,
+                    "train_only_group_count": 0,
+                    "validation_only_group_count": 0,
+                    "train_observed_row_count": 3,
+                    "validation_observed_row_count": 2,
+                },
+                {
+                    "axis": "location_cell",
+                    "policy": "target_coverage",
+                    "train_group_count": 3,
+                    "validation_group_count": 2,
+                    "intersection_group_count": 1,
+                    "train_only_group_count": 2,
+                    "validation_only_group_count": 1,
+                    "train_observed_row_count": 3,
+                    "validation_observed_row_count": 2,
+                },
+            ],
+            "capabilities": {
+                "user_disjoint": True,
+                "phone_disjoint": False,
+                "joint_user_phone_disjoint": True,
+                "shared_building_floor_coverage": True,
+                "shared_location_cell_coverage": True,
+            },
+            "privacy": {
+                "rows_retained": 0,
+                "rssi_vectors_retained": 0,
+                "coordinate_values_retained": 0,
+                "timestamp_values_retained": 0,
+                "identifier_values_retained": 0,
+                "member_paths_retained": 0,
+                "source_urls_retained": 0,
+                "local_paths_retained": 0,
+            },
+        }
+        expected_payload = (
+            json.dumps(
+                expected,
+                allow_nan=False,
+                ensure_ascii=True,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        self.assertEqual(report, expected)
+        self.assertEqual(MODULE.render_report(report), expected_payload)
+
     def test_phone_holdout_finds_four_disjoint_full_coverage_roles(self):
         root = self.temporary_directory()
         rows = [
@@ -326,6 +462,34 @@ class UjiIndoorLocSplitCapabilityTests(unittest.TestCase):
         self.assertEqual(set(keys), {unit.key for unit in units})
         self.assertEqual([MODULE._union_mask(role) for role in assignment], [1] * 4)
 
+    def test_phone_holdout_composes_partial_coverage_units(self):
+        units = [
+            MODULE.HoldoutUnit(key=(index,), rows=1, target_mask=target_mask)
+            for index, target_mask in enumerate((1, 1, 1, 1, 2, 2, 2, 2))
+        ]
+
+        assignment = MODULE._find_role_assignment(units, full_mask=3, role_count=4)
+
+        self.assertIsNotNone(assignment)
+        self.assertEqual([len(role) for role in assignment], [2, 2, 2, 2])
+        self.assertEqual([MODULE._union_mask(role) for role in assignment], [3] * 4)
+        self.assertTrue(
+            all(unit.target_mask != 3 for role in assignment for unit in role)
+        )
+
+    def test_phone_holdout_reports_post_support_gate_infeasibility(self):
+        units = [
+            MODULE.HoldoutUnit(key=(index,), rows=1, target_mask=target_mask)
+            for index, target_mask in enumerate((3, 5, 6, 7, 7))
+        ]
+
+        report = MODULE._feasibility_report(units, full_mask=7, target_count=3)
+
+        self.assertEqual(MODULE._minimum_target_support(units, 7), 4)
+        self.assertEqual(report["status"], "blocked")
+        self.assertEqual(report["blocker"], "no_complete_role_assignment")
+        self.assertIsNone(report["candidate"])
+
     def test_phone_holdout_reports_a_necessary_coverage_blocker(self):
         root = self.temporary_directory()
         train_rows = [
@@ -370,6 +534,28 @@ class UjiIndoorLocSplitCapabilityTests(unittest.TestCase):
         self.assertEqual(joint["status"], "blocked")
         self.assertEqual(joint["unit_count"], 1)
         self.assertEqual(joint["blocker"], "insufficient_disjoint_units")
+
+    def test_joint_user_phone_holdout_preserves_disconnected_components(self):
+        root = self.temporary_directory()
+        rows = [
+            row(user=phone, phone=phone, building=building, floor=building, space=1)
+            for phone in range(1, 5)
+            for building in range(2)
+        ]
+        archive, receipt, contract = fixture(
+            root,
+            train_rows=rows[:4],
+            validation_rows=rows[4:],
+        )
+
+        report = MODULE.evaluate_phone_holdout_feasibility(archive, receipt, contract)
+
+        joint = report["joint_user_phone_holdout"]
+        self.assertEqual(joint["status"], "candidate_found")
+        self.assertEqual(joint["unit_count"], 4)
+        self.assertEqual(joint["minimum_target_group_unit_support"], 4)
+        self.assertTrue(joint["candidate"]["all_units_assigned_once"])
+        self.assertEqual(joint["candidate"]["disjoint_unit_overlap_count"], 0)
 
     def test_phone_holdout_report_is_aggregate_and_cli_default_is_unchanged(self):
         root = self.temporary_directory()
