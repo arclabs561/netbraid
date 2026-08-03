@@ -8,7 +8,8 @@ so `assess_packet_same_event_v0` selects `unknown` for every weighted pair.
 
 ## Method
 
-Status: executed once through the canonical target, with its required repeat.
+Status: executed through the canonical target, including its required repeat,
+then re-executed after the packet-envelope registry advanced to v4.
 
 The locked campaign is
 `eval/fixtures/sorbonne-structural-reducer-campaign-v0.json`. It was committed
@@ -57,11 +58,12 @@ normalization check, not an independent discovery or discrimination benchmark.
 ## Results
 
 The canonical target completed successfully. Its two independent executions
-produced byte-identical 4,307-byte reports with SHA-256
-`eaaf37867e391d1905596e8af7cb806dc1f31f62a158d4e062b8df65e4ad429d`.
+produced byte-identical reports. The replay contract now requires
+`netmon.tshark.packet_envelope.v4`; it separately rejects disagreement between
+observers and a single shared registry that is unsupported by the evaluator.
 
 - Normalization emitted 18,926 packets, zero quarantines, and zero unmatched
-  publisher-label joins under one TShark version, configuration digest, and
+  publisher-label joins under one TShark version, configuration digest, and v4
   field registry.
 - The positive population contained 64,149 unique pairs with the registered
   digest. Negative construction produced 83,927 raw candidates, rejected 67

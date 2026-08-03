@@ -65,6 +65,7 @@ MAX_REDUCER_STDOUT_BYTES = 4 * 1024 * 1024
 MAX_JSONL_LINE_BYTES = 256 * 1024
 NORMALIZER_TIMEOUT_SECONDS = 120
 REDUCER_TIMEOUT_SECONDS = 30
+EXPECTED_FIELD_REGISTRY = "netmon.tshark.packet_envelope.v4"
 
 
 def load_shared() -> Any:
@@ -652,12 +653,12 @@ def evaluate_with_snapshots(
     registries = sorted(
         {manifest["extractor"]["field_registry"] for manifest in manifests.values()}
     )
-    if (
-        len(tool_versions) != 1
-        or len(configurations) != 1
-        or registries != ["netmon.tshark.packet_envelope.v1"]
-    ):
+    if len(tool_versions) != 1 or len(configurations) != 1 or len(registries) != 1:
         raise EvaluationError("normalizer provenance differs across observers")
+    if registries != [EXPECTED_FIELD_REGISTRY]:
+        raise EvaluationError(
+            "normalizer field registry differs from the replay contract"
+        )
 
     decision_projection = {
         key: {"weight": value["weight"], "decision": value["decision"]}
