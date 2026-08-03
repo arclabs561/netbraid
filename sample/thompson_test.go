@@ -119,8 +119,9 @@ func TestUpdateNormalInverseWishartSingleDataPoint(t *testing.T) {
 		t.Errorf("UpdateNormalInverseWishart returned incorrect Mu: got %v want %v", newNiw.Mu.At(0, 0), 0.5)
 	}
 
-	if math.IsInf(newNiw.Sigma.At(0, 0), 0) {
-		t.Errorf("UpdateNormalInverseWishart returned incorrect Sigma: got %v want %v", newNiw.Sigma.At(0, 0), "Infinity")
+	expectedSigma := mat.NewDense(1, 1, []float64{3.0 / 2.0})
+	if !matrixEquals(newNiw.Sigma, expectedSigma, 1e-9) {
+		t.Errorf("UpdateNormalInverseWishart returned incorrect Sigma: got %v want %v", newNiw.Sigma, expectedSigma)
 	}
 }
 
@@ -158,7 +159,8 @@ func TestUpdateNormalInverseWishartLargeDataPoints(t *testing.T) {
 	}
 
 	expectedSigma := mat.NewDense(1, 1, []float64{10499700011.0 / 6.0})
-	if !matrixEquals(newNiw.Sigma, expectedSigma, 1e-9) {
+	// This tolerance is tight enough to detect dropping the unit prior scale.
+	if !matrixEquals(newNiw.Sigma, expectedSigma, 1e-12) {
 		t.Errorf("UpdateNormalInverseWishart returned incorrect Sigma: got %v want %v", newNiw.Sigma, expectedSigma)
 	}
 }

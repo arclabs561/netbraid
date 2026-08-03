@@ -138,13 +138,13 @@ func UpdateNormalInverseWishart(niw *NormalInverseWishart, data *mat.VecDense) (
 	// Compute sum of squares matrix
 	ss := computeSumOfSquares(data, meanData)
 
-	// Compute covariance update
+	// Compute the inverse-Wishart scale update.
 	diff := mat.NewVecDense(1, []float64{niw.Mu.AtVec(0) - meanData})
 	outer := mat.NewDense(1, 1, nil)
 	outer.Mul(diff, diff.T())
 	outer.Scale(niw.Kappa*n/newNiw.Kappa, outer)
 
-	// Update covariance
+	// Update the inverse-Wishart scale matrix.
 	newNiw.Sigma.Add(niw.Sigma, outer)
 	newNiw.Sigma.Add(newNiw.Sigma, ss)
 
