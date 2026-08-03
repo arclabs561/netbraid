@@ -143,8 +143,8 @@ func (r *RollMean) Add(x float64) {
 	}
 	r.total += x
 	if r.filled {
-		r.total -= r.oldest
 		r.oldest = r.values[r.pos]
+		r.total -= r.oldest
 	} else if r.pos == r.Window-1 {
 		r.filled = true
 	}

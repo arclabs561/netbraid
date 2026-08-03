@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"math"
 	"net"
 	"testing"
 	"time"
@@ -25,7 +26,7 @@ func TestNewAggregate(t *testing.T) {
 func TestAggregate_WithChannel(t *testing.T) {
 	agg := NewAggregate()
 	channel := 6
-	
+
 	var callCount int
 	agg.WithChannel(channel, func(info *ChannelInfo) {
 		callCount++
@@ -36,22 +37,22 @@ func TestAggregate_WithChannel(t *testing.T) {
 			t.Error("Freq should be set")
 		}
 	})
-	
+
 	if callCount != 1 {
 		t.Errorf("callback called %d times, want 1", callCount)
 	}
-	
+
 	// Verify channel was added
 	if _, ok := agg.Channels[channel]; !ok {
 		t.Errorf("Channel %d not found in aggregate", channel)
 	}
-	
+
 	// Call again to test idempotency
 	agg.WithChannel(channel, func(info *ChannelInfo) {
 		callCount++
 		info.PacketsTotal = 10
 	})
-	
+
 	if callCount != 2 {
 		t.Errorf("callback called %d times, want 2", callCount)
 	}
@@ -65,7 +66,7 @@ func TestAggregate_WithInterface(t *testing.T) {
 	iface := Interface{
 		Interface: net.Interface{Name: "wlan0"},
 	}
-	
+
 	var callCount int
 	agg.WithInterface(iface, func(info *InterfaceInfo) {
 		callCount++
@@ -73,11 +74,11 @@ func TestAggregate_WithInterface(t *testing.T) {
 			t.Errorf("Interface = %q, want %q", info.Interface, iface.Name)
 		}
 	})
-	
+
 	if callCount != 1 {
 		t.Errorf("callback called %d times, want 1", callCount)
 	}
-	
+
 	// Verify interface was added
 	if _, ok := agg.Interfaces[iface.Name]; !ok {
 		t.Errorf("Interface %q not found in aggregate", iface.Name)
@@ -86,54 +87,63 @@ func TestAggregate_WithInterface(t *testing.T) {
 
 func TestRollMean(t *testing.T) {
 	rm := &RollMean{Window: 10}
-	
+
 	// Add values
 	for i := 1; i <= 5; i++ {
 		rm.Add(float64(i))
 	}
-	
+
 	if rm.Len() != 5 {
 		t.Errorf("Len() = %d, want 5", rm.Len())
 	}
-	
+
 	mean := rm.Get()
 	expected := 3.0 // (1+2+3+4+5)/5
 	if mean != expected {
 		t.Errorf("Get() = %f, want %f", mean, expected)
 	}
-	
+
 	// Test windowing
 	for i := 6; i <= 15; i++ {
 		rm.Add(float64(i))
 	}
-	
+
 	if rm.Len() != 10 {
 		t.Errorf("Len() after windowing = %d, want 10", rm.Len())
+	}
+	if mean := rm.Get(); mean != 10.5 {
+		t.Errorf("Get() after windowing = %f, want 10.5", mean)
 	}
 }
 
 func TestRollStd(t *testing.T) {
 	rs := &RollStd{}
 	rs.rollMean.Window = 10
-	
+
 	// Add values: 1, 2, 3, 4, 5
 	for i := 1; i <= 5; i++ {
 		rs.Add(float64(i))
 	}
-	
-	std := rs.Get()
-	if std < 0 {
-		t.Errorf("Get() = %f, want non-negative", std)
+
+	if std := rs.Get(); math.IsNaN(std) || math.IsInf(std, 0) || math.Abs(std-math.Sqrt(2)) > 1e-12 {
+		t.Errorf("Get() = %f, want sqrt(2)", std)
 	}
 	if rs.Len() != 5 {
 		t.Errorf("Len() = %d, want 5", rs.Len())
+	}
+
+	for i := 6; i <= 15; i++ {
+		rs.Add(float64(i))
+	}
+	if std := rs.Get(); math.IsNaN(std) || math.IsInf(std, 0) || math.Abs(std-math.Sqrt(8.25)) > 1e-12 {
+		t.Errorf("Get() after windowing = %f, want sqrt(8.25)", std)
 	}
 }
 
 func TestChannelInfo(t *testing.T) {
 	agg := NewAggregate()
 	channel := 6
-	
+
 	agg.WithChannel(channel, func(info *ChannelInfo) {
 		info.PacketsTotal = 100
 		info.PacketsDirect = 80
@@ -143,7 +153,7 @@ func TestChannelInfo(t *testing.T) {
 		info.FirstSeenPacket = time.Now()
 		info.LastSeenPacket = time.Now()
 	})
-	
+
 	info := agg.Channels[channel]
 	if info.PacketsTotal != 100 {
 		t.Errorf("PacketsTotal = %d, want 100", info.PacketsTotal)
