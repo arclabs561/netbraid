@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Leakage-safe held-out-location baseline harness for RUFF-UWB.
 
-The checked-in RUFF-UWB oracle compiler currently emits aggregate
-source/location cells, not a row-to-waveform mapping.  The CLI therefore
-validates that v0 contract and reports a stable blocker before opening a
-waveform source.  ``evaluate_rows`` is the adapter-ready boundary for a future
-oracle that explicitly binds every NPY row to its opaque split groups.
+The aggregate oracle remains a zero-waveform-open evidence boundary and the
+default CLI operation reports its stable blocker. When a receipt-bound
+one-meter row adapter is supplied, the CLI expands its contiguous opaque spans
+and runs the real held-out-location evaluation against its standalone NPY.
 
 No report contains input paths, raw waveform rows, or source identifiers.
 """
@@ -35,11 +34,17 @@ except ModuleNotFoundError:  # The aggregate-only blocker remains runnable.
 
 ROOT = Path(__file__).resolve().parents[1]
 CURRENT_ORACLE_SCHEMA = "netbraid.ruff_uwb_observation_oracles.v0"
+ROW_ADAPTER_SCHEMA = "netbraid.ruff_uwb_row_adapter.v0"
 REPORT_SCHEMA = "netbraid.ruff_uwb_heldout_location_eval.v0"
 BLOCKER_SCHEMA = "netbraid.ruff_uwb_heldout_location_blocker.v0"
 PINNED_ONE_METER_ARCHIVE_SHA256 = (
     "43f344b23ba4981dd8005c02091152fa1f15205703757027630f4708aaf5ba9b"
 )
+PINNED_ONE_METER_ARCHIVE_MD5 = "035d22d657c84b77df980a482cff47b1"
+PINNED_ONE_METER_LABEL_SHA256 = (
+    "6f8cf19dc00666bcc61aae08b60426107b7d1073cdefbf86af9d40dbd5e306a6"
+)
+RECEIPT_SCHEMA = "local.public_wireless_archive.v1"
 
 SPLITS = ("train", "validation", "test")
 SPLIT_PERCENTAGES = {"train": 80, "validation": 10, "test": 10}
@@ -48,6 +53,7 @@ PROTOTYPE_MODES = ("centroid", "template")
 MIB = 1024 * 1024
 GIB = 1024 * MIB
 MAX_ORACLE_BYTES = 8 * MIB
+MAX_ROW_ADAPTER_BYTES = 4 * MIB
 MAX_REPORT_BYTES = 4 * MIB
 MAX_NPY_BYTES = 4 * GIB
 MAX_ROWS = 2_000_000
@@ -60,6 +66,7 @@ MAX_ROWS_PER_ATOMIC_GROUP = 256
 MAX_WINDOWS_PER_ROW = 32
 MAX_WINDOW_LENGTH = 4_096
 MAX_FEATURE_VALUES = 16_000_000
+MAX_ROW_SPANS = 100_000
 
 IDENTIFIER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}\Z")
 OPAQUE_ID_PATTERN = re.compile(r"[a-f0-9]{64}\Z")
@@ -114,6 +121,66 @@ REQUIRED_SPLIT_GROUPS = (
     "campaign_group",
     "day_group",
 )
+ROW_ADAPTER_FIELDS = {
+    "schema",
+    "adapter_id",
+    "status",
+    "archive",
+    "label_member",
+    "waveform_member",
+    "waveform_source",
+    "counts",
+    "spans",
+    "privacy",
+}
+ARCHIVE_BINDING_FIELDS = {
+    "archive_bytes",
+    "archive_md5",
+    "archive_sha256",
+    "receipt_schema",
+}
+MEMBER_BINDING_FIELDS = {
+    "member_bytes",
+    "compressed_bytes",
+    "crc32",
+    "compression",
+    "flags",
+    "header_offset",
+    "sha256",
+    "npy_version",
+    "dtype",
+    "fortran_order",
+    "shape",
+}
+WAVEFORM_SOURCE_FIELDS = {
+    "file_bytes",
+    "sha256",
+    "rows",
+    "samples_per_row",
+    "dtype",
+}
+ROW_ADAPTER_COUNT_FIELDS = {
+    "rows",
+    "spans",
+    "distance_collections",
+    "physical_sources",
+    "physical_devices",
+    "locations",
+}
+ROW_SPAN_FIELDS = {
+    "row_start",
+    "row_stop",
+    "distance_collection",
+    "physical_source",
+    "physical_device",
+    "location",
+}
+ROW_ADAPTER_PRIVACY_FIELDS = {
+    "input_paths_retained",
+    "filenames_retained",
+    "raw_label_values_retained",
+    "source_urls_retained",
+}
 
 
 class EvaluationInputError(ValueError):
@@ -148,10 +215,54 @@ class RowMetadata:
 
 
 @dataclass(frozen=True)
+class RowAdapterBinding:
+    """Exact archive and member facts accepted by a row-adapter loader."""
+
+    archive: Mapping[str, Any]
+    label_member: Mapping[str, Any]
+    waveform_member: Mapping[str, Any]
+
+
+PRODUCTION_ROW_ADAPTER_BINDING = RowAdapterBinding(
+    archive={
+        "archive_bytes": 793_083_301,
+        "archive_md5": PINNED_ONE_METER_ARCHIVE_MD5,
+        "archive_sha256": PINNED_ONE_METER_ARCHIVE_SHA256,
+        "receipt_schema": RECEIPT_SCHEMA,
+    },
+    label_member={
+        "member_bytes": 12_339_840,
+        "compressed_bytes": 25_488,
+        "crc32": "6b9ad755",
+        "compression": 8,
+        "flags": 8,
+        "header_offset": 793_057_475,
+        "sha256": PINNED_ONE_METER_LABEL_SHA256,
+        "npy_version": [1, 0],
+        "dtype": "<i8",
+        "fortran_order": False,
+        "shape": [771_232, 2],
+    },
+    waveform_member={
+        "member_bytes": 3_084_928_128,
+        "compressed_bytes": 793_057_371,
+        "crc32": "14ae6a49",
+        "compression": 8,
+        "flags": 8,
+        "header_offset": 0,
+        "npy_version": [1, 0],
+        "dtype": "<c16",
+        "fortran_order": False,
+        "shape": [771_232, 250],
+    },
+)
+
+
+@dataclass(frozen=True)
 class EvaluationConfig:
     seed: int = 0
     max_rows_per_atomic_group: int = 8
-    window_length: int = 256
+    window_length: int = 128
     windows_per_row: int = 4
 
     def validate(self) -> None:
@@ -211,6 +322,13 @@ class LoadedWaveforms:
 
 
 @dataclass(frozen=True)
+class LoadedRowAdapter:
+    adapter_id: str
+    rows: Tuple[RowMetadata, ...]
+    source_contract: WaveformSourceContract
+
+
+@dataclass(frozen=True)
 class RowFeatures:
     metadata: RowMetadata
     windows: Any
@@ -232,15 +350,21 @@ def _strict_object(pairs: Iterable[Tuple[str, Any]]) -> Dict[str, Any]:
     return value
 
 
-def _read_strict_json(path: Path, maximum_bytes: int) -> Any:
+def _reject_json_constant(_value: str) -> None:
+    raise DuplicateJsonKeyError("non_finite_number")
+
+
+def _read_strict_json(
+    path: Path, maximum_bytes: int, error_prefix: str = "oracle"
+) -> Any:
     try:
         before = path.lstat()
     except OSError as error:
-        raise EvaluationInputError("oracle_unavailable") from error
+        raise EvaluationInputError(f"{error_prefix}_unavailable") from error
     if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
-        raise EvaluationInputError("oracle_not_regular")
+        raise EvaluationInputError(f"{error_prefix}_not_regular")
     if not 0 < before.st_size <= maximum_bytes:
-        raise EvaluationInputError("oracle_size_limit")
+        raise EvaluationInputError(f"{error_prefix}_size_limit")
     try:
         with path.open("rb") as source:
             opened = os.fstat(source.fileno())
@@ -249,24 +373,28 @@ def _read_strict_json(path: Path, maximum_bytes: int) -> Any:
                 opened.st_ino,
                 opened.st_size,
             ):
-                raise EvaluationInputError("oracle_identity_changed")
+                raise EvaluationInputError(f"{error_prefix}_identity_changed")
             data = source.read(maximum_bytes + 1)
             after = os.fstat(source.fileno())
     except EvaluationInputError:
         raise
     except OSError as error:
-        raise EvaluationInputError("oracle_read_failed") from error
+        raise EvaluationInputError(f"{error_prefix}_read_failed") from error
     if (
         len(data) != opened.st_size
         or len(data) > maximum_bytes
         or (after.st_size, after.st_mtime_ns, after.st_ctime_ns)
         != (opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns)
     ):
-        raise EvaluationInputError("oracle_changed_during_read")
+        raise EvaluationInputError(f"{error_prefix}_changed_during_read")
     try:
-        return json.loads(data.decode("utf-8"), object_pairs_hook=_strict_object)
+        return json.loads(
+            data.decode("utf-8"),
+            object_pairs_hook=_strict_object,
+            parse_constant=_reject_json_constant,
+        )
     except (UnicodeDecodeError, json.JSONDecodeError, DuplicateJsonKeyError) as error:
-        raise EvaluationInputError("oracle_invalid_json") from error
+        raise EvaluationInputError(f"{error_prefix}_invalid_json") from error
 
 
 def _known_group_id(value: Any) -> str:
@@ -383,6 +511,221 @@ def validate_current_oracle(value: Any) -> Mapping[str, Any]:
 
 def load_current_oracle(path: Path) -> Mapping[str, Any]:
     return validate_current_oracle(_read_strict_json(path, MAX_ORACLE_BYTES))
+
+
+def _adapter_identifier(value: Mapping[str, Any]) -> str:
+    without_identifier = {
+        key: item for key, item in value.items() if key != "adapter_id"
+    }
+    try:
+        encoded = json.dumps(
+            without_identifier,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as error:
+        raise EvaluationInputError("row_adapter_not_json_serializable") from error
+    return hashlib.sha256(b"netbraid.ruff-uwb-row-adapter.v0\x00" + encoded).hexdigest()
+
+
+def _validate_adapter_binding(binding: RowAdapterBinding) -> None:
+    if (
+        not isinstance(binding, RowAdapterBinding)
+        or set(binding.archive) != ARCHIVE_BINDING_FIELDS
+        or set(binding.label_member) != MEMBER_BINDING_FIELDS
+        or set(binding.waveform_member) != MEMBER_BINDING_FIELDS - {"sha256"}
+        or binding.archive.get("receipt_schema") != RECEIPT_SCHEMA
+        or not isinstance(binding.label_member.get("shape"), list)
+        or binding.label_member["shape"][-1:] != [2]
+        or not isinstance(binding.waveform_member.get("shape"), list)
+        or binding.label_member["shape"][:1] != binding.waveform_member["shape"][:1]
+    ):
+        raise EvaluationInputError("invalid_row_adapter_binding")
+
+
+def validate_row_adapter(
+    value: Any, binding: Optional[RowAdapterBinding] = None
+) -> LoadedRowAdapter:
+    """Validate and expand one bounded, gap-free row-adapter document."""
+
+    selected_binding = binding or PRODUCTION_ROW_ADAPTER_BINDING
+    _validate_adapter_binding(selected_binding)
+    if not isinstance(value, Mapping) or set(value) != ROW_ADAPTER_FIELDS:
+        raise EvaluationInputError("row_adapter_schema_fields")
+    if value.get("schema") != ROW_ADAPTER_SCHEMA:
+        raise EvaluationInputError("unsupported_row_adapter_schema")
+    if value.get("status") != "pass":
+        raise EvaluationInputError("row_adapter_status_not_pass")
+    adapter_id = value.get("adapter_id")
+    if (
+        not isinstance(adapter_id, str)
+        or OPAQUE_ID_PATTERN.fullmatch(adapter_id) is None
+        or adapter_id != _adapter_identifier(value)
+    ):
+        raise EvaluationInputError("row_adapter_id_mismatch")
+
+    archive = value.get("archive")
+    if (
+        not isinstance(archive, Mapping)
+        or set(archive) != ARCHIVE_BINDING_FIELDS
+        or archive != selected_binding.archive
+    ):
+        raise EvaluationInputError("row_adapter_archive_binding")
+    label_member = value.get("label_member")
+    if (
+        not isinstance(label_member, Mapping)
+        or set(label_member) != MEMBER_BINDING_FIELDS
+        or label_member != selected_binding.label_member
+    ):
+        raise EvaluationInputError("row_adapter_label_binding")
+    waveform_member = value.get("waveform_member")
+    if (
+        not isinstance(waveform_member, Mapping)
+        or set(waveform_member) != MEMBER_BINDING_FIELDS
+        or {key: item for key, item in waveform_member.items() if key != "sha256"}
+        != selected_binding.waveform_member
+        or not isinstance(waveform_member.get("sha256"), str)
+        or SHA256_PATTERN.fullmatch(waveform_member["sha256"]) is None
+    ):
+        raise EvaluationInputError("row_adapter_waveform_binding")
+
+    source = value.get("waveform_source")
+    if not isinstance(source, Mapping) or set(source) != WAVEFORM_SOURCE_FIELDS:
+        raise EvaluationInputError("row_adapter_waveform_source_schema")
+    source_contract = WaveformSourceContract(
+        file_bytes=source.get("file_bytes"),
+        sha256=source.get("sha256"),
+        rows=source.get("rows"),
+        samples_per_row=source.get("samples_per_row"),
+        dtype=source.get("dtype"),
+    )
+    source_contract.validate()
+    if (
+        source_contract.file_bytes != waveform_member["member_bytes"]
+        or source_contract.sha256 != waveform_member["sha256"]
+        or [source_contract.rows, source_contract.samples_per_row]
+        != waveform_member["shape"]
+        or source_contract.dtype != waveform_member["dtype"]
+        or source_contract.rows != label_member["shape"][0]
+    ):
+        raise EvaluationInputError("row_adapter_waveform_source_mismatch")
+
+    privacy = value.get("privacy")
+    if (
+        not isinstance(privacy, Mapping)
+        or set(privacy) != ROW_ADAPTER_PRIVACY_FIELDS
+        or any(privacy[field] != 0 for field in ROW_ADAPTER_PRIVACY_FIELDS)
+    ):
+        raise EvaluationInputError("row_adapter_privacy_contract")
+    counts = value.get("counts")
+    if (
+        not isinstance(counts, Mapping)
+        or set(counts) != ROW_ADAPTER_COUNT_FIELDS
+        or any(type(counts[field]) is not int for field in ROW_ADAPTER_COUNT_FIELDS)
+    ):
+        raise EvaluationInputError("row_adapter_count_schema")
+    spans = value.get("spans")
+    if (
+        not isinstance(spans, list)
+        or not 1 <= len(spans) <= MAX_ROW_SPANS
+        or counts["spans"] != len(spans)
+    ):
+        raise EvaluationInputError("row_adapter_span_count")
+
+    rows: List[RowMetadata] = []
+    expected_start = 0
+    prior_group: Optional[Tuple[str, str, str, str]] = None
+    source_to_device: Dict[str, str] = {}
+    device_to_source: Dict[str, str] = {}
+    domains = {
+        "distance_collection": set(),
+        "physical_source": set(),
+        "physical_device": set(),
+        "location": set(),
+    }
+    for span in spans:
+        if not isinstance(span, Mapping) or set(span) != ROW_SPAN_FIELDS:
+            raise EvaluationInputError("row_adapter_span_schema")
+        start = span.get("row_start")
+        stop = span.get("row_stop")
+        if type(start) is not int or type(stop) is not int or stop <= start:
+            raise EvaluationInputError("row_adapter_span_extent")
+        if start < expected_start:
+            raise EvaluationInputError("row_adapter_span_overlap")
+        if start > expected_start:
+            raise EvaluationInputError("row_adapter_span_gap")
+        if stop > source_contract.rows:
+            raise EvaluationInputError("row_adapter_span_extent")
+        identifiers = {}
+        for field in domains:
+            identifier = span.get(field)
+            if (
+                not isinstance(identifier, str)
+                or OPAQUE_ID_PATTERN.fullmatch(identifier) is None
+            ):
+                raise EvaluationInputError(f"row_adapter_invalid_{field}")
+            identifiers[field] = identifier
+            domains[field].add(identifier)
+        group = (
+            identifiers["distance_collection"],
+            identifiers["physical_source"],
+            identifiers["physical_device"],
+            identifiers["location"],
+        )
+        if group == prior_group:
+            raise EvaluationInputError("row_adapter_adjacent_equivalent_spans")
+        source_id = identifiers["physical_source"]
+        device_id = identifiers["physical_device"]
+        if source_id in source_to_device and source_to_device[source_id] != device_id:
+            raise EvaluationInputError("physical_source_device_not_bijective")
+        if device_id in device_to_source and device_to_source[device_id] != source_id:
+            raise EvaluationInputError("physical_source_device_not_bijective")
+        source_to_device[source_id] = device_id
+        device_to_source[device_id] = source_id
+        rows.extend(
+            RowMetadata(
+                row_index=row_index,
+                distance_collection=identifiers["distance_collection"],
+                physical_source=source_id,
+                physical_device=device_id,
+                location=identifiers["location"],
+            )
+            for row_index in range(start, stop)
+        )
+        expected_start = stop
+        prior_group = group
+    if expected_start != source_contract.rows:
+        raise EvaluationInputError("row_adapter_span_gap")
+    for left_index, left in enumerate(domains):
+        for right in tuple(domains)[left_index + 1 :]:
+            if domains[left] & domains[right]:
+                raise EvaluationInputError("row_adapter_identifier_domain_collision")
+    expected_counts = {
+        "rows": len(rows),
+        "spans": len(spans),
+        "distance_collections": len(domains["distance_collection"]),
+        "physical_sources": len(domains["physical_source"]),
+        "physical_devices": len(domains["physical_device"]),
+        "locations": len(domains["location"]),
+    }
+    if counts != expected_counts or len(rows) != source_contract.rows:
+        raise EvaluationInputError("row_adapter_count_mismatch")
+    validated_rows = _validate_rows(rows)
+    return LoadedRowAdapter(
+        adapter_id=adapter_id,
+        rows=validated_rows,
+        source_contract=source_contract,
+    )
+
+
+def load_row_adapter(
+    path: Path, binding: Optional[RowAdapterBinding] = None
+) -> LoadedRowAdapter:
+    return validate_row_adapter(
+        _read_strict_json(path, MAX_ROW_ADAPTER_BYTES, "row_adapter"), binding
+    )
 
 
 def current_oracle_blocker(value: Mapping[str, Any]) -> Dict[str, Any]:
@@ -1073,20 +1416,39 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="compiled aggregate RUFF-UWB oracle",
     )
     parser.add_argument(
+        "--row-adapter",
+        type=Path,
+        help="receipt-bound one-meter row adapter; enables real evaluation",
+    )
+    parser.add_argument(
         "--waveforms",
         type=Path,
-        default=ROOT / "data" / "raw" / "UWB_mesures1meter.data.npy",
-        help="standalone pinned one-meter NPY; opened only after a safe row map exists",
+        default=(
+            ROOT / "data" / "derived" / "eval" / "ruff-uwb-one-meter-waveforms.npy"
+        ),
+        help="standalone pinned one-meter NPY; opened only with a valid row adapter",
     )
     parser.add_argument(
         "--report",
         type=Path,
-        help="optional destination for the path-free blocker report",
+        help="optional destination for the path-free blocker or evaluation report",
     )
     parser.add_argument(
         "--expect-blocked",
         action="store_true",
         help="return success only after writing the expected row-mapping blocker",
+    )
+    parser.add_argument("--seed", type=int, default=EvaluationConfig.seed)
+    parser.add_argument(
+        "--max-rows-per-atomic-group",
+        type=int,
+        default=EvaluationConfig.max_rows_per_atomic_group,
+    )
+    parser.add_argument(
+        "--window-length", type=int, default=EvaluationConfig.window_length
+    )
+    parser.add_argument(
+        "--windows-per-row", type=int, default=EvaluationConfig.windows_per_row
     )
     return parser.parse_args(argv)
 
@@ -1094,8 +1456,26 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     try:
-        oracle = load_current_oracle(args.oracle)
-        report = current_oracle_blocker(oracle)
+        if args.row_adapter is None:
+            oracle = load_current_oracle(args.oracle)
+            report = current_oracle_blocker(oracle)
+            return_code = 0 if args.expect_blocked else 2
+        else:
+            if args.expect_blocked:
+                raise EvaluationInputError("row_adapter_expect_blocked_conflict")
+            adapter = load_row_adapter(args.row_adapter)
+            report = evaluate_rows(
+                adapter.rows,
+                args.waveforms,
+                adapter.source_contract,
+                EvaluationConfig(
+                    seed=args.seed,
+                    max_rows_per_atomic_group=args.max_rows_per_atomic_group,
+                    window_length=args.window_length,
+                    windows_per_row=args.windows_per_row,
+                ),
+            )
+            return_code = 0
         if args.report is None:
             sys.stdout.buffer.write(render_report(report))
         else:
@@ -1110,7 +1490,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             + "\n"
         )
         return 2
-    return 0 if args.expect_blocked else 2
+    return return_code
 
 
 if __name__ == "__main__":

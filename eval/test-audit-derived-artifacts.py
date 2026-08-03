@@ -105,7 +105,9 @@ class DerivedArtifactAuditTests(unittest.TestCase):
             report["retention_counts"],
             {"legacy/unknown": 1, "reproducibility_output": 1},
         )
-        self.assertEqual(report["format_counts"], {"json": 1, "tsv": 1})
+        self.assertEqual(
+            report["format_counts"], {"json": 1, "npy": 0, "tsv": 1}
+        )
         encoded = json.dumps(report, sort_keys=True)
         for forbidden in (
             os.fspath(self.root),

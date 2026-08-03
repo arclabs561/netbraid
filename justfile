@@ -244,6 +244,14 @@ ruff-uwb-oracles-check:
 ruff-uwb-oracles:
     {{ python }} eval/compile-ruff-uwb-oracles.py
 
+ruff-uwb-row-adapter-check:
+    uv run --script eval/test-compile-ruff-uwb-row-adapter.py
+
+# Verify the pinned one-meter archive and central fetch receipt, then stream its
+# waveform member to a private standalone NPY suitable for read-only mmap.
+ruff-uwb-row-adapter:
+    {{ python }} eval/compile-ruff-uwb-row-adapter.py
+
 # Record the current leakage-safe RUFF-UWB baseline boundary. The aggregate
 # oracle cannot yet bind waveform rows, so this succeeds only for that exact
 # path-free blocker and never opens the waveform payload.
@@ -252,6 +260,9 @@ ruff-uwb-heldout-location-check:
 
 ruff-uwb-heldout-location:
     {{ python }} eval/evaluate-ruff-uwb-heldout-location.py --expect-blocked --report {{ eval_output }}/ruff-uwb-heldout-location-blocker.json
+
+ruff-uwb-heldout-location-real: ruff-uwb-row-adapter
+    uv run --script eval/evaluate-ruff-uwb-heldout-location.py --row-adapter {{ eval_output }}/ruff-uwb-one-meter-row-adapter.json --waveforms {{ eval_output }}/ruff-uwb-one-meter-waveforms.npy --report {{ eval_output }}/ruff-uwb-heldout-location-report.json
 
 gnss-rff-layout-profile-check:
     {{ python }} eval/test-profile-gnss-rff-layout.py

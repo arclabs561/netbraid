@@ -72,13 +72,20 @@ collection day are explicit controls; event and session remain unobserved. The
 compiler emits opaque groups without opening waveform members or synthesizing
 missing source/location combinations.
 
+`compile-ruff-uwb-row-adapter.py` verifies the pinned one-meter archive and its
+central fetch receipt, parses the label member in publisher order, and emits
+gap-free opaque row spans. It stream-extracts the waveform member to an ignored
+standalone NPY with full digest, CRC, extent, permission, and source-mutation
+checks; it never performs bulk archive extraction.
+
 `evaluate-ruff-uwb-heldout-location.py` defines a deterministic 80/10/10
 held-out-location baseline with atomic source/device/location groups, bounded
 row and window sampling, read-only NumPy mmap, train-only prototype fitting,
-and validation-only model selection. The current aggregate oracle has no
-row-to-waveform binding, so `just ruff-uwb-heldout-location` records a
-path-free blocker instead of guessing corpus metrics. The synthetic exact
-oracle is covered by `just ruff-uwb-heldout-location-check`.
+and validation-only model selection. `just ruff-uwb-heldout-location` retains
+the aggregate-oracle blocker, while `just ruff-uwb-heldout-location-real`
+compiles the receipt-bound row adapter and runs the real one-meter evaluation.
+The synthetic exact boundaries are covered by the corresponding `-check`
+recipes.
 
 `compile-mmwave-jamming-oracles.py` hashes all 80 pinned MAT artifacts without
 parsing them and compiles the exact receiver/regime/target/condition grid into

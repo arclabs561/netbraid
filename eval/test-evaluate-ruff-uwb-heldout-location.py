@@ -151,6 +151,118 @@ def waveform_contract(path, array, rows=None, samples_per_row=None):
     )
 
 
+def row_adapter(rows, path, array):
+    contract = waveform_contract(path, array)
+    source_ids = {
+        value: opaque(2_000 + index)
+        for index, value in enumerate(sorted({row.physical_source for row in rows}))
+    }
+    device_ids = {
+        value: opaque(3_000 + index)
+        for index, value in enumerate(sorted({row.physical_device for row in rows}))
+    }
+    location_ids = {
+        value: opaque(4_000 + index)
+        for index, value in enumerate(sorted({row.location for row in rows}))
+    }
+    collection_ids = {
+        value: opaque(5_000 + index)
+        for index, value in enumerate(sorted({row.distance_collection for row in rows}))
+    }
+    spans = []
+    for row in rows:
+        group = {
+            "distance_collection": collection_ids[row.distance_collection],
+            "physical_source": source_ids[row.physical_source],
+            "physical_device": device_ids[row.physical_device],
+            "location": location_ids[row.location],
+        }
+        if spans and all(spans[-1][key] == value for key, value in group.items()):
+            spans[-1]["row_stop"] += 1
+        else:
+            spans.append(
+                {
+                    "row_start": row.row_index,
+                    "row_stop": row.row_index + 1,
+                    **group,
+                }
+            )
+    archive = {
+        "archive_bytes": 12_345,
+        "archive_md5": f"{123:032x}",
+        "archive_sha256": opaque(6_000),
+        "receipt_schema": MODULE.RECEIPT_SCHEMA,
+    }
+    label_member = {
+        "member_bytes": 128 + len(rows) * 16,
+        "compressed_bytes": 999,
+        "crc32": "0123abcd",
+        "compression": 8,
+        "flags": 8,
+        "header_offset": 10_000,
+        "sha256": opaque(6_001),
+        "npy_version": [1, 0],
+        "dtype": "<i8",
+        "fortran_order": False,
+        "shape": [len(rows), 2],
+    }
+    waveform_member = {
+        "member_bytes": contract.file_bytes,
+        "compressed_bytes": contract.file_bytes // 2,
+        "crc32": "89abcdef",
+        "compression": 8,
+        "flags": 8,
+        "header_offset": 0,
+        "sha256": contract.sha256,
+        "npy_version": [1, 0],
+        "dtype": contract.dtype,
+        "fortran_order": False,
+        "shape": [contract.rows, contract.samples_per_row],
+    }
+    adapter = {
+        "schema": MODULE.ROW_ADAPTER_SCHEMA,
+        "status": "pass",
+        "archive": archive,
+        "label_member": label_member,
+        "waveform_member": waveform_member,
+        "waveform_source": {
+            "file_bytes": contract.file_bytes,
+            "sha256": contract.sha256,
+            "rows": contract.rows,
+            "samples_per_row": contract.samples_per_row,
+            "dtype": contract.dtype,
+        },
+        "counts": {
+            "rows": len(rows),
+            "spans": len(spans),
+            "distance_collections": len(collection_ids),
+            "physical_sources": len(source_ids),
+            "physical_devices": len(device_ids),
+            "locations": len(location_ids),
+        },
+        "spans": spans,
+        "privacy": {
+            "input_paths_retained": 0,
+            "filenames_retained": 0,
+            "raw_label_values_retained": 0,
+            "source_urls_retained": 0,
+        },
+    }
+    adapter["adapter_id"] = MODULE._adapter_identifier(adapter)
+    binding = MODULE.RowAdapterBinding(
+        archive=archive,
+        label_member=label_member,
+        waveform_member={
+            key: value for key, value in waveform_member.items() if key != "sha256"
+        },
+    )
+    return adapter, binding
+
+
+def resign_adapter(adapter):
+    adapter["adapter_id"] = MODULE._adapter_identifier(adapter)
+
+
 def config():
     return MODULE.EvaluationConfig(
         seed=17,
@@ -229,6 +341,132 @@ class RuffUwbHeldoutLocationTests(unittest.TestCase):
             "oracle_count_mismatch",
             MODULE.validate_current_oracle,
             bad,
+        )
+
+    def test_strict_row_adapter_loader_expands_spans_and_constructs_contract(self):
+        rows, waveforms, path = synthetic_dataset(self.root)
+        adapter, binding = row_adapter(rows, path, waveforms)
+        adapter_path = self.root / "row-adapter.json"
+        adapter_path.write_text(json.dumps(adapter), encoding="utf-8")
+
+        loaded = MODULE.load_row_adapter(adapter_path, binding)
+
+        self.assertEqual(len(loaded.rows), len(rows))
+        self.assertEqual(
+            tuple(row.row_index for row in loaded.rows), tuple(range(len(rows)))
+        )
+        self.assertEqual(loaded.source_contract, waveform_contract(path, waveforms))
+        self.assertEqual(loaded.adapter_id, adapter["adapter_id"])
+        self.assertNotEqual(
+            loaded.rows[0].physical_source, loaded.rows[0].physical_device
+        )
+
+    def test_cli_runs_real_eval_when_row_adapter_is_supplied(self):
+        rows, waveforms, path = synthetic_dataset(self.root)
+        adapter, binding = row_adapter(rows, path, waveforms)
+        adapter_path = self.root / "row-adapter.json"
+        report_path = self.root / "report.json"
+        adapter_path.write_text(json.dumps(adapter), encoding="utf-8")
+
+        with (
+            mock.patch.object(MODULE, "PRODUCTION_ROW_ADAPTER_BINDING", binding),
+            mock.patch.object(MODULE, "load_current_oracle") as load_oracle,
+        ):
+            return_code = MODULE.main(
+                [
+                    "--row-adapter",
+                    str(adapter_path),
+                    "--waveforms",
+                    str(path),
+                    "--report",
+                    str(report_path),
+                    "--seed",
+                    "17",
+                    "--max-rows-per-atomic-group",
+                    "1",
+                    "--window-length",
+                    "8",
+                    "--windows-per-row",
+                    "2",
+                ]
+            )
+
+        self.assertEqual(return_code, 0)
+        load_oracle.assert_not_called()
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(report["status"], "pass")
+        self.assertEqual(report["test_metrics"]["macro_f1"], 1.0)
+        encoded = report_path.read_text(encoding="utf-8")
+        self.assertNotIn(str(self.root), encoded)
+        self.assertNotIn("source-0", encoded)
+        self.assertNotIn("location-00", encoded)
+
+    def test_row_adapter_rejects_gaps_overlaps_unknown_fields_and_bad_bindings(self):
+        rows, waveforms, path = synthetic_dataset(self.root)
+        adapter, binding = row_adapter(rows, path, waveforms)
+        cases = []
+
+        gap = copy.deepcopy(adapter)
+        gap["spans"][1]["row_start"] += 1
+        resign_adapter(gap)
+        cases.append(("row_adapter_span_gap", gap, binding))
+
+        overlap = copy.deepcopy(adapter)
+        overlap["spans"][1]["row_start"] -= 1
+        resign_adapter(overlap)
+        cases.append(("row_adapter_span_overlap", overlap, binding))
+
+        unknown = copy.deepcopy(adapter)
+        unknown["spans"][0]["unknown"] = True
+        resign_adapter(unknown)
+        cases.append(("row_adapter_span_schema", unknown, binding))
+
+        bad_digest = copy.deepcopy(adapter)
+        bad_digest["label_member"]["sha256"] = "0" * 64
+        resign_adapter(bad_digest)
+        cases.append(("row_adapter_label_binding", bad_digest, binding))
+
+        bad_shape = copy.deepcopy(adapter)
+        bad_shape["waveform_member"]["shape"][1] += 1
+        resign_adapter(bad_shape)
+        cases.append(("row_adapter_waveform_binding", bad_shape, binding))
+
+        source_device_conflict = copy.deepcopy(adapter)
+        first_source = source_device_conflict["spans"][0]["physical_source"]
+        conflicting_device = source_device_conflict["spans"][1]["physical_device"]
+        target = next(
+            span
+            for span in source_device_conflict["spans"][2:]
+            if span["physical_source"] == first_source
+        )
+        target["physical_device"] = conflicting_device
+        resign_adapter(source_device_conflict)
+        cases.append(
+            (
+                "physical_source_device_not_bijective",
+                source_device_conflict,
+                binding,
+            )
+        )
+
+        for code, value, selected_binding in cases:
+            with self.subTest(code=code):
+                assert_code(
+                    self,
+                    code,
+                    MODULE.validate_row_adapter,
+                    value,
+                    selected_binding,
+                )
+
+        oversized = self.root / "oversized-adapter.json"
+        oversized.write_bytes(b"x" * (MODULE.MAX_ROW_ADAPTER_BYTES + 1))
+        assert_code(
+            self,
+            "row_adapter_size_limit",
+            MODULE.load_row_adapter,
+            oversized,
+            binding,
         )
 
     def test_synthetic_eval_is_deterministic_and_reports_exact_metrics(self):

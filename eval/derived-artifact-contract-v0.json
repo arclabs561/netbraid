@@ -150,11 +150,32 @@
       "recipe": "ruff-uwb-heldout-location"
     },
     {
+      "path": "data/derived/eval/ruff-uwb-heldout-location-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ruff-uwb-heldout-location.py",
+      "recipe": "ruff-uwb-heldout-location-real"
+    },
+    {
       "path": "data/derived/eval/ruff-uwb-observation-oracles.json",
       "format": "json",
       "retention": "reproducibility_output",
       "producer": "eval/compile-ruff-uwb-oracles.py",
       "recipe": "ruff-uwb-oracles"
+    },
+    {
+      "path": "data/derived/eval/ruff-uwb-one-meter-row-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-ruff-uwb-row-adapter.py",
+      "recipe": "ruff-uwb-row-adapter"
+    },
+    {
+      "path": "data/derived/eval/ruff-uwb-one-meter-waveforms.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-ruff-uwb-row-adapter.py",
+      "recipe": "ruff-uwb-row-adapter"
     },
     {
       "path": "data/derived/eval/sorbonne-same-event-report.json",
