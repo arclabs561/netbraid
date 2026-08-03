@@ -33,8 +33,9 @@ DEFAULT_RECEIPT_DIR = ROOT / "data" / "receipts" / "xrf55"
 DEFAULT_OUTPUT_DIR = ROOT / "data" / "derived" / "eval"
 DEFAULT_ADAPTER = DEFAULT_OUTPUT_DIR / "xrf55-feature-cache-adapter.json"
 DEFAULT_MATRICES = {
-    modality: DEFAULT_OUTPUT_DIR / f"xrf55-feature-cache-{modality}.npy"
-    for modality in ("wifi", "rfid", "mmwave")
+    "wifi": DEFAULT_OUTPUT_DIR / "xrf55-feature-cache-wifi.npy",
+    "rfid": DEFAULT_OUTPUT_DIR / "xrf55-feature-cache-rfid.npy",
+    "mmwave": DEFAULT_OUTPUT_DIR / "xrf55-feature-cache-mmwave.npy",
 }
 PUBLISHER_IMPLEMENTATION_REVISION = "6cf95821e45277ee97c55e9c68d67bc7e33962ad"
 MAX_SELECTED_MEMBER_BYTES = 8 * 1024**2
@@ -378,12 +379,11 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR)
     parser.add_argument("--receipt-dir", type=Path, default=DEFAULT_RECEIPT_DIR)
     parser.add_argument("--adapter", type=Path, default=DEFAULT_ADAPTER)
-    for modality in FEATURES.MODALITIES:
-        parser.add_argument(
-            f"--{modality}-matrix",
-            type=Path,
-            default=DEFAULT_MATRICES[modality],
-        )
+    parser.add_argument("--wifi-matrix", type=Path, default=DEFAULT_MATRICES["wifi"])
+    parser.add_argument("--rfid-matrix", type=Path, default=DEFAULT_MATRICES["rfid"])
+    parser.add_argument(
+        "--mmwave-matrix", type=Path, default=DEFAULT_MATRICES["mmwave"]
+    )
     parser.add_argument("--group-count", type=int, default=FEATURES.DEFAULT_GROUP_COUNT)
     return parser.parse_args(argv)
 
@@ -391,8 +391,9 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     matrices = {
-        modality: getattr(arguments, f"{modality}_matrix")
-        for modality in FEATURES.MODALITIES
+        "wifi": arguments.wifi_matrix,
+        "rfid": arguments.rfid_matrix,
+        "mmwave": arguments.mmwave_matrix,
     }
     try:
         sources = load_archive_sources(arguments.raw_dir, arguments.receipt_dir)
