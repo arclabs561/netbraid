@@ -1,4 +1,5 @@
 mod counter_capture;
+mod hypothesis;
 mod rssi_reference_frame;
 
 pub use crate::replay::{
@@ -27,6 +28,12 @@ pub use counter_capture::{
     TrafficWindowV0, TrafficWindowValidationErrorV0, COUNTER_CAPTURE_HYPOTHESIS_SET_SCHEMA_V0,
     COUNTER_CAPTURE_PROFILE_SCHEMA_V0, COUNTER_CAPTURE_REDUCER_V0,
     COUNTER_CAPTURE_SCALE_FLOOR_PPB_V0, PPB, TRAFFIC_WINDOW_SCHEMA_V0,
+};
+
+pub use hypothesis::{
+    FiniteHypothesisAlternativeV0, FiniteHypothesisDispositionV0,
+    FiniteHypothesisProjectionErrorV0, FiniteHypothesisProjectionV0, ProjectFiniteHypothesesV0,
+    FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0,
 };
 
 pub use rssi_reference_frame::{
