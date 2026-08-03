@@ -159,11 +159,11 @@ collection day are explicit controls; event and session remain unobserved. The
 compiler emits opaque groups without opening waveform members or synthesizing
 missing source/location combinations.
 
-`compile-ruff-uwb-row-adapter.py` verifies the pinned one-meter archive and its
-central fetch receipt, parses the label member in publisher order, and emits
-gap-free opaque row spans. It stream-extracts the waveform member to an ignored
-standalone NPY with full digest, CRC, extent, permission, and source-mutation
-checks; it never performs bulk archive extraction.
+`compile-ruff-uwb-row-adapter.py` verifies either pinned one- or two-meter
+archive and its central fetch receipt, parses the label member in publisher
+order, and emits gap-free opaque row spans. It stream-extracts the waveform
+member to an ignored standalone NPY with full digest, CRC, extent, permission,
+and source-mutation checks; it never performs bulk archive extraction.
 
 `evaluate-ruff-uwb-heldout-location.py` defines a deterministic 80/10/10
 held-out-location baseline with atomic source/device/location groups, bounded
@@ -173,6 +173,16 @@ the aggregate-oracle blocker, while `just ruff-uwb-heldout-location-real`
 compiles the receipt-bound row adapter and runs the real one-meter evaluation.
 The synthetic exact boundaries are covered by the corresponding `-check`
 recipes.
+
+`evaluate-ruff-uwb-cross-distance.py` fits and selects only on one-meter
+train/validation locations, quarantines the previously observed one-meter test
+role, then evaluates once across all two-meter locations. Both adapters remain
+compact until exact SHA-256 top-k row selection, and both waveform arrays are
+opened by read-only mmap after full digest verification. The result measures a
+combined distance, day, room-position, and stored-representation shift, not an
+isolated distance effect. `verify-ruff-uwb-cross-campaign-experiment.py` binds
+the tracked aggregate result summary to the ignored canonical report without
+opening either waveform array.
 
 `compile-mmwave-jamming-oracles.py` hashes all 80 pinned MAT artifacts without
 parsing them and compiles the exact receiver/regime/target/condition grid into

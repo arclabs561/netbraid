@@ -101,6 +101,89 @@ but zero sampled, feature, prediction, or metric rows.
 | Macro-F1 | 0.128241021412 |
 | Uniform-chance balanced accuracy | 0.076923076923 |
 
+```json
+{
+  "leakage_checks": {
+    "all_checks_passed": true,
+    "source_test_feature_rows": 0,
+    "source_test_target_row_overlap": 0,
+    "source_train_validation_row_overlap": 0,
+    "target_configuration_candidates": 0
+  },
+  "privacy": {
+    "corpus_rows_retained": 0,
+    "input_paths_retained": 0,
+    "raw_source_identifiers_retained": 0
+  },
+  "roles": {
+    "source_test_unused": {
+      "atomic_groups": 65,
+      "feature_rows": 0,
+      "locations": 5,
+      "sampled_rows": 0,
+      "source_rows": 77738
+    },
+    "source_train": {
+      "atomic_groups": 515,
+      "feature_rows": 4120,
+      "locations": 40,
+      "sampled_rows": 4120,
+      "source_rows": 615745
+    },
+    "source_validation": {
+      "atomic_groups": 65,
+      "feature_rows": 520,
+      "locations": 5,
+      "sampled_rows": 520,
+      "source_rows": 77749
+    },
+    "target_test": {
+      "atomic_groups": 1145,
+      "feature_rows": 9160,
+      "locations": 100,
+      "sampled_rows": 9160,
+      "source_rows": 1152491
+    }
+  },
+  "schema": "netbraid.ruff_uwb_cross_campaign_result_summary.v0",
+  "selected_prototype_mode": "centroid",
+  "status": "pass",
+  "target_metrics": {
+    "balanced_accuracy": 0.131830153973,
+    "evaluated_rows": 9160,
+    "macro_f1": 0.128241021412,
+    "per_device_recall": {
+      "device-001": 0.335,
+      "device-002": 0.08125,
+      "device-003": 0.145408163265,
+      "device-004": 0.1075,
+      "device-005": 0.05303030303,
+      "device-006": 0.0175,
+      "device-007": 0.165,
+      "device-008": 0.115,
+      "device-009": 0.193181818182,
+      "device-010": 0.0825,
+      "device-011": 0.19375,
+      "device-012": 0.092171717172,
+      "device-013": 0.1325
+    },
+    "uniform_chance_balanced_accuracy": 0.076923076923
+  },
+  "validation_candidates": {
+    "centroid": {
+      "balanced_accuracy": 0.142307692308,
+      "evaluated_rows": 520,
+      "macro_f1": 0.116368441841
+    },
+    "template": {
+      "balanced_accuracy": 0.132692307692,
+      "evaluated_rows": 520,
+      "macro_f1": 0.104677781465
+    }
+  }
+}
+```
+
 Per-device recall ranged from 0.0175 to 0.335, so the aggregate lift is uneven
 and does not imply reliable transfer for every board. All recorded leakage
 checks passed: source train/validation overlap was zero, source-test feature

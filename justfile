@@ -365,6 +365,12 @@ ruff-uwb-heldout-location-real: ruff-uwb-row-adapter
 # representation projection, exact metrics, and read-only mmap hermetically.
 ruff-uwb-cross-campaign-check:
     uv run --script eval/test-evaluate-ruff-uwb-cross-distance.py
+    {{ python }} eval/test-verify-ruff-uwb-cross-campaign-experiment.py
+
+# Compare the tracked aggregate result summary with the ignored canonical
+# report. This never reads either waveform array.
+ruff-uwb-cross-campaign-result-verify:
+    {{ python }} eval/verify-ruff-uwb-cross-campaign-experiment.py
 
 # Compare exact source-row selection through the reference expanded path and
 # the production compact-span path. Requires the ignored one-meter adapter.
