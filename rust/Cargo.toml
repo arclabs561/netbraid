@@ -37,9 +37,15 @@ path = "src/main.rs"
 required-features = ["cli"]
 
 [[example]]
+name = "packet_same_event_jsonl"
+path = "examples/packet_same_event_jsonl.rs"
+test = true
+
+[[example]]
 name = "zeek_conn_profile"
 path = "examples/zeek_conn_profile.rs"
 required-features = ["adapter-zeek"]
+test = true
 
 [[test]]
 name = "adapter_curated_corpus"
