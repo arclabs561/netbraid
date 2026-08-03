@@ -29,10 +29,12 @@ class DerivedArtifactAuditTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         (self.root / "eval").mkdir()
         (self.root / "data/derived/eval").mkdir(parents=True)
-        (self.root / "data/derived/archive/legacy-unscripted").mkdir(parents=True)
         (self.root / "eval/produce.py").write_text(
+            "from pathlib import Path\n"
             "OUTPUTS = ('result.json', 'future.json')\n"
             "def main():\n"
+            "    for output in OUTPUTS:\n"
+            "        (Path('data/derived/eval') / output).write_text('{}')\n"
             "    return 0\n"
             "if __name__ == '__main__':\n"
             "    raise SystemExit(main())\n",
@@ -45,9 +47,6 @@ class DerivedArtifactAuditTests(unittest.TestCase):
         (self.root / "data/derived/eval/result.json").write_bytes(
             b"opaque corpus output"
         )
-        (self.root / "data/derived/archive/legacy-unscripted/archive.tsv").write_bytes(
-            b"opaque\tcorpus\n"
-        )
         self.contract = {
             "schema": MODULE.SCHEMA,
             "derived_root": "data/derived",
@@ -58,12 +57,6 @@ class DerivedArtifactAuditTests(unittest.TestCase):
                     "retention": "reproducibility_output",
                     "producer": "eval/produce.py",
                     "recipe": "derive",
-                },
-                {
-                    "path": "data/derived/archive/legacy-unscripted/archive.tsv",
-                    "format": "tsv",
-                    "retention": "legacy/unknown",
-                    "custodian": "eval/produce.py",
                 },
                 {
                     "path": "data/derived/eval/future.json",
@@ -103,28 +96,70 @@ class DerivedArtifactAuditTests(unittest.TestCase):
             report = self._audit()
 
         self.assertTrue(report["ok"])
-        self.assertEqual(report["artifact_count"], 2)
-        self.assertEqual(report["contract_entry_count"], 3)
+        self.assertEqual(report["artifact_count"], 1)
+        self.assertEqual(report["contract_entry_count"], 2)
         self.assertEqual(report["scripted_output_count"], 2)
-        self.assertEqual(report["exception_count"], 1)
+        self.assertEqual(report["exception_count"], 0)
         self.assertEqual(report["producer_count"], 1)
-        self.assertEqual(report["custodian_count"], 1)
+        self.assertEqual(report["custodian_count"], 0)
         self.assertNotIn("missing_declared_artifact", report["error_counts"])
         self.assertEqual(
             report["retention_counts"],
-            {"legacy/unknown": 1, "reproducibility_output": 1},
+            {"legacy/unknown": 0, "reproducibility_output": 1},
         )
-        self.assertEqual(report["format_counts"], {"json": 1, "npy": 0, "tsv": 1})
+        self.assertEqual(report["format_counts"], {"json": 1, "npy": 0, "tsv": 0})
         encoded = json.dumps(report, sort_keys=True)
         for forbidden in (
             os.fspath(self.root),
             "result.json",
-            "archive.tsv",
             "eval/produce.py",
             "data/derived",
         ):
             self.assertNotIn(forbidden, encoded)
         self.assertLess(len(encoded.encode("utf-8")), MODULE.MAX_REPORT_BYTES)
+
+    def test_rejects_legacy_custodian_entry_with_zero_compatibility_counts(
+        self,
+    ) -> None:
+        legacy_path = self.root / "data/derived/archive/legacy-unscripted/archive.tsv"
+        legacy_path.parent.mkdir(parents=True)
+        legacy_path.write_bytes(b"opaque\tcorpus\n")
+        self.contract["artifacts"].append(
+            {
+                "path": "data/derived/archive/legacy-unscripted/archive.tsv",
+                "format": "tsv",
+                "retention": "legacy/unknown",
+                "custodian": "eval/produce.py",
+            }
+        )
+        self._write_contract()
+
+        report = self._audit()
+
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["error_counts"]["invalid_retention"], 1)
+        self.assertEqual(report["error_counts"]["unclassified_artifact"], 1)
+        self.assertEqual(report["exception_count"], 0)
+        self.assertEqual(report["custodian_count"], 0)
+        self.assertEqual(report["retention_counts"]["legacy/unknown"], 0)
+
+    def test_rejects_custodian_key_on_reproducibility_output(self) -> None:
+        self.contract["artifacts"].append(
+            {
+                "path": "data/derived/eval/custodian.json",
+                "format": "json",
+                "retention": "reproducibility_output",
+                "custodian": "eval/produce.py",
+            }
+        )
+        self._write_contract()
+
+        report = self._audit()
+
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["error_counts"]["invalid_contract_entry"], 1)
+        self.assertEqual(report["exception_count"], 0)
+        self.assertEqual(report["custodian_count"], 0)
 
     def test_rejects_unclassified_and_duplicate_artifacts(self) -> None:
         (self.root / "data/derived/eval/unclassified.json").write_bytes(b"unknown")
@@ -216,6 +251,21 @@ class DerivedArtifactAuditTests(unittest.TestCase):
 
         errors = self._audit()["error_counts"]
 
+        self.assertEqual(errors["artifact_not_declared_by_producer_or_recipe"], 2)
+
+    def test_rejects_noop_producer_that_only_names_outputs(self) -> None:
+        (self.root / "eval/produce.py").write_text(
+            "OUTPUTS = ('result.json', 'future.json')\n"
+            "def main():\n"
+            "    return 0\n"
+            "if __name__ == '__main__':\n"
+            "    raise SystemExit(main())\n",
+            encoding="utf-8",
+        )
+
+        errors = self._audit()["error_counts"]
+
+        self.assertNotIn("producer_missing_entrypoint", errors)
         self.assertEqual(errors["artifact_not_declared_by_producer_or_recipe"], 2)
 
     def test_allows_an_absent_derived_root_for_a_fresh_clone(self) -> None:

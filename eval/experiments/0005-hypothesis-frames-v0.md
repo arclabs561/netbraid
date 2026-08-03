@@ -382,7 +382,8 @@ payload, behavior, or capture-wide identity inference.
 The source-neutral hypothesis-set boundary and its deterministic reducers are
 implemented and fail closed for the tested evidence gaps. Controlled-cause and
 identity/variant split groups now exist for several corpora, but this does not
-validate physical-source identity or attack attribution. The next
-evidence-bearing step is to stabilize the remaining OSU acquisition, compile
-its complete inventory, assign leakage-safe roles, and run preregistered
-baselines before choosing an RF model or threshold.
+validate physical-source identity or attack attribution. The later RUFF-UWB
+held-out-location experiment ran one preregistered baseline and recorded a
+negative result. The remaining evidence-bearing step here is to stabilize the
+OSU acquisition, compile its complete inventory, and assign leakage-safe roles
+before preregistering its first model and threshold experiment.

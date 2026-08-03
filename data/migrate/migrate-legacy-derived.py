@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Archive a fixed set of legacy derived outputs misplaced in ``data/raw``.
 
-The migration recognizes only a complete fresh state or a complete verified
-archive. It never selects files by pattern and never replaces an existing
+The migration recognizes a complete fresh state, a complete verified archive,
+or a verified relocation split between the previous and current archive
+locations. It never selects files by pattern and never replaces an existing
 file. Receipt entries intentionally contain basenames and local integrity
 metadata only because the original derivation provenance is unknown.
 """
@@ -23,7 +24,10 @@ from typing import Any
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 DEFAULT_RAW_DIR = REPOSITORY / "data" / "raw"
-DEFAULT_ARCHIVE_DIR = REPOSITORY / "data" / "derived" / "archive" / "legacy-unscripted"
+DEFAULT_ARCHIVE_DIR = REPOSITORY / "data" / "archive" / "legacy-derived-unknown"
+DEFAULT_LEGACY_ARCHIVE_DIR = (
+    REPOSITORY / "data" / "derived" / "archive" / "legacy-unscripted"
+)
 RECEIPT_BASENAME = "migration-receipt.json"
 RECEIPT_SCHEMA = "netbraid.legacy_unscripted_derived.v1"
 PROVENANCE_STATUS = "legacy/unknown"
@@ -82,6 +86,13 @@ class FileRecord:
             "sha256": self.sha256,
             "status": PROVENANCE_STATUS,
         }
+
+
+@dataclass(frozen=True)
+class RelocationEntry:
+    basename: str
+    legacy_fingerprint: Fingerprint | None
+    archive_fingerprint: Fingerprint | None
 
 
 def _lexists(path: Path) -> bool:
@@ -223,6 +234,43 @@ def _archive_entries(archive_dir: Path) -> set[str]:
     return names
 
 
+def _relocation_entry(
+    legacy_archive_dir: Path,
+    archive_dir: Path,
+    basename: str,
+    legacy_names: set[str],
+    archive_names: set[str],
+    error_code: str,
+) -> RelocationEntry:
+    legacy_metadata = (
+        _regular_metadata(legacy_archive_dir / basename, error_code)
+        if basename in legacy_names
+        else None
+    )
+    archive_metadata = (
+        _regular_metadata(archive_dir / basename, error_code)
+        if basename in archive_names
+        else None
+    )
+    if legacy_metadata is None and archive_metadata is None:
+        raise MigrationError("incomplete_or_conflicting_state")
+    if (
+        legacy_metadata is not None
+        and archive_metadata is not None
+        and _identity(legacy_metadata) != _identity(archive_metadata)
+    ):
+        raise MigrationError("incomplete_or_conflicting_state")
+    return RelocationEntry(
+        basename=basename,
+        legacy_fingerprint=(
+            _fingerprint(legacy_metadata) if legacy_metadata is not None else None
+        ),
+        archive_fingerprint=(
+            _fingerprint(archive_metadata) if archive_metadata is not None else None
+        ),
+    )
+
+
 def _read_receipt(path: Path) -> dict[str, Any]:
     expected = _regular_metadata(path, "unsafe_or_missing_receipt")
     if expected.st_size > MAX_RECEIPT_BYTES:
@@ -330,31 +378,195 @@ def _move_new(source: Path, target: Path, expected: Fingerprint) -> None:
         raise MigrationError("file_changed_during_move")
 
 
-def migrate(raw_dir: Path, archive_dir: Path) -> dict[str, str | int]:
-    _require_directory(raw_dir, "unsafe_raw_directory")
-    archive_names = _archive_entries(archive_dir)
-    source_presence = [_lexists(raw_dir / basename) for basename in ALLOWLIST]
-    destination_presence = [_lexists(archive_dir / basename) for basename in ALLOWLIST]
-    receipt_path = archive_dir / RECEIPT_BASENAME
-    receipt_present = _lexists(receipt_path)
+def _verified_archive(directory: Path) -> tuple[list[FileRecord], Fingerprint]:
+    records = _inventory(directory)
+    receipt_path = directory / RECEIPT_BASENAME
+    receipt_metadata = _regular_metadata(receipt_path, "unsafe_or_missing_receipt")
+    receipt = _read_receipt(receipt_path)
+    receipt_after = _regular_metadata(receipt_path, "unsafe_or_missing_receipt")
+    if _fingerprint(receipt_after) != _fingerprint(receipt_metadata):
+        raise MigrationError("receipt_changed_during_verification")
+    if receipt != _receipt(records):
+        raise MigrationError("archive_receipt_mismatch")
+    return records, _fingerprint(receipt_after)
 
-    fresh = (
-        all(source_presence)
-        and not any(destination_presence)
-        and not receipt_present
-        and not archive_names
+
+def _verified_relocation(
+    legacy_archive_dir: Path,
+    archive_dir: Path,
+    legacy_names: set[str],
+    archive_names: set[str],
+) -> tuple[list[FileRecord], list[RelocationEntry], RelocationEntry]:
+    records: list[FileRecord] = []
+    entries: list[RelocationEntry] = []
+    total_bytes = 0
+    for basename in ALLOWLIST:
+        entry = _relocation_entry(
+            legacy_archive_dir,
+            archive_dir,
+            basename,
+            legacy_names,
+            archive_names,
+            "unsafe_or_missing_file",
+        )
+        selected_path = (
+            archive_dir / basename
+            if entry.archive_fingerprint is not None
+            else legacy_archive_dir / basename
+        )
+        selected_fingerprint = (
+            entry.archive_fingerprint
+            if entry.archive_fingerprint is not None
+            else entry.legacy_fingerprint
+        )
+        metadata = _regular_metadata(selected_path, "unsafe_or_missing_file")
+        if _fingerprint(metadata) != selected_fingerprint:
+            raise MigrationError("unsafe_or_changed_file")
+        size, sha256 = _digest_regular(selected_path, metadata)
+        total_bytes += size
+        if total_bytes > MAX_TOTAL_BYTES:
+            raise MigrationError("total_size_limit_exceeded")
+        records.append(FileRecord(basename, size, sha256, _fingerprint(metadata)))
+        entries.append(entry)
+
+    receipt_entry = _relocation_entry(
+        legacy_archive_dir,
+        archive_dir,
+        RECEIPT_BASENAME,
+        legacy_names,
+        archive_names,
+        "unsafe_or_missing_receipt",
     )
+    receipt_path = (
+        archive_dir / RECEIPT_BASENAME
+        if receipt_entry.archive_fingerprint is not None
+        else legacy_archive_dir / RECEIPT_BASENAME
+    )
+    receipt_fingerprint = (
+        receipt_entry.archive_fingerprint
+        if receipt_entry.archive_fingerprint is not None
+        else receipt_entry.legacy_fingerprint
+    )
+    receipt = _read_receipt(receipt_path)
+    receipt_after = _regular_metadata(receipt_path, "unsafe_or_missing_receipt")
+    if _fingerprint(receipt_after) != receipt_fingerprint:
+        raise MigrationError("receipt_changed_during_verification")
+    if receipt != _receipt(records):
+        raise MigrationError("archive_receipt_mismatch")
+    return records, entries, receipt_entry
+
+
+def _complete_relocation_entry(
+    legacy_archive_dir: Path,
+    archive_dir: Path,
+    entry: RelocationEntry,
+) -> None:
+    source = legacy_archive_dir / entry.basename
+    target = archive_dir / entry.basename
+    if entry.legacy_fingerprint is None:
+        if _lexists(source):
+            raise MigrationError("relocation_state_changed")
+        target_metadata = _regular_metadata(target, "destination_changed_during_move")
+        if _fingerprint(target_metadata) != entry.archive_fingerprint:
+            raise MigrationError("destination_changed_during_move")
+        return
+    if entry.archive_fingerprint is None:
+        _move_new(source, target, entry.legacy_fingerprint)
+        return
+
+    source_metadata = _regular_metadata(source, "source_changed_during_move")
+    target_metadata = _regular_metadata(target, "destination_changed_during_move")
+    if (
+        _fingerprint(source_metadata) != entry.legacy_fingerprint
+        or _fingerprint(target_metadata) != entry.archive_fingerprint
+        or _identity(source_metadata) != _identity(target_metadata)
+        or target_metadata.st_nlink < 2
+    ):
+        raise MigrationError("file_changed_during_move")
+    try:
+        source.unlink()
+    except OSError as error:
+        raise MigrationError("source_retire_failed") from error
+    moved = _regular_metadata(target, "destination_changed_during_move")
+    if (
+        _identity(moved) != _identity(target_metadata)
+        or moved.st_nlink != target_metadata.st_nlink - 1
+    ):
+        raise MigrationError("file_changed_during_move")
+
+
+def _relocate_verified_archive(
+    legacy_archive_dir: Path,
+    archive_dir: Path,
+    records: list[FileRecord],
+    entries: list[RelocationEntry],
+    receipt_entry: RelocationEntry,
+) -> list[FileRecord]:
+    _ensure_directory(archive_dir)
+    for entry in entries:
+        _complete_relocation_entry(legacy_archive_dir, archive_dir, entry)
+    _complete_relocation_entry(legacy_archive_dir, archive_dir, receipt_entry)
+    _sync_directory(legacy_archive_dir)
+    _sync_directory(archive_dir)
+
+    relocated_records, _receipt_fingerprint = _verified_archive(archive_dir)
+    if _receipt(relocated_records) != _receipt(records):
+        raise MigrationError("post_relocation_verification_failed")
+    if _archive_entries(legacy_archive_dir):
+        raise MigrationError("legacy_archive_cleanup_conflict")
+    try:
+        legacy_archive_dir.rmdir()
+    except OSError as error:
+        raise MigrationError("legacy_archive_cleanup_failed") from error
+    _sync_directory(legacy_archive_dir.parent)
+    return relocated_records
+
+
+def migrate(
+    raw_dir: Path,
+    archive_dir: Path,
+    legacy_archive_dir: Path,
+) -> dict[str, str | int]:
+    _require_directory(raw_dir, "unsafe_raw_directory")
+    if archive_dir == legacy_archive_dir:
+        raise MigrationError("archive_locations_conflict")
+
+    archive_exists = _lexists(archive_dir)
+    legacy_archive_exists = _lexists(legacy_archive_dir)
+    archive_names = _archive_entries(archive_dir)
+    legacy_archive_names = _archive_entries(legacy_archive_dir)
+    source_presence = [_lexists(raw_dir / basename) for basename in ALLOWLIST]
+    expected_archive_names = {*ALLOWLIST, RECEIPT_BASENAME}
+
+    fresh = all(source_presence) and not archive_exists and not legacy_archive_exists
     archived = (
         not any(source_presence)
-        and all(destination_presence)
-        and receipt_present
-        and archive_names == {*ALLOWLIST, RECEIPT_BASENAME}
+        and archive_names == expected_archive_names
+        and not legacy_archive_exists
+    )
+    relocatable = (
+        not any(source_presence)
+        and legacy_archive_exists
+        and archive_names | legacy_archive_names == expected_archive_names
     )
     if archived:
-        records = _inventory(archive_dir)
-        if _read_receipt(receipt_path) != _receipt(records):
-            raise MigrationError("archive_receipt_mismatch")
+        records, _receipt_fingerprint = _verified_archive(archive_dir)
         return {"files": len(records), "status": "verified"}
+    if relocatable:
+        records, entries, receipt_entry = _verified_relocation(
+            legacy_archive_dir,
+            archive_dir,
+            legacy_archive_names,
+            archive_names,
+        )
+        relocated_records = _relocate_verified_archive(
+            legacy_archive_dir,
+            archive_dir,
+            records,
+            entries,
+            receipt_entry,
+        )
+        return {"files": len(relocated_records), "status": "relocated"}
     if not fresh:
         raise MigrationError("incomplete_or_conflicting_state")
 
@@ -371,6 +583,7 @@ def migrate(raw_dir: Path, archive_dir: Path) -> dict[str, str | int]:
     archived_records = _inventory(archive_dir)
     if _receipt(archived_records) != _receipt(records):
         raise MigrationError("post_move_verification_failed")
+    receipt_path = archive_dir / RECEIPT_BASENAME
     _write_receipt_new(receipt_path, _receipt(archived_records))
     return {"files": len(records), "status": "migrated"}
 
@@ -379,13 +592,20 @@ def _arguments(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR)
     parser.add_argument("--archive-dir", type=Path, default=DEFAULT_ARCHIVE_DIR)
+    parser.add_argument(
+        "--legacy-archive-dir", type=Path, default=DEFAULT_LEGACY_ARCHIVE_DIR
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     arguments = _arguments(argv)
     try:
-        result = migrate(arguments.raw_dir, arguments.archive_dir)
+        result = migrate(
+            arguments.raw_dir,
+            arguments.archive_dir,
+            arguments.legacy_archive_dir,
+        )
     except MigrationError as error:
         print(
             json.dumps({"error": str(error), "status": "error"}, sort_keys=True),

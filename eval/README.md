@@ -101,6 +101,19 @@ power, and distance split groups. Receipt-only mode reports that it did not
 rehash payload bytes; `--integrity full-digest` rehashes all artifacts. The
 compiler assigns no identity, intent, tamper, or train/test labels.
 
+`evaluate-indoor-jamming-controlled-cause.py` is a preregistered conditional
+smoke eval over assigned power 0.5 and distance 10 m. It holds jammer setups
+apart across a fixed 9/6/9 train/validation/test split, reads four common
+bounded HDF5 windows per observation, and fits a train-only nearest-centroid
+baseline with explicit abstention. Validation gates the one-shot test; the
+result does not support population-level setup, Tx/Rx, power, distance,
+identity, tamper, actor, or malicious-intent claims.
+
+`verify-indoor-jamming-experiment.py` compares the machine-readable result
+summary in experiment 0007 with the ignored canonical report. The real recipe
+fails if tracked metrics, read counts, abstentions, gate status, or test-use
+state drift from the producer output.
+
 `hdf5_window.py` is the bounded payload seam for that corpus. It accepts only a
 direct, singly linked, rank-two float64 dataset with two rows, gzip-only chunked
 storage, an 8 GiB source ceiling, a 64 MiB chunk ceiling, and a 64 MiB absolute
@@ -124,9 +137,10 @@ entire derived root may be absent, so the audit is suitable for a fresh clone.
 When an output is present, it must be classified. A `reproducibility_output`
 entry must name a checked-in Python producer and canonical `just` recipe. The
 audit parses the producer AST, requires an executable `__main__` entrypoint, and
-accepts output-path evidence only from a non-docstring string literal or an
-argument token on the recipe's actual Python/`uv` invocation. It parses only the
-named recipe's indented command lines, so comments and `echo` mentions do not
+tracks output defaults and argparse options through reachable calls to an
+output-writing sink. The named recipe's actual Python/`uv` invocation must use
+that producer path and, when it overrides the default, a producer-declared
+output option. Comments, `echo`, unused literals, and no-op entrypoints do not
 count. This is a prospective static wiring guarantee, not proof that retained
 bytes came from that producer or recipe.
 
@@ -134,13 +148,14 @@ The IoT-23 lineage campaign is the reference pattern. Running
 `just iot23-flow-lineage` derives flows and evaluates them twice, rejects byte
 drift, and writes a path-free receipt beside the ignored outputs. Its hermetic
 producer/evaluator boundary is covered by `just iot23-flow-lineage-check`
-without requiring corpus bytes. Older local reports whose producer context
-predates this rule are explicit `legacy/unknown` exceptions, not scripted
-outputs. `just legacy-derived-migration` moves only their fixed allowlist from
-`data/raw/` to `data/derived/archive/legacy-unscripted/`; each exception names a
-checked-in custodian, while the migration receipt remains a generated
-`reproducibility_output`. `just derived-artifact-audit` reports those exceptions
-separately and fails closed on unclassified outputs, unsafe filesystem entries,
-untracked producers or custodians, missing recipes, and private or absolute
-paths. It inventories metadata only and emits bounded aggregate counts; it
-never opens retained artifact contents.
+without requiring corpus bytes. The Sorbonne same-event recipe likewise writes
+two reports and rejects byte drift. Older local reports whose producer context
+predates this rule are not active derived outputs: `just
+legacy-derived-migration` preserves only their fixed allowlist under
+`data/archive/legacy-derived-unknown/` with a path-free integrity receipt. The
+script also relocates and verifies the former archive location without
+overwriting either state. `just derived-artifact-audit` therefore requires
+every file under `data/derived/` to have a checked-in producer and recipe, and
+fails closed on unclassified outputs, unsafe filesystem entries, missing
+recipes, and private or absolute paths. It inventories metadata only and emits
+bounded aggregate counts; it never opens retained artifact contents.

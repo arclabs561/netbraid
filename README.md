@@ -181,7 +181,9 @@ just xrf55-fetch list
 The on-demand evaluators cover bounded public-corpus slices, a cross-sniffer
 same-event oracle, deterministic structural reduction, archive-layout and
 cross-layer alignment profiles, IoT-23 flow lineage, and counter-capture
-campaign output. Dataset-derived metrics are not part of the default test gate.
+campaign output. Controlled-jamming recipes separately compile metadata-only
+oracles and run a bounded controlled-cause smoke evaluation. Dataset-derived
+metrics are not part of the default test gate.
 
 ```sh
 just public-corpus-eval-check
@@ -200,6 +202,8 @@ just ruff-uwb-heldout-location-check
 just ruff-uwb-heldout-location
 just mmwave-jamming-oracles-check
 just indoor-jamming-oracles-check
+just indoor-jamming-controlled-cause-check
+just indoor-jamming-controlled-cause-eval
 ```
 
 The

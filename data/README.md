@@ -7,10 +7,13 @@ This directory separates tracked source descriptions from local corpus bytes.
 - `tests/` exercises fetch and integrity contracts without network access.
 - `raw/` is ignored and holds downloaded archives or captures.
 - `derived/` is ignored and holds extracted, indexed, or evaluated products.
+- `archive/` is ignored and preserves historical data that is not an active
+  reproducibility output.
 - `receipts/` is ignored and holds machine-local integrity receipts.
 
-Raw, derived, and receipt content is never committed. Reviewed public-safe test
-fixtures belong under `eval/fixtures/` or `rust/tests/fixtures/`, not here.
+Raw, derived, archived, and receipt content is never committed. Reviewed
+public-safe test fixtures belong under `eval/fixtures/` or
+`rust/tests/fixtures/`, not here.
 
 Every retained file under `derived/` is declared in
 `eval/derived-artifact-contract-v0.json` with its checked-in producer and

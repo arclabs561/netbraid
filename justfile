@@ -100,8 +100,8 @@ catalog-check:
 legacy-derived-migration-check:
     {{ python }} data/tests/test-migrate-legacy-derived.py
 
-# Move only the fixed legacy-output allowlist out of data/raw, then verify its
-# path-free legacy/unknown receipt on every later run.
+# Preserve only the fixed legacy-output allowlist outside the active derived
+# tree, then verify its path-free legacy/unknown receipt on every later run.
 legacy-derived-migration:
     {{ python }} data/migrate/migrate-legacy-derived.py
 
@@ -141,6 +141,8 @@ admitted-corpus-eval:
 # synchronized-time leakage boundary; it does not run a predictive classifier.
 sorbonne-same-event-audit:
     {{ python }} eval/evaluate-sorbonne-same-event.py --archive {{ raw_data }}/220211012-SU-Outdoors-Campus.zip --campaign eval/fixtures/sorbonne-same-event-campaign-v0.json --report {{ eval_output }}/sorbonne-same-event-report.json
+    {{ python }} eval/evaluate-sorbonne-same-event.py --archive {{ raw_data }}/220211012-SU-Outdoors-Campus.zip --campaign eval/fixtures/sorbonne-same-event-campaign-v0.json --report {{ eval_output }}/sorbonne-same-event-report-repeat.json
+    cmp {{ eval_output }}/sorbonne-same-event-report.json {{ eval_output }}/sorbonne-same-event-report-repeat.json
 
 # Normalize the complete Sorbonne 1 m run, join the publisher event labels,
 # and exercise the structural reducer once per distinct weighted pair basis.
@@ -221,10 +223,9 @@ osu-lora-discover-summary setup="all" workers="4":
 osu-lora-fetch setup max_total_bytes="10737418240" max_file_bytes="4294967296" workers="2":
     {{ python }} data/fetch/fetch-osu-lora.py fetch {{ setup }} --max-total-bytes {{ max_total_bytes }} --max-file-bytes {{ max_file_bytes }} --workers {{ workers }}
 
-# Verify or complete all seven publisher setups under one explicit 1 TiB
-# corpus-wide bound. The complete discovery currently totals 898,405,847,129
-# bytes across 7,738 files; the 256 MiB per-file bound exceeds its 160,000,000
-# byte maximum without retaining publisher URLs in project metadata.
+# Verify or complete all seven publisher setups under explicit corpus-wide and
+# per-file ceilings. Reproduce the path-free inventory used to size the bounds
+# with `just osu-lora-discover-summary all`; discovery drift fails closed.
 osu-lora-fetch-all:
     {{ python }} data/fetch/fetch-osu-lora.py fetch all --max-total-bytes 1099511627776 --max-file-bytes 268435456 --workers 4
 
@@ -291,6 +292,17 @@ indoor-jamming-oracles-check:
 
 indoor-jamming-oracles integrity="receipt-only":
     uv run --script eval/compile-indoor-jamming-oracles.py --integrity {{ integrity }}
+
+indoor-jamming-controlled-cause-check:
+    uv run --script eval/test-evaluate-indoor-jamming-controlled-cause.py
+    {{ python }} eval/test-verify-indoor-jamming-experiment.py
+
+# Rehash the complete source set, reconstruct private bindings in memory, and
+# read only the preregistered 96 MiB of bounded HDF5 windows.
+indoor-jamming-controlled-cause-eval:
+    just indoor-jamming-oracles full-digest
+    uv run --script eval/evaluate-indoor-jamming-controlled-cause.py
+    {{ python }} eval/verify-indoor-jamming-experiment.py
 
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000

@@ -334,7 +334,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The fetcher pins Dataverse release v2: 13 PCAPNG traces and three documentation files (2,431,184 bytes). These are baseline protocol/testbed observations without jamming or malicious-cause labels."
+      "note": "The fetcher pins Dataverse release v2: 13 PCAPNG traces and three documentation files. These are baseline protocol/testbed observations without jamming or malicious-cause labels."
     },
     {
       "id": "liverpool-lora-rffi",
@@ -441,7 +441,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The fetcher pins Kaggle dataset version 3 (952,050,247 bytes, 123 same-model devices). Kaggle publishes no per-file checksums, so the ignored receipt records deterministic local SHA-256 values after download; version pinning is provenance, not publisher-backed artifact integrity."
+      "note": "The fetcher pins Kaggle dataset version 3 and 123 same-model devices. Kaggle publishes no per-file checksums, so the ignored receipt records deterministic local SHA-256 values after download; version pinning is provenance, not publisher-backed artifact integrity."
     },
     {
       "id": "networks-paper-s138912862600321x",
@@ -471,7 +471,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The fetcher pins all three artifacts (6,358,042,574 bytes). The data archive exposes controlled clean/spoof, day, and acquisition-category labels in its encrypted member names; layout profiling does not open payloads or establish physical identity. The archive digest checks transfer integrity only; it is not a tamper label."
+      "note": "The fetcher pins all three artifacts. The data archive exposes controlled clean/spoof, day, and acquisition-category labels in its encrypted member names; layout profiling does not open payloads or establish physical identity. The archive digest checks transfer integrity only; it is not a tamper label."
     },
     {
       "id": "zenodo-6516954-mmwave-jamming",
@@ -486,7 +486,7 @@
       "disposition": "candidate",
       "fetch": "investigate_before_pinning",
       "priority": "P0",
-      "note": "The exact fetch manifest pins 80 MAT artifacts (738,542,988 bytes) spanning four receiver elements, two radar regimes, with/without-jammer conditions, and one-to-five-target scenes. These are controlled scenario labels, not malicious-intent or tamper labels; receiver, regime, and target count must remain explicit confounders."
+      "note": "The exact fetch manifest pins 80 MAT artifacts spanning four receiver elements, two radar regimes, with/without-jammer conditions, and one-to-five-target scenes. These are controlled scenario labels, not malicious-intent or tamper labels; receiver, regime, and target count must remain explicit confounders."
     },
     {
       "id": "zenodo-7119040-indoor-jamming-iq",
@@ -501,7 +501,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The exact fetch manifest pins one workbook and 31 MAT artifacts (118,452,765,452 bytes). The setup holds transmitter and receiver hardware fixed while varying silent, tone, and Gaussian-noise conditions, distance, power, and five same-model jammer radios. Workbook semantics must be profiled before labels are admitted; controlled jamming does not establish malicious intent."
+      "note": "The exact fetch manifest pins one workbook and 31 MAT artifacts. The setup holds transmitter and receiver hardware fixed while varying silent, tone, and Gaussian-noise conditions, distance, power, and five same-model jammer radios. Workbook semantics must be profiled before labels are admitted; controlled jamming does not establish malicious intent."
     },
     {
       "id": "zenodo-18481702-mmwave-5g-rff",
@@ -516,7 +516,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The fetcher pins all seven artifacts (35,878,437,473 bytes). The record supports transmitter-feature evaluation and cites a beam-stealing study, but its public metadata does not establish per-sample attack labels. Archive digests check transfer integrity only."
+      "note": "The fetcher pins all seven artifacts. The record supports transmitter-feature evaluation and cites a beam-stealing study, but its public metadata does not establish per-sample attack labels. Archive digests check transfer integrity only."
     },
     {
       "id": "zenodo-18268648-inria-pla",
@@ -531,7 +531,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The fetcher pins PLA_dataset.zip (710,685,409 bytes). Held-out devices can support open-set authorized/rogue evaluation but do not by themselves assert malicious intent. Archive digests check transfer integrity only."
+      "note": "The fetcher pins PLA_dataset.zip. Held-out devices can support open-set authorized/rogue evaluation but do not by themselves assert malicious intent. Archive digests check transfer integrity only."
     },
     {
       "id": "zenodo-11083153-ruff-uwb",
@@ -549,7 +549,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The record covers 13 boards across 100 positions (3,835,056,792 bytes). The associated paper establishes identical DWM3001CDK hardware, reuse of the same boards, one fixed receiver and channel 5, and two distinct collection days/distance campaigns. Split by source, campaign-scoped location, and day; the fetcher pins only the two NPY archives and leaves duplicate CSV encodings unfetched."
+      "note": "The record covers 13 boards across 100 positions. The associated paper establishes identical DWM3001CDK hardware, reuse of the same boards, one fixed receiver and channel 5, and two distinct collection days/distance campaigns. Split by source, campaign-scoped location, and day; the fetcher pins only the two NPY archives and leaves duplicate CSV encodings unfetched."
     },
     {
       "id": "zenodo-18515187-wlan-rff",
@@ -564,7 +564,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The fetcher pins both environment archives (244,817,005 bytes). Profile their labels before deciding whether same-source cross-environment pairs exist; the record metadata alone does not establish that oracle. Archive digests check transfer integrity only."
+      "note": "The fetcher pins both environment archives. Profile their labels before deciding whether same-source cross-environment pairs exist; the record metadata alone does not establish that oracle. Archive digests check transfer integrity only."
     },
     {
       "id": "zenodo-17854328-rfid-exsim",
@@ -579,7 +579,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The fetcher pins the sole Zenodo ZIP (299,566 bytes). The record describes JSONL RFID read events, but the ZIP contains only README.md, LICENSE, and rfid_dataset.png; its README links the complete dataset externally. Zenodo declares no record-level license, so dataset redistribution terms remain unverified. Scenario labels are controlled evaluation oracles and do not establish production intent."
+      "note": "The fetcher pins the sole Zenodo ZIP. The record describes JSONL RFID read events, but the ZIP contains only README.md, LICENSE, and rfid_dataset.png; its README links the complete dataset externally. Zenodo declares no record-level license, so dataset redistribution terms remain unverified. Scenario labels are controlled evaluation oracles and do not establish production intent."
     }
   ]
 }

@@ -10,11 +10,8 @@ source-address or sequence-number labels into predictive features.
 
 Preregistered before execution at Netbraid commit `98399c8`.
 
-```text
-python3 eval/evaluate-sorbonne-same-event.py \
-  --archive data/raw/220211012-SU-Outdoors-Campus.zip \
-  --campaign eval/fixtures/sorbonne-same-event-campaign-v0.json \
-  --report data/derived/eval/sorbonne-same-event-report.json
+```sh
+just sorbonne-same-event-audit
 ```
 
 The evaluator must read exactly the ten `1m/csvTracesSynchronized` TSV members,
@@ -58,9 +55,8 @@ mismatch, or mismatch against a preregistered count fails the campaign.
 
 ## Results
 
-Command exited 0 in 0.193 seconds; an immediate second execution exited 0 in
-0.211 seconds. Both reports were byte-identical with SHA-256
-`74278ccb547bc45472836ad47bd55d51602b65c29a16fdc5d0fc5b1a3054bfa0`.
+The canonical recipe completed and its two producer-written reports were
+byte-identical.
 
 - Observations: 18,926 / 18,926 expected.
 - Oracle events: 2,715 / 2,715 expected.

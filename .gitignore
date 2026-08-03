@@ -6,9 +6,11 @@ target/
 **/target/
 
 # Dataset catalogs and other non-sensitive metadata under /data/ stay tracked.
-# Corpus bytes, generated products, and local integrity receipts do not.
+# Corpus bytes, generated products, historical archives, and local integrity
+# receipts do not.
 /data/raw/
 /data/derived/
+/data/archive/
 /data/receipts/
 
 # Legacy evaluation location retained while active downloads are migrated.
