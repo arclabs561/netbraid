@@ -22,6 +22,9 @@ lint:
 test: lint
     go test ./...
 
+python-check:
+    {{ python }} eval/run-python-tests.py
+
 rust-check:
     cargo fmt --manifest-path rust/Cargo.toml --all -- --check
     cargo check --manifest-path rust/fuzz/Cargo.toml --bin parse_saved_capture_jsonl
