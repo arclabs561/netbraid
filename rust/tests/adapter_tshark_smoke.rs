@@ -169,6 +169,53 @@ fn installed_tshark_normalizes_synthetic_capture() {
     assert!(!pcapng.manifest.normalization.packet_limit_reached);
 }
 
+#[test]
+#[ignore = "requires an installed tshark; run through `just pcap-smoke`"]
+fn installed_tshark_normalizes_wpan_nofcs_6lowpan_ipv6() {
+    let directory = tempfile::tempdir().unwrap();
+    let report = normalize_fixture_with_extension(
+        directory.path(),
+        "ieee802154-nofcs-6lowpan-ipv6",
+        "pcapng",
+        include_str!("fixtures/adapter/ieee802154_nofcs_6lowpan_ipv6.pcapng.hex"),
+        1,
+    );
+
+    assert_eq!(
+        report.manifest.normalization.state,
+        NormalizationStateV0::Complete
+    );
+    assert_eq!(report.receipt.file.file_type, "pcapng");
+    assert_eq!(report.receipt.file.encapsulation, "wpan-nofcs");
+    assert_eq!(report.manifest.normalization.packet_rows_emitted, 1);
+    assert_eq!(report.manifest.normalization.packet_rows_quarantined, 0);
+    assert!(report.quarantines.is_empty());
+
+    let packet = &report.packets[0];
+    assert_eq!(packet.frame.original_len, 20);
+    assert_eq!(packet.frame.captured_len, 20);
+    assert!(packet
+        .frame
+        .protocols
+        .windows(2)
+        .any(|pair| pair == ["6lowpan", "ipv6"]));
+
+    let ipv6 = packet.ipv6.as_ref().unwrap();
+    assert_eq!(ipv6.source, "fe80::ff:fe00:2202");
+    assert_eq!(ipv6.destination, "fe80::ff:fe00:2201");
+    assert_eq!(ipv6.next_header, 58);
+    assert_eq!(ipv6.total_length_octets, Some(48));
+    assert!(ipv6.total_length_octets.unwrap() > packet.frame.original_len);
+
+    let ieee802154 = packet.ieee802154.as_ref().unwrap();
+    assert_eq!(ieee802154.frame_type, 1);
+    assert_eq!(ieee802154.frame_version, 1);
+    assert!(
+        ieee802154.fcs_status.is_none(),
+        "wpan-nofcs has no captured FCS bytes from which to infer validity"
+    );
+}
+
 fn normalize_fixture(
     directory: &std::path::Path,
     name: &str,

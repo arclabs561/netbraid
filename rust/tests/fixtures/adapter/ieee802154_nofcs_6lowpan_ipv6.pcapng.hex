@@ -1,0 +1,27 @@
+# Synthetic little-endian PCAPNG with one IEEE 802.15.4 frame and no FCS.
+# Every identifier and packet byte below is hand-authored for this regression.
+
+# Section header: version 1.0, unknown section length.
+0a0d0d0a 1c000000 4d3c2b1a 0100 0000 ffffffffffffffff 1c000000
+
+# Interface description: LINKTYPE_IEEE802_15_4_NOFCS (230), snaplen 65535.
+01000000 14000000 e600 0000 ffff0000 14000000
+
+# Enhanced packet: interface 0, 1700000000.123456, 20 captured/original octets.
+06000000 34000000
+00000000 240a0600 40222018 14000000 14000000
+
+# IEEE 802.15.4-2006 data frame: PAN compression and short addresses.
+# Sequence 25; PAN 0x4a5b; destination 0x2201; source 0x2202.
+41 98 19 5b 4a 01 22 02 22
+
+# 6LoWPAN IPHC: traffic class and flow label elided, next header inline,
+# hop limit 64, stateless source/destination addresses derived from the MAC.
+7a 33 3a
+
+# ICMPv6 echo request: identifier 0xa1b2, sequence 1, checksum 0x9f04.
+# Decompressed IPv6 endpoints are fe80::ff:fe00:2202 -> fe80::ff:fe00:2201.
+80 00 9f04 a1b2 0001
+
+# Repeated enhanced-packet block length; packet data needs no padding.
+34000000
