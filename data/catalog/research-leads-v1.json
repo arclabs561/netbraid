@@ -484,7 +484,7 @@
       "modalities": ["mmwave", "radar_iq", "controlled_jamming_observation"],
       "roles": ["jamming_cause_eval", "receiver_shift_eval", "target_count_confounder_eval"],
       "disposition": "candidate",
-      "fetch": "investigate_before_pinning",
+      "fetch": "existing_fetcher",
       "priority": "P0",
       "note": "The exact fetch manifest pins 80 MAT artifacts spanning four receiver elements, two radar regimes, with/without-jammer conditions, and one-to-five-target scenes. These are controlled scenario labels, not malicious-intent or tamper labels; receiver, regime, and target count must remain explicit confounders."
     },
