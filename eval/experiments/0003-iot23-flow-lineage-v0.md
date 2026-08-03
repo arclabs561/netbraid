@@ -8,32 +8,35 @@ unambiguous one-to-one lineages while making any session merges explicit.
 
 ## Method
 
-Status: executed through the production flow path, then repeated byte for byte.
+Status: executed through the scripted production flow path, then repeated byte
+for byte.
 
 The packet-flow input was produced by Netbraid's `pcap --flows-tsv` mode with
 TCP inactivity set to 300 seconds and UDP inactivity set to 60 seconds. The
 evaluator then compared that TSV with the publisher's labeled Zeek flow log.
-The path-bearing operands are deliberately omitted from this public ledger:
+The complete derivation and evaluation is reproduced by the canonical campaign
+recipe:
 
 ```text
-netbraid pcap <omitted> --flows-tsv \
-  --tcp-inactivity-seconds 300 \
-  --udp-inactivity-seconds 60
-python3 eval/evaluate-iot23-flow-lineage.py \
-  --zeek-log <omitted> --packet-flows <omitted> --report <omitted>
+just iot23-flow-lineage
 ```
 
-Producer revision: `ffcf4835107607939654627fffa0b1968cd76212`.
+Campaign driver revision: `6c6bd9d`.
 
-Evaluator revision: `ae9f99c`.
+The path-free campaign receipt records SHA-256 and byte count for both corpus
+inputs, the Netbraid executable, the evaluator, the Python interpreter, and the
+two retained outputs. The executed producer binary SHA-256 was
+`1ff312585fcf8553f7713334f71a55826f0b11ffc6b14654198e91885c05f990`;
+the evaluator script SHA-256 was
+`a8a254fb711d33c12d89627c2600936867297c0680aa1395324421cb28db9ce9`.
 
 The repeated 403,160-byte flow TSV had SHA-256
 `e826aa335dc4170c91204eb4a16134fb0698a4a005df9d0e1ca8af0c38db61c0`.
 The repeated 4,678-byte aggregate report had SHA-256
 `0653c6a12c5b8808cacf217adac0a59a3d0277b65fc316f6e3fb7da9ffc87f2a`.
-Producer provenance comes from this experiment receipt, not from the TSV or
-evaluator; the evaluator cannot infer producer identity or sessionization
-settings from its locked input schema.
+Producer provenance and sessionization settings come from the generated
+campaign receipt, not from the TSV or evaluator; the evaluator cannot infer
+either from its locked input schema.
 
 ## Data provenance
 
