@@ -51,6 +51,13 @@ coverage while keeping sequence tokens and member paths out of the report.
 Spoof is a controlled cause label, not proof of malicious intent, tamper, actor
 identity, event identity, or physical-source identity.
 
+`profile-osu-lora-sigmf.py` inventories the bounded SigMF tree without reading
+IQ payload bytes. Three publisher-malformed metadata objects have an exact
+size-and-SHA erratum for prepending the missing opening object brace; drift or
+any other malformed metadata still fails closed. The aggregate report retains
+only the repair count and a domain-separated receipt, never the affected paths.
+Pairing and payload-extent failures remain independent hard oracle gates.
+
 `compile-osu-lora-oracles.py` converts a strict OSU LoRa SigMF tree into an
 ignored observation inventory with opaque group identifiers. Physical-device
 and physical-source groups are fenced by publisher setup family; the compiler
