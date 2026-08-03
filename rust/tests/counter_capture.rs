@@ -4,7 +4,7 @@ use netbraid::infer::{
     CounterCaptureFeatureV0, CounterCaptureFeatureVectorPpbV0, CounterCaptureProfileV0,
     CounterCaptureReferenceV0, CounterCaptureResidualVectorPpbV0, CounterCaptureScaleVectorPpbV0,
     CounterCaptureScoringErrorV0, CounterCaptureUnknownReasonV0, CounterCaptureValidationErrorV0,
-    TrafficWindowCoverageV0, TrafficWindowEvidenceV0, TrafficWindowV0,
+    TrafficWindowCoverageV0, TrafficWindowEvidenceV0, TrafficWindowV0, PPB,
 };
 use proptest::prelude::*;
 use serde::Deserialize;
@@ -496,7 +496,7 @@ proptest! {
     }
 
     #[test]
-    fn feature_derivation_is_deterministic(
+    fn feature_derivation_matches_the_closed_form_definition(
         duration_ms in 1u64..=1_000_000,
         received_bytes in 0u64..=u32::MAX.into(),
         transmitted_bytes in 0u64..=u32::MAX.into(),
@@ -510,9 +510,27 @@ proptest! {
             received_packets,
             transmitted_packets,
         );
+        let ppb = PPB;
+        let scaled_ratio = |numerator: u64, denominator: u64| {
+            (denominator != 0).then(|| u128::from(numerator) * ppb / u128::from(denominator))
+        };
+        let packet_total = received_packets + transmitted_packets;
+        let actual = derive_traffic_window_features_ppb_v0(&candidate).unwrap();
+        prop_assert_eq!(actual.received_bytes, Some(u128::from(received_bytes) * ppb));
+        prop_assert_eq!(actual.transmitted_bytes, Some(u128::from(transmitted_bytes) * ppb));
+        prop_assert_eq!(actual.received_packets, Some(u128::from(received_packets) * ppb));
+        prop_assert_eq!(actual.transmitted_packets, Some(u128::from(transmitted_packets) * ppb));
+        prop_assert_eq!(actual.received_share, scaled_ratio(received_packets, packet_total));
+        prop_assert_eq!(actual.transmitted_share, scaled_ratio(transmitted_packets, packet_total));
+        prop_assert_eq!(actual.mean_received_packet_bytes, scaled_ratio(received_bytes, received_packets));
+        prop_assert_eq!(actual.mean_transmitted_packet_bytes, scaled_ratio(transmitted_bytes, transmitted_packets));
         prop_assert_eq!(
-            derive_traffic_window_features_ppb_v0(&candidate).unwrap(),
-            derive_traffic_window_features_ppb_v0(&candidate).unwrap()
+            actual.mean_received_bits_per_second,
+            Some(u128::from(received_bytes) * 8_000 * ppb / u128::from(duration_ms))
+        );
+        prop_assert_eq!(
+            actual.mean_transmitted_bits_per_second,
+            Some(u128::from(transmitted_bytes) * 8_000 * ppb / u128::from(duration_ms))
         );
     }
 }

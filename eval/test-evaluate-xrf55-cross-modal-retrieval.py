@@ -146,7 +146,20 @@ class Xrf55CrossModalRetrievalTests(unittest.TestCase):
             cache = MODULE.load_cache(adapter_path, matrix_paths)
             report = MODULE.evaluate(cache)
 
-        self.assertEqual(len(report["directions"]), 6)
+        self.assertEqual(
+            [
+                (direction["source"], direction["target"])
+                for direction in report["directions"]
+            ],
+            [
+                ("wifi", "rfid"),
+                ("wifi", "mmwave"),
+                ("rfid", "wifi"),
+                ("rfid", "mmwave"),
+                ("mmwave", "wifi"),
+                ("mmwave", "rfid"),
+            ],
+        )
         self.assertEqual(report["counts"]["test_queries_per_direction"], 48)
         for matrix in cache.matrices.values():
             self.assertIsInstance(matrix, np.memmap)
