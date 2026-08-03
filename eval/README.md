@@ -32,7 +32,10 @@ frame manifest plus relation-only prediction rows, requires an exact frame-ID
 bijection, and derives references from the frames. Bounded qualified cells keep
 physical-device, physical-source, variant, integrity, cause, authorization,
 intent, provenance, and tamper evidence together without permitting a generic
-identity, malicious, or tampered prediction.
+identity, malicious, or tampered prediction. Its partial-prediction composer
+combines decisions only across the named relation axes: abstention is neutral,
+equal decisions are idempotent, unspecified axes abstain, and two different
+decisions on one axis fail closed instead of being silently fused.
 
 `calibrated_event_relation.py` is the strict evaluation-only boundary between
 bidirectional model distances and one event-relation decision. A content-bound

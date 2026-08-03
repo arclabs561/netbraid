@@ -71,8 +71,8 @@ CONTRACT = _load_module(
     "xrf55_calibrated_event_relation_contract",
     HERE / "calibrated_event_relation.py",
 )
-FRAMES = _load_module(
-    "xrf55_calibrated_hypothesis_frames", HERE / "hypothesis_frame.py"
+METRICS = _load_module(
+    "xrf55_calibrated_hypothesis_metrics", HERE / "hypothesis_metrics.py"
 )
 
 
@@ -359,13 +359,10 @@ def _prediction(row: PairScores, profile: Any, kind: str) -> Any:
 
 
 def qualified_prediction_row(prediction: Any) -> dict[str, Any]:
-    predictions = {axis: "abstain" for axis in sorted(FRAMES.RELATION_STATES)}
-    predictions["event_relation"] = prediction.decision
-    return {
-        "frame_id": prediction.frame_id,
-        "predictions": predictions,
-        "strata": {},
-    }
+    return METRICS.compose_prediction_row(
+        prediction.frame_id,
+        ({"event_relation": prediction.decision},),
+    )
 
 
 def _summary(rows: Sequence[PairScores], predictions: Sequence[Any]) -> dict[str, Any]:

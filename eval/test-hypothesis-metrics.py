@@ -552,6 +552,57 @@ class HypothesisMetricsTests(unittest.TestCase):
             "frame_invalid_frame_schema",
         )
 
+    def test_partial_relation_predictions_compose_without_collapsing_axes(self):
+        parts = [
+            {"event_relation": "same", "physical_source_relation": "abstain"},
+            {"physical_source_relation": "different"},
+            {"event_relation": "same", "variant_relation": "left_derived"},
+        ]
+        row = MODULE.compose_prediction_row(
+            "composed-frame",
+            parts,
+            strata={"campaign": opaque(7)},
+        )
+        self.assertEqual(row["predictions"]["event_relation"], "same")
+        self.assertEqual(row["predictions"]["physical_source_relation"], "different")
+        self.assertEqual(row["predictions"]["variant_relation"], "left_derived")
+        self.assertEqual(row["predictions"]["content_relation"], "abstain")
+        self.assertEqual(row["strata"], {"campaign": opaque(7)})
+        self.assertEqual(
+            row,
+            MODULE.compose_prediction_row(
+                "composed-frame",
+                list(reversed(parts)),
+                strata={"campaign": opaque(7)},
+            ),
+        )
+        self.assertEqual(MODULE.parse_prediction_row(row).frame_id, "composed-frame")
+
+    def test_partial_relation_prediction_conflicts_fail_closed(self):
+        cases = (
+            (
+                [{"event_relation": "same"}, {"event_relation": "different"}],
+                "conflicting_event_relation_predictions",
+            ),
+            ([{"event_relation": "unknown"}], "invalid_event_relation_prediction"),
+            ([{"identity": "same"}], "invalid_partial_prediction_axis"),
+            ([{}], "invalid_partial_prediction"),
+            ([], "invalid_partial_predictions"),
+        )
+        for parts, code in cases:
+            with self.subTest(code=code):
+                with self.assertRaises(MODULE.HypothesisMetricsError) as raised:
+                    MODULE.compose_prediction_row("composed-frame", parts)
+                self.assertEqual(raised.exception.code, code)
+
+        with mock.patch.object(MODULE, "MAX_PARTIAL_PREDICTIONS", 1):
+            with self.assertRaises(MODULE.HypothesisMetricsError) as raised:
+                MODULE.compose_prediction_row(
+                    "composed-frame",
+                    [{"event_relation": "same"}, {"event_relation": "same"}],
+                )
+        self.assertEqual(raised.exception.code, "invalid_partial_predictions")
+
     def test_qualified_cli_is_order_independent_and_legacy_output_is_unchanged(self):
         first = qualified_frame("first")
         second = qualified_frame("second")

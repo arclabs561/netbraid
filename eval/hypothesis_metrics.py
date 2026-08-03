@@ -36,6 +36,7 @@ MAX_STRATUM_DIMENSIONS = 8
 MAX_STRATUM_VALUES_PER_DIMENSION = 32
 MAX_STRATUM_CELLS = 128
 MAX_QUALIFIED_REFERENCE_CELLS = 128
+MAX_PARTIAL_PREDICTIONS = 64
 STRATUM_NAME_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,31}\Z")
 OPAQUE_STRATUM_VALUE_PATTERN = re.compile(r"[a-f0-9]{16,64}\Z")
 
@@ -215,6 +216,55 @@ def parse_prediction_row(value: Any) -> PredictionRowV1:
         predictions=_parse_axis_labels(value["predictions"], predictions=True),
         strata=_parse_strata(value["strata"]),
     )
+
+
+def compose_prediction_row(
+    frame_id: str,
+    partial_predictions: Sequence[Mapping[str, Any]],
+    *,
+    strata: Optional[Mapping[str, Any]] = None,
+) -> dict[str, Any]:
+    """Compose independent partial relation decisions into one strict row.
+
+    Abstention is neutral, equal decisions are idempotent, and conflicting
+    decisions on one axis fail closed. Unspecified axes remain abstentions.
+    """
+
+    if not isinstance(frame_id, str) or FRAME_ID_PATTERN.fullmatch(frame_id) is None:
+        raise HypothesisMetricsError("invalid_frame_id")
+    if (
+        not isinstance(partial_predictions, Sequence)
+        or isinstance(partial_predictions, (str, bytes, bytearray))
+        or not partial_predictions
+        or len(partial_predictions) > MAX_PARTIAL_PREDICTIONS
+    ):
+        raise HypothesisMetricsError("invalid_partial_predictions")
+
+    composed = {axis: ABSTAIN for axis in RELATION_AXES}
+    for partial in partial_predictions:
+        if not isinstance(partial, Mapping) or not partial:
+            raise HypothesisMetricsError("invalid_partial_prediction")
+        for axis, label in partial.items():
+            if axis not in RELATION_STATES:
+                raise HypothesisMetricsError("invalid_partial_prediction_axis")
+            allowed = frozenset((RELATION_STATES[axis] - {"unknown"}) | {ABSTAIN})
+            if not isinstance(label, str) or label not in allowed:
+                raise HypothesisMetricsError(f"invalid_{axis}_prediction")
+            if label == ABSTAIN:
+                continue
+            current = composed[axis]
+            if current != ABSTAIN and current != label:
+                raise HypothesisMetricsError(f"conflicting_{axis}_predictions")
+            composed[axis] = label
+
+    parsed_strata = _parse_strata({} if strata is None else strata)
+    row = {
+        "frame_id": frame_id,
+        "predictions": composed,
+        "strata": dict(parsed_strata),
+    }
+    parse_prediction_row(row)
+    return row
 
 
 def _check_strata_bounds(rows: Sequence[EvaluationRowV1]) -> None:
