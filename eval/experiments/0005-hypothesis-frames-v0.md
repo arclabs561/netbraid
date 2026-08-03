@@ -343,9 +343,13 @@ tamper, or malicious-intent label.
 
 The indoor controlled-jamming compiler passed nine hermetic tests. Its strict
 contract maps 31 workbook groups and three HDF5 datasets per group to 93
-condition segments while reading zero dataset elements. The complete corpus
-run remains pending until acquisition has all 31 MAT files and exact receipts;
-no partial inventory is admitted.
+condition segments while reading zero dataset elements. The complete
+118,452,765,452-byte corpus passed an independent 32-artifact status rehash,
+then both receipt-bound and full-digest compiler runs. The full-digest inventory
+reports 14,401,235,668 dataset samples across 31 silent/sine/Gaussian triplets,
+with zero retained filenames, paths, raw setup labels, or dataset elements.
+These are controlled-cause and split-group oracles, not attack or identity
+predictions.
 
 The Rust inference checkpoint added content-bound validation for packet
 same-event assessments, a test-local decision law shared by the two finite
@@ -354,12 +358,19 @@ reducer removes source-wide shifts before observer attribution and emits only
 evidence and candidates, not movement, location, identity, intent, or attack
 verdicts. These are contract tests, not RF model-performance results.
 
+The external Matter conformance checkpoint binds one public DATA1813 Thread
+capture and its fetch receipt to a 32-packet prefix. The clean-revision
+12-case public-corpus campaign emitted 32 packet envelopes, zero quarantines,
+two preserved 6LoWPAN-decoded IPv6 lengths greater than their saved frame
+lengths, and 32 unavailable saved-capture FCS statuses. It performs no device,
+payload, behavior, or capture-wide identity inference.
+
 ## Conclusion
 
 The source-neutral hypothesis-set boundary and its deterministic reducers are
 implemented and fail closed for the tested evidence gaps. Controlled-cause and
 identity/variant split groups now exist for several corpora, but this does not
 validate physical-source identity or attack attribution. The next
-evidence-bearing step is to finish acquisition, compile the remaining complete
-inventories, assign leakage-safe roles, and run preregistered baselines before
-choosing an RF model or threshold.
+evidence-bearing step is to stabilize the remaining OSU acquisition, compile
+its complete inventory, assign leakage-safe roles, and run preregistered
+baselines before choosing an RF model or threshold.
