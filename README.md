@@ -194,6 +194,8 @@ just data4cyber-alignment-profile
 just netslab-alignment-profile
 just iot23-flow-lineage-check
 just counter-capture-eval-check
+just ruff-uwb-heldout-location-check
+just ruff-uwb-heldout-location
 just mmwave-jamming-oracles-check
 just indoor-jamming-oracles-check
 ```

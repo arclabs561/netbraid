@@ -217,6 +217,15 @@ ruff-uwb-oracles-check:
 ruff-uwb-oracles:
     {{ python }} eval/compile-ruff-uwb-oracles.py
 
+# Record the current leakage-safe RUFF-UWB baseline boundary. The aggregate
+# oracle cannot yet bind waveform rows, so this succeeds only for that exact
+# path-free blocker and never opens the waveform payload.
+ruff-uwb-heldout-location-check:
+    uv run --script eval/test-evaluate-ruff-uwb-heldout-location.py
+
+ruff-uwb-heldout-location:
+    {{ python }} eval/evaluate-ruff-uwb-heldout-location.py --expect-blocked --report {{ eval_output }}/ruff-uwb-heldout-location-blocker.json
+
 gnss-rff-layout-profile-check:
     {{ python }} eval/test-profile-gnss-rff-layout.py
 

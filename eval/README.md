@@ -65,6 +65,14 @@ collection day are explicit controls; event and session remain unobserved. The
 compiler emits opaque groups without opening waveform members or synthesizing
 missing source/location combinations.
 
+`evaluate-ruff-uwb-heldout-location.py` defines a deterministic 80/10/10
+held-out-location baseline with atomic source/device/location groups, bounded
+row and window sampling, read-only NumPy mmap, train-only prototype fitting,
+and validation-only model selection. The current aggregate oracle has no
+row-to-waveform binding, so `just ruff-uwb-heldout-location` records a
+path-free blocker instead of guessing corpus metrics. The synthetic exact
+oracle is covered by `just ruff-uwb-heldout-location-check`.
+
 `compile-mmwave-jamming-oracles.py` hashes all 80 pinned MAT artifacts without
 parsing them and compiles the exact receiver/regime/target/condition grid into
 40 opaque with/without-jammer pairs. Receiver element, radar regime, radar
