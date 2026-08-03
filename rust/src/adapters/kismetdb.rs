@@ -4,10 +4,9 @@
 //! interpret Kismet device JSON, tags, GPS, signal values, or packet payloads.
 
 use std::fs::{self, File};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 use rusqlite::{params, Connection, OpenFlags};
 use sha2::{Digest, Sha256};
@@ -281,13 +280,22 @@ pub fn normalize_kismetdb(
     path: impl AsRef<Path>,
     options: &KismetDbOptions,
 ) -> Result<KismetDbReport, KismetDbError> {
-    let path = path.as_ref();
+    normalize_kismetdb_with_after_stage(path.as_ref(), options, || Ok(()))
+}
+
+fn normalize_kismetdb_with_after_stage(
+    path: &Path,
+    options: &KismetDbOptions,
+    after_stage: impl FnOnce() -> Result<(), KismetDbError>,
+) -> Result<KismetDbReport, KismetDbError> {
     reject_sidecars(path)?;
-    let before = FileStamp::read(path)?;
-    let capture_id = sha256_file(path)?;
+    let staged = stage_kismetdb(path)?;
+    reject_sidecars(path)?;
+    after_stage()?;
+    let capture_id = staged.artifact.content_sha256.clone();
 
     let mut connection = Connection::open_with_flags(
-        path,
+        &staged.path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )?;
     let requested_mmap_size =
@@ -310,11 +318,6 @@ pub fn normalize_kismetdb(
     transaction.commit()?;
     drop(connection);
 
-    reject_sidecars(path)?;
-    if FileStamp::read(path)? != before {
-        return Err(KismetDbError::ArtifactChanged);
-    }
-
     let normalization_state = if packet_limit_reached || !quarantines.is_empty() {
         NormalizationStateV0::Partial
     } else {
@@ -323,10 +326,7 @@ pub fn normalize_kismetdb(
     let manifest = CaptureManifestV0 {
         schema: CAPTURE_MANIFEST_SCHEMA_V0.into(),
         capture_id: capture_id.clone(),
-        artifact: CaptureArtifactRefV0 {
-            content_sha256: capture_id.clone(),
-            size_bytes: before.bytes,
-        },
+        artifact: staged.artifact.clone(),
         observer_id: datasource_id.clone(),
         acquired_time_unix_ms: None,
         extractor: CaptureExtractorRefV0 {
@@ -369,20 +369,52 @@ pub fn normalize_kismetdb(
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct FileStamp {
-    bytes: u64,
-    modified: SystemTime,
+struct StagedKismetDb {
+    _directory: tempfile::TempDir,
+    path: PathBuf,
+    artifact: CaptureArtifactRefV0,
 }
 
-impl FileStamp {
-    fn read(path: &Path) -> Result<Self, io::Error> {
-        let metadata = fs::metadata(path)?;
-        Ok(Self {
-            bytes: metadata.len(),
-            modified: metadata.modified()?,
-        })
+fn stage_kismetdb(input: &Path) -> Result<StagedKismetDb, KismetDbError> {
+    let metadata = fs::metadata(input)?;
+    if !metadata.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "KismetDB input is not a regular file",
+        )
+        .into());
     }
+    let directory = tempfile::Builder::new()
+        .prefix("netbraid-kismetdb-")
+        .tempdir()?;
+    let path = directory.path().join("capture.kismet");
+    let mut source = File::open(input)?;
+    let mut destination = File::create(&path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0_u8; 4 * 1024 * 1024];
+    let mut size_bytes = 0_u64;
+    loop {
+        let read = source.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        size_bytes = size_bytes
+            .checked_add(u64::try_from(read).expect("read length fits u64"))
+            .ok_or_else(|| io::Error::other("KismetDB size exceeds u64"))?;
+        destination.write_all(&buffer[..read])?;
+        hasher.update(&buffer[..read]);
+    }
+    destination.flush()?;
+    drop(destination);
+
+    Ok(StagedKismetDb {
+        _directory: directory,
+        path,
+        artifact: CaptureArtifactRefV0 {
+            content_sha256: format!("sha256:{:x}", hasher.finalize()),
+            size_bytes,
+        },
+    })
 }
 
 fn reject_sidecars(path: &Path) -> Result<(), KismetDbError> {
@@ -621,16 +653,88 @@ fn normalized_records_sha256(
     Ok(digest.finish())
 }
 
-fn sha256_file(path: &Path) -> Result<String, io::Error> {
-    let mut file = File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buffer = vec![0_u8; 4 * 1024 * 1024];
-    loop {
-        let read = file.read(&mut buffer)?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
+#[cfg(test)]
+mod tests {
+    use std::fs::FileTimes;
+
+    use rusqlite::params;
+
+    use super::*;
+
+    fn create_database(path: &Path, timestamp: i64) {
+        let connection = Connection::open(path).unwrap();
+        connection
+            .execute("CREATE TABLE KISMET (db_version INTEGER NOT NULL)", [])
+            .unwrap();
+        connection
+            .execute("INSERT INTO KISMET (db_version) VALUES (10)", [])
+            .unwrap();
+        connection
+            .execute(
+                "CREATE TABLE packets (\
+                 ts_sec INTEGER NOT NULL, ts_usec INTEGER NOT NULL, \
+                 packet_len INTEGER NOT NULL, packet_full_len INTEGER NOT NULL, \
+                 datasource TEXT, dlt INTEGER NOT NULL, packet BLOB NOT NULL, \
+                 error INTEGER NOT NULL)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO packets (ts_sec, ts_usec, packet_len, packet_full_len, \
+                 datasource, dlt, packet, error) VALUES (?1, 0, 4, 4, 'source-a', 1, ?2, 0)",
+                params![timestamp, vec![0_u8; 4]],
+            )
+            .unwrap();
     }
-    Ok(format!("sha256:{:x}", hasher.finalize()))
+
+    #[test]
+    fn staged_snapshot_binds_digest_and_rows_when_source_path_is_replaced() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("source.kismet");
+        let replacement = directory.path().join("replacement.kismet");
+        create_database(&source, 1_700_000_001);
+        create_database(&replacement, 1_700_000_002);
+        let original = fs::read(&source).unwrap();
+        let original_metadata = fs::metadata(&source).unwrap();
+        File::options()
+            .write(true)
+            .open(&replacement)
+            .unwrap()
+            .set_times(
+                FileTimes::new()
+                    .set_accessed(original_metadata.accessed().unwrap())
+                    .set_modified(original_metadata.modified().unwrap()),
+            )
+            .unwrap();
+        assert_eq!(
+            fs::metadata(&replacement).unwrap().len(),
+            original_metadata.len()
+        );
+        assert_eq!(
+            fs::metadata(&replacement).unwrap().modified().unwrap(),
+            original_metadata.modified().unwrap()
+        );
+
+        let report =
+            normalize_kismetdb_with_after_stage(&source, &KismetDbOptions::default(), || {
+                fs::remove_file(&source)?;
+                fs::rename(&replacement, &source)?;
+                Ok(())
+            })
+            .unwrap();
+
+        assert_eq!(
+            report.stream().packets[0].frame.event_time_unix_ns,
+            1_700_000_001_000_000_000
+        );
+        assert_eq!(
+            report.stream().manifest.artifact.content_sha256,
+            format!("sha256:{:x}", Sha256::digest(original))
+        );
+        assert_eq!(
+            report.stream().manifest.artifact.size_bytes,
+            original_metadata.len()
+        );
+    }
 }
