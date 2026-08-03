@@ -1,26 +1,10 @@
-image := "arclabs561/netbraid"
 python := env_var_or_default("PYTHON", "python3")
 raw_data := "data/raw"
 eval_output := "data/derived/eval"
 
-docker: lint test docker-bare
+check: rust-check scenario-check python-check
 
-docker-bare:
-    docker build -t {{ image }} .
-
-docker-push: lint test
-    docker buildx build --platform linux/amd64,linux/arm64 -t {{ image }} --push .
-
-upgrade:
-    go get -u ./...
-    go install -v ./...
-    go mod tidy
-
-lint:
-    golangci-lint run
-
-test: lint
-    go test ./...
+test: check
 
 python-check:
     {{ python }} eval/run-python-tests.py

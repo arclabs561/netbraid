@@ -15,6 +15,13 @@ GitHub native binary releases remain available independently.
   files that projects typed session evidence without retaining source-local
   identifiers or unselected columns.
 
+### Changed
+
+- Retired the unconsumed Go live-capture compatibility tree, its container,
+  and its CI lane. Its final source remains available at the
+  `netwatch-go-final` tag; the active repository now builds and tests the Rust
+  package plus its data/evaluation tooling.
+
 ## [0.3.2] - 2026-08-03
 
 ### Added

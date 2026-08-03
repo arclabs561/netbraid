@@ -109,12 +109,14 @@ Some published schema, producer, registry, and digest identifiers use the
 historical `netmon.*` namespace. They remain unchanged where renaming would
 break serialized compatibility. New product and Rust API names use `netbraid`.
 
-## Legacy Go is compatibility-only
+## Legacy Go is retired
 
-The root Go capture CLI and disconnected acquisition-policy experiment predate
-the Rust core. They are not architectural dependencies of the Rust package.
-They receive compatibility, security, and build fixes until their remaining
-contract can be retired without losing useful acquisition evidence.
+The former root Go capture CLI and disconnected acquisition-policy experiment
+predated the Rust core and had no active package, release, or deployment
+consumer. Their final source remains recoverable at the `netwatch-go-final`
+tag. They are not part of Netbraid's active architecture or support surface;
+new acquisition boundaries must enter through explicit evidence adapters and
+their evaluation gates.
 
 ## Distribution
 

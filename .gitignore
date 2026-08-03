@@ -1,6 +1,5 @@
 # Build output
 /netbraid
-/netbraid-go
 /netwatch
 target/
 **/target/

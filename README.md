@@ -4,8 +4,7 @@ Netbraid normalizes network evidence and replays it deterministically.
 
 The Rust package provides a library and operator CLI for strict evidence logs,
 finite scenario bundles, bounded saved-PCAP normalization, and conservative
-derived hypotheses. The repository also contains a legacy Go capture CLI; it is
-maintained for compatibility, not used by the Rust package.
+derived hypotheses.
 
 ```text
 scenario wifi-hotspot-wifi @ wifi-returned (120000 ms) — manifest sha256:0039c3aec486771112102010b07d873b276b71547d089886b13f3235bb2d0ba2
@@ -256,27 +255,6 @@ See
 and
 [Design decisions](https://github.com/arclabs561/netbraid/blob/main/DECISIONS.md).
 
-## Legacy Go capture CLI
-
-The root Go program is a separate live-acquisition compatibility surface. It
-requires libpcap and may require elevated privileges. Invoking it without a
-subcommand begins acquisition and writes artifacts, so use an explicit
-interface, output directory, and terminal condition:
-
-```sh
-go build -o netbraid-go .
-sudo ./netbraid-go -q -i en0 -o /tmp/netbraid-capture
-```
-
-Its output contains one PCAP per selected interface plus `events.jsonl`.
-Do not install it beside the Rust binary under the same filename. New
-evidence, replay, adapter, and CLI work belongs in Rust; the Go tree receives
-compatibility, security, and build fixes while its remaining acquisition
-contract is retired deliberately.
-
-The Go module's historical `github.com/arclabs561/netwatch` path remains for
-source compatibility.
-
 ## Evidence and safety boundaries
 
 - Netbraid does not capture or contact the network in its Rust commands.
@@ -303,17 +281,22 @@ declare their own inference authority.
 ## Development
 
 ```sh
+just check
 just rust-check
 just scenario-check
 just pcap-smoke       # requires TShark and Capinfos
-just test             # legacy Go compatibility
 ```
 
-The Rust checks cover no-default-feature consumers, all package features,
-formatting, tests, clippy, rustdoc warnings, fixture inventory, and extracted
-package contents. The saved-capture smoke lane runs separately because it
-depends on installed Wireshark tools. Set `PYTHON=/path/to/python` to select
-the interpreter used by `just` evaluation targets.
+`just check` runs the Rust, scenario, and Python data/eval gates. The Rust
+checks cover no-default-feature consumers, all package features, formatting,
+tests, clippy, rustdoc warnings, fixture inventory, and extracted package
+contents. The saved-capture smoke lane runs separately because it depends on
+installed Wireshark tools. Set `PYTHON=/path/to/python` to select the
+interpreter used by `just` evaluation targets.
+
+The retired Go capture implementation remains recoverable at the
+`netwatch-go-final` tag. It is not part of the Netbraid package or support
+surface.
 
 ## License
 
