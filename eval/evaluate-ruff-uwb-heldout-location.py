@@ -8,8 +8,9 @@
 
 The aggregate oracle remains a zero-waveform-open evidence boundary and the
 default CLI operation reports its stable blocker. When a receipt-bound
-one-meter row adapter is supplied, the CLI expands its contiguous opaque spans
-and runs the real held-out-location evaluation against its standalone NPY.
+one-meter row adapter is supplied, the CLI materializes metadata only for
+bounded selected rows and runs the real held-out-location evaluation
+against its standalone NPY.
 
 No report contains input paths, raw waveform rows, or source identifiers.
 """
@@ -374,6 +375,8 @@ class LoadedRowSpanAdapter:
 
 @dataclass(frozen=True)
 class RowRoleSelection:
+    locations: Tuple[str, ...]
+    atomic_groups: Tuple[Tuple[str, str, str, str], ...]
     location_count: int
     atomic_group_count: int
     source_row_count: int
@@ -1072,6 +1075,8 @@ def sample_row_spans(
         locations.add(span.location)
         source_rows += span.row_stop - span.row_start
     return RowRoleSelection(
+        locations=tuple(sorted(locations)),
+        atomic_groups=tuple(sorted(ranges)),
         location_count=len(locations),
         atomic_group_count=len(ranges),
         source_row_count=source_rows,
@@ -1364,75 +1369,68 @@ def _digest_values(domain: str, values: Iterable[object]) -> str:
     return digest.hexdigest()
 
 
-def _split_receipt(
-    assigned: Sequence[RowMetadata], sampled: Sequence[RowMetadata]
-) -> Dict[str, Any]:
-    assigned_groups = {row.atomic_group() for row in assigned}
-    locations = {row.location for row in assigned}
+def _selection_receipt(selection: RowRoleSelection) -> Dict[str, Any]:
     return {
-        "location_count": len(locations),
-        "atomic_group_count": len(assigned_groups),
-        "source_row_count": len(assigned),
-        "sampled_row_count": len(sampled),
-        "location_receipt": _digest_values("locations", locations),
-        "atomic_group_receipt": _digest_values("atomic-groups", assigned_groups),
+        "location_count": selection.location_count,
+        "atomic_group_count": selection.atomic_group_count,
+        "source_row_count": selection.source_row_count,
+        "sampled_row_count": len(selection.sampled),
+        "location_receipt": _digest_values("locations", selection.locations),
+        "atomic_group_receipt": _digest_values(
+            "atomic-groups", selection.atomic_groups
+        ),
         "sampled_row_receipt": _digest_values(
-            "sampled-rows", (row.row_index for row in sampled)
+            "sampled-rows", (row.row_index for row in selection.sampled)
         ),
     }
 
 
-def _overlap_receipts(
-    partitions: Mapping[str, Sequence[RowMetadata]],
+def _selection_overlap_receipts(
+    selections: Mapping[str, RowRoleSelection],
 ) -> List[Dict[str, Any]]:
     receipts = []
     for left, right in combinations(SPLITS, 2):
+        left_locations = set(selections[left].locations)
+        right_locations = set(selections[right].locations)
+        left_groups = set(selections[left].atomic_groups)
+        right_groups = set(selections[right].atomic_groups)
+        left_rows = {row.row_index for row in selections[left].sampled}
+        right_rows = {row.row_index for row in selections[right].sampled}
         receipts.append(
             {
                 "splits": [left, right],
-                "location_overlap": len(
-                    {row.location for row in partitions[left]}
-                    & {row.location for row in partitions[right]}
-                ),
-                "atomic_group_overlap": len(
-                    {row.atomic_group() for row in partitions[left]}
-                    & {row.atomic_group() for row in partitions[right]}
-                ),
-                "row_overlap": len(
-                    {row.row_index for row in partitions[left]}
-                    & {row.row_index for row in partitions[right]}
-                ),
+                "location_overlap": len(left_locations & right_locations),
+                "atomic_group_overlap": len(left_groups & right_groups),
+                "row_overlap": len(left_rows & right_rows),
             }
         )
     return receipts
 
 
-def evaluate_rows(
-    rows: Sequence[RowMetadata],
+def evaluate_row_span_adapter(
+    adapter: LoadedRowSpanAdapter,
     waveform_path: Path,
-    source_contract: WaveformSourceContract,
     config: Optional[EvaluationConfig] = None,
 ) -> Dict[str, Any]:
-    """Evaluate explicit row bindings without consulting held-out data in fit."""
+    """Evaluate validated compact spans without consulting held-out data in fit."""
 
     selected_config = config or EvaluationConfig()
     selected_config.validate()
-
-    # This order is part of the leakage contract.
-    assigned = partition_rows(rows, selected_config.seed)
-    sampled = sample_rows(assigned, selected_config)
-    loaded = load_waveforms(waveform_path, source_contract)
+    if not isinstance(adapter, LoadedRowSpanAdapter):
+        raise EvaluationInputError("invalid_row_span_adapter")
     if any(
-        row.row_index >= loaded.array.shape[0]
-        for role in SPLITS
-        for row in assigned[role]
+        span.row_start < 0 or span.row_stop > adapter.source_contract.rows
+        for span in adapter.spans
     ):
         raise EvaluationInputError("row_index_outside_waveform_array")
+
+    # This order is part of the leakage contract.
+    selections = partition_and_sample_row_spans(adapter.spans, selected_config)
+    sampled = {role: selections[role].sampled for role in SPLITS}
+    loaded = load_waveforms(waveform_path, adapter.source_contract)
     features = _featurize(loaded.array, sampled, selected_config)
 
-    expected_devices = {
-        row.physical_device for role in SPLITS for row in assigned[role]
-    }
+    expected_devices = {span.physical_device for span in adapter.spans}
     for role in SPLITS:
         if {row.metadata.physical_device for row in features[role]} != expected_devices:
             raise EvaluationInputError("sampled_split_missing_device")
@@ -1466,7 +1464,7 @@ def evaluate_rows(
     }
     split_receipts = {
         role: {
-            **_split_receipt(assigned[role], sampled[role]),
+            **_selection_receipt(selections[role]),
             "window_count": sum(len(row.windows) for row in features[role]),
         }
         for role in SPLITS
@@ -1498,7 +1496,7 @@ def evaluate_rows(
             "samples_per_row": loaded.array.shape[1],
             "dtype": loaded.array.dtype.str,
             "file_bytes": loaded.file_bytes,
-            "sha256": source_contract.sha256,
+            "sha256": adapter.source_contract.sha256,
             "numpy_mmap": loaded.mmap_used,
             "input_path_retained": False,
         },
@@ -1510,7 +1508,7 @@ def evaluate_rows(
                 "physical_device",
                 "location",
             ],
-            "pairwise_overlap": _overlap_receipts(assigned),
+            "pairwise_overlap": _selection_overlap_receipts(selections),
             "prototype_fit_split": "train",
             "configuration_selection_split": "validation",
             "final_evaluation_split": "test",
@@ -1560,6 +1558,33 @@ def evaluate_rows(
     }
     render_report(report)
     return report
+
+
+def evaluate_rows(
+    rows: Sequence[RowMetadata],
+    waveform_path: Path,
+    source_contract: WaveformSourceContract,
+    config: Optional[EvaluationConfig] = None,
+) -> Dict[str, Any]:
+    """Reference adapter for explicit row bindings used by small fixtures."""
+
+    validated = _validate_rows(rows)
+    adapter = LoadedRowSpanAdapter(
+        adapter_id="0" * 64,
+        spans=tuple(
+            RowSpanMetadata(
+                row_start=row.row_index,
+                row_stop=row.row_index + 1,
+                distance_collection=row.distance_collection,
+                physical_source=row.physical_source,
+                physical_device=row.physical_device,
+                location=row.location,
+            )
+            for row in validated
+        ),
+        source_contract=source_contract,
+    )
+    return evaluate_row_span_adapter(adapter, waveform_path, config)
 
 
 def render_report(report: Mapping[str, Any]) -> bytes:
@@ -1657,11 +1682,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         else:
             if args.expect_blocked:
                 raise EvaluationInputError("row_adapter_expect_blocked_conflict")
-            adapter = load_row_adapter(args.row_adapter)
-            report = evaluate_rows(
-                adapter.rows,
+            adapter = load_row_span_adapter(args.row_adapter)
+            report = evaluate_row_span_adapter(
+                adapter,
                 args.waveforms,
-                adapter.source_contract,
                 EvaluationConfig(
                     seed=args.seed,
                     max_rows_per_atomic_group=args.max_rows_per_atomic_group,

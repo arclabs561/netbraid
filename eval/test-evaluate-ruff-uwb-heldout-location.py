@@ -350,8 +350,13 @@ class RuffUwbHeldoutLocationTests(unittest.TestCase):
         adapter_path.write_text(json.dumps(adapter), encoding="utf-8")
 
         loaded = MODULE.load_row_adapter(adapter_path, binding)
+        compact = MODULE.load_row_span_adapter(adapter_path, binding)
 
         self.assertEqual(len(loaded.rows), len(rows))
+        self.assertEqual(len(compact.spans), len(adapter["spans"]))
+        self.assertEqual(
+            sum(span.row_stop - span.row_start for span in compact.spans), len(rows)
+        )
         self.assertEqual(
             tuple(row.row_index for row in loaded.rows), tuple(range(len(rows)))
         )
@@ -359,6 +364,22 @@ class RuffUwbHeldoutLocationTests(unittest.TestCase):
         self.assertEqual(loaded.adapter_id, adapter["adapter_id"])
         self.assertNotEqual(
             loaded.rows[0].physical_source, loaded.rows[0].physical_device
+        )
+
+    def test_compact_and_expanded_heldout_reports_are_identical(self):
+        rows, waveforms, path = synthetic_dataset(self.root)
+        document, binding = row_adapter(rows, path, waveforms)
+        expanded = MODULE.validate_row_adapter(document, binding)
+        compact = MODULE.validate_row_span_adapter(document, binding)
+
+        expanded_report = MODULE.evaluate_rows(
+            expanded.rows, path, expanded.source_contract, config()
+        )
+        compact_report = MODULE.evaluate_row_span_adapter(compact, path, config())
+
+        self.assertEqual(
+            MODULE.render_report(expanded_report),
+            MODULE.render_report(compact_report),
         )
 
     def test_cli_runs_real_eval_when_row_adapter_is_supplied(self):

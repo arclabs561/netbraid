@@ -351,6 +351,8 @@ def evaluate_transfer(
     }
 
     source_test_unused = BASE.RowRoleSelection(
+        locations=source_roles["test"].locations,
+        atomic_groups=source_roles["test"].atomic_groups,
         location_count=source_roles["test"].location_count,
         atomic_group_count=source_roles["test"].atomic_group_count,
         source_row_count=source_roles["test"].source_row_count,
