@@ -232,6 +232,7 @@ netbraid = { version = "0.3", default-features = false }
 | `adapter-npy` | no | bounded positional row-window summaries for narrow NPY arrays |
 | `adapter-sigmf` | no | bounded positional IQ-window evidence from strict SigMF metadata |
 | `adapter-tshark` | via `cli` | bounded saved-capture process boundary |
+| `adapter-zeek` | no | bounded session evidence from Zeek ASCII `conn.log` files |
 | `scenario-fixtures` | no | public-synthetic scenario accessors |
 | `scenario-fixtures-capture-derived` | no | reviewed capture-derived scenario |
 
@@ -243,7 +244,8 @@ The primary public modules are:
 - `netbraid::adapters::kismetdb`: optional read-only KismetDB boundary;
 - `netbraid::adapters::npy`: optional bounded NPY row-window boundary;
 - `netbraid::adapters::sigmf`: optional bounded SigMF IQ-window boundary;
-- `netbraid::adapters::tshark`: optional offline normalization boundary.
+- `netbraid::adapters::tshark`: optional offline normalization boundary;
+- `netbraid::adapters::zeek`: optional bounded Zeek-session boundary.
 
 Schema IDs retain the historical `netmon.*` namespace where changing them
 would break wire compatibility. Product names and Rust API paths use
