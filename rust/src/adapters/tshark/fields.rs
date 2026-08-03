@@ -6,7 +6,7 @@ use crate::evidence::{
     PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
 };
 
-pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v3";
+pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v4";
 
 pub const FIELDS: &[&str] = &[
     "frame.number",
@@ -51,15 +51,16 @@ pub const FIELDS: &[&str] = &[
     "wpan.src16",
     "wpan.src64",
     "wpan.cmd",
+    "wpan.fcs",
     "wpan.fcs_ok",
     "ip.len",
     "ipv6.plen",
     "tcp.stream",
 ];
 
-const IP_LENGTH_INDEX: usize = 43;
-const IPV6_PAYLOAD_LENGTH_INDEX: usize = 44;
-const TCP_STREAM_INDEX: usize = 45;
+const IP_LENGTH_INDEX: usize = 44;
+const IPV6_PAYLOAD_LENGTH_INDEX: usize = 45;
+const TCP_STREAM_INDEX: usize = 46;
 const IPV6_HEADER_LENGTH_OCTETS: u32 = 40;
 
 struct ParsedIeee802154Fields {
@@ -319,7 +320,7 @@ fn parse_wlan_radio(fields: &[&str]) -> Result<Option<WlanRadioFieldsV0>, String
 }
 
 fn parse_ieee802154(fields: &[&str]) -> Result<Option<ParsedIeee802154Fields>, String> {
-    if fields[32..=42].iter().all(|field| field.is_empty()) {
+    if fields[32..=43].iter().all(|field| field.is_empty()) {
         return Ok(None);
     }
     if fields[32].is_empty() || fields[33].is_empty() {
@@ -345,7 +346,11 @@ fn parse_ieee802154(fields: &[&str]) -> Result<Option<ParsedIeee802154Fields>, S
         source_short: parse_optional_u16_auto_radix(fields[39], FIELDS[39])?,
         source_extended: canonical_eui64(fields[40], FIELDS[40])?,
         command: parse_optional_u8_auto_radix(fields[41], FIELDS[41])?,
-        fcs_valid: parse_optional_tshark_bool(fields[42], FIELDS[42])?,
+        fcs_valid: if fields[42].is_empty() {
+            None
+        } else {
+            parse_optional_tshark_bool(fields[43], FIELDS[43])?
+        },
     }))
 }
 
@@ -549,7 +554,7 @@ mod tests {
         "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     fn tcp_row() -> String {
-        [
+        let mut fields = [
             "1",
             "1700000000.123456789",
             "54",
@@ -597,7 +602,10 @@ mod tests {
             "",
             "7",
         ]
-        .join("\t")
+        .map(str::to_owned)
+        .to_vec();
+        fields.insert(42, String::new());
+        fields.join("\t")
     }
 
     fn ipv6_udp_row() -> String {
@@ -623,7 +631,7 @@ mod tests {
     }
 
     fn wireless_row() -> String {
-        [
+        let mut fields = [
             "2",
             "1700000000.223456789",
             "144",
@@ -671,11 +679,14 @@ mod tests {
             "",
             "",
         ]
-        .join("\t")
+        .map(str::to_owned)
+        .to_vec();
+        fields.insert(42, String::new());
+        fields.join("\t")
     }
 
     fn ieee802154_row() -> String {
-        [
+        let mut fields = [
             "3",
             "1700000000.323456789",
             "18",
@@ -723,7 +734,10 @@ mod tests {
             "",
             "",
         ]
-        .join("\t")
+        .map(str::to_owned)
+        .to_vec();
+        fields.insert(42, "0xabcd".into());
+        fields.join("\t")
     }
 
     #[test]
@@ -918,10 +932,27 @@ mod tests {
         assert_eq!(ieee802154["command"], 4);
         assert_eq!(ieee802154["fcs_status"], "valid");
         assert!(ieee802154.get("payload").is_none());
-        assert_eq!(FIELD_REGISTRY_ID, "netmon.tshark.packet_envelope.v3");
+        assert_eq!(FIELD_REGISTRY_ID, "netmon.tshark.packet_envelope.v4");
         assert!(FIELDS.iter().all(|field| !field.contains("payload")));
         assert!(!FIELDS.contains(&"tcp.seq"));
         assert!(!FIELDS.contains(&"tcp.ack"));
+    }
+
+    #[test]
+    fn parser_does_not_infer_fcs_status_without_captured_fcs_bytes() {
+        let mut fields = ieee802154_row()
+            .split('\t')
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        fields[42].clear();
+        fields[43] = "True".into();
+
+        let parsed = parse_rows(format!("{}\n", fields.join("\t")).as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.quarantines.is_empty());
+        assert_eq!(parsed.packets.len(), 1);
+        let encoded = serde_json::to_value(&parsed.packets[0]).unwrap();
+        assert!(encoded["ieee802154"].get("fcs_status").is_none());
     }
 
     #[test]
@@ -930,7 +961,7 @@ mod tests {
             .split('\t')
             .map(str::to_owned)
             .collect::<Vec<_>>();
-        for field in &mut fields[34..=42] {
+        for field in &mut fields[34..=43] {
             field.clear();
         }
         let row = fields.join("\t");
@@ -962,7 +993,7 @@ mod tests {
             mutate(4, 35, "0xzzzz"),
             mutate(5, 37, "02:00:00:00:00:00:00:02"),
             mutate(6, 40, "not-an-eui64"),
-            mutate(7, 42, "Unknown"),
+            mutate(7, 43, "Unknown"),
             mutate(8, 32, "0x0008"),
             mutate(9, 33, "4"),
         ];

@@ -568,9 +568,15 @@ impl PacketEnvelopeV0 {
             if ipv6.total_length_octets == Some(0) {
                 return Err(CaptureValidationError::ZeroIpv6TotalLength);
             }
+            let sixlowpan_decompressed = self
+                .frame
+                .protocols
+                .windows(2)
+                .any(|pair| pair[0] == "6lowpan" && pair[1] == "ipv6");
             if ipv6
                 .total_length_octets
                 .is_some_and(|length| length > self.frame.original_len)
+                && !sixlowpan_decompressed
             {
                 return Err(CaptureValidationError::Ipv6TotalLengthExceedsOriginal);
             }
@@ -1112,6 +1118,12 @@ mod tests {
             value.validate(),
             Err(CaptureValidationError::Ipv6TotalLengthExceedsOriginal)
         );
+
+        value.frame.original_len = 68;
+        value.frame.captured_len = 68;
+        value.frame.protocols = vec!["wpan".into(), "6lowpan".into(), "ipv6".into(), "udp".into()];
+        value.ipv6.as_mut().unwrap().total_length_octets = Some(91);
+        value.validate().unwrap();
     }
 
     #[test]
