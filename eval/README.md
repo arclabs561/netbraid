@@ -125,7 +125,11 @@ aggregate user, phone, building, floor, building/floor, and location-cell
 intersections across the publisher files. Identity/domain holdout capability is
 kept separate from target-space coverage; no fingerprint rows, coordinates,
 timestamps, identifier values, member paths, source URLs, or local paths enter
-the report.
+the report. Its separate phone-holdout mode tests whether the combined corpus
+admits four phone-disjoint roles with complete building/floor coverage. It also
+co-locates every user/phone connected component to expose the stricter joint
+holdout boundary. The aggregate witness is a feasibility result, not a chosen
+benchmark split, and retains neither identifiers nor group assignments.
 
 `compile-ruff-uwb-oracles.py` verifies the two pinned RUFF-UWB archives and
 reads only their bounded label arrays. It aggregates observed

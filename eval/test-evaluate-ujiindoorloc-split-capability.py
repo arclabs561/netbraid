@@ -245,6 +245,157 @@ class UjiIndoorLocSplitCapabilityTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, "archive_changed_during_evaluation")
 
+    def test_phone_holdout_finds_four_disjoint_full_coverage_roles(self):
+        root = self.temporary_directory()
+        rows = [
+            row(user=phone, phone=phone, building=building, floor=building, space=1)
+            for phone in range(1, 5)
+            for building in range(2)
+        ]
+        archive, receipt, contract = fixture(
+            root,
+            train_rows=rows[:4],
+            validation_rows=rows[4:],
+        )
+
+        report = MODULE.evaluate_phone_holdout_feasibility(archive, receipt, contract)
+
+        phone = report["phone_holdout"]
+        self.assertEqual(report["schema"], MODULE.PHONE_HOLDOUT_SCHEMA)
+        self.assertEqual(phone["status"], "candidate_found")
+        self.assertIsNone(phone["blocker"])
+        self.assertEqual(phone["unit_count"], 4)
+        self.assertEqual(phone["minimum_target_group_unit_support"], 4)
+        self.assertTrue(phone["candidate"]["all_rows_assigned_once"])
+        self.assertTrue(phone["candidate"]["all_units_assigned_once"])
+        self.assertEqual(phone["candidate"]["disjoint_unit_overlap_count"], 0)
+        self.assertFalse(phone["candidate"]["is_benchmark_recommendation"])
+        self.assertEqual(
+            phone["candidate"]["row_balance_method"],
+            "coverage_preserving_single_unit_local_search",
+        )
+        self.assertEqual(
+            [
+                item["missing_target_group_count"]
+                for item in phone["candidate"]["roles"]
+            ],
+            [0, 0, 0, 0],
+        )
+
+    def test_phone_holdout_is_input_order_invariant(self):
+        rows = [
+            row(user=phone, phone=phone, building=building, floor=building, space=1)
+            for phone in range(1, 5)
+            for building in range(2)
+        ]
+        left = self.temporary_directory()
+        left_archive, left_receipt, left_contract = fixture(
+            left, train_rows=rows[:4], validation_rows=rows[4:]
+        )
+        right = self.temporary_directory()
+        right_archive, right_receipt, right_contract = fixture(
+            right,
+            train_rows=list(reversed(rows[:4])),
+            validation_rows=list(reversed(rows[4:])),
+        )
+
+        left_report = MODULE.evaluate_phone_holdout_feasibility(
+            left_archive, left_receipt, left_contract
+        )
+        right_report = MODULE.evaluate_phone_holdout_feasibility(
+            right_archive, right_receipt, right_contract
+        )
+        left_report.pop("integrity")
+        right_report.pop("integrity")
+
+        self.assertEqual(left_report, right_report)
+
+    def test_phone_holdout_balances_only_redundant_coverage_units(self):
+        units = [
+            MODULE.HoldoutUnit(key=(index,), rows=rows, target_mask=1)
+            for index, rows in enumerate((100, 90, 80, 70, 60, 50, 40, 30))
+        ]
+
+        assignment = MODULE._find_role_assignment(units, full_mask=1, role_count=4)
+
+        self.assertIsNotNone(assignment)
+        row_counts = [sum(unit.rows for unit in role) for role in assignment]
+        keys = [unit.key for role in assignment for unit in role]
+        self.assertLess(max(row_counts), 250)
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertEqual(set(keys), {unit.key for unit in units})
+        self.assertEqual([MODULE._union_mask(role) for role in assignment], [1] * 4)
+
+    def test_phone_holdout_reports_a_necessary_coverage_blocker(self):
+        root = self.temporary_directory()
+        train_rows = [
+            row(user=phone, phone=phone, building=0, floor=0, space=1)
+            for phone in range(1, 5)
+        ]
+        validation_rows = [
+            row(user=phone, phone=phone, building=1, floor=1, space=1)
+            for phone in range(1, 4)
+        ]
+        archive, receipt, contract = fixture(
+            root,
+            train_rows=train_rows,
+            validation_rows=validation_rows,
+        )
+
+        report = MODULE.evaluate_phone_holdout_feasibility(archive, receipt, contract)
+
+        phone = report["phone_holdout"]
+        self.assertEqual(phone["status"], "blocked")
+        self.assertEqual(phone["minimum_target_group_unit_support"], 3)
+        self.assertEqual(phone["blocker"], "target_group_support_below_role_count")
+        self.assertIsNone(phone["candidate"])
+
+    def test_joint_user_phone_holdout_preserves_connected_components(self):
+        root = self.temporary_directory()
+        rows = [
+            row(user=1, phone=phone, building=building, floor=building, space=1)
+            for phone in range(1, 5)
+            for building in range(2)
+        ]
+        archive, receipt, contract = fixture(
+            root,
+            train_rows=rows[:4],
+            validation_rows=rows[4:],
+        )
+
+        report = MODULE.evaluate_phone_holdout_feasibility(archive, receipt, contract)
+
+        self.assertEqual(report["phone_holdout"]["status"], "candidate_found")
+        joint = report["joint_user_phone_holdout"]
+        self.assertEqual(joint["status"], "blocked")
+        self.assertEqual(joint["unit_count"], 1)
+        self.assertEqual(joint["blocker"], "insufficient_disjoint_units")
+
+    def test_phone_holdout_report_is_aggregate_and_cli_default_is_unchanged(self):
+        root = self.temporary_directory()
+        rows = [
+            row(user=1, phone=phone, building=building, floor=building, space=1)
+            for phone in range(1, 5)
+            for building in range(2)
+        ]
+        archive, receipt, contract = fixture(
+            root,
+            train_rows=rows[:4],
+            validation_rows=rows[4:],
+        )
+
+        report = MODULE.evaluate_phone_holdout_feasibility(archive, receipt, contract)
+        rendered = MODULE.render_report(report)
+        arguments = MODULE.parse_args([])
+
+        self.assertNotIn(str(root).encode(), rendered)
+        self.assertNotIn(str(contract.source["url"]).encode(), rendered)
+        self.assertNotIn(b"4864900.75", rendered)
+        self.assertNotIn(b"1370000000", rendered)
+        self.assertEqual(set(report["privacy"].values()), {0})
+        self.assertEqual(arguments.report, MODULE.DEFAULT_REPORT)
+        self.assertIsNone(arguments.phone_holdout_report)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

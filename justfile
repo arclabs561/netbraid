@@ -140,6 +140,14 @@ ujiindoorloc-split-capability-check:
 ujiindoorloc-split-capability:
     {{ python }} eval/evaluate-ujiindoorloc-split-capability.py
 
+# Reassign the verified corpus in memory by acquisition phone, prove a
+# four-role full-building/floor-coverage witness, and report the stricter
+# user-plus-phone boundary separately. No group assignments are retained.
+ujiindoorloc-phone-holdout-feasibility:
+    {{ python }} eval/evaluate-ujiindoorloc-split-capability.py --phone-holdout-report {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility.json
+    {{ python }} eval/evaluate-ujiindoorloc-split-capability.py --phone-holdout-report {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility-repeat.json
+    cmp {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility.json {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility-repeat.json
+
 # Evaluate the complete admitted capture-fixture manifest through the current
 # production binary and retain only the ignored metadata report.
 admitted-corpus-eval:

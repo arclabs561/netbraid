@@ -14,7 +14,7 @@ import stat
 import sys
 import tempfile
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
@@ -26,8 +26,12 @@ DEFAULT_RECEIPT = (
 DEFAULT_REPORT = (
     ROOT / "data" / "derived" / "eval" / "ujiindoorloc-split-capability.json"
 )
+DEFAULT_PHONE_HOLDOUT_REPORT = (
+    ROOT / "data" / "derived" / "eval" / "ujiindoorloc-phone-holdout-feasibility.json"
+)
 
 SCHEMA = "netbraid.ujiindoorloc_split_capability.v0"
+PHONE_HOLDOUT_SCHEMA = "netbraid.ujiindoorloc_phone_holdout_feasibility.v0"
 RECEIPT_SCHEMA = "local.public_wireless_archive.v1"
 MAX_ARCHIVE_BYTES = 2 * 1024 * 1024
 MAX_RECEIPT_BYTES = 64 * 1024
@@ -98,6 +102,20 @@ class PartitionSummary:
     observed_rssi_cells: int
     groups: Dict[str, set[Tuple[int, ...]]]
     axis_observed_rows: Dict[str, int]
+    user_phone_units: Dict[Tuple[int, int], "UnitAggregate"]
+
+
+@dataclass
+class UnitAggregate:
+    rows: int = 0
+    target_groups: set[Tuple[int, int]] = field(default_factory=set)
+
+
+@dataclass(frozen=True)
+class HoldoutUnit:
+    key: Tuple[int, ...]
+    rows: int
+    target_mask: int
 
 
 AXIS_POLICIES = {
@@ -232,6 +250,7 @@ def _read_partition(
     axis_observed_rows = {axis: 0 for axis in AXIS_POLICIES}
     rows = 0
     observed_rssi_cells = 0
+    user_phone_units: Dict[Tuple[int, int], UnitAggregate] = {}
     try:
         raw = archive.open(member, "r")
         text = io.TextIOWrapper(raw, encoding="utf-8", newline="")
@@ -268,6 +287,9 @@ def _read_partition(
                 groups["building"].add((building,))
                 groups["floor"].add((floor,))
                 groups["building_floor"].add((building, floor))
+                unit = user_phone_units.setdefault((user, phone), UnitAggregate())
+                unit.rows += 1
+                unit.target_groups.add((building, floor))
                 for axis in AXIS_POLICIES:
                     if axis != "location_cell":
                         axis_observed_rows[axis] += 1
@@ -293,6 +315,7 @@ def _read_partition(
         observed_rssi_cells=observed_rssi_cells,
         groups=groups,
         axis_observed_rows=axis_observed_rows,
+        user_phone_units=user_phone_units,
     )
 
 
@@ -325,14 +348,14 @@ def _validated_members(
     return by_name
 
 
-def evaluate_archive(
+def _read_verified_partitions(
     archive_path: Path,
     receipt_path: Path,
     contract: ArtifactContract = DEFAULT_CONTRACT,
-) -> Dict[str, Any]:
-    """Verify and aggregate one archive without retaining row-level values."""
+) -> Tuple[Tuple[int, str, str], PartitionSummary, PartitionSummary]:
+    """Verify one archive and return bounded in-memory aggregate summaries."""
 
-    size, md5, sha256 = _verify_integrity(archive_path, receipt_path, contract)
+    integrity = _verify_integrity(archive_path, receipt_path, contract)
     try:
         with zipfile.ZipFile(archive_path, "r") as archive:
             members = _validated_members(archive, contract)
@@ -346,8 +369,21 @@ def evaluate_archive(
             )
     except (OSError, zipfile.BadZipFile) as error:
         raise SplitCapabilityError("invalid_zip_archive") from error
-    if _digest_regular_file(archive_path) != (size, md5, sha256):
+    if _digest_regular_file(archive_path) != integrity:
         raise SplitCapabilityError("archive_changed_during_evaluation")
+    return integrity, train, validation
+
+
+def evaluate_archive(
+    archive_path: Path,
+    receipt_path: Path,
+    contract: ArtifactContract = DEFAULT_CONTRACT,
+) -> Dict[str, Any]:
+    """Verify and aggregate the publisher split without retaining row values."""
+
+    (size, md5, sha256), train, validation = _read_verified_partitions(
+        archive_path, receipt_path, contract
+    )
 
     axes = []
     intersections: Dict[str, int] = {}
@@ -414,6 +450,349 @@ def evaluate_archive(
     }
 
 
+def _combined_user_phone_units(
+    partitions: Sequence[PartitionSummary],
+) -> Dict[Tuple[int, int], UnitAggregate]:
+    combined: Dict[Tuple[int, int], UnitAggregate] = {}
+    for partition in partitions:
+        for key, source in partition.user_phone_units.items():
+            target = combined.setdefault(key, UnitAggregate())
+            target.rows += source.rows
+            target.target_groups.update(source.target_groups)
+    return combined
+
+
+def _target_masks(
+    aggregates: Mapping[Tuple[int, ...], UnitAggregate],
+) -> Tuple[list[HoldoutUnit], int, int]:
+    target_groups = sorted(
+        {
+            target
+            for aggregate in aggregates.values()
+            for target in aggregate.target_groups
+        }
+    )
+    target_bits = {target: 1 << index for index, target in enumerate(target_groups)}
+    units = [
+        HoldoutUnit(
+            key=key,
+            rows=aggregate.rows,
+            target_mask=sum(target_bits[target] for target in aggregate.target_groups),
+        )
+        for key, aggregate in sorted(aggregates.items())
+    ]
+    return units, (1 << len(target_groups)) - 1, len(target_groups)
+
+
+def _phone_units(
+    edges: Mapping[Tuple[int, int], UnitAggregate],
+) -> Dict[Tuple[int, ...], UnitAggregate]:
+    phones: Dict[Tuple[int, ...], UnitAggregate] = {}
+    for (_, phone), edge in edges.items():
+        unit = phones.setdefault((phone,), UnitAggregate())
+        unit.rows += edge.rows
+        unit.target_groups.update(edge.target_groups)
+    return phones
+
+
+def _joint_user_phone_units(
+    edges: Mapping[Tuple[int, int], UnitAggregate],
+) -> Dict[Tuple[int, ...], UnitAggregate]:
+    parents: Dict[Tuple[str, int], Tuple[str, int]] = {}
+
+    def root(node: Tuple[str, int]) -> Tuple[str, int]:
+        parents.setdefault(node, node)
+        while parents[node] != node:
+            parents[node] = parents[parents[node]]
+            node = parents[node]
+        return node
+
+    def union(left: Tuple[str, int], right: Tuple[str, int]) -> None:
+        left_root = root(left)
+        right_root = root(right)
+        if left_root == right_root:
+            return
+        if left_root > right_root:
+            left_root, right_root = right_root, left_root
+        parents[right_root] = left_root
+
+    for user, phone in edges:
+        union(("user", user), ("phone", phone))
+
+    components: Dict[Tuple[str, int], UnitAggregate] = {}
+    identities: Dict[Tuple[str, int], set[int]] = {}
+    for (user, phone), edge in edges.items():
+        component = root(("user", user))
+        aggregate = components.setdefault(component, UnitAggregate())
+        aggregate.rows += edge.rows
+        aggregate.target_groups.update(edge.target_groups)
+        values = identities.setdefault(component, set())
+        values.add(-(user + 1))
+        values.add(phone + 1)
+    return {tuple(sorted(identities[key])): value for key, value in components.items()}
+
+
+def _minimum_target_support(units: Sequence[HoldoutUnit], full_mask: int) -> int:
+    if full_mask == 0:
+        return 0
+    return min(
+        sum(bool(unit.target_mask & (1 << bit)) for unit in units)
+        for bit in range(full_mask.bit_length())
+    )
+
+
+def _count_bits(value: int) -> int:
+    return bin(value).count("1")
+
+
+def _covering_subsets(available: Tuple[HoldoutUnit, ...], full_mask: int):
+    """Yield deterministic covers containing the first unit.
+
+    Roles are interchangeable during the feasibility search, so every complete
+    assignment has an equivalent ordering where the first available unit is in
+    the role currently being constructed.
+    """
+
+    first = available[0]
+    yielded: set[Tuple[Tuple[int, ...], ...]] = set()
+
+    def visit(
+        selected: Tuple[HoldoutUnit, ...],
+        remaining: Tuple[HoldoutUnit, ...],
+        covered: int,
+    ):
+        if covered == full_mask:
+            identity = tuple(unit.key for unit in selected)
+            if identity not in yielded:
+                yielded.add(identity)
+                yield selected
+            return
+        if covered | _union_mask(remaining) != full_mask:
+            return
+        missing_bits = [
+            bit for bit in range(full_mask.bit_length()) if not covered & (1 << bit)
+        ]
+        bit = min(
+            missing_bits,
+            key=lambda item: (
+                sum(bool(unit.target_mask & (1 << item)) for unit in remaining),
+                item,
+            ),
+        )
+        candidates = [unit for unit in remaining if unit.target_mask & (1 << bit)]
+        candidates.sort(
+            key=lambda unit: (
+                -_count_bits(unit.target_mask & ~covered),
+                unit.rows,
+                unit.key,
+            )
+        )
+        for candidate in candidates:
+            next_remaining = tuple(unit for unit in remaining if unit != candidate)
+            yield from visit(
+                selected + (candidate,),
+                next_remaining,
+                covered | candidate.target_mask,
+            )
+
+    remaining = tuple(unit for unit in available if unit != first)
+    yield from visit((first,), remaining, first.target_mask)
+
+
+def _union_mask(units: Sequence[HoldoutUnit]) -> int:
+    result = 0
+    for unit in units:
+        result |= unit.target_mask
+    return result
+
+
+def _find_role_assignment(
+    units: Sequence[HoldoutUnit], full_mask: int, role_count: int
+) -> Optional[Tuple[Tuple[HoldoutUnit, ...], ...]]:
+    ordered = tuple(sorted(units, key=lambda unit: unit.key))
+
+    def visit(
+        available: Tuple[HoldoutUnit, ...], roles_remaining: int
+    ) -> Optional[Tuple[Tuple[HoldoutUnit, ...], ...]]:
+        if len(available) < roles_remaining:
+            return None
+        if _minimum_target_support(available, full_mask) < roles_remaining:
+            return None
+        if roles_remaining == 1:
+            if available and _union_mask(available) == full_mask:
+                return (available,)
+            return None
+        for selected in _covering_subsets(available, full_mask):
+            selected_keys = {unit.key for unit in selected}
+            remaining = tuple(
+                unit for unit in available if unit.key not in selected_keys
+            )
+            tail = visit(remaining, roles_remaining - 1)
+            if tail is not None:
+                return (selected, *tail)
+        return None
+
+    assignment = visit(ordered, role_count)
+    if assignment is None:
+        return None
+    return _balance_assignment(assignment, full_mask)
+
+
+def _assignment_balance(
+    assignment: Sequence[Sequence[HoldoutUnit]],
+) -> Tuple[int, int, int]:
+    row_counts = [sum(unit.rows for unit in role_units) for role_units in assignment]
+    return (
+        max(row_counts),
+        max(row_counts) - min(row_counts),
+        sum(count * count for count in row_counts),
+    )
+
+
+def _balance_assignment(
+    assignment: Tuple[Tuple[HoldoutUnit, ...], ...], full_mask: int
+) -> Tuple[Tuple[HoldoutUnit, ...], ...]:
+    """Improve row balance with deterministic coverage-preserving moves."""
+
+    current = tuple(tuple(role_units) for role_units in assignment)
+    while True:
+        current_score = _assignment_balance(current)
+        best = None
+        for donor_index, donor in enumerate(current):
+            if len(donor) <= 1:
+                continue
+            for unit in donor:
+                reduced = tuple(item for item in donor if item != unit)
+                if _union_mask(reduced) != full_mask:
+                    continue
+                for receiver_index in range(len(current)):
+                    if receiver_index == donor_index:
+                        continue
+                    candidate = list(current)
+                    candidate[donor_index] = reduced
+                    candidate[receiver_index] = tuple(
+                        sorted(
+                            (*candidate[receiver_index], unit),
+                            key=lambda item: item.key,
+                        )
+                    )
+                    candidate_tuple = tuple(candidate)
+                    score = _assignment_balance(candidate_tuple)
+                    tie_break = (donor_index, receiver_index, unit.key)
+                    if score >= current_score:
+                        continue
+                    if best is None or (score, tie_break) < (best[0], best[1]):
+                        best = (score, tie_break, candidate_tuple)
+        if best is None:
+            return current
+        current = best[2]
+
+
+def _feasibility_report(
+    units: Sequence[HoldoutUnit], full_mask: int, target_count: int
+) -> Dict[str, Any]:
+    roles = ("train", "calibration", "validation", "test")
+    minimum_support = _minimum_target_support(units, full_mask)
+    if len(units) < len(roles):
+        blocker = "insufficient_disjoint_units"
+        assignment = None
+    elif minimum_support < len(roles):
+        blocker = "target_group_support_below_role_count"
+        assignment = None
+    else:
+        assignment = _find_role_assignment(units, full_mask, len(roles))
+        blocker = None if assignment is not None else "no_complete_role_assignment"
+
+    candidate = None
+    if assignment is not None:
+        assigned_units = [unit for role_units in assignment for unit in role_units]
+        assigned_keys = [unit.key for unit in assigned_units]
+        unique_assigned_keys = set(assigned_keys)
+        expected_keys = {unit.key for unit in units}
+        candidate = {
+            "all_rows_assigned_once": (
+                len(assigned_keys) == len(unique_assigned_keys)
+                and unique_assigned_keys == expected_keys
+                and sum(unit.rows for unit in assigned_units)
+                == sum(unit.rows for unit in units)
+            ),
+            "all_units_assigned_once": (
+                len(assigned_keys) == len(unique_assigned_keys)
+                and unique_assigned_keys == expected_keys
+            ),
+            "disjoint_unit_overlap_count": len(assigned_keys)
+            - len(unique_assigned_keys),
+            "is_benchmark_recommendation": False,
+            "row_balance_method": "coverage_preserving_single_unit_local_search",
+            "roles": [
+                {
+                    "role": role,
+                    "unit_count": len(role_units),
+                    "row_count": sum(unit.rows for unit in role_units),
+                    "target_group_count": _count_bits(_union_mask(role_units)),
+                    "missing_target_group_count": _count_bits(
+                        full_mask & ~_union_mask(role_units)
+                    ),
+                }
+                for role, role_units in zip(roles, assignment)
+            ],
+        }
+    return {
+        "status": "candidate_found" if assignment is not None else "blocked",
+        "blocker": blocker,
+        "unit_count": len(units),
+        "target_group_count": target_count,
+        "minimum_target_group_unit_support": minimum_support,
+        "candidate": candidate,
+    }
+
+
+def evaluate_phone_holdout_feasibility(
+    archive_path: Path,
+    receipt_path: Path,
+    contract: ArtifactContract = DEFAULT_CONTRACT,
+) -> Dict[str, Any]:
+    """Test aggregate four-role holdout feasibility on the verified corpus."""
+
+    (size, md5, sha256), train, validation = _read_verified_partitions(
+        archive_path, receipt_path, contract
+    )
+    edges = _combined_user_phone_units((train, validation))
+    phone_units, full_mask, target_count = _target_masks(_phone_units(edges))
+    joint_units, joint_mask, joint_target_count = _target_masks(
+        _joint_user_phone_units(edges)
+    )
+    if (joint_mask, joint_target_count) != (full_mask, target_count):
+        raise SplitCapabilityError("inconsistent_holdout_target_frame")
+    return {
+        "schema": PHONE_HOLDOUT_SCHEMA,
+        "status": "pass",
+        "integrity": {"bytes": size, "md5": md5, "sha256": sha256},
+        "rows": {
+            "publisher_train": train.rows,
+            "publisher_validation": validation.rows,
+            "total": train.rows + validation.rows,
+        },
+        "roles": ["train", "calibration", "validation", "test"],
+        "coverage_axis": "building_floor",
+        "phone_holdout": _feasibility_report(phone_units, full_mask, target_count),
+        "joint_user_phone_holdout": _feasibility_report(
+            joint_units, joint_mask, joint_target_count
+        ),
+        "privacy": {
+            "rows_retained": 0,
+            "rssi_vectors_retained": 0,
+            "coordinate_values_retained": 0,
+            "timestamp_values_retained": 0,
+            "identifier_values_retained": 0,
+            "group_assignments_retained": 0,
+            "member_paths_retained": 0,
+            "source_urls_retained": 0,
+            "local_paths_retained": 0,
+        },
+    }
+
+
 def render_report(report: Mapping[str, Any]) -> bytes:
     try:
         return (
@@ -466,18 +845,23 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--archive", type=Path, default=DEFAULT_ARCHIVE)
     parser.add_argument("--receipt", type=Path, default=DEFAULT_RECEIPT)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
+    parser.add_argument("--phone-holdout-report", type=Path)
     return parser.parse_args(argv)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     arguments = parse_args(argv)
     try:
-        report = evaluate_archive(
-            arguments.archive.expanduser().absolute(),
-            arguments.receipt.expanduser().absolute(),
-        )
+        archive = arguments.archive.expanduser().absolute()
+        receipt = arguments.receipt.expanduser().absolute()
+        if arguments.phone_holdout_report is None:
+            report = evaluate_archive(archive, receipt)
+            report_path = arguments.report
+        else:
+            report = evaluate_phone_holdout_feasibility(archive, receipt)
+            report_path = arguments.phone_holdout_report
         payload = render_report(report)
-        write_report(arguments.report.expanduser().absolute(), payload)
+        write_report(report_path.expanduser().absolute(), payload)
     except SplitCapabilityError as error:
         print(error.code, file=sys.stderr)
         return 2
