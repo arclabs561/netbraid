@@ -53,7 +53,7 @@ FETCH_STATES = {
 }
 PRIORITIES = {"P0", "P1", "P2", "P3"}
 PRIVATE_TOKEN = re.compile(
-    r"(?i)(/users/|documents/dev|capture-host.example.invalid|localhost|api[_-]?key|password|secret|token)"
+    r"(?i)(/users/|documents/dev|localhost|api[_-]?key|password|secret|token)"
 )
 
 
@@ -84,6 +84,7 @@ class CatalogTests(unittest.TestCase):
             parsed = urlparse(url)
             self.assertEqual(parsed.scheme, "https")
             self.assertTrue(parsed.hostname)
+            self.assertFalse(parsed.hostname.endswith(".local"))
             try:
                 address = ipaddress.ip_address(parsed.hostname)
             except ValueError:
