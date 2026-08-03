@@ -15,6 +15,7 @@ row sampling. Both waveform arrays remain read-only NumPy memory maps.
 from __future__ import annotations
 
 import argparse
+import heapq
 import importlib.util
 import json
 import sys
@@ -124,52 +125,168 @@ class TransferConfig:
         return config
 
 
-def _device_map(rows: Sequence[Any]) -> Dict[str, str]:
+@dataclass(frozen=True)
+class RoleSelection:
+    location_count: int
+    atomic_group_count: int
+    source_row_count: int
+    sampled: Tuple[Any, ...]
+
+
+def _adapter_spans(adapter: Any) -> Tuple[Any, ...]:
+    if isinstance(adapter, BASE.LoadedRowSpanAdapter):
+        return adapter.spans
+    if isinstance(adapter, BASE.LoadedRowAdapter):
+        return tuple(
+            BASE.RowSpanMetadata(
+                row_start=row.row_index,
+                row_stop=row.row_index + 1,
+                distance_collection=row.distance_collection,
+                physical_source=row.physical_source,
+                physical_device=row.physical_device,
+                location=row.location,
+            )
+            for row in adapter.rows
+        )
+    raise BASE.EvaluationInputError("invalid_cross_distance_adapter")
+
+
+def _device_map(spans: Sequence[Any]) -> Dict[str, str]:
     mapping: Dict[str, str] = {}
-    for row in rows:
-        prior = mapping.setdefault(row.physical_source, row.physical_device)
-        if prior != row.physical_device:
+    for span in spans:
+        prior = mapping.setdefault(span.physical_source, span.physical_device)
+        if prior != span.physical_device:
             raise BASE.EvaluationInputError("physical_source_device_not_bijective")
     return mapping
 
 
 def _validate_transfer_adapters(source: Any, target: Any) -> None:
-    source_map = _device_map(source.rows)
-    target_map = _device_map(target.rows)
+    if source.adapter_id == target.adapter_id:
+        raise BASE.EvaluationInputError("cross_distance_adapter_alias")
+    source_spans = _adapter_spans(source)
+    target_spans = _adapter_spans(target)
+    source_map = _device_map(source_spans)
+    target_map = _device_map(target_spans)
     if source_map != target_map:
         raise BASE.EvaluationInputError("cross_distance_identity_mismatch")
-    source_collections = {row.distance_collection for row in source.rows}
-    target_collections = {row.distance_collection for row in target.rows}
+    source_collections = {span.distance_collection for span in source_spans}
+    target_collections = {span.distance_collection for span in target_spans}
     if len(source_collections) != 1 or len(target_collections) != 1:
         raise BASE.EvaluationInputError("cross_distance_collection_count")
     if source_collections == target_collections:
         raise BASE.EvaluationInputError("cross_distance_collection_alias")
 
 
-def _sample_target_rows(
-    rows: Sequence[Any], adapter_id: str, config: TransferConfig
+def _select_group_rows(
+    group_ranges: Dict[Tuple[str, str, str, str], List[Tuple[int, int]]],
+    maximum: int,
+    rank: Any,
 ) -> Tuple[Any, ...]:
-    base = config.base()
-    groups: Dict[Tuple[str, str, str, str], List[Any]] = defaultdict(list)
-    for row in rows:
-        groups[row.atomic_group()].append(row)
     selected: List[Any] = []
-    for group, candidates in sorted(groups.items()):
-        ranked = sorted(
-            candidates,
-            key=lambda row: (
-                BASE._hash_parts(
-                    base.seed,
-                    "cross-distance-target-row-sample",
-                    adapter_id,
-                    *group,
-                    row.row_index,
+    for group, ranges in sorted(group_ranges.items()):
+        indices = (
+            row_index for start, stop in ranges for row_index in range(start, stop)
+        )
+        for row_index in heapq.nsmallest(
+            maximum, indices, key=lambda item: rank(group, item)
+        ):
+            selected.append(
+                BASE.RowMetadata(
+                    row_index=row_index,
+                    distance_collection=group[0],
+                    physical_source=group[1],
+                    physical_device=group[2],
+                    location=group[3],
+                )
+            )
+    return tuple(sorted(selected, key=lambda row: (row.atomic_group(), row.row_index)))
+
+
+def _partition_and_sample_source(
+    spans: Sequence[Any], config: TransferConfig
+) -> Dict[str, RoleSelection]:
+    base = config.base()
+    locations = sorted(
+        {span.location for span in spans},
+        key=lambda location: (
+            BASE._hash_parts(base.seed, "location-split", location),
+            location,
+        ),
+    )
+    train_count = len(locations) * BASE.SPLIT_PERCENTAGES["train"] // 100
+    validation_count = len(locations) * BASE.SPLIT_PERCENTAGES["validation"] // 100
+    if train_count == 0 or validation_count == 0:
+        raise BASE.EvaluationInputError("empty_location_partition")
+    location_role = {
+        location: (
+            "train"
+            if index < train_count
+            else "validation"
+            if index < train_count + validation_count
+            else "test"
+        )
+        for index, location in enumerate(locations)
+    }
+    ranges = {role: defaultdict(list) for role in BASE.SPLITS}
+    role_locations = {role: set() for role in BASE.SPLITS}
+    role_rows = {role: 0 for role in BASE.SPLITS}
+    for span in spans:
+        role = location_role[span.location]
+        group = span.atomic_group()
+        ranges[role][group].append((span.row_start, span.row_stop))
+        role_locations[role].add(span.location)
+        role_rows[role] += span.row_stop - span.row_start
+    if any(not ranges[role] for role in BASE.SPLITS):
+        raise BASE.EvaluationInputError("empty_row_partition")
+    return {
+        role: RoleSelection(
+            location_count=len(role_locations[role]),
+            atomic_group_count=len(ranges[role]),
+            source_row_count=role_rows[role],
+            sampled=_select_group_rows(
+                ranges[role],
+                base.max_rows_per_atomic_group,
+                lambda group, row_index: (
+                    BASE._hash_parts(base.seed, "row-sample", *group, row_index),
+                    row_index,
                 ),
-                row.row_index,
             ),
         )
-        selected.extend(ranked[: base.max_rows_per_atomic_group])
-    return tuple(sorted(selected, key=lambda row: (row.atomic_group(), row.row_index)))
+        for role in BASE.SPLITS
+    }
+
+
+def _sample_target_rows(
+    spans: Sequence[Any], adapter_id: str, config: TransferConfig
+) -> RoleSelection:
+    base = config.base()
+    ranges: Dict[Tuple[str, str, str, str], List[Tuple[int, int]]] = defaultdict(list)
+    locations = set()
+    source_rows = 0
+    for span in spans:
+        ranges[span.atomic_group()].append((span.row_start, span.row_stop))
+        locations.add(span.location)
+        source_rows += span.row_stop - span.row_start
+    sampled = _select_group_rows(
+        ranges,
+        base.max_rows_per_atomic_group,
+        lambda group, row_index: (
+            BASE._hash_parts(
+                base.seed,
+                "cross-distance-target-row-sample",
+                adapter_id,
+                *group,
+                row_index,
+            ),
+            row_index,
+        ),
+    )
+    return RoleSelection(
+        location_count=len(locations),
+        atomic_group_count=len(ranges),
+        source_row_count=source_rows,
+        sampled=sampled,
+    )
 
 
 def _project_row(waveforms: Any, row: Any, config: TransferConfig) -> Any:
@@ -223,18 +340,17 @@ def _source_receipt(loaded: Any, contract: Any, adapter_id: str) -> Dict[str, An
 
 def _role_receipt(
     adapter_id: str,
-    assigned: Sequence[Any],
-    sampled: Sequence[Any],
+    selection: RoleSelection,
     features: Sequence[Any],
 ) -> Dict[str, Any]:
     return {
-        "location_count": len({row.location for row in assigned}),
-        "atomic_group_count": len({row.atomic_group() for row in assigned}),
-        "source_row_count": len(assigned),
-        "sampled_row_count": len(sampled),
+        "location_count": selection.location_count,
+        "atomic_group_count": selection.atomic_group_count,
+        "source_row_count": selection.source_row_count,
+        "sampled_row_count": len(selection.sampled),
         "feature_row_count": len(features),
         "window_count": sum(len(row.windows) for row in features),
-        "sampled_row_receipt": _qualified_row_receipt(adapter_id, sampled),
+        "sampled_row_receipt": _qualified_row_receipt(adapter_id, selection.sampled),
     }
 
 
@@ -270,16 +386,15 @@ def evaluate_transfer(
 
     # The operation order is a leakage contract: roles and bounded samples are
     # fixed before either waveform source is opened.
-    source_assigned = BASE.partition_rows(source_adapter.rows, base.seed)
-    source_sampled = BASE.sample_rows(source_assigned, base)
-    target_sampled = _sample_target_rows(
-        target_adapter.rows, target_adapter.adapter_id, selected
-    )
+    source_spans = _adapter_spans(source_adapter)
+    target_spans = _adapter_spans(target_adapter)
+    source_roles = _partition_and_sample_source(source_spans, selected)
+    target_role = _sample_target_rows(target_spans, target_adapter.adapter_id, selected)
     feature_values = (
         (
-            len(source_sampled["train"])
-            + len(source_sampled["validation"])
-            + len(target_sampled)
+            len(source_roles["train"].sampled)
+            + len(source_roles["validation"].sampled)
+            + len(target_role.sampled)
         )
         * base.windows_per_row
         * base.window_length
@@ -293,13 +408,15 @@ def evaluate_transfer(
     target_loaded = BASE.load_waveforms(
         target_waveform_path, target_adapter.source_contract
     )
-    source_train = _project_rows(source_loaded.array, source_sampled["train"], selected)
-    source_validation = _project_rows(
-        source_loaded.array, source_sampled["validation"], selected
+    source_train = _project_rows(
+        source_loaded.array, source_roles["train"].sampled, selected
     )
-    target_test = _project_rows(target_loaded.array, target_sampled, selected)
+    source_validation = _project_rows(
+        source_loaded.array, source_roles["validation"].sampled, selected
+    )
+    target_test = _project_rows(target_loaded.array, target_role.sampled, selected)
 
-    expected_devices = set(_device_map(source_adapter.rows).values())
+    expected_devices = set(_device_map(source_spans).values())
     for role, features in (
         ("source_train", source_train),
         ("source_validation", source_validation),
@@ -335,27 +452,29 @@ def evaluate_transfer(
         label: f"device-{index + 1:03d}" for index, label in enumerate(chosen.labels)
     }
 
-    source_test = source_assigned["test"]
+    source_test_unused = RoleSelection(
+        location_count=source_roles["test"].location_count,
+        atomic_group_count=source_roles["test"].atomic_group_count,
+        source_row_count=source_roles["test"].source_row_count,
+        sampled=(),
+    )
     receipts = {
         "source_train": _role_receipt(
             source_adapter.adapter_id,
-            source_assigned["train"],
-            source_sampled["train"],
+            source_roles["train"],
             source_train,
         ),
         "source_validation": _role_receipt(
             source_adapter.adapter_id,
-            source_assigned["validation"],
-            source_sampled["validation"],
+            source_roles["validation"],
             source_validation,
         ),
         "source_test_unused": _role_receipt(
-            source_adapter.adapter_id, source_test, (), ()
+            source_adapter.adapter_id, source_test_unused, ()
         ),
         "target_test": _role_receipt(
             target_adapter.adapter_id,
-            target_adapter.rows,
-            target_sampled,
+            target_role,
             target_test,
         ),
     }
@@ -404,16 +523,11 @@ def evaluate_transfer(
             "target_configuration_candidates": 0,
             "source_train_validation_row_overlap": _identity_overlap(
                 source_adapter.adapter_id,
-                source_sampled["train"],
+                source_roles["train"].sampled,
                 source_adapter.adapter_id,
-                source_sampled["validation"],
+                source_roles["validation"].sampled,
             ),
-            "source_test_target_row_overlap": _identity_overlap(
-                source_adapter.adapter_id,
-                source_test,
-                target_adapter.adapter_id,
-                target_adapter.rows,
-            ),
+            "source_test_target_row_overlap": 0,
             "row_identity": "adapter_id_plus_row_index",
             "prototype_fit_role": "source_train",
             "configuration_selection_role": "source_validation",
@@ -516,8 +630,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     try:
-        source = BASE.load_row_adapter(args.source_row_adapter, PINNED_SOURCE_BINDING)
-        target = BASE.load_row_adapter(args.target_row_adapter, PINNED_TARGET_BINDING)
+        source = BASE.load_row_span_adapter(
+            args.source_row_adapter, PINNED_SOURCE_BINDING
+        )
+        target = BASE.load_row_span_adapter(
+            args.target_row_adapter, PINNED_TARGET_BINDING
+        )
         report = evaluate_transfer(
             source,
             args.source_waveforms,

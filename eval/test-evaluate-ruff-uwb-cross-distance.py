@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import sys
 import tempfile
@@ -65,6 +66,19 @@ def binding_for_cross(binding):
 
 def load_adapter(adapter, binding):
     return CROSS.BASE.validate_row_adapter(adapter, binding_for_cross(binding))
+
+
+def hash_parts_oracle(seed, domain, *parts):
+    digest = hashlib.sha256()
+    namespace = b"netbraid.ruff-uwb-heldout-location.v0"
+    for value in (namespace, seed.to_bytes(8, "big"), domain.encode("utf-8")):
+        digest.update(len(value).to_bytes(4, "big"))
+        digest.update(value)
+    for part in parts:
+        encoded = str(part).encode("utf-8")
+        digest.update(len(encoded).to_bytes(4, "big"))
+        digest.update(encoded)
+    return digest.digest()
 
 
 def target_aliases_are_collection_scoped(adapter):
@@ -136,6 +150,12 @@ class TransferFixture:
             source_adapter, self.source_binding
         )
         self.target = CROSS.BASE.validate_row_adapter(
+            target_adapter, self.target_binding
+        )
+        self.source_compact = CROSS.BASE.validate_row_span_adapter(
+            source_adapter, self.source_binding
+        )
+        self.target_compact = CROSS.BASE.validate_row_span_adapter(
             target_adapter, self.target_binding
         )
 
@@ -220,6 +240,82 @@ class RuffUwbCrossDistanceTests(unittest.TestCase):
             "adapter_id_plus_row_index",
         )
 
+    def test_compact_and_expanded_adapters_produce_identical_report(self):
+        fixture = TransferFixture(self)
+
+        expanded = fixture.evaluate()
+        compact = fixture.evaluate(
+            source=fixture.source_compact, target=fixture.target_compact
+        )
+
+        self.assertEqual(
+            CROSS.BASE.render_report(expanded), CROSS.BASE.render_report(compact)
+        )
+
+    def test_compact_source_sampling_matches_expanded_oracle_across_split_spans(self):
+        fixture = TransferFixture(self)
+        document = copy.deepcopy(fixture.source_document)
+        first, second = document["spans"][:2]
+        self.assertEqual((first["row_start"], first["row_stop"]), (0, 2))
+        self.assertEqual((second["row_start"], second["row_stop"]), (2, 4))
+        document["spans"][:2] = [
+            {**first, "row_start": 0, "row_stop": 1},
+            {**second, "row_start": 1, "row_stop": 2},
+            {**first, "row_start": 2, "row_stop": 3},
+            {**second, "row_start": 3, "row_stop": 4},
+        ]
+        document["counts"]["spans"] = len(document["spans"])
+        SUPPORT.resign_adapter(document)
+        expanded = CROSS.BASE.validate_row_adapter(document, fixture.source_binding)
+        compact = CROSS.BASE.validate_row_span_adapter(document, fixture.source_binding)
+
+        assigned = CROSS.BASE.partition_rows(expanded.rows, config().seed)
+        oracle = CROSS.BASE.sample_rows(assigned, config().base())
+        actual = CROSS._partition_and_sample_source(compact.spans, config())
+
+        for role in CROSS.BASE.SPLITS:
+            self.assertEqual(actual[role].sampled, oracle[role])
+            self.assertEqual(actual[role].source_row_count, len(assigned[role]))
+            self.assertEqual(
+                actual[role].location_count,
+                len({row.location for row in assigned[role]}),
+            )
+            self.assertEqual(
+                actual[role].atomic_group_count,
+                len({row.atomic_group() for row in assigned[role]}),
+            )
+
+    def test_compact_target_sampling_matches_full_sort_oracle(self):
+        fixture = TransferFixture(self)
+        grouped = {}
+        for row in fixture.target.rows:
+            grouped.setdefault(row.atomic_group(), []).append(row)
+        selected = []
+        for group, candidates in sorted(grouped.items()):
+            ranked = sorted(
+                candidates,
+                key=lambda row: (
+                    hash_parts_oracle(
+                        config().seed,
+                        "cross-distance-target-row-sample",
+                        fixture.target.adapter_id,
+                        *group,
+                        row.row_index,
+                    ),
+                    row.row_index,
+                ),
+            )
+            selected.extend(ranked[: config().max_rows_per_atomic_group])
+        oracle = tuple(
+            sorted(selected, key=lambda row: (row.atomic_group(), row.row_index))
+        )
+
+        actual = CROSS._sample_target_rows(
+            fixture.target_compact.spans, fixture.target.adapter_id, config()
+        )
+
+        self.assertEqual(actual.sampled, oracle)
+
     def test_source_test_rows_never_affect_selection_or_target_metrics(self):
         fixture = TransferFixture(self)
         baseline = fixture.evaluate()
@@ -293,6 +389,17 @@ class RuffUwbCrossDistanceTests(unittest.TestCase):
                 fixture.evaluate(target=target)
 
         self.assertEqual(raised.exception.code, "cross_distance_identity_mismatch")
+        load.assert_not_called()
+
+    def test_adapter_alias_fails_before_waveform_open(self):
+        fixture = TransferFixture(self)
+        target = replace(fixture.target, adapter_id=fixture.source.adapter_id)
+
+        with mock.patch.object(CROSS.BASE, "load_waveforms") as load:
+            with self.assertRaises(CROSS.BASE.EvaluationInputError) as raised:
+                fixture.evaluate(target=target)
+
+        self.assertEqual(raised.exception.code, "cross_distance_adapter_alias")
         load.assert_not_called()
 
     def test_feature_bound_fails_before_waveform_open(self):

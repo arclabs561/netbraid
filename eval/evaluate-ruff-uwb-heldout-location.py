@@ -334,6 +334,44 @@ class LoadedRowAdapter:
 
 
 @dataclass(frozen=True)
+class RowSpanMetadata:
+    """Validated half-open row range sharing one atomic split group."""
+
+    row_start: int
+    row_stop: int
+    distance_collection: str
+    physical_source: str
+    physical_device: str
+    location: str
+
+    def atomic_group(self) -> Tuple[str, str, str, str]:
+        return (
+            self.distance_collection,
+            self.physical_source,
+            self.physical_device,
+            self.location,
+        )
+
+    def row(self, row_index: int) -> RowMetadata:
+        if not self.row_start <= row_index < self.row_stop:
+            raise EvaluationInputError("row_outside_span")
+        return RowMetadata(
+            row_index=row_index,
+            distance_collection=self.distance_collection,
+            physical_source=self.physical_source,
+            physical_device=self.physical_device,
+            location=self.location,
+        )
+
+
+@dataclass(frozen=True)
+class LoadedRowSpanAdapter:
+    adapter_id: str
+    spans: Tuple[RowSpanMetadata, ...]
+    source_contract: WaveformSourceContract
+
+
+@dataclass(frozen=True)
 class RowFeatures:
     metadata: RowMetadata
     windows: Any
@@ -550,10 +588,10 @@ def _validate_adapter_binding(binding: RowAdapterBinding) -> None:
         raise EvaluationInputError("invalid_row_adapter_binding")
 
 
-def validate_row_adapter(
+def validate_row_span_adapter(
     value: Any, binding: Optional[RowAdapterBinding] = None
-) -> LoadedRowAdapter:
-    """Validate and expand one bounded, gap-free row-adapter document."""
+) -> LoadedRowSpanAdapter:
+    """Validate one bounded, gap-free row adapter without expanding its spans."""
 
     selected_binding = binding or PRODUCTION_ROW_ADAPTER_BINDING
     _validate_adapter_binding(selected_binding)
@@ -639,7 +677,7 @@ def validate_row_adapter(
     ):
         raise EvaluationInputError("row_adapter_span_count")
 
-    rows: List[RowMetadata] = []
+    validated_spans: List[RowSpanMetadata] = []
     expected_start = 0
     prior_group: Optional[Tuple[str, str, str, str]] = None
     source_to_device: Dict[str, str] = {}
@@ -689,15 +727,15 @@ def validate_row_adapter(
             raise EvaluationInputError("physical_source_device_not_bijective")
         source_to_device[source_id] = device_id
         device_to_source[device_id] = source_id
-        rows.extend(
-            RowMetadata(
-                row_index=row_index,
+        validated_spans.append(
+            RowSpanMetadata(
+                row_start=start,
+                row_stop=stop,
                 distance_collection=identifiers["distance_collection"],
                 physical_source=source_id,
                 physical_device=device_id,
                 location=identifiers["location"],
             )
-            for row_index in range(start, stop)
         )
         expected_start = stop
         prior_group = group
@@ -708,20 +746,51 @@ def validate_row_adapter(
             if domains[left] & domains[right]:
                 raise EvaluationInputError("row_adapter_identifier_domain_collision")
     expected_counts = {
-        "rows": len(rows),
+        "rows": expected_start,
         "spans": len(spans),
         "distance_collections": len(domains["distance_collection"]),
         "physical_sources": len(domains["physical_source"]),
         "physical_devices": len(domains["physical_device"]),
         "locations": len(domains["location"]),
     }
-    if counts != expected_counts or len(rows) != source_contract.rows:
+    if counts != expected_counts or expected_start != source_contract.rows:
         raise EvaluationInputError("row_adapter_count_mismatch")
-    validated_rows = _validate_rows(rows)
-    return LoadedRowAdapter(
+    if len(domains["distance_collection"]) != 1:
+        raise EvaluationInputError("one_npy_requires_one_distance_collection")
+    if not 10 <= len(domains["location"]) <= MAX_LOCATIONS:
+        raise EvaluationInputError("location_count_outside_split_bound")
+    if not 2 <= len(domains["physical_device"]) <= MAX_DEVICES:
+        raise EvaluationInputError("device_count_outside_bound")
+    return LoadedRowSpanAdapter(
         adapter_id=adapter_id,
-        rows=validated_rows,
+        spans=tuple(validated_spans),
         source_contract=source_contract,
+    )
+
+
+def validate_row_adapter(
+    value: Any, binding: Optional[RowAdapterBinding] = None
+) -> LoadedRowAdapter:
+    """Validate and expand one bounded, gap-free row-adapter document."""
+
+    compact = validate_row_span_adapter(value, binding)
+    rows = tuple(
+        span.row(row_index)
+        for span in compact.spans
+        for row_index in range(span.row_start, span.row_stop)
+    )
+    return LoadedRowAdapter(
+        adapter_id=compact.adapter_id,
+        rows=_validate_rows(rows),
+        source_contract=compact.source_contract,
+    )
+
+
+def load_row_span_adapter(
+    path: Path, binding: Optional[RowAdapterBinding] = None
+) -> LoadedRowSpanAdapter:
+    return validate_row_span_adapter(
+        _read_strict_json(path, MAX_ROW_ADAPTER_BYTES, "row_adapter"), binding
     )
 
 

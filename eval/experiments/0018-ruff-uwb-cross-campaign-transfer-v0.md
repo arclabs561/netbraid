@@ -35,6 +35,7 @@ The canonical commands are:
 
 ```sh
 just ruff-uwb-cross-campaign-check
+just ruff-uwb-row-sampling-benchmark
 just ruff-uwb-two-meter-row-adapter
 just ruff-uwb-cross-campaign-transfer
 ```
@@ -62,11 +63,32 @@ available in the corpus.
 
 ## Results
 
-The seven-test synthetic suite passes. It covers exact production-binding
+The 11-test synthetic suite passes. It covers exact production-binding
 projection from the compiler registry, deterministic transfer with overlapping
 collection-local row indices, source-test non-use, target perturbation
-isolation, pre-I/O identity rejection, pre-I/O feature-memory rejection,
-read-only mmap, and path-free output.
+isolation, pre-I/O identity and adapter-alias rejection, pre-I/O feature-memory
+rejection, read-only mmap, path-free output, byte-identical reports from compact
+and expanded adapters, and exact SHA-256 top-k parity when one atomic group is
+split across non-adjacent spans.
+
+Metadata load, location partitioning, and bounded source-row sampling were
+measured three times per mode on the complete 771,232-row one-meter adapter:
+
+```sh
+/usr/bin/time -l uv run --script eval/benchmark-ruff-uwb-row-sampling.py --mode expanded
+/usr/bin/time -l uv run --script eval/benchmark-ruff-uwb-row-sampling.py --mode compact
+```
+
+| Mode | Median internal time | Median maximum RSS | Sampled rows |
+| --- | ---: | ---: | ---: |
+| Expanded reference | 6.906741 s | 353,140,736 bytes | 5,160 |
+| Compact production | 1.938099 s | 29,147,136 bytes | 5,160 |
+
+All six runs emitted the same sampled-row receipt,
+`1210d9d2cb955f51263e3537f28fb69da43ffe89dd5fd5fd405189f940f12678`.
+The compact path is 3.56 times as fast for this boundary and reduces median
+maximum RSS by 91.7%. The benchmark excludes waveform hashing and projection;
+it isolates the metadata cost changed here.
 
 Real target metrics are not recorded because the two-meter standalone NPY has
 not yet been extracted. No predictive conclusion is available.
@@ -78,8 +100,8 @@ hypothesis remains open. The eventual result is a cross-campaign transfer
 measurement, not an isolated distance effect: distance, day, room position,
 and stored representation all change together.
 
-The production run also has a known cost outside the bounded feature sample:
-adapter loading materializes roughly 1.9 million row records, and source
-verification hashes approximately 4.93 GB before opening the two arrays by
-read-only mmap. Those costs must be measured or reduced before presenting the
-recipe as a fast path.
+The production cross-campaign path now retains compact validated spans and
+materializes only bounded sampled rows. Source verification still hashes
+approximately 4.93 GB before opening the two arrays by read-only mmap; that
+remaining integrity cost is separate from the metadata optimization and must
+be measured during the eventual two-campaign run.

@@ -366,6 +366,12 @@ ruff-uwb-heldout-location-real: ruff-uwb-row-adapter
 ruff-uwb-cross-campaign-check:
     uv run --script eval/test-evaluate-ruff-uwb-cross-distance.py
 
+# Compare exact source-row selection through the reference expanded path and
+# the production compact-span path. Requires the ignored one-meter adapter.
+ruff-uwb-row-sampling-benchmark:
+    uv run --script eval/benchmark-ruff-uwb-row-sampling.py --mode expanded
+    uv run --script eval/benchmark-ruff-uwb-row-sampling.py --mode compact
+
 # Fit/select only on the one-meter train/validation roles, quarantine its prior
 # test role, then evaluate once on the complete two-meter campaign.
 ruff-uwb-cross-campaign-transfer: ruff-uwb-row-adapter ruff-uwb-two-meter-row-adapter
