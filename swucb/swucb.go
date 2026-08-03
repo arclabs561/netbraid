@@ -36,13 +36,22 @@ func (a *SWUCBAlgorithm) ObservationCounts() []int {
 	return a.n
 }
 
-// sum returns the sum of the elements in the given slice.
-func sum(arr []int) float64 {
-	total := 0
-	for _, v := range arr {
-		total += v
+type packetObservation struct {
+	packets  int
+	duration time.Duration
+}
+
+func packetRate(observations []packetObservation) float64 {
+	packets := 0
+	duration := time.Duration(0)
+	for _, observation := range observations {
+		packets += observation.packets
+		duration += observation.duration
 	}
-	return float64(total)
+	if duration <= 0 {
+		return 0
+	}
+	return float64(packets) / duration.Seconds()
 }
 
 type RunOption interface {
@@ -63,15 +72,25 @@ func (a *SWUCBAlgorithm) Run(
 	if a.numChannels < 1 {
 		return errors.New("number of channels must be at least 1")
 	}
-	n, r, L := make([]int, a.numChannels), make([]float64, a.numChannels), make([][]int, a.numChannels)
+	if a.w < 1 {
+		return errors.New("sliding window size must be at least 1")
+	}
+	if a.TDefault <= 0 {
+		return errors.New("default observation duration must be positive")
+	}
+	n := make([]int, a.numChannels)
+	L := make([][]packetObservation, a.numChannels)
 	for channel := range L {
-		L[channel] = make([]int, 0, a.w)
+		L[channel] = make([]packetObservation, 0, a.w)
 	}
 
 	maxSteps := mo.None[int]()
 	for _, opt := range opts {
 		switch opt := opt.(type) {
 		case *OptRunMaxSteps:
+			if opt.MaxSteps < 0 {
+				return errors.New("maximum steps must not be negative")
+			}
 			maxSteps = mo.Some(opt.MaxSteps)
 		default:
 			panic(fmt.Sprintf("unknown option type: %#v", opt))
@@ -98,7 +117,7 @@ func (a *SWUCBAlgorithm) Run(
 				unobserved = i
 				continue
 			}
-			avgReward := sum(L[i]) / math.Min(float64(a.w), ni)
+			avgReward := packetRate(L[i])
 			UCB := avgReward + math.Sqrt(2*math.Log(float64(t))/math.Min(float64(a.w), ni))
 			if UCB > maxUCB {
 				maxUCB, selectedChannel = UCB, i
@@ -110,11 +129,11 @@ func (a *SWUCBAlgorithm) Run(
 		}
 
 		var T time.Duration
-		windowPackets := sum(L[selectedChannel])
-		if n[selectedChannel] < a.w || windowPackets <= 0 {
+		windowRate := packetRate(L[selectedChannel])
+		if n[selectedChannel] < a.w || windowRate <= 0 {
 			T = a.TDefault
 		} else {
-			T = time.Duration(float64(time.Second) * float64(a.w) / windowPackets)
+			T = time.Duration(float64(time.Second) * float64(a.w) / windowRate)
 			if T <= 0 {
 				T = time.Nanosecond
 			}
@@ -124,10 +143,15 @@ func (a *SWUCBAlgorithm) Run(
 		if err != nil {
 			return err
 		}
+		if packetsObserved < 0 {
+			return errors.New("observed packet count must not be negative")
+		}
 
-		r[selectedChannel] += float64(packetsObserved)
 		n[selectedChannel]++
-		L[selectedChannel] = append(L[selectedChannel], packetsObserved)
+		L[selectedChannel] = append(L[selectedChannel], packetObservation{
+			packets:  packetsObserved,
+			duration: T,
+		})
 		if len(L[selectedChannel]) > a.w {
 			L[selectedChannel] = L[selectedChannel][1:]
 		}

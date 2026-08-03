@@ -2,6 +2,8 @@ package swucb
 
 import (
 	"errors"
+	"math"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -38,33 +40,43 @@ func TestSWUCBAlgorithm_Run(t *testing.T) {
 }
 
 func TestSWUCBAlgorithm_Probabilistic(t *testing.T) {
-	packetRates := []float64{1, 3, 5, 7, 10} // packets per second
+	packetRates := []float64{100, 300, 500, 700, 1000} // packets per second
 	packetObserver := func(channel int, duration time.Duration) (int, error) {
 		packetRate := packetRates[channel]
 		return int(packetRate * duration.Seconds()), nil
 	}
 
-	algo := NewSWUCBAlgorithm(len(packetRates), 100, time.Second)
+	algo := NewSWUCBAlgorithm(len(packetRates), 100, 10*time.Millisecond)
 	err := algo.Run(packetObserver, &OptRunMaxSteps{10000})
 	if err != nil {
 		t.Fatalf("Expected Run to return no error, got %v", err)
 	}
 
-	// It's very likely that the algorithm should favor the channel with the highest packet rate (channel 4).
-	// However, to avoid flaky tests, we'll check that the channel with the lowest packet rate (channel 0) was not the most observed one.
-	minChannel, maxChannel := 0, 0
-	minCount, maxCount := algo.n[0], algo.n[0]
-	for i := 1; i < len(packetRates); i++ {
-		if algo.n[i] < minCount {
-			minChannel, minCount = i, algo.n[i]
-		}
-		if algo.n[i] > maxCount {
-			maxChannel, maxCount = i, algo.n[i]
-		}
+	if got, want := mostObservedChannel(algo.n), len(packetRates)-1; got != want {
+		t.Errorf("most observed channel = %d, want highest-rate channel %d; counts=%v", got, want, algo.n)
+	}
+}
+
+func TestSWUCBAlgorithm_WarmupObservesEveryChannelOnce(t *testing.T) {
+	const channels = 4
+	var durations []time.Duration
+	observer := func(_ int, duration time.Duration) (int, error) {
+		durations = append(durations, duration)
+		return 1, nil
 	}
 
-	if minChannel == maxChannel {
-		t.Errorf("Expected most observed channel not to be the least observed one")
+	algo := NewSWUCBAlgorithm(channels, 5, 250*time.Millisecond)
+	if err := algo.Run(observer, &OptRunMaxSteps{channels}); err != nil {
+		t.Fatalf("Run returned an error: %v", err)
+	}
+
+	if want := []int{1, 1, 1, 1}; !reflect.DeepEqual(algo.n, want) {
+		t.Fatalf("warmup observation counts = %v, want %v", algo.n, want)
+	}
+	for _, duration := range durations {
+		if duration != algo.TDefault {
+			t.Fatalf("warmup duration = %v, want %v; durations=%v", duration, algo.TDefault, durations)
+		}
 	}
 }
 
@@ -83,13 +95,14 @@ func TestSWUCBAlgorithm_UsesDurationUnitsAfterWindowFills(t *testing.T) {
 		t.Fatalf("Run returned an invalid observation duration: %v", err)
 	}
 
-	if durations[1] != 100*time.Millisecond {
-		t.Fatalf("Expected a 100ms adaptive observation, got %v", durations[1])
+	want := []time.Duration{time.Second, 100 * time.Millisecond, 100 * time.Millisecond}
+	if !reflect.DeepEqual(durations, want) {
+		t.Fatalf("observation durations = %v, want %v", durations, want)
 	}
 }
 
 func TestSWUCBAlgorithm_VaryingTDefault(t *testing.T) {
-	packetRates := []float64{1, 2, 3, 4, 5}
+	packetRates := []float64{100, 200, 300, 400, 500}
 	TDefaults := []time.Duration{100 * time.Millisecond, 500 * time.Millisecond, 1 * time.Second}
 
 	for _, TDefault := range TDefaults {
@@ -99,17 +112,14 @@ func TestSWUCBAlgorithm_VaryingTDefault(t *testing.T) {
 			t.Errorf("Error running algorithm with TDefault = %v: %v", TDefault, err)
 		}
 
-		observationCounts := algo.ObservationCounts()
-		for i, count := range observationCounts {
-			if count == 0 {
-				t.Errorf("Channel %d not observed at all with TDefault = %v", i, TDefault)
-			}
+		if got, want := mostObservedChannel(algo.ObservationCounts()), len(packetRates)-1; got != want {
+			t.Errorf("most observed channel with TDefault %v = %d, want %d; counts=%v", TDefault, got, want, algo.n)
 		}
 	}
 }
 
 func TestSWUCBAlgorithm_VaryingWindowSizes(t *testing.T) {
-	packetRates := []float64{1, 2, 3, 4, 5}
+	packetRates := []float64{100, 200, 300, 400, 500}
 	windowSizes := []int{5, 10, 20}
 
 	for _, w := range windowSizes {
@@ -119,20 +129,16 @@ func TestSWUCBAlgorithm_VaryingWindowSizes(t *testing.T) {
 			t.Errorf("Error running algorithm with window size = %d: %v", w, err)
 		}
 
-		observationCounts := algo.ObservationCounts()
-		for i, count := range observationCounts {
-			if count == 0 {
-				t.Errorf("Channel %d not observed at all with window size = %d", i, w)
-			}
+		if got, want := mostObservedChannel(algo.ObservationCounts()), len(packetRates)-1; got != want {
+			t.Errorf("most observed channel with window size %d = %d, want %d; counts=%v", w, got, want, algo.n)
 		}
 	}
 }
 
 func TestSWUCBAlgorithm_VaryingPacketRates(t *testing.T) {
 	packetRateScenarios := [][]float64{
-		{1, 1, 1, 1, 1},
-		{1, 2, 3, 4, 5},
-		{5, 4, 3, 2, 1},
+		{100, 200, 300, 400, 500},
+		{500, 400, 300, 200, 100},
 	}
 
 	for _, packetRates := range packetRateScenarios {
@@ -143,11 +149,47 @@ func TestSWUCBAlgorithm_VaryingPacketRates(t *testing.T) {
 		}
 
 		observationCounts := algo.ObservationCounts()
-		for i, count := range observationCounts {
-			if count == 0 {
-				t.Errorf("Channel %d not observed at all with packet rates = %v", i, packetRates)
-			}
+		want := 0
+		if packetRates[len(packetRates)-1] > packetRates[0] {
+			want = len(packetRates) - 1
 		}
+		if got := mostObservedChannel(observationCounts); got != want {
+			t.Errorf("most observed channel for rates %v = %d, want %d; counts=%v", packetRates, got, want, observationCounts)
+		}
+	}
+}
+
+func TestSWUCBAlgorithm_RejectsInvalidConfigurationAndObservations(t *testing.T) {
+	observerCalled := false
+	observer := func(_ int, _ time.Duration) (int, error) {
+		observerCalled = true
+		return 0, nil
+	}
+	invalid := []*SWUCBAlgorithm{
+		NewSWUCBAlgorithm(0, 1, time.Second),
+		NewSWUCBAlgorithm(1, 0, time.Second),
+		NewSWUCBAlgorithm(1, 1, 0),
+	}
+	for _, algo := range invalid {
+		if err := algo.Run(observer, &OptRunMaxSteps{1}); err == nil {
+			t.Errorf("Run accepted invalid configuration: %+v", algo)
+		}
+	}
+	if observerCalled {
+		t.Fatal("invalid configuration reached the packet observer")
+	}
+
+	algo := NewSWUCBAlgorithm(1, 1, time.Second)
+	if err := algo.Run(observer, &OptRunMaxSteps{-1}); err == nil {
+		t.Error("Run accepted a negative maximum step count")
+	}
+	if observerCalled {
+		t.Fatal("invalid maximum step count reached the packet observer")
+	}
+
+	negativeObserver := func(_ int, _ time.Duration) (int, error) { return -1, nil }
+	if err := algo.Run(negativeObserver, &OptRunMaxSteps{1}); err == nil {
+		t.Error("Run accepted a negative packet count")
 	}
 }
 
@@ -157,6 +199,16 @@ func PacketObserverForRates(packetRates []float64) PacketObserver {
 			return 0, errors.New("invalid channel")
 		}
 		packetRate := packetRates[channel]
-		return int(packetRate * duration.Seconds()), nil
+		return int(math.Round(packetRate * duration.Seconds())), nil
 	}
+}
+
+func mostObservedChannel(counts []int) int {
+	mostObserved := 0
+	for channel := 1; channel < len(counts); channel++ {
+		if counts[channel] > counts[mostObserved] {
+			mostObserved = channel
+		}
+	}
+	return mostObserved
 }
