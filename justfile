@@ -238,6 +238,19 @@ xrf55-npy-shape-profile:
     {{ python }} eval/profile-xrf55-npy-shapes.py --report {{ eval_output }}/xrf55-npy-shape-profile-repeat.json
     cmp {{ eval_output }}/xrf55-npy-shape-profile.json {{ eval_output }}/xrf55-npy-shape-profile-repeat.json
 
+xrf55-feature-cache-check:
+    uv run --script eval/test-compile-xrf55-feature-cache.py
+
+# Stream only the fixed 160-event campaign into private 0600 feature matrices.
+# The second run proves byte-level determinism without retaining source labels.
+xrf55-feature-cache:
+    uv run --script eval/compile-xrf55-feature-cache.py
+    uv run --script eval/compile-xrf55-feature-cache.py --adapter {{ eval_output }}/xrf55-feature-cache-adapter-repeat.json --wifi-matrix {{ eval_output }}/xrf55-feature-cache-wifi-repeat.npy --rfid-matrix {{ eval_output }}/xrf55-feature-cache-rfid-repeat.npy --mmwave-matrix {{ eval_output }}/xrf55-feature-cache-mmwave-repeat.npy
+    cmp {{ eval_output }}/xrf55-feature-cache-adapter.json {{ eval_output }}/xrf55-feature-cache-adapter-repeat.json
+    cmp {{ eval_output }}/xrf55-feature-cache-wifi.npy {{ eval_output }}/xrf55-feature-cache-wifi-repeat.npy
+    cmp {{ eval_output }}/xrf55-feature-cache-rfid.npy {{ eval_output }}/xrf55-feature-cache-rfid-repeat.npy
+    cmp {{ eval_output }}/xrf55-feature-cache-mmwave.npy {{ eval_output }}/xrf55-feature-cache-mmwave-repeat.npy
+
 xrf55-hypothesis-frames-check:
     {{ python }} eval/test-compile-xrf55-hypothesis-frames.py
 

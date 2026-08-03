@@ -99,6 +99,16 @@ order, and byte evidence; no array element is deserialized and no member name,
 observation identifier, or path is retained. The measured complete-event byte
 cost bounds the later private feature-cache campaign before payload I/O begins.
 
+`compile-xrf55-feature-cache.py` hash-selects eight complete performer/action
+groups and streams their 160 tri-modal events without extracting the archives.
+The feature policy follows the publisher model geometry: Wi-Fi and RFID are
+summarized across sequence and channel bins, while mmWave is summarized across
+its two-dimensional grid and channel bins. Each region contributes four fixed
+moments, producing one 96-value vector per event and modality. Only opaque
+group/event IDs and repetition roles enter the path-free adapter; raw scene,
+performer, action, archive, member, and local-path values are omitted. Matrices
+and adapters are written atomically with mode 0600 and are ignored by Git.
+
 `evaluate-ujiindoorloc-split-capability.py` streams the pinned IPIN 2015 Track
 3 CSV members after verifying the archive and central receipt. It reports
 aggregate user, phone, building, floor, building/floor, and location-cell
