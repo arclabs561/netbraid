@@ -1,0 +1,245 @@
+{
+  "schema": "netbraid.sorbonne_structural_reducer_campaign.v0",
+  "campaign_id": "sorbonne-campus-1m-structural-reducer-v0",
+  "preregistration": {
+    "status": "revised_before_execution",
+    "revision": 2,
+    "revision_reason": "before execution, adversarial review required byte-exact negative sampling, reducer-order separation, locked intermediate population digests, nested disposition expectations, and validation of canonical frame IDs and structural values",
+    "registered_against_netbraid_revision": "6c7c9b535b746c454f98ecb37cab4670906bf891",
+    "execution_state": "not_executed",
+    "unknown_manifest_fields": "reject",
+    "missing_required_fields": "reject"
+  },
+  "hypothesis": "All publisher-labeled same-event and deterministically sampled different-event pairs collapse to one non-discriminating structural basis after Netbraid normalization, so the structural v0 reducer selects unknown for every weighted pair.",
+  "source": {
+    "corpus": "sorbonne-campus-rssi",
+    "publisher_doi": "10.57745/HAOPHF",
+    "license": "Etalab Open License 2.0",
+    "archive": {
+      "filename": "220211012-SU-Outdoors-Campus.zip",
+      "bytes": 3144312,
+      "sha256": "7a650d450d339683cf7591bc24a6006238456b8dfa54e352aa1aceda8682c3f8"
+    },
+    "pcap_members": {
+      "root": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/1m/pcapTraces",
+      "name_pattern": "{root}/01m-{observer}.pcap",
+      "expected_member_count": 10
+    },
+    "label_members": {
+      "root": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/1m/csvTracesSynchronized",
+      "name_pattern": "{root}/01m-{observer}-synchronized.txt",
+      "format": "sorbonne-rssi-tsv-v1",
+      "expected_member_count": 10
+    },
+    "observers": [
+      "S01",
+      "S02",
+      "S03",
+      "S04",
+      "S05",
+      "S06",
+      "S07",
+      "S08",
+      "S09",
+      "S10"
+    ]
+  },
+  "normalization": {
+    "command": "rust/target/debug/netbraid pcap {pcap} --records-jsonl",
+    "required_field_registry": "netmon.tshark.packet_envelope.v1",
+    "required_state": "complete",
+    "required_packet_limit_reached": false,
+    "required_total_packets": 18926,
+    "required_total_quarantines": 0,
+    "required_packets_by_observer": {
+      "S01": 1906,
+      "S02": 1923,
+      "S03": 1799,
+      "S04": 1849,
+      "S05": 1892,
+      "S06": 1908,
+      "S07": 1962,
+      "S08": 1885,
+      "S09": 1939,
+      "S10": 1863
+    },
+    "label_join": "observer plus exact Frame_number equals packet frame.number",
+    "require_complete_bijection": true
+  },
+  "field_policy": {
+    "oracle_only_fields": [
+      "Source_MAC_address",
+      "Sequence_number"
+    ],
+    "allowed_reducer_fields": [
+      "ieee80211.frame_type",
+      "ieee80211.frame_subtype"
+    ],
+    "eligibility_only_fields": [
+      "capture_id",
+      "frame.captured_len",
+      "frame.original_len",
+      "ieee80211 presence"
+    ],
+    "forbidden_reducer_fields": [
+      "Frame_time_epoch",
+      "RSSI_dBm",
+      "Source_MAC_address",
+      "Sequence_number",
+      "observer_id",
+      "frame.number",
+      "frame.event_time_unix_ns",
+      "frame.protocols",
+      "ieee80211 addresses",
+      "ieee80211.ssid_hex",
+      "wlan_radio.channel",
+      "wlan_radio.center_frequency_mhz",
+      "wlan_radio.signal_dbm"
+    ],
+    "enforcement": "closed allowlist in assess_packet_same_event_v0"
+  },
+  "pairs": {
+    "positive_population": {
+      "unit": "undirected cross-observer observation pair",
+      "condition": "equal complete Source_MAC_address and Sequence_number",
+      "expected_count": 64149,
+      "expected_unique_count": 64149,
+      "canonical_pair_id": "ASCII {lower_observer}:{lower_frame_decimal}|{higher_observer}:{higher_frame_decimal}, with no leading zeroes in frame numbers",
+      "expected_population_sha256": "1f5eabf1b88856ab999d4210b380df79ff60ef6b94e1926b660e0b980132996f",
+      "population_digest_encoding": "SHA-256 of canonical pair IDs sorted by UTF-8 byte order, each followed by one LF byte",
+      "include": "all"
+    },
+    "negative_population": {
+      "unit": "undirected cross-observer observation pair",
+      "condition": "different complete Source_MAC_address and Sequence_number",
+      "conditioning": "oracle-conditioned only to reject equal event keys after candidate construction; oracle values never affect ordering, offset, rank, reducer ordering, or the decision basis",
+      "candidate_construction": "for each lexicographic observer pair, sort both sides by ascending Frame_number; for k in [0, min(left_count, right_count)), pair left[k] with right[(k + offset) % right_count]",
+      "offset_preimage": "UTF-8 bytes netbraid.sorbonne-negative-offset.v0, NUL, campaign_id, NUL, lower_observer, NUL, higher_observer",
+      "offset": "interpret the first eight SHA-256 digest bytes as an unsigned big-endian integer, then take value % right_count",
+      "canonical_pair_id": "ASCII {lower_observer}:{lower_frame_decimal}|{higher_observer}:{higher_frame_decimal}, with no leading zeroes in frame numbers",
+      "rank_preimage": "UTF-8 bytes netbraid.sorbonne-negative-rank.v0, NUL, campaign_id, NUL, canonical_pair_id",
+      "selection": "reject equal oracle event keys, assert candidate IDs are unique and disjoint from positives, sort by (raw 32-byte rank digest, canonical_pair_id UTF-8 bytes), then take the first expected_count",
+      "expected_raw_candidate_count": 83927,
+      "expected_equal_key_rejections": 67,
+      "expected_eligible_candidate_count": 83860,
+      "expected_eligible_population_sha256": "b096dcec8f0488fadedd19097118031a3e5e14e55af3dfb2038b9b1f21798a86",
+      "expected_count": 64149,
+      "expected_unique_count": 64149,
+      "expected_selected_population_sha256": "aff575a7576307e87d5435adee73e53e30e1b00b451b57b34c03627a07876eb7",
+      "population_digest_encoding": "SHA-256 of canonical pair IDs sorted by UTF-8 byte order, each followed by one LF byte"
+    },
+    "sampling_identity_order": "observer then frame order from canonical_pair_id",
+    "reducer_input_order": "independently canonicalize by capture_id, record_id, then envelope_sha256 exactly as assess_packet_same_event_v0",
+    "representative_reduction": "group each labeled population by reducer-equivalent eligibility outcome plus the exact ordered structural basis; run the Rust reducer on the lexicographically first canonical_pair_id per label and group; group output classes by schema, reducer, basis, dispositions, reference, and limitations while excluding audit-only evidence references; apply the group count as weight"
+  },
+  "metrics": {
+    "primary": [
+      "weighted disposition counts by oracle label",
+      "distinct structural pair-basis count by oracle label"
+    ],
+    "diagnostic": [
+      "normalized packet and quarantine counts by observer",
+      "label-to-packet join coverage",
+      "representative reducer invocation count",
+      "canonical output digest"
+    ],
+    "classification_accuracy": "not_reported because abstention is an explicit retained outcome and the campaign is a capability boundary audit"
+  },
+  "expected_results": {
+    "same_event_oracle": {
+      "pairs": 64149,
+      "distinct_serialized_bases": 1,
+      "distinct_assessment_classes": 1,
+      "basis": {
+        "compared_dimensions": [
+          "ieee80211_frame_type",
+          "ieee80211_frame_subtype"
+        ],
+        "compatible_dimensions": [
+          "ieee80211_frame_type",
+          "ieee80211_frame_subtype"
+        ],
+        "conflicting_dimensions": [],
+        "missing_dimensions": []
+      },
+      "dispositions": {
+        "same_event": {
+          "supported": 0,
+          "contradicted": 0,
+          "underdetermined": 64149
+        },
+        "different_event": {
+          "supported": 0,
+          "contradicted": 0,
+          "underdetermined": 64149
+        },
+        "unknown": {
+          "supported": 64149,
+          "contradicted": 0,
+          "underdetermined": 0
+        }
+      },
+      "references": {
+        "unknown:no_discriminating_structural_conflict": 64149
+      }
+    },
+    "different_event_oracle": {
+      "pairs": 64149,
+      "distinct_serialized_bases": 1,
+      "distinct_assessment_classes": 1,
+      "basis": {
+        "compared_dimensions": [
+          "ieee80211_frame_type",
+          "ieee80211_frame_subtype"
+        ],
+        "compatible_dimensions": [
+          "ieee80211_frame_type",
+          "ieee80211_frame_subtype"
+        ],
+        "conflicting_dimensions": [],
+        "missing_dimensions": []
+      },
+      "dispositions": {
+        "same_event": {
+          "supported": 0,
+          "contradicted": 0,
+          "underdetermined": 64149
+        },
+        "different_event": {
+          "supported": 0,
+          "contradicted": 0,
+          "underdetermined": 64149
+        },
+        "unknown": {
+          "supported": 64149,
+          "contradicted": 0,
+          "underdetermined": 0
+        }
+      },
+      "references": {
+        "unknown:no_discriminating_structural_conflict": 64149
+      }
+    },
+    "same_event_supported_total": 0,
+    "representative_reducer_invocations": 2
+  },
+  "failure_gates": [
+    "archive identity or selected member inventory differs",
+    "normalization is partial, quarantined, or not bijective with publisher labels",
+    "pair population counts, uniqueness, disjointness, or registered digests differ",
+    "any reducer assessment uses a basis outside the closed allowlist",
+    "any same_event alternative is supported",
+    "observed weighted dispositions or basis counts differ from expected_results",
+    "two executions with equal archive bytes, Netbraid and reducer executable bytes, TShark version and effective configuration digest, field registry, and limits produce different canonical report bytes"
+  ],
+  "interpretation": {
+    "if_confirmed": "This Sorbonne run validates the abstention boundary and pipeline wiring but cannot estimate same-event discrimination; a richer corpus is required.",
+    "if_falsified": "Stop and inspect normalization, label joins, or newly varying structural evidence before changing the reducer or campaign."
+  },
+  "limitations": [
+    "publisher keys label event correspondence and condition negative rejection but are never decision-basis inputs; audit-only envelope digests bind full normalized records",
+    "the prior oracle audit already established constant publisher invariant metadata, so this is a confirmatory contract campaign rather than a discovery claim",
+    "deterministic negative sampling measures this registered population only",
+    "source authenticity and annotation correctness are not independently established"
+  ]
+}

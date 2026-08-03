@@ -182,13 +182,15 @@ pub fn reduce_capture_conversations(packets: &[PacketEnvelopeV0]) -> CaptureConv
     }
 }
 
-struct Candidate {
-    key: CaptureConversationKeyV0,
-    transport: TransportProtocolV0,
-    source_is_a: bool,
+pub(crate) struct Candidate {
+    pub(crate) key: CaptureConversationKeyV0,
+    pub(crate) transport: TransportProtocolV0,
+    pub(crate) source_is_a: bool,
 }
 
-fn candidate(packet: &PacketEnvelopeV0) -> Result<Candidate, ConversationExclusionReasonV0> {
+pub(crate) fn candidate(
+    packet: &PacketEnvelopeV0,
+) -> Result<Candidate, ConversationExclusionReasonV0> {
     if packet.validate().is_err() {
         return Err(ConversationExclusionReasonV0::InvalidPacketEnvelope);
     }
@@ -362,17 +364,20 @@ mod tests {
                 destination: Some("02:00:00:00:00:02".into()),
             }),
             ipv4: Some(Ipv4FieldsV0 {
+                total_length_octets: None,
                 source: source.into(),
                 destination: destination.into(),
                 protocol: 6,
             }),
             ipv6: None,
             tcp: Some(TcpFieldsV0 {
+                stream_index: None,
                 source_port,
                 destination_port,
                 flags,
             }),
             udp: None,
+            ieee802154: None,
             ieee80211: None,
             wlan_radio: None,
         }
@@ -416,6 +421,7 @@ mod tests {
         packet.frame.protocols[2] = "ipv6".into();
         packet.ipv4 = None;
         packet.ipv6 = Some(Ipv6FieldsV0 {
+            total_length_octets: None,
             source: source.into(),
             destination: destination.into(),
             next_header: 6,

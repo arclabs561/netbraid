@@ -305,6 +305,7 @@ fn disclosure_classes_must_match_identifier_bearing_fields() {
     let mut lines = bytes.lines().map(str::to_owned).collect::<Vec<_>>();
     let mut packet: PacketEnvelopeV0 = serde_json::from_str(&lines[1]).unwrap();
     packet.ipv4 = Some(Ipv4FieldsV0 {
+        total_length_octets: None,
         source: "192.0.2.1".into(),
         destination: "198.51.100.2".into(),
         protocol: 17,

@@ -1,0 +1,5 @@
+# Bare cf32 intentionally has no byte-order declaration. Tests opt into little-endian.
+0000803f 000000c0
+00000000 00000080
+0000807f 0000c07f
+01000000 0000c0bf

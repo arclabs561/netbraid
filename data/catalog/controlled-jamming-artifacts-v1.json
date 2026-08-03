@@ -1,0 +1,703 @@
+{
+  "schema": "netbraid.controlled_jamming_artifacts.v1",
+  "publisher": "Zenodo",
+  "expected_record_count": 2,
+  "expected_artifact_count": 112,
+  "expected_total_bytes": 119191308440,
+  "records": [
+    {
+      "record_id": 6516954,
+      "api_url": "https://zenodo.org/api/records/6516954",
+      "doi": "10.5281/zenodo.6516954",
+      "license": "CC BY 4.0",
+      "license_id": "cc-by-4.0",
+      "expected_artifact_count": 80,
+      "expected_total_bytes": 738542988,
+      "artifacts": [
+        {
+          "filename": "Receiver_1_SRR_with_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_SRR_with_jammer_five_targets.mat/content",
+          "bytes": 13172346,
+          "md5": "c0e13181def72c887a4a7fe7bbf2a280"
+        },
+        {
+          "filename": "Receiver_1_SRR_with_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_SRR_with_jammer_four_targets.mat/content",
+          "bytes": 13180685,
+          "md5": "f2b22fbc49103df333f35a3fd63fae6c"
+        },
+        {
+          "filename": "Receiver_1_SRR_with_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_SRR_with_jammer_one_target.mat/content",
+          "bytes": 13325077,
+          "md5": "10bc509096dc48035c3178b99eef57bf"
+        },
+        {
+          "filename": "Receiver_1_SRR_with_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_SRR_with_jammer_three_targets.mat/content",
+          "bytes": 13218573,
+          "md5": "d6db4cf10cf4ce35ef9dd0ed5f789ab6"
+        },
+        {
+          "filename": "Receiver_1_SRR_with_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_SRR_with_jammer_two_targets.mat/content",
+          "bytes": 13271312,
+          "md5": "6a0ec76042eb1dcdb5dc958078e3f138"
+        },
+        {
+          "filename": "Receiver_1_SRR_without_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_SRR_without_jammer_five_targets.mat/content",
+          "bytes": 6850812,
+          "md5": "56bc62ce1a622585418ed8f9aafd7598"
+        },
+        {
+          "filename": "Receiver_1_SRR_without_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_SRR_without_jammer_four_targets.mat/content",
+          "bytes": 6833820,
+          "md5": "152988752867fdb107f43a9e6b7835b4"
+        },
+        {
+          "filename": "Receiver_1_SRR_without_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_SRR_without_jammer_one_target.mat/content",
+          "bytes": 6854898,
+          "md5": "01943b317229cb899609f818aa2fff4d"
+        },
+        {
+          "filename": "Receiver_1_SRR_without_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_SRR_without_jammer_three_targets.mat/content",
+          "bytes": 6919638,
+          "md5": "b64a1e69c7dbd4daed81d06cdf6b7e90"
+        },
+        {
+          "filename": "Receiver_1_SRR_without_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_SRR_without_jammer_two_targets.mat/content",
+          "bytes": 6881731,
+          "md5": "fcc8863a55b1ef3775fe21bd5d52e408"
+        },
+        {
+          "filename": "Receiver_1_USRR_with_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_USRR_with_jammer_five_targets.mat/content",
+          "bytes": 8394373,
+          "md5": "34bbdeb52e0903c07c2b3054caa898de"
+        },
+        {
+          "filename": "Receiver_1_USRR_with_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_USRR_with_jammer_four_targets.mat/content",
+          "bytes": 8267877,
+          "md5": "b7a1e74d004e0306b5b6d72a8fee35c5"
+        },
+        {
+          "filename": "Receiver_1_USRR_with_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_USRR_with_jammer_one_target.mat/content",
+          "bytes": 8148649,
+          "md5": "3e72242471dcba08cbeb02712c568383"
+        },
+        {
+          "filename": "Receiver_1_USRR_with_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_USRR_with_jammer_three_targets.mat/content",
+          "bytes": 8358394,
+          "md5": "0f1e511f367a91f33f390b7ee03f3f45"
+        },
+        {
+          "filename": "Receiver_1_USRR_with_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_USRR_with_jammer_two_targets.mat/content",
+          "bytes": 8344538,
+          "md5": "036bcb36e28beda3cd6aac43be62f303"
+        },
+        {
+          "filename": "Receiver_1_USRR_without_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_USRR_without_jammer_five_targets.mat/content",
+          "bytes": 8250791,
+          "md5": "1c587ce844945cf50f306faf14cff2b7"
+        },
+        {
+          "filename": "Receiver_1_USRR_without_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_USRR_without_jammer_four_targets.mat/content",
+          "bytes": 7984363,
+          "md5": "b30999755015a7d862f2d40520889433"
+        },
+        {
+          "filename": "Receiver_1_USRR_without_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_USRR_without_jammer_one_target.mat/content",
+          "bytes": 8481395,
+          "md5": "1d052672fbbb757c583f1117002202ca"
+        },
+        {
+          "filename": "Receiver_1_USRR_without_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_USRR_without_jammer_three_targets.mat/content",
+          "bytes": 8352781,
+          "md5": "a6a20355e274e5fed5d06eaeff1b2bc9"
+        },
+        {
+          "filename": "Receiver_1_USRR_without_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_1_USRR_without_jammer_two_targets.mat/content",
+          "bytes": 8005498,
+          "md5": "81523f1869b2d9ea9e2cdbe562191283"
+        },
+        {
+          "filename": "Receiver_2_SRR_with_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_SRR_with_jammer_five_targets.mat/content",
+          "bytes": 13396973,
+          "md5": "7224729be7da8628bc75ae8a0df81729"
+        },
+        {
+          "filename": "Receiver_2_SRR_with_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_SRR_with_jammer_four_targets.mat/content",
+          "bytes": 13378382,
+          "md5": "9d0e79f940f7c60b5c283ac15f253b78"
+        },
+        {
+          "filename": "Receiver_2_SRR_with_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_SRR_with_jammer_one_target.mat/content",
+          "bytes": 13470185,
+          "md5": "8ba67cd99e5814af8b821abaed3b1580"
+        },
+        {
+          "filename": "Receiver_2_SRR_with_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_SRR_with_jammer_three_targets.mat/content",
+          "bytes": 13415100,
+          "md5": "7c67b09ce9a2457d00a6027f26ba3bff"
+        },
+        {
+          "filename": "Receiver_2_SRR_with_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_SRR_with_jammer_two_targets.mat/content",
+          "bytes": 13390038,
+          "md5": "122ede022c483d2db7ed61c7a5a932f6"
+        },
+        {
+          "filename": "Receiver_2_SRR_without_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_SRR_without_jammer_five_targets.mat/content",
+          "bytes": 6834516,
+          "md5": "13875092e22f384269b4c3323038470b"
+        },
+        {
+          "filename": "Receiver_2_SRR_without_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_SRR_without_jammer_four_targets.mat/content",
+          "bytes": 6822634,
+          "md5": "535cb7be0495fa1bc32d0dbda3a8c708"
+        },
+        {
+          "filename": "Receiver_2_SRR_without_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_SRR_without_jammer_one_target.mat/content",
+          "bytes": 6847659,
+          "md5": "74beaad1ce2fa50181c40a3fb4687cb6"
+        },
+        {
+          "filename": "Receiver_2_SRR_without_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_SRR_without_jammer_three_targets.mat/content",
+          "bytes": 6898594,
+          "md5": "ccdea44d1669d2580f9dd7f6d26fce14"
+        },
+        {
+          "filename": "Receiver_2_SRR_without_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_SRR_without_jammer_two_targets.mat/content",
+          "bytes": 6874487,
+          "md5": "0d31df05c9aceaaa2a9a3fece90139b6"
+        },
+        {
+          "filename": "Receiver_2_USRR_with_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_USRR_with_jammer_five_targets.mat/content",
+          "bytes": 8111139,
+          "md5": "7a2a5717d4b394ef55cab34b95a10cf4"
+        },
+        {
+          "filename": "Receiver_2_USRR_with_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_USRR_with_jammer_four_targets.mat/content",
+          "bytes": 7971517,
+          "md5": "4d37d0f185f08b037bc2be01d1591f92"
+        },
+        {
+          "filename": "Receiver_2_USRR_with_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_USRR_with_jammer_one_target.mat/content",
+          "bytes": 7828437,
+          "md5": "f6ca5c68a22d5b003cdfbe76742cc397"
+        },
+        {
+          "filename": "Receiver_2_USRR_with_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_USRR_with_jammer_three_targets.mat/content",
+          "bytes": 8100370,
+          "md5": "02cc6ff4a91d0ec4b572034a3dc06408"
+        },
+        {
+          "filename": "Receiver_2_USRR_with_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_USRR_with_jammer_two_targets.mat/content",
+          "bytes": 8059363,
+          "md5": "94dea6eab1221cabc0df18b5a6684a22"
+        },
+        {
+          "filename": "Receiver_2_USRR_without_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_USRR_without_jammer_five_targets.mat/content",
+          "bytes": 7949389,
+          "md5": "7d014f528dae90fd579ebf9b5ac6ef74"
+        },
+        {
+          "filename": "Receiver_2_USRR_without_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_USRR_without_jammer_four_targets.mat/content",
+          "bytes": 7622052,
+          "md5": "b25c687bf8b6e14e5b649f0703404331"
+        },
+        {
+          "filename": "Receiver_2_USRR_without_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_USRR_without_jammer_one_target.mat/content",
+          "bytes": 8236647,
+          "md5": "f704312660a1a9fbd5d9e87d8b450b39"
+        },
+        {
+          "filename": "Receiver_2_USRR_without_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_USRR_without_jammer_three_targets.mat/content",
+          "bytes": 8078933,
+          "md5": "bce1911cfb24703afe779b72374d814e"
+        },
+        {
+          "filename": "Receiver_2_USRR_without_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_2_USRR_without_jammer_two_targets.mat/content",
+          "bytes": 7647515,
+          "md5": "52695113c976eaefed34f42a4e439337"
+        },
+        {
+          "filename": "Receiver_3_SRR_with_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_SRR_with_jammer_five_targets.mat/content",
+          "bytes": 13996088,
+          "md5": "c84e727d74a3621eee2f2f301de3d8b3"
+        },
+        {
+          "filename": "Receiver_3_SRR_with_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_SRR_with_jammer_four_targets.mat/content",
+          "bytes": 13965418,
+          "md5": "5532799a2b2b61f44eb88c01889322df"
+        },
+        {
+          "filename": "Receiver_3_SRR_with_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_SRR_with_jammer_one_target.mat/content",
+          "bytes": 14029785,
+          "md5": "fa43a5cfbdd69bc94715d43d80e5d1c8"
+        },
+        {
+          "filename": "Receiver_3_SRR_with_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_SRR_with_jammer_three_targets.mat/content",
+          "bytes": 13980862,
+          "md5": "6b79406d8524eaae80758ee9432d88cf"
+        },
+        {
+          "filename": "Receiver_3_SRR_with_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_SRR_with_jammer_two_targets.mat/content",
+          "bytes": 13995865,
+          "md5": "5cfb70aa25ad048765f4183501728224"
+        },
+        {
+          "filename": "Receiver_3_SRR_without_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_SRR_without_jammer_five_targets.mat/content",
+          "bytes": 7133784,
+          "md5": "32444e30dd34fb01388195df8c0ee900"
+        },
+        {
+          "filename": "Receiver_3_SRR_without_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_SRR_without_jammer_four_targets.mat/content",
+          "bytes": 7133383,
+          "md5": "e58456104b0f2b4db5136253cef199d4"
+        },
+        {
+          "filename": "Receiver_3_SRR_without_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_SRR_without_jammer_one_target.mat/content",
+          "bytes": 7139201,
+          "md5": "713fcba94778cc2e6ee9a6e5ea947316"
+        },
+        {
+          "filename": "Receiver_3_SRR_without_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_SRR_without_jammer_three_targets.mat/content",
+          "bytes": 7191791,
+          "md5": "9a33524a3675dd1f2628a0da18dc20d2"
+        },
+        {
+          "filename": "Receiver_3_SRR_without_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_SRR_without_jammer_two_targets.mat/content",
+          "bytes": 7160884,
+          "md5": "8aaa48d95924344fb0dcc23ae469c016"
+        },
+        {
+          "filename": "Receiver_3_USRR_with_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_USRR_with_jammer_five_targets.mat/content",
+          "bytes": 8644650,
+          "md5": "dab1e28746fad99ba51dd98cda43690d"
+        },
+        {
+          "filename": "Receiver_3_USRR_with_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_USRR_with_jammer_four_targets.mat/content",
+          "bytes": 8571385,
+          "md5": "7afde72761686b7dc3b6117b7e4ea280"
+        },
+        {
+          "filename": "Receiver_3_USRR_with_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_USRR_with_jammer_one_target.mat/content",
+          "bytes": 8511752,
+          "md5": "063330cdd5d50d80979b39cc6c8776b2"
+        },
+        {
+          "filename": "Receiver_3_USRR_with_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_USRR_with_jammer_three_targets.mat/content",
+          "bytes": 8627996,
+          "md5": "b35804b64f5970ebdd4409352323667a"
+        },
+        {
+          "filename": "Receiver_3_USRR_with_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_USRR_with_jammer_two_targets.mat/content",
+          "bytes": 8615474,
+          "md5": "f56a15e4958c7b2774ce5c326a61bb48"
+        },
+        {
+          "filename": "Receiver_3_USRR_without_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_USRR_without_jammer_five_targets.mat/content",
+          "bytes": 8576200,
+          "md5": "1e9f23955846951d5335b78ffe06d61d"
+        },
+        {
+          "filename": "Receiver_3_USRR_without_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_USRR_without_jammer_four_targets.mat/content",
+          "bytes": 8416926,
+          "md5": "44343a79f4f35f12a27ace4c80d6bd69"
+        },
+        {
+          "filename": "Receiver_3_USRR_without_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_USRR_without_jammer_one_target.mat/content",
+          "bytes": 8682777,
+          "md5": "a159ba3c07f9845511e5b6999f14f77d"
+        },
+        {
+          "filename": "Receiver_3_USRR_without_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_USRR_without_jammer_three_targets.mat/content",
+          "bytes": 8625252,
+          "md5": "eff6513f19d494ed37d8276a21c00449"
+        },
+        {
+          "filename": "Receiver_3_USRR_without_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_3_USRR_without_jammer_two_targets.mat/content",
+          "bytes": 8414481,
+          "md5": "110b3ec7b8ea6bf8fe92c46b72d64996"
+        },
+        {
+          "filename": "Receiver_4_SRR_with_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_SRR_with_jammer_five_targets.mat/content",
+          "bytes": 13172347,
+          "md5": "5579365377df243701516a7e4e3f8020"
+        },
+        {
+          "filename": "Receiver_4_SRR_with_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_SRR_with_jammer_four_targets.mat/content",
+          "bytes": 13180684,
+          "md5": "a7e5eef4f7bb4ef1d625f2872def41fe"
+        },
+        {
+          "filename": "Receiver_4_SRR_with_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_SRR_with_jammer_one_target.mat/content",
+          "bytes": 13325077,
+          "md5": "ce61013cddebe5ab62e4c01555b2f245"
+        },
+        {
+          "filename": "Receiver_4_SRR_with_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_SRR_with_jammer_three_targets.mat/content",
+          "bytes": 13218573,
+          "md5": "67a526e012ddd5622aea80c52c0af8aa"
+        },
+        {
+          "filename": "Receiver_4_SRR_with_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_SRR_with_jammer_two_targets.mat/content",
+          "bytes": 13271312,
+          "md5": "2ee82184305034fd6a9051e4564271f5"
+        },
+        {
+          "filename": "Receiver_4_SRR_without_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_SRR_without_jammer_five_targets.mat/content",
+          "bytes": 6850813,
+          "md5": "72c74dfb4b3b98335e4346681210b478"
+        },
+        {
+          "filename": "Receiver_4_SRR_without_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_SRR_without_jammer_four_targets.mat/content",
+          "bytes": 6833820,
+          "md5": "5080b25843ce18fc8b285615cd55d14f"
+        },
+        {
+          "filename": "Receiver_4_SRR_without_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_SRR_without_jammer_one_target.mat/content",
+          "bytes": 6854899,
+          "md5": "9b9c78de7daf8a14453fec940450086e"
+        },
+        {
+          "filename": "Receiver_4_SRR_without_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_SRR_without_jammer_three_targets.mat/content",
+          "bytes": 6919639,
+          "md5": "7bb94943710bb1fea04d2d5770a9d73e"
+        },
+        {
+          "filename": "Receiver_4_SRR_without_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_SRR_without_jammer_two_targets.mat/content",
+          "bytes": 6881731,
+          "md5": "4e140e2d546518df366f01177baccc7b"
+        },
+        {
+          "filename": "Receiver_4_USRR_with_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_USRR_with_jammer_five_targets.mat/content",
+          "bytes": 8394372,
+          "md5": "d447a41f204408bdb30ae21576332158"
+        },
+        {
+          "filename": "Receiver_4_USRR_with_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_USRR_with_jammer_four_targets.mat/content",
+          "bytes": 8267877,
+          "md5": "3f9d688cebf467643cc6e9f7aa0a7a64"
+        },
+        {
+          "filename": "Receiver_4_USRR_with_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_USRR_with_jammer_one_target.mat/content",
+          "bytes": 8148649,
+          "md5": "e0f10a3a5c495a5af1822e6ca54a61f1"
+        },
+        {
+          "filename": "Receiver_4_USRR_with_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_USRR_with_jammer_three_targets.mat/content",
+          "bytes": 8358394,
+          "md5": "7af03f846f4ae998e5eb080aa215880c"
+        },
+        {
+          "filename": "Receiver_4_USRR_with_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_USRR_with_jammer_two_targets.mat/content",
+          "bytes": 8344537,
+          "md5": "278465f8c9cb275c44f10b7af59cd4ef"
+        },
+        {
+          "filename": "Receiver_4_USRR_without_jammer_five_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_USRR_without_jammer_five_targets.mat/content",
+          "bytes": 8250792,
+          "md5": "4aca252008ce3f7d6c4390a1adddfdf7"
+        },
+        {
+          "filename": "Receiver_4_USRR_without_jammer_four_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_USRR_without_jammer_four_targets.mat/content",
+          "bytes": 7984363,
+          "md5": "06310a94edc51d4f595ca15dd2c7e6f2"
+        },
+        {
+          "filename": "Receiver_4_USRR_without_jammer_one_target.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_USRR_without_jammer_one_target.mat/content",
+          "bytes": 8481395,
+          "md5": "cec1a4fe204344e97760dfd5fd0408d2"
+        },
+        {
+          "filename": "Receiver_4_USRR_without_jammer_three_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_USRR_without_jammer_three_targets.mat/content",
+          "bytes": 8352781,
+          "md5": "b9c95d7f44e378cb61c2d78bd259e1dc"
+        },
+        {
+          "filename": "Receiver_4_USRR_without_jammer_two_targets.mat",
+          "content_url": "https://zenodo.org/api/records/6516954/files/Receiver_4_USRR_without_jammer_two_targets.mat/content",
+          "bytes": 8005498,
+          "md5": "0a388d97847638c8e4db63e46b9e0c9d"
+        }
+      ]
+    },
+    {
+      "record_id": 7119040,
+      "api_url": "https://zenodo.org/api/records/7119040",
+      "doi": "10.5281/zenodo.7119040",
+      "license": "CC BY 4.0",
+      "license_id": "cc-by-4.0",
+      "expected_artifact_count": 32,
+      "expected_total_bytes": 118452765452,
+      "artifacts": [
+        {
+          "filename": "README.xls",
+          "content_url": "https://zenodo.org/api/records/7119040/files/README.xls/content",
+          "bytes": 69120,
+          "md5": "3025a97b5df6aa075ecc8d218fd03464"
+        },
+        {
+          "filename": "w1.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w1.mat/content",
+          "bytes": 3510495371,
+          "md5": "325caa54f8de3ce5ada6383091684ae3"
+        },
+        {
+          "filename": "w10.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w10.mat/content",
+          "bytes": 3527020380,
+          "md5": "e3fa863059fe9a7a576bcaeb17fb4e44"
+        },
+        {
+          "filename": "w11.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w11.mat/content",
+          "bytes": 3530945793,
+          "md5": "70e16283369b01d383f1b944f364f7eb"
+        },
+        {
+          "filename": "w12.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w12.mat/content",
+          "bytes": 3594119448,
+          "md5": "1f0c3ce754d388eaee01a8936166f940"
+        },
+        {
+          "filename": "w13.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w13.mat/content",
+          "bytes": 3894357032,
+          "md5": "36370c757636d1ab1de5009339d67e09"
+        },
+        {
+          "filename": "w14.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w14.mat/content",
+          "bytes": 4333203117,
+          "md5": "2ed5a6b2231365e718db59684c6c3953"
+        },
+        {
+          "filename": "w15.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w15.mat/content",
+          "bytes": 4085680581,
+          "md5": "71ff9daffb057cb9837f7ed4202497ff"
+        },
+        {
+          "filename": "w16.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w16.mat/content",
+          "bytes": 3974796519,
+          "md5": "4b5496460ed89b5610356f6f198e0a23"
+        },
+        {
+          "filename": "w17.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w17.mat/content",
+          "bytes": 3548458283,
+          "md5": "d474c684017052afc1a6654b5543515a"
+        },
+        {
+          "filename": "w18.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w18.mat/content",
+          "bytes": 3605051172,
+          "md5": "638f10e976c692ef779d7804a21a82e7"
+        },
+        {
+          "filename": "w19.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w19.mat/content",
+          "bytes": 3801790630,
+          "md5": "5cae28a2daaee433f6fd4c588f22e651"
+        },
+        {
+          "filename": "w2.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w2.mat/content",
+          "bytes": 3560692475,
+          "md5": "6fdd6c1e11d567fb7bbb29840fab8572"
+        },
+        {
+          "filename": "w20.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w20.mat/content",
+          "bytes": 3605972327,
+          "md5": "c3340fe48769dda400c11f4cf1f0eb6f"
+        },
+        {
+          "filename": "w21.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w21.mat/content",
+          "bytes": 3586683101,
+          "md5": "154320df1f9e8f00112632e2874649b3"
+        },
+        {
+          "filename": "w22.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w22.mat/content",
+          "bytes": 3587327892,
+          "md5": "cc8ee947c08e183e4679dc8f17d1b753"
+        },
+        {
+          "filename": "w23.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w23.mat/content",
+          "bytes": 4511789510,
+          "md5": "b9e056c2067a70778432904607b3cd31"
+        },
+        {
+          "filename": "w24.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w24.mat/content",
+          "bytes": 3676270078,
+          "md5": "3a04b0392893fd8cfd0f86b7890fbf02"
+        },
+        {
+          "filename": "w25.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w25.mat/content",
+          "bytes": 4358092636,
+          "md5": "f6e19fdc35705db2b6a8745f7428c729"
+        },
+        {
+          "filename": "w26.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w26.mat/content",
+          "bytes": 4382338788,
+          "md5": "84134206dfd854e3e7042a3541bcf98c"
+        },
+        {
+          "filename": "w27.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w27.mat/content",
+          "bytes": 3683264093,
+          "md5": "cf6e8f270ed14da595cdcba95053faa2"
+        },
+        {
+          "filename": "w28.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w28.mat/content",
+          "bytes": 4357291236,
+          "md5": "76b72298709293f35a9f7646ceb97465"
+        },
+        {
+          "filename": "w29.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w29.mat/content",
+          "bytes": 4132131257,
+          "md5": "7aced42e82467d4f41c235f91563a592"
+        },
+        {
+          "filename": "w3.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w3.mat/content",
+          "bytes": 3648428792,
+          "md5": "6267e9108a856cf87857273fa01a1392"
+        },
+        {
+          "filename": "w30.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w30.mat/content",
+          "bytes": 4431161098,
+          "md5": "5aadddb9760c93fc095dab2040b5b56c"
+        },
+        {
+          "filename": "w31.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w31.mat/content",
+          "bytes": 4431951299,
+          "md5": "e247821db0c2ebdd447100fd0fdf3308"
+        },
+        {
+          "filename": "w4.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w4.mat/content",
+          "bytes": 3475315124,
+          "md5": "c7235271c900d491b6ae046527c47326"
+        },
+        {
+          "filename": "w5.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w5.mat/content",
+          "bytes": 3498432920,
+          "md5": "29c5fe5cc762d9747f25664fac0e31d2"
+        },
+        {
+          "filename": "w6.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w6.mat/content",
+          "bytes": 3528414094,
+          "md5": "795dbaf1ec90be757d3d3d26f9a61d27"
+        },
+        {
+          "filename": "w7.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w7.mat/content",
+          "bytes": 3518736079,
+          "md5": "8bbeeb8ccd6d662bca757ae2a6299462"
+        },
+        {
+          "filename": "w8.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w8.mat/content",
+          "bytes": 3493159347,
+          "md5": "ef299c2ce32f1e1b5d67a02adda9c2ac"
+        },
+        {
+          "filename": "w9.mat",
+          "content_url": "https://zenodo.org/api/records/7119040/files/w9.mat/content",
+          "bytes": 3579325860,
+          "md5": "8971b768df0b35022d74ff4fddf2dc66"
+        }
+      ]
+    }
+  ]
+}

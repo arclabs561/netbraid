@@ -1,0 +1,223 @@
+{
+  "schema": "netbraid.derived_artifact_contract.v0",
+  "derived_root": "data/derived",
+  "artifacts": [
+    {
+      "path": "data/derived/eval/admitted-corpus-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-admitted-corpus.py",
+      "recipe": "admitted-corpus-eval"
+    },
+    {
+      "path": "data/derived/eval/caez-alignment-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-caez-alignment.py",
+      "recipe": "caez-alignment-profile"
+    },
+    {
+      "path": "data/derived/eval/caez-alignment-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-caez-alignment.py",
+      "recipe": "caez-alignment-profile"
+    },
+    {
+      "path": "data/derived/eval/caez-csi-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-caez-csi-slices.py",
+      "recipe": "caez-csi-profile"
+    },
+    {
+      "path": "data/derived/eval/data4cyber-alignment-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-data4cyber-alignment.py",
+      "recipe": "data4cyber-alignment-profile"
+    },
+    {
+      "path": "data/derived/eval/data4cyber-alignment-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-data4cyber-alignment.py",
+      "recipe": "data4cyber-alignment-profile"
+    },
+    {
+      "path": "data/derived/eval/gnss-rff-layout-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-gnss-rff-layout.py",
+      "recipe": "gnss-rff-layout-profile"
+    },
+    {
+      "path": "data/derived/eval/indoor-jamming-observation-oracles.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-indoor-jamming-oracles.py",
+      "recipe": "indoor-jamming-oracles"
+    },
+    {
+      "path": "data/derived/eval/indoor-jamming-controlled-cause-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-indoor-jamming-controlled-cause.py",
+      "recipe": "indoor-jamming-controlled-cause-eval"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v0/campaign-receipt.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v0/packet-flows-repeat.tsv",
+      "format": "tsv",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v0/packet-flows.tsv",
+      "format": "tsv",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v0/report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v0/report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/mmwave-jamming-observation-oracles.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-mmwave-jamming-oracles.py",
+      "recipe": "mmwave-jamming-oracles"
+    },
+    {
+      "path": "data/derived/eval/netslab-alignment-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-netslab-alignment.py",
+      "recipe": "netslab-alignment-profile"
+    },
+    {
+      "path": "data/derived/eval/netslab-alignment-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-netslab-alignment.py",
+      "recipe": "netslab-alignment-profile"
+    },
+    {
+      "path": "data/derived/eval/operanet-layout-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-operanet-layout.py",
+      "recipe": "operanet-layout-profile"
+    },
+    {
+      "path": "data/derived/eval/osu-lora-observation-oracles.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-osu-lora-oracles.py",
+      "recipe": "osu-lora-oracles"
+    },
+    {
+      "path": "data/derived/eval/osu-lora-sigmf-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-osu-lora-sigmf.py",
+      "recipe": "osu-lora-profile"
+    },
+    {
+      "path": "data/derived/eval/public-corpus-eval-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-public-corpus-slices.py",
+      "recipe": "public-corpus-eval"
+    },
+    {
+      "path": "data/derived/eval/ruff-uwb-heldout-location-blocker.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ruff-uwb-heldout-location.py",
+      "recipe": "ruff-uwb-heldout-location"
+    },
+    {
+      "path": "data/derived/eval/ruff-uwb-heldout-location-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ruff-uwb-heldout-location.py",
+      "recipe": "ruff-uwb-heldout-location-real"
+    },
+    {
+      "path": "data/derived/eval/ruff-uwb-observation-oracles.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-ruff-uwb-oracles.py",
+      "recipe": "ruff-uwb-oracles"
+    },
+    {
+      "path": "data/derived/eval/ruff-uwb-one-meter-row-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-ruff-uwb-row-adapter.py",
+      "recipe": "ruff-uwb-row-adapter"
+    },
+    {
+      "path": "data/derived/eval/ruff-uwb-one-meter-waveforms.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-ruff-uwb-row-adapter.py",
+      "recipe": "ruff-uwb-row-adapter"
+    },
+    {
+      "path": "data/derived/eval/sorbonne-same-event-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-sorbonne-same-event.py",
+      "recipe": "sorbonne-same-event-audit"
+    },
+    {
+      "path": "data/derived/eval/sorbonne-same-event-report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-sorbonne-same-event.py",
+      "recipe": "sorbonne-same-event-audit"
+    },
+    {
+      "path": "data/derived/eval/sorbonne-structural-reducer-report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-sorbonne-structural-reducer.py",
+      "recipe": "sorbonne-structural-reducer-eval"
+    },
+    {
+      "path": "data/derived/eval/sorbonne-structural-reducer-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-sorbonne-structural-reducer.py",
+      "recipe": "sorbonne-structural-reducer-eval"
+    },
+    {
+      "path": "data/derived/eval/wlan-rff-layout-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-wlan-rff-layout.py",
+      "recipe": "wlan-rff-layout-profile"
+    }
+  ]
+}

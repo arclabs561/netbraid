@@ -752,7 +752,9 @@ fn decode_hex(input: &str) -> Vec<u8> {
     assert_eq!(compact.len() % 2, 0, "hex fixture has an odd digit count");
     compact
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16)
                 .expect("fixture contains only hexadecimal digits")

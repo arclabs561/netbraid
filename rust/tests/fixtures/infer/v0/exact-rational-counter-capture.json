@@ -1,0 +1,86 @@
+{
+  "counter": {
+    "schema": "netmon.traffic_window.v0",
+    "record_id": "counter:exact-rational:0",
+    "coverage": "declared_complete",
+    "window": {
+      "duration_ms": 1000,
+      "received_bytes": 1200,
+      "transmitted_bytes": 400,
+      "received_packets": 12,
+      "transmitted_packets": 4
+    }
+  },
+  "capture": {
+    "schema": "netmon.traffic_window.v0",
+    "record_id": "capture:exact-rational:0",
+    "coverage": "declared_complete",
+    "window": {
+      "duration_ms": 1000,
+      "received_bytes": 1000,
+      "transmitted_bytes": 600,
+      "received_packets": 10,
+      "transmitted_packets": 6
+    }
+  },
+  "profile": {
+    "schema": "netmon.counter_capture_profile.v0",
+    "profile_id": "profile:exact-rational:0",
+    "scales_ppb": {
+      "received_bytes": 50000000,
+      "transmitted_bytes": 50000000,
+      "received_packets": 50000000,
+      "transmitted_packets": 50000000,
+      "received_share": 50000000,
+      "transmitted_share": 50000000,
+      "mean_received_packet_bytes": 50000000,
+      "mean_transmitted_packet_bytes": 50000000,
+      "mean_received_bits_per_second": 50000000,
+      "mean_transmitted_bits_per_second": 50000000
+    },
+    "support_threshold_ppb": 1000000000,
+    "contradiction_threshold_ppb": 10000000000
+  },
+  "expected": {
+    "counter_features_ppb": {
+      "received_bytes": 1200000000000,
+      "transmitted_bytes": 400000000000,
+      "received_packets": 12000000000,
+      "transmitted_packets": 4000000000,
+      "received_share": 750000000,
+      "transmitted_share": 250000000,
+      "mean_received_packet_bytes": 100000000000,
+      "mean_transmitted_packet_bytes": 100000000000,
+      "mean_received_bits_per_second": 9600000000000,
+      "mean_transmitted_bits_per_second": 3200000000000
+    },
+    "capture_features_ppb": {
+      "received_bytes": 1000000000000,
+      "transmitted_bytes": 600000000000,
+      "received_packets": 10000000000,
+      "transmitted_packets": 6000000000,
+      "received_share": 625000000,
+      "transmitted_share": 375000000,
+      "mean_received_packet_bytes": 100000000000,
+      "mean_transmitted_packet_bytes": 100000000000,
+      "mean_received_bits_per_second": 8000000000000,
+      "mean_transmitted_bits_per_second": 4800000000000
+    },
+    "residuals_ppb": {
+      "received_bytes": 166666666,
+      "transmitted_bytes": 500000000,
+      "received_packets": 166666666,
+      "transmitted_packets": 500000000,
+      "received_share": 125000000,
+      "transmitted_share": 125000000,
+      "mean_received_packet_bytes": 0,
+      "mean_transmitted_packet_bytes": 0,
+      "mean_received_bits_per_second": 166666666,
+      "mean_transmitted_bits_per_second": 500000000
+    },
+    "scaled_residual_sum_ppb": 45000000000,
+    "counter_content_sha256": "e86f410974d57d28cf04148682415a3cebc8f0f5445bf8d6f15d4f17cde81d77",
+    "capture_content_sha256": "1893965cf41fc9d93e98e348e81e3c45b5ad8e045bd7e046d73f399df93d0eeb",
+    "profile_content_sha256": "a9cbb9619fd4fdd0942dc36663ca98ee6370cfa8339d5ff373ead6a4eb3b2836"
+  }
+}

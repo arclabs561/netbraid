@@ -1,0 +1,97 @@
+{
+  "campaign_id": "indoor-jamming-controlled-cause-v0",
+  "feature_policy": {
+    "aggregation": "mean_across_four_windows",
+    "features": [
+      "anonymous_row_0_mean",
+      "anonymous_row_0_rms",
+      "anonymous_row_0_zero_rate",
+      "anonymous_row_1_mean",
+      "anonymous_row_1_rms",
+      "anonymous_row_1_zero_rate"
+    ],
+    "metadata_features": false,
+    "row_semantics": "anonymous"
+  },
+  "limitations": [
+    "conditional_on_one_tx_rx_setup_assigned_power_0.5_and_distance_10m",
+    "one_held_out_jammer_setup_does_not_support_population_level_setup_generalization",
+    "no_tx_rx_power_or_distance_generalization",
+    "anonymous_row_semantics_and_sample_rate_are_not_declared",
+    "no_spectral_timing_or_detection_latency_claim",
+    "metadata_distinct_extents_do_not_prove_payload_deduplication",
+    "controlled_cause_is_not_identity_tamper_actor_or_malicious_intent"
+  ],
+  "model": {
+    "classifier": "standardized_nearest_centroid",
+    "fit": "train_only",
+    "radius": "maximum_train_distance_per_class",
+    "test_uses": 1,
+    "tie_policy": "abstain",
+    "zero_variance_features": "drop"
+  },
+  "preregistration": {
+    "execution_state": "not_executed",
+    "missing_required_fields": "reject",
+    "unknown_fields": "reject"
+  },
+  "schema": "netbraid.indoor_jamming_controlled_cause_policy.v0",
+  "slice": {
+    "assigned_relative_jamming_power": 0.5,
+    "causes": [
+      "silent",
+      "sine",
+      "gaussian"
+    ],
+    "distance_meters": 10.0,
+    "expected_complete_triplets": 8,
+    "expected_jammer_setup_repetitions": [
+      1,
+      1,
+      1,
+      2,
+      3
+    ],
+    "expected_minimum_extent_columns": 145920978,
+    "expected_observations": 24
+  },
+  "split_policy": {
+    "atomic_groups": [
+      "assigned_jammer_setup_group",
+      "file_session_group",
+      "paired_condition_group",
+      "combined_setup_group"
+    ],
+    "conditioning_groups": [
+      "tx_rx_setup_group",
+      "power_setup_group",
+      "distance_setup_group"
+    ],
+    "role_by_jammer_setup_repetition": {
+      "1": "train",
+      "2": "validation",
+      "3": "test"
+    }
+  },
+  "validation_gate": {
+    "balanced_accuracy_strictly_greater_than": 0.3333333333333333,
+    "coverage_at_least": 0.6666666666666666
+  },
+  "window_policy": {
+    "columns": 65536,
+    "count": 4,
+    "expected_starts": [
+      29151427,
+      58335623,
+      87519818,
+      116704014
+    ],
+    "interior_denominator": 5,
+    "positions": [
+      1,
+      2,
+      3,
+      4
+    ]
+  }
+}

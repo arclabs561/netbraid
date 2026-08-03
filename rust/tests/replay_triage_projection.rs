@@ -1,18 +1,25 @@
 use netbraid::evidence::{
     CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureFileMetadataV0, CaptureManifestV0,
-    CaptureNormalizationV0, CaptureRunReceiptV0, EthernetFieldsV0, Ieee80211FieldsV0, Ipv4FieldsV0,
-    NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0, PacketQuarantineV0, TcpFieldsV0,
-    ToolRunReceiptV0, UdpFieldsV0, CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
-    NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
+    CaptureNormalizationV0, CaptureRunReceiptV0, CollectionPolicyV0, EthernetFieldsV0,
+    Ieee80211FieldsV0, Ipv4FieldsV0, NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0,
+    PacketQuarantineV0, TcpFieldsV0, ToolRunReceiptV0, UdpFieldsV0, CAPTURE_MANIFEST_SCHEMA_V0,
+    CAPTURE_RUN_RECEIPT_SCHEMA_V0, NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0,
+    PACKET_QUARANTINE_SCHEMA_V0,
 };
 use netbraid::replay::{
-    parse_saved_capture_jsonl, project_saved_pcap_triage, project_saved_pcap_triage_v1,
-    SavedPcapClaimScopeV0, SavedPcapConversationAggregationV0, SavedPcapConversationTriageV0,
-    SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
-    SavedPcapTrailingConversationAggregationV1, SavedPcapTrailingConversationTriageV1,
-    SavedPcapTrailingIntervalAnchorV1, SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1,
-    SavedPcapTriageProjectionError, SavedPcapWlanDisconnectKindV0, SavedPcapWlanTriageV0,
+    assess_saved_pcap_fingerprint_v0, compare_saved_pcap_fingerprints_v0,
+    parse_saved_capture_jsonl, project_saved_pcap_fingerprint_v0, project_saved_pcap_triage,
+    project_saved_pcap_triage_v1, project_saved_pcap_wlan_fingerprint_v0, SavedPcapClaimScopeV0,
+    SavedPcapConversationAggregationV0, SavedPcapConversationTriageV0,
+    SavedPcapFingerprintComparisonReasonV0, SavedPcapFingerprintComparisonV0,
+    SavedPcapFingerprintDispositionV0, SavedPcapFingerprintReferenceV0,
+    SavedPcapFingerprintStatusV0, SavedPcapNegativeClaimAbstentionReasonV1,
+    SavedPcapNegativeClaimQualificationV1, SavedPcapTrailingConversationAggregationV1,
+    SavedPcapTrailingConversationTriageV1, SavedPcapTrailingIntervalAnchorV1,
+    SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1, SavedPcapTriageProjectionError,
+    SavedPcapWlanDisconnectKindV0, SavedPcapWlanFingerprintStatusV0, SavedPcapWlanTriageV0,
 };
+use proptest::prelude::*;
 
 const CAPTURE_ID: &str = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
 const RECORDS_DIGEST: &str =
@@ -36,6 +43,612 @@ fn positive_triage_projection_matches_contract_golden() {
         &triage,
         include_str!("fixtures/replay/triage-positive-v0.json"),
     );
+}
+
+#[test]
+fn fingerprint_candidate_is_observed_and_endpoint_free() {
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Complete, 3, 0),
+        vec![
+            tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+            tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+            wlan_packet(3, 12),
+        ],
+        vec![],
+    );
+    let triage =
+        project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1::default()).unwrap();
+    let candidate = project_saved_pcap_fingerprint_v0(&triage);
+
+    assert_eq!(candidate.scope, SavedPcapClaimScopeV0::CompleteCapture);
+    let SavedPcapFingerprintStatusV0::Observed {
+        digest,
+        basis,
+        caveats,
+    } = &candidate.status
+    else {
+        panic!("complete eligible packet evidence should produce an observed candidate");
+    };
+    assert!(digest.starts_with("sha256:"));
+    assert_eq!(basis.feature_names.len(), 25);
+    assert!(caveats
+        .iter()
+        .any(|caveat| caveat.contains("not sessionized")));
+
+    let encoded = serde_json::to_string(&candidate).unwrap();
+    assert!(!encoded.contains("192.0.2.1"));
+    assert!(!encoded.contains("198.51.100.2"));
+    assert!(!encoded.contains("40000"));
+    assert!(!encoded.contains("443"));
+    assert_eq!(encoded, serde_json::to_string(&candidate).unwrap());
+}
+
+#[test]
+fn fingerprint_digest_ignores_endpoints_but_changes_for_included_features() {
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Complete, 2, 0),
+        vec![
+            tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+            tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+        ],
+        vec![],
+    );
+    let triage =
+        project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1::default()).unwrap();
+    let baseline = project_saved_pcap_fingerprint_v0(&triage);
+
+    let mut endpoint_changed = triage.clone();
+    let SavedPcapConversationTriageV0::Observed { conversation, .. } =
+        &mut endpoint_changed.top_capture_conversation
+    else {
+        panic!("the fixture should produce an observed conversation");
+    };
+    conversation.endpoint_a.address = "203.0.113.9".parse().unwrap();
+    conversation.endpoint_b.port = 8443;
+    let endpoint_candidate = project_saved_pcap_fingerprint_v0(&endpoint_changed);
+
+    let mut feature_changed = triage;
+    let SavedPcapConversationTriageV0::Observed { conversation, .. } =
+        &mut feature_changed.top_capture_conversation
+    else {
+        panic!("the fixture should produce an observed conversation");
+    };
+    conversation.total_frames += 1;
+    let feature_candidate = project_saved_pcap_fingerprint_v0(&feature_changed);
+
+    let digest = |candidate: &netbraid::replay::SavedPcapFingerprintCandidateV0| {
+        let SavedPcapFingerprintStatusV0::Observed { digest, .. } = &candidate.status else {
+            panic!("candidate should remain observed");
+        };
+        digest.clone()
+    };
+    assert_eq!(digest(&baseline), digest(&endpoint_candidate));
+    assert_ne!(digest(&baseline), digest(&feature_candidate));
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&baseline, &endpoint_candidate),
+        SavedPcapFingerprintComparisonV0::Corroborated
+    );
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&baseline, &feature_candidate),
+        SavedPcapFingerprintComparisonV0::Conflicting
+    );
+
+    let mut schema_changed = baseline.clone();
+    schema_changed.schema = "other.schema.v0".into();
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&baseline, &schema_changed),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentSchema,
+        }
+    );
+
+    let mut feature_set_changed = baseline.clone();
+    let SavedPcapFingerprintStatusV0::Observed { basis, .. } = &mut feature_set_changed.status
+    else {
+        panic!("the fixture should produce an observed candidate");
+    };
+    basis.feature_names.push("future.feature".into());
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&baseline, &feature_set_changed),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentFeatureSet,
+        }
+    );
+
+    let mut invalid_digest = baseline.clone();
+    let SavedPcapFingerprintStatusV0::Observed { digest, .. } = &mut invalid_digest.status else {
+        panic!("the fixture should produce an observed candidate");
+    };
+    *digest = "sha256:invalid".into();
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&baseline, &invalid_digest),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::InvalidDigest,
+        }
+    );
+}
+
+#[test]
+fn fingerprint_candidate_preserves_partial_and_unsupported_abstentions() {
+    let partial = validated_stream(
+        manifest(NormalizationStateV0::Partial, 0, 0),
+        vec![],
+        vec![],
+    );
+    let partial_triage =
+        project_saved_pcap_triage_v1(&partial, SavedPcapTriageOptionsV1::default()).unwrap();
+    let partial_candidate = project_saved_pcap_fingerprint_v0(&partial_triage);
+    let partial_clone = partial_candidate.clone();
+    assert!(matches!(
+        partial_candidate.status,
+        SavedPcapFingerprintStatusV0::Insufficient { .. }
+    ));
+    assert!(!serde_json::to_string(&partial_candidate)
+        .unwrap()
+        .contains("digest"));
+
+    let unsupported = validated_stream(
+        manifest(NormalizationStateV0::Complete, 1, 0),
+        vec![wlan_packet(1, 8)],
+        vec![],
+    );
+    let unsupported_triage =
+        project_saved_pcap_triage_v1(&unsupported, SavedPcapTriageOptionsV1::default()).unwrap();
+    let unsupported_candidate = project_saved_pcap_fingerprint_v0(&unsupported_triage);
+    assert!(matches!(
+        unsupported_candidate.status,
+        SavedPcapFingerprintStatusV0::Unsupported { .. }
+    ));
+    assert!(!serde_json::to_string(&unsupported_candidate)
+        .unwrap()
+        .contains("digest"));
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&partial_candidate, &unsupported_candidate),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentClaimScope,
+        }
+    );
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v0(&partial_clone, &partial_candidate),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::LeftNotObserved,
+        }
+    );
+}
+
+#[test]
+fn fingerprint_hypothesis_maps_lower_reducer_and_is_swap_invariant() {
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Complete, 2, 0),
+        vec![
+            tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+            tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+        ],
+        vec![],
+    );
+    let triage = project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1::default())
+        .expect("eligible records project");
+    let baseline = project_saved_pcap_fingerprint_v0(&triage);
+    let mut same = baseline.clone();
+    same.source.capture_id = format!("sha256:{}", "1".repeat(64));
+    let mut different_triage = triage;
+    let SavedPcapConversationTriageV0::Observed { conversation, .. } =
+        &mut different_triage.top_capture_conversation
+    else {
+        panic!("eligible records have a conversation");
+    };
+    conversation.total_frames += 1;
+    different_triage.source.manifest.capture_id = format!("sha256:{}", "2".repeat(64));
+    let different = project_saved_pcap_fingerprint_v0(&different_triage);
+    let mut unknown = same.clone();
+    let SavedPcapFingerprintStatusV0::Observed { digest, .. } = &mut unknown.status else {
+        panic!("eligible records have an observed fingerprint");
+    };
+    *digest = "sha256:invalid".into();
+
+    for (right, comparison, reference, dispositions) in [
+        (
+            &same,
+            SavedPcapFingerprintComparisonV0::Corroborated,
+            SavedPcapFingerprintReferenceV0::SamePacketShape,
+            (
+                SavedPcapFingerprintDispositionV0::Supported,
+                SavedPcapFingerprintDispositionV0::Contradicted,
+                SavedPcapFingerprintDispositionV0::Contradicted,
+            ),
+        ),
+        (
+            &different,
+            SavedPcapFingerprintComparisonV0::Conflicting,
+            SavedPcapFingerprintReferenceV0::DifferentPacketShape,
+            (
+                SavedPcapFingerprintDispositionV0::Contradicted,
+                SavedPcapFingerprintDispositionV0::Supported,
+                SavedPcapFingerprintDispositionV0::Contradicted,
+            ),
+        ),
+    ] {
+        let result = assess_saved_pcap_fingerprint_v0(&baseline, right).unwrap();
+        assert_eq!(result.basis, comparison);
+        assert_eq!(result.reference, reference);
+        assert_eq!(
+            (
+                result.same_packet_shape,
+                result.different_packet_shape,
+                result.unknown
+            ),
+            dispositions
+        );
+        assert_eq!(
+            result,
+            assess_saved_pcap_fingerprint_v0(right, &baseline).unwrap()
+        );
+        result.validate_against(right, &baseline).unwrap();
+    }
+
+    let result = assess_saved_pcap_fingerprint_v0(&baseline, &unknown).unwrap();
+    assert_eq!(
+        result.basis,
+        compare_saved_pcap_fingerprints_v0(&baseline, &unknown)
+    );
+    assert!(matches!(
+        result.reference,
+        SavedPcapFingerprintReferenceV0::Unknown { .. }
+    ));
+    assert_eq!(
+        result.same_packet_shape,
+        SavedPcapFingerprintDispositionV0::Underdetermined
+    );
+    assert_eq!(
+        result.different_packet_shape,
+        SavedPcapFingerprintDispositionV0::Underdetermined
+    );
+    assert_eq!(result.unknown, SavedPcapFingerprintDispositionV0::Supported);
+    assert_eq!(
+        result,
+        assess_saved_pcap_fingerprint_v0(&unknown, &baseline).unwrap()
+    );
+}
+
+#[test]
+fn wlan_fingerprint_is_separate_and_identifier_free() {
+    let mut first = wlan_packet(1, 8);
+    first.frame.protocols = vec!["radiotap".into(), "wlan_radio".into(), "wlan".into()];
+    first.ieee80211.as_mut().unwrap().ssid_hex = Some("6f6d7573".into());
+    first.wlan_radio = Some(netbraid::evidence::WlanRadioFieldsV0 {
+        channel: Some(1),
+        center_frequency_mhz: Some(2_412),
+        signal_dbm: Some(-74),
+    });
+    let mut second = wlan_packet(2, 12);
+    second.frame.protocols = first.frame.protocols.clone();
+    second.wlan_radio = Some(netbraid::evidence::WlanRadioFieldsV0 {
+        channel: Some(1),
+        center_frequency_mhz: Some(2_412),
+        signal_dbm: Some(-40),
+    });
+    let mut capture_manifest = manifest(NormalizationStateV0::Complete, 2, 0);
+    capture_manifest.observer_id = Some("observer-a".into());
+    capture_manifest.acquisition_policy = Some(CollectionPolicyV0::passive_host_local());
+    let records = validated_stream(capture_manifest, vec![first, second], vec![]);
+    let candidate = project_saved_pcap_wlan_fingerprint_v0(&records);
+
+    assert_eq!(candidate.scope, SavedPcapClaimScopeV0::CompleteCapture);
+    assert_eq!(candidate.source.observer_id.as_deref(), Some("observer-a"));
+    assert_eq!(
+        candidate.source.acquisition_policy,
+        Some(CollectionPolicyV0::passive_host_local())
+    );
+    let SavedPcapWlanFingerprintStatusV0::Observed { digest, basis, .. } = &candidate.status else {
+        panic!("validated WLAN evidence should produce an observed candidate");
+    };
+    assert!(digest.starts_with("sha256:"));
+    assert_eq!(basis.wlan_frames, 2);
+    assert_eq!(basis.radiotap_frames, 2);
+    assert_eq!(basis.radio_metadata_frames, 2);
+    assert_eq!(basis.ssid_element_frames, 1);
+    assert_eq!(basis.channel_frames, 2);
+    assert_eq!(basis.center_frequency_frames, 2);
+    assert_eq!(basis.signal_frames, 2);
+    assert_eq!(basis.signal_dbm.minimum_dbm, Some(-74));
+    assert_eq!(basis.signal_dbm.maximum_dbm, Some(-40));
+    assert_eq!(basis.observed_span_ns, 1_000);
+    assert_eq!(basis.frame_mix[0].frame_subtype, 8);
+    assert_eq!(basis.frame_mix[0].frames, 1);
+    assert_eq!(basis.frame_mix[1].frame_subtype, 12);
+    assert_eq!(basis.frame_mix[1].frames, 1);
+    assert_eq!(basis.channels[0].frames, 2);
+    assert_eq!(basis.center_frequencies_mhz[0].frames, 2);
+
+    let encoded = serde_json::to_string(&candidate).unwrap();
+    assert!(!encoded.contains("02:00:00:00:00:01"));
+    assert!(!encoded.contains("6f6d7573"));
+
+    let mut identifiers_changed = records.clone();
+    let wlan = identifiers_changed.packets[0].ieee80211.as_mut().unwrap();
+    wlan.transmitter = Some("02:00:00:00:00:aa".into());
+    wlan.bssid = Some("02:00:00:00:00:bb".into());
+    wlan.ssid_hex = Some("6c6162".into());
+    let changed_candidate = project_saved_pcap_wlan_fingerprint_v0(&identifiers_changed);
+    let SavedPcapWlanFingerprintStatusV0::Observed {
+        digest: changed_digest,
+        ..
+    } = changed_candidate.status
+    else {
+        panic!("identifier changes must not remove WLAN evidence");
+    };
+    assert_eq!(digest, &changed_digest);
+}
+
+#[test]
+fn wlan_fingerprint_abstains_without_frames_at_the_right_scope() {
+    let partial = validated_stream(
+        manifest(NormalizationStateV0::Partial, 1, 0),
+        vec![tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 2)],
+        vec![],
+    );
+    assert!(matches!(
+        project_saved_pcap_wlan_fingerprint_v0(&partial).status,
+        SavedPcapWlanFingerprintStatusV0::Insufficient { .. }
+    ));
+
+    let complete = validated_stream(
+        manifest(NormalizationStateV0::Complete, 1, 0),
+        vec![tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 2)],
+        vec![],
+    );
+    assert!(matches!(
+        project_saved_pcap_wlan_fingerprint_v0(&complete).status,
+        SavedPcapWlanFingerprintStatusV0::Unsupported { .. }
+    ));
+}
+
+#[test]
+fn wlan_fingerprint_keeps_scope_and_coverage_explicit() {
+    let mut first = wlan_packet(1, 8);
+    first.frame.protocols = vec!["wlan".into()];
+    first.wlan_radio = Some(netbraid::evidence::WlanRadioFieldsV0 {
+        channel: Some(1),
+        center_frequency_mhz: None,
+        signal_dbm: None,
+    });
+    let mut second = wlan_packet(2, 8);
+    second.frame.protocols = vec!["wlan".into()];
+    second.wlan_radio = Some(netbraid::evidence::WlanRadioFieldsV0 {
+        channel: None,
+        center_frequency_mhz: Some(2_437),
+        signal_dbm: Some(-55),
+    });
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Partial, 2, 0),
+        vec![first, second],
+        vec![],
+    );
+    let candidate = project_saved_pcap_wlan_fingerprint_v0(&records);
+
+    assert_eq!(
+        candidate.scope,
+        SavedPcapClaimScopeV0::NormalizedPacketSubset
+    );
+    let SavedPcapWlanFingerprintStatusV0::Observed { basis, .. } = candidate.status else {
+        panic!("WLAN frames in a partial stream remain an observed subset");
+    };
+    assert_eq!(basis.wlan_frames, 2);
+    assert_eq!(basis.radio_metadata_frames, 2);
+    assert_eq!(basis.channel_frames, 1);
+    assert_eq!(basis.center_frequency_frames, 1);
+    assert_eq!(basis.signal_frames, 1);
+    assert_eq!(basis.channels[0].value, 1);
+    assert_eq!(basis.channels[0].frames, 1);
+    assert_eq!(basis.center_frequencies_mhz[0].value, 2_437);
+    assert_eq!(basis.center_frequencies_mhz[0].frames, 1);
+}
+
+#[test]
+fn wlan_fingerprint_digest_ignores_order_and_absolute_time() {
+    let mut first = wlan_packet(1, 8);
+    first.frame.protocols = vec!["radiotap".into(), "wlan_radio".into(), "wlan".into()];
+    first.wlan_radio = Some(netbraid::evidence::WlanRadioFieldsV0 {
+        channel: Some(1),
+        center_frequency_mhz: Some(2_412),
+        signal_dbm: Some(-60),
+    });
+    let mut second = wlan_packet(2, 12);
+    second.frame.protocols = first.frame.protocols.clone();
+    second.wlan_radio = first.wlan_radio.clone();
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Complete, 2, 0),
+        vec![first, second],
+        vec![],
+    );
+    let digest = |records: &netbraid::replay::SavedCaptureRecordStreamV0| {
+        let SavedPcapWlanFingerprintStatusV0::Observed { digest, .. } =
+            project_saved_pcap_wlan_fingerprint_v0(records).status
+        else {
+            panic!("fixture should produce an observed candidate");
+        };
+        digest
+    };
+
+    let baseline = digest(&records);
+    let mut shifted = records.clone();
+    for packet in &mut shifted.packets {
+        packet.frame.event_time_unix_ns += 9_000_000;
+    }
+    assert_eq!(baseline, digest(&shifted));
+
+    let mut reordered = records.clone();
+    reordered.packets.reverse();
+    assert_eq!(baseline, digest(&reordered));
+
+    reordered.packets[0]
+        .frame
+        .protocols
+        .retain(|protocol| protocol != "radiotap");
+    assert_ne!(baseline, digest(&reordered));
+}
+
+proptest! {
+    #[test]
+    fn wlan_fingerprint_digest_is_invariant_to_identifiers_and_order(
+        samples in prop::collection::vec(
+            (
+                0u8..=3,
+                0u8..=15,
+                prop::option::of(1u32..=200),
+                prop::option::of(1u16..=6_000),
+                prop::option::of(any::<i8>()),
+            ),
+            1..20,
+        ),
+    ) {
+        let packets = samples
+            .iter()
+            .enumerate()
+            .map(|(index, (frame_type, frame_subtype, channel, frequency, signal))| {
+                let mut packet = wlan_packet(index as u64 + 1, *frame_subtype);
+                packet.ieee80211.as_mut().unwrap().frame_type = *frame_type;
+                packet.wlan_radio = match (*channel, *frequency, *signal) {
+                    (None, None, None) => None,
+                    (channel, frequency, signal) => Some(netbraid::evidence::WlanRadioFieldsV0 {
+                        channel,
+                        center_frequency_mhz: frequency,
+                        signal_dbm: signal,
+                    }),
+                };
+                packet
+            })
+            .collect::<Vec<_>>();
+        let records = validated_stream(
+            manifest(NormalizationStateV0::Complete, packets.len() as u64, 0),
+            packets,
+            vec![],
+        );
+
+        let digest = |records: &netbraid::replay::SavedCaptureRecordStreamV0| {
+            let SavedPcapWlanFingerprintStatusV0::Observed { digest, .. } =
+                project_saved_pcap_wlan_fingerprint_v0(records).status
+            else {
+                panic!("generated WLAN fixture should produce an observed candidate");
+            };
+            digest
+        };
+
+        let baseline = digest(&records);
+        let mut reordered = records.clone();
+        reordered.packets.reverse();
+        for (index, packet) in reordered.packets.iter_mut().enumerate() {
+            let ieee80211 = packet.ieee80211.as_mut().unwrap();
+            let suffix = index as u8;
+            let ssid_element_present = ieee80211.ssid_hex.is_some();
+            ieee80211.transmitter = Some(format!("02:00:00:00:01:{suffix:02x}"));
+            ieee80211.receiver = Some(format!("02:00:00:00:02:{suffix:02x}"));
+            ieee80211.source = Some(format!("02:00:00:00:03:{suffix:02x}"));
+            ieee80211.destination = Some(format!("02:00:00:00:04:{suffix:02x}"));
+            ieee80211.bssid = Some(format!("02:00:00:00:05:{suffix:02x}"));
+            ieee80211.ssid_hex = ssid_element_present.then(|| "6c6162".into());
+        }
+
+        prop_assert_eq!(&baseline, &digest(&reordered));
+
+        let mut changed_samples = samples;
+        changed_samples.push((0, 0, None, None, None));
+        let changed_packets = changed_samples
+            .iter()
+            .enumerate()
+            .map(|(index, (frame_type, frame_subtype, channel, frequency, signal))| {
+                let mut packet = wlan_packet(index as u64 + 1, *frame_subtype);
+                packet.ieee80211.as_mut().unwrap().frame_type = *frame_type;
+                packet.wlan_radio = match (*channel, *frequency, *signal) {
+                    (None, None, None) => None,
+                    (channel, frequency, signal) => Some(netbraid::evidence::WlanRadioFieldsV0 {
+                        channel,
+                        center_frequency_mhz: frequency,
+                        signal_dbm: signal,
+                    }),
+                };
+                packet
+            })
+            .collect::<Vec<_>>();
+        let changed = validated_stream(
+            manifest(
+                NormalizationStateV0::Complete,
+                changed_packets.len() as u64,
+                0,
+            ),
+            changed_packets,
+            vec![],
+        );
+
+        prop_assert_ne!(&baseline, &digest(&changed));
+    }
+}
+
+proptest! {
+    #[test]
+    fn fingerprint_comparison_ignores_source_occurrence_metadata(
+        capture_id in "[a-z0-9:/_-]{1,32}",
+        records_digest in "sha256:[0-9a-f]{64}",
+    ) {
+        let records = validated_stream(
+            manifest(NormalizationStateV0::Complete, 2, 0),
+            vec![
+                tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+                tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+            ],
+            vec![],
+        );
+        let mut triage = project_saved_pcap_triage_v1(
+            &records,
+            SavedPcapTriageOptionsV1::default(),
+        )
+        .unwrap();
+        triage.source.manifest.capture_id = capture_id.clone();
+        triage.source.normalized_records_sha256 = records_digest;
+        let candidate = project_saved_pcap_fingerprint_v0(&triage);
+        let mut source_changed = candidate.clone();
+        source_changed.source.capture_id = format!("{capture_id}-other");
+        source_changed.source.normalized_records_sha256 =
+            "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".into();
+
+        prop_assert_eq!(
+            compare_saved_pcap_fingerprints_v0(&candidate, &source_changed),
+            SavedPcapFingerprintComparisonV0::Corroborated,
+        );
+    }
+
+    #[test]
+    fn fingerprint_comparison_rejects_forged_digests(
+        forged_suffix in "[0-9a-f]{1,16}",
+    ) {
+        let records = validated_stream(
+            manifest(NormalizationStateV0::Complete, 2, 0),
+            vec![
+                tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+                tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+            ],
+            vec![],
+        );
+        let triage = project_saved_pcap_triage_v1(
+            &records,
+            SavedPcapTriageOptionsV1::default(),
+        )
+        .unwrap();
+        let candidate = project_saved_pcap_fingerprint_v0(&triage);
+        let mut forged = candidate.clone();
+        let SavedPcapFingerprintStatusV0::Observed { digest, .. } = &mut forged.status
+        else {
+            panic!("complete eligible packet evidence should produce an observed candidate");
+        };
+        *digest = format!("sha256:{forged_suffix}");
+
+        prop_assert_eq!(
+            compare_saved_pcap_fingerprints_v0(&candidate, &forged),
+            SavedPcapFingerprintComparisonV0::NotComparable {
+                reason: SavedPcapFingerprintComparisonReasonV0::InvalidDigest,
+            },
+        );
+    }
 }
 
 #[test]
@@ -93,6 +706,7 @@ fn unsupported_triage_projection_matches_contract_golden() {
         ipv6: None,
         tcp: None,
         udp: None,
+        ieee802154: None,
         ieee80211: None,
         wlan_radio: None,
     }];
@@ -793,17 +1407,20 @@ fn tcp_packet(
             destination: Some("02:00:00:00:00:02".into()),
         }),
         ipv4: Some(Ipv4FieldsV0 {
+            total_length_octets: None,
             source: source.into(),
             destination: destination.into(),
             protocol: 6,
         }),
         ipv6: None,
         tcp: Some(TcpFieldsV0 {
+            stream_index: None,
             source_port,
             destination_port,
             flags,
         }),
         udp: None,
+        ieee802154: None,
         ieee80211: None,
         wlan_radio: None,
     }
@@ -854,6 +1471,7 @@ fn wlan_packet(frame_number: u64, frame_subtype: u8) -> PacketEnvelopeV0 {
         ipv6: None,
         tcp: None,
         udp: None,
+        ieee802154: None,
         ieee80211: Some(Ieee80211FieldsV0 {
             frame_type: 0,
             frame_subtype,

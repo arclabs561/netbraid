@@ -1,0 +1,284 @@
+{
+  "schema": "netbraid.sorbonne_same_event_campaign.v0",
+  "campaign_id": "sorbonne-campus-1m-same-event-v0",
+  "preregistration": {
+    "status": "revised_before_execution",
+    "revision": 1,
+    "revision_reason": "adversarial audit established that PyPal synchronization used oracle-related frame correspondences and that the 1 ms diagnostic set contains no negative pairs",
+    "registered_against_netbraid_revision": "98399c8e768ddf8818b27557b5e75856985d76e4",
+    "execution_state": "not_executed",
+    "unknown_manifest_fields": "reject",
+    "missing_required_fields": "reject"
+  },
+  "source": {
+    "corpus": "sorbonne-campus-rssi",
+    "publisher_doi": "10.57745/HAOPHF",
+    "license": "Etalab Open License 2.0",
+    "archive": {
+      "key": "sorbonne-campus-rssi",
+      "filename": "220211012-SU-Outdoors-Campus.zip",
+      "bytes": 3144312,
+      "md5": "3ce2868b97eb1a8750233e67fb3cfbe3",
+      "sha256": "7a650d450d339683cf7591bc24a6006238456b8dfa54e352aa1aceda8682c3f8"
+    },
+    "members": {
+      "root": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/1m/csvTracesSynchronized",
+      "name_pattern": "{root}/01m-{observer}-synchronized.txt",
+      "name_regex": "^220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/1m/csvTracesSynchronized/01m-S(?:0[1-9]|10)-synchronized\\.txt$",
+      "format": "sorbonne-rssi-tsv-v1",
+      "delimiter": "\t",
+      "header": [
+        "Frame_number",
+        "Frame_time_epoch",
+        "RSSI_dBm",
+        "Channel",
+        "Frame_type",
+        "Frame_subtype",
+        "Retransmission",
+        "Source_MAC_address",
+        "Sequence_number"
+      ],
+      "expected_member_count": 10,
+      "require_complete_members": true,
+      "reject_unmatched_members": true
+    },
+    "observers": [
+      "S01",
+      "S02",
+      "S03",
+      "S04",
+      "S05",
+      "S06",
+      "S07",
+      "S08",
+      "S09",
+      "S10"
+    ]
+  },
+  "split": {
+    "mode": "single_locked_evaluation_split",
+    "split_id": "sorbonne-campus-1m-complete-run",
+    "run_as_single_split": true,
+    "include_all_observers": true,
+    "include_all_rows": true,
+    "train": false,
+    "calibrate": false,
+    "fit_threshold": false,
+    "row_level_partitioning": "forbidden",
+    "event_level_partitioning": "forbidden",
+    "observer_pair_partitioning": "forbidden"
+  },
+  "field_policy": {
+    "oracle_fields": [
+      "Source_MAC_address",
+      "Sequence_number"
+    ],
+    "oracle_event_key": [
+      "Source_MAC_address",
+      "Sequence_number"
+    ],
+    "event_invariant_fields": [
+      "Channel",
+      "Frame_type",
+      "Frame_subtype",
+      "Retransmission"
+    ],
+    "derived_diagnostic_fields": [
+      "Frame_time_epoch"
+    ],
+    "audit_only_fields": [
+      "Frame_number"
+    ],
+    "allowed_predictive_fields": [
+      "Channel",
+      "Frame_type",
+      "Frame_subtype",
+      "Retransmission"
+    ],
+    "forbidden_predictive_fields": [
+      "Frame_number",
+      "Frame_time_epoch",
+      "RSSI_dBm",
+      "Source_MAC_address",
+      "Sequence_number",
+      "observer_id"
+    ],
+    "derived_fields": {
+      "observer_id": "observer token parsed from the selected ZIP member name"
+    },
+    "enforcement": {
+      "oracle_fields_available_to_predictor": false,
+      "derived_diagnostic_fields_available_to_predictor": false,
+      "audit_only_fields_available_to_predictor": false,
+      "forbidden_fields_available_to_predictor": false,
+      "predictive_input_allowlist_is_closed": true
+    }
+  },
+  "oracle": {
+    "unit": "undirected_cross_observer_observation_pair",
+    "event_key_uniqueness_scope": "within_observer",
+    "require_distinct_observers": true,
+    "require_complete_oracle_key": true,
+    "require_event_invariant_consistency": true,
+    "pair_deduplication": "canonical_observer_then_frame_order",
+    "labels": [
+      "same_event",
+      "different_event",
+      "unknown"
+    ],
+    "hypotheses": {
+      "same_event": {
+        "condition": "distinct observers and equal complete oracle_event_key values",
+        "interpretation": "the two observations represent the same publisher-keyed transmission event"
+      },
+      "different_event": {
+        "condition": "distinct observations have different complete oracle_event_key values in a separately designed evaluation pair set",
+        "interpretation": "the two observations represent different publisher-keyed transmission events; the synchronized-time diagnostic does not supply these pairs"
+      },
+      "unknown": {
+        "condition": "the pair is not in an independently justified evaluation set, has an incomplete oracle key, or cannot satisfy the registered integrity checks",
+        "interpretation": "no same-event or different-event conclusion is admitted"
+      }
+    },
+    "precedence": [
+      "integrity_failure",
+      "same_event",
+      "different_event",
+      "unknown"
+    ]
+  },
+  "synchronized_time_diagnostic": {
+    "field": "Frame_time_epoch",
+    "window_milliseconds": 1,
+    "window_seconds": 0.001,
+    "comparison": "absolute_timestamp_delta_less_than_or_equal",
+    "boundary": "inclusive",
+    "cross_observer_only": true,
+    "undirected_pairs": true,
+    "emit_each_pair_once": true,
+    "expected_same_event_pairs": 64149,
+    "expected_different_event_pairs": 0,
+    "predictive_use": "forbidden",
+    "reason": "PyPal fitted the synchronized time axis from common reference frames matched with a composite key that included source MAC and sequence number"
+  },
+  "expected_structure": {
+    "comparison": "exact",
+    "observations": 18926,
+    "events": 2715,
+    "multi_observer_events": 2673,
+    "all_observer_events": 455,
+    "positive_cross_observer_pairs": 64149,
+    "duplicate_event_keys_within_observer": 0,
+    "events_with_contradictory_invariant_metadata": 0
+  },
+  "metrics": [
+    {
+      "name": "observation_count",
+      "numerator": "parsed rows across all selected members",
+      "required_value": 18926
+    },
+    {
+      "name": "oracle_event_count",
+      "numerator": "distinct complete oracle_event_key values",
+      "required_value": 2715
+    },
+    {
+      "name": "multi_observer_event_count",
+      "numerator": "oracle events observed by at least two distinct observers",
+      "required_value": 2673
+    },
+    {
+      "name": "all_observer_event_count",
+      "numerator": "oracle events observed by all ten distinct observers",
+      "required_value": 455
+    },
+    {
+      "name": "positive_cross_observer_pair_count",
+      "numerator": "sum over oracle events of n_distinct_observers choose 2",
+      "required_value": 64149
+    },
+    {
+      "name": "duplicate_event_key_count",
+      "numerator": "repeated oracle_event_key values within an observer",
+      "required_value": 0
+    },
+    {
+      "name": "contradictory_invariant_event_count",
+      "numerator": "oracle events having more than one event_invariant_fields tuple",
+      "required_value": 0
+    },
+    {
+      "name": "synchronized_time_pair_count",
+      "numerator": "all emitted cross-observer pairs inside the inclusive 1 ms diagnostic window",
+      "required_value": 64149
+    },
+    {
+      "name": "same_event_synchronized_time_pair_count",
+      "numerator": "diagnostic pairs labeled same_event",
+      "required_value": 64149
+    },
+    {
+      "name": "different_event_synchronized_time_pair_count",
+      "numerator": "diagnostic pairs labeled different_event",
+      "required_value": 0
+    },
+    {
+      "name": "positive_synchronized_time_coverage",
+      "numerator": "same_event pairs emitted by the diagnostic",
+      "denominator": "all 64149 positive cross-observer oracle pairs",
+      "required_value": 1.0
+    },
+    {
+      "name": "synchronized_time_positive_prevalence",
+      "numerator": "same_event_synchronized_time_pair_count",
+      "denominator": "synchronized_time_pair_count",
+      "required_value": 1.0,
+      "interpretation": "leakage diagnostic only; not predictive performance"
+    },
+    {
+      "name": "deterministic_report_serialization",
+      "comparison": "byte_identical_reports_from_two_runs",
+      "required_value": true
+    }
+  ],
+  "failure_gates": [
+    "archive identity or selected member inventory differs from the registered source",
+    "a selected member does not have the exact registered nine-column header",
+    "a selected row is malformed or has an incomplete oracle event key",
+    "any exact expected structural count differs",
+    "any observer contains a duplicate oracle event key",
+    "any oracle event has contradictory invariant metadata",
+    "the synchronized-time diagnostic differs from the registered all-positive result",
+    "any forbidden predictive field reaches predictive input",
+    "the complete run is partitioned or used to fit a threshold",
+    "two identical executions do not serialize byte-identical reports"
+  ],
+  "blockers": [
+    {
+      "claim": "predictive accuracy, calibration, or threshold selection",
+      "blocked_by": "there is one locked publisher experiment and no independent train, calibration, or test acquisition"
+    },
+    {
+      "claim": "timestamp as candidate blocking or a predictive feature",
+      "blocked_by": "PyPal derived the synchronized time axis from same-frame composite correspondences including source MAC and sequence number"
+    },
+    {
+      "claim": "general same-transmission performance",
+      "blocked_by": "independent labeled acquisitions spanning other runs, distances, transmitters, sites, and times are absent"
+    },
+    {
+      "claim": "physical-device identity",
+      "blocked_by": "the oracle labels publisher-keyed transmission events, not durable hardware or owner identity"
+    }
+  ],
+  "limitations": [
+    "The campaign covers only the complete 1 m slice of one Sorbonne outdoor experiment.",
+    "All ten observers belong to the same acquisition, so observer pairs are dependent rather than independent examples.",
+    "The oracle establishes equality under Source_MAC_address plus Sequence_number within this run; it does not establish cross-run or cross-corpus identity.",
+    "The synchronized 1 ms diagnostic contains no different-event pairs and cannot evaluate a three-way hypothesis reducer.",
+    "A later pair-classification campaign needs a separately justified, event-balanced negative set and a packet fingerprint that masks oracle and observer-specific fields.",
+    "RSSI and observer identity are deliberately excluded from predictive input even though they may carry acquisition-specific signal.",
+    "The campaign is a deterministic oracle and candidate-generation audit, not a fitted-model benchmark.",
+    "No confidence interval or generalization estimate is valid from this single locked split."
+  ]
+}

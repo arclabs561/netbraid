@@ -9,14 +9,25 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 mod capture;
+pub(crate) mod digest;
+#[cfg(feature = "adapter-sigmf")]
+mod iq;
 
 pub use capture::{
     CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureFileMetadataV0, CaptureManifestV0,
     CaptureNormalizationV0, CaptureRunReceiptV0, CaptureValidationError, EthernetFieldsV0,
-    Ieee80211FieldsV0, Ipv4FieldsV0, Ipv6FieldsV0, NormalizationStateV0, PacketEnvelopeV0,
-    PacketFrameV0, PacketQuarantineV0, TcpFieldsV0, ToolRunReceiptV0, UdpFieldsV0,
-    WlanRadioFieldsV0, CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
+    Ieee80211FieldsV0, Ieee802154AddressV0, Ieee802154FcsStatusV0, Ieee802154FieldsV0,
+    Ipv4FieldsV0, Ipv6FieldsV0, NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0,
+    PacketQuarantineV0, TcpFieldsV0, ToolRunReceiptV0, UdpFieldsV0, WlanRadioFieldsV0,
+    CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
     NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
+};
+#[cfg(feature = "adapter-sigmf")]
+pub use iq::{
+    IqByteOrderProvenanceV0, IqByteOrderStateV0, IqByteOrderV0, IqComponentAggregateV0,
+    IqComponentTypeV0, IqDeterministicAggregatesV0, IqDialectV0, IqSampleIntervalV0,
+    IqValueCountsV0, IqWindowCompletenessV0, IqWindowEvidenceV0, IQ_WINDOW_EVIDENCE_SCHEMA_V0,
+    IQ_WINDOW_LINKABILITY_NOTICE_V0,
 };
 
 pub const HOST_PATH_SCHEMA_V0: &str = "netmon.host_path_observation.v0";
@@ -318,6 +329,28 @@ mod tests {
 
         assert_eq!(record.path.resolvers, vec!["a", "b"]);
         assert_eq!(record.coverage.observed_sources, vec!["address", "route"]);
+    }
+
+    #[test]
+    fn canonicalization_is_idempotent() {
+        let mut record = observation();
+        record.path.resolvers = vec!["b".into(), "a".into(), "b".into()];
+        record.coverage.observed_sources = vec!["route".into(), "address".into(), "route".into()];
+
+        record.canonicalize();
+        let once = record.clone();
+        record.canonicalize();
+
+        assert_eq!(record, once);
+    }
+
+    #[test]
+    fn context_key_ignores_order_and_duplicates_in_set_like_fields() {
+        let mut equivalent = observation();
+        equivalent.path.resolvers = vec!["192.0.2.53".into(), "2001:db8::53".into()];
+        equivalent.path.address_prefixes = vec!["192.0.2.7".into(), "2001:db8:7::/64".into()];
+
+        assert_eq!(observation().context_key(), equivalent.context_key());
     }
 
     #[test]

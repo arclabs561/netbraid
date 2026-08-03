@@ -2,13 +2,13 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
+use crate::evidence::digest::NormalizedRecordsDigest;
 use crate::evidence::{
     CaptureManifestV0, CaptureRunReceiptV0, CaptureValidationError, PacketEnvelopeV0,
     PacketQuarantineV0, CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
     PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
 };
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 
 /// A validated saved-capture record stream.
 ///
@@ -770,56 +770,37 @@ fn normalized_records_digest<'a>(
     packets: impl Iterator<Item = (usize, &'a PacketEnvelopeV0)>,
     quarantines: impl Iterator<Item = (usize, &'a PacketQuarantineV0)>,
 ) -> Result<String, SavedCaptureReadError> {
-    let mut hasher = Sha256::new();
-    hasher.update(b"netmon.normalized_records.v0\0");
-
-    let bytes = serde_json::to_vec(manifest).map_err(|source| {
+    let mut digest = NormalizedRecordsDigest::new();
+    digest.update("manifest", 0, manifest).map_err(|source| {
         SavedCaptureReadError::RecordSerialization {
             line: manifest_line,
             family: SavedCaptureRecordFamilyV0::Manifest,
             source,
         }
     })?;
-    hash_record(&mut hasher, "manifest", 0, &bytes);
     for (index, (line, packet)) in packets.enumerate() {
-        let bytes = serde_json::to_vec(packet).map_err(|source| {
-            SavedCaptureReadError::RecordSerialization {
+        digest
+            .update("packet", u64::try_from(index).unwrap_or(u64::MAX), packet)
+            .map_err(|source| SavedCaptureReadError::RecordSerialization {
                 line,
                 family: SavedCaptureRecordFamilyV0::Packet,
                 source,
-            }
-        })?;
-        hash_record(
-            &mut hasher,
-            "packet",
-            u64::try_from(index).unwrap_or(u64::MAX),
-            &bytes,
-        );
+            })?;
     }
     for (index, (line, quarantine)) in quarantines.enumerate() {
-        let bytes = serde_json::to_vec(quarantine).map_err(|source| {
-            SavedCaptureReadError::RecordSerialization {
+        digest
+            .update(
+                "quarantine",
+                u64::try_from(index).unwrap_or(u64::MAX),
+                quarantine,
+            )
+            .map_err(|source| SavedCaptureReadError::RecordSerialization {
                 line,
                 family: SavedCaptureRecordFamilyV0::Quarantine,
                 source,
-            }
-        })?;
-        hash_record(
-            &mut hasher,
-            "quarantine",
-            u64::try_from(index).unwrap_or(u64::MAX),
-            &bytes,
-        );
+            })?;
     }
-    Ok(format!("sha256:{:x}", hasher.finalize()))
-}
-
-fn hash_record(hasher: &mut Sha256, kind: &str, index: u64, bytes: &[u8]) {
-    hasher.update(kind.as_bytes());
-    hasher.update([0]);
-    hasher.update(index.to_le_bytes());
-    hasher.update(u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_le_bytes());
-    hasher.update(bytes);
+    Ok(digest.finish())
 }
 
 #[cfg(test)]

@@ -6,9 +6,14 @@ use std::io::{self, Write};
 use std::path::Path;
 
 mod conversation;
+mod fingerprint;
+mod flow;
+mod ieee802154;
+mod same_event;
 mod saved_capture;
 mod scenario;
 mod triage;
+mod wlan_fingerprint;
 
 pub use crate::evidence::{
     CollectionModeV0, CollectionPolicyV0, ContextKeyV0, CoverageStateV0, CoverageV0,
@@ -20,6 +25,39 @@ pub use conversation::{
     CaptureConversationV0, ConversationDirectionV0, ConversationEndpointV0,
     ConversationExclusionReasonV0, IpFamilyV0, ObservationPointV0, TcpFlagCountsV0,
     TransportProtocolV0,
+};
+pub use fingerprint::{
+    assess_saved_pcap_fingerprint_v0, compare_saved_pcap_fingerprints_v0,
+    project_saved_pcap_fingerprint_v0, SavedPcapFingerprintBasisV0,
+    SavedPcapFingerprintCandidateRefV0, SavedPcapFingerprintCandidateV0,
+    SavedPcapFingerprintComparisonReasonV0, SavedPcapFingerprintComparisonV0,
+    SavedPcapFingerprintConversationV0, SavedPcapFingerprintDispositionV0,
+    SavedPcapFingerprintErrorV0, SavedPcapFingerprintHypothesisSetV0,
+    SavedPcapFingerprintInsufficientReasonV0, SavedPcapFingerprintReferenceV0,
+    SavedPcapFingerprintSourceV0, SavedPcapFingerprintStatusV0,
+    SavedPcapFingerprintUnsupportedReasonV0, SavedPcapFingerprintValidationErrorV0,
+    SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0,
+    SAVED_PCAP_FINGERPRINT_REDUCER_V0,
+};
+pub use flow::{
+    project_saved_capture_flows_v0, PacketFlowEndBasisV0, PacketFlowExclusionReasonV0,
+    PacketFlowOriginBasisV0, PacketFlowProjectionError, PacketFlowReportV0,
+    PacketFlowSessionizationV0, PacketFlowV0,
+};
+pub use ieee802154::{
+    project_saved_pcap_ieee802154_v0, SavedPcapIeee802154AddressCoverageV0,
+    SavedPcapIeee802154AddressFormsV0, SavedPcapIeee802154CommandCoverageV0,
+    SavedPcapIeee802154CommandMixV0, SavedPcapIeee802154CompletenessV0,
+    SavedPcapIeee802154CountsV0, SavedPcapIeee802154FcsCoverageV0, SavedPcapIeee802154FrameMixV0,
+    SavedPcapIeee802154ProjectionV0, SavedPcapIeee802154SourceV0,
+    SAVED_PCAP_IEEE802154_PROJECTION_SCHEMA_V0,
+};
+pub use same_event::{
+    assess_packet_same_event_v0, PacketSameEventBasisV0, PacketSameEventDifferenceV0,
+    PacketSameEventDimensionV0, PacketSameEventDispositionV0, PacketSameEventErrorV0,
+    PacketSameEventEvidenceRefV0, PacketSameEventHypothesisSetV0, PacketSameEventReferenceV0,
+    PacketSameEventUnknownReasonV0, PacketSameEventValidationErrorV0,
+    PACKET_SAME_EVENT_HYPOTHESIS_SET_SCHEMA_V0, PACKET_SAME_EVENT_REDUCER_V0,
 };
 pub use saved_capture::{
     parse_saved_capture_jsonl, read_saved_capture_jsonl, SavedCaptureReadError,
@@ -63,6 +101,14 @@ pub use triage::{
     SavedPcapWlanDisconnectKindV0, SavedPcapWlanDisconnectV0, SavedPcapWlanInsufficientReasonV0,
     SavedPcapWlanTriageV0, SavedPcapWlanUnsupportedReasonV0, SAVED_PCAP_TRIAGE_SCHEMA_V0,
     SAVED_PCAP_TRIAGE_SCHEMA_V1,
+};
+pub use wlan_fingerprint::{
+    project_saved_pcap_wlan_fingerprint_v0, SavedPcapWlanFingerprintBasisV0,
+    SavedPcapWlanFingerprintCandidateV0, SavedPcapWlanFingerprintInsufficientReasonV0,
+    SavedPcapWlanFingerprintSourceV0, SavedPcapWlanFingerprintStatusV0,
+    SavedPcapWlanFingerprintUnsupportedReasonV0, SavedPcapWlanFrameMixV0,
+    SavedPcapWlanRadioValueV0, SavedPcapWlanSignalSummaryV0,
+    SAVED_PCAP_WLAN_FINGERPRINT_CANDIDATE_SCHEMA_V0,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

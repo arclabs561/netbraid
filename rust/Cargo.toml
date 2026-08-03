@@ -1,6 +1,6 @@
 [package]
 name = "netbraid"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 rust-version = "1.88"
 description = "Netbraid normalizes network evidence and replays it deterministically"
@@ -22,6 +22,10 @@ categories = ["command-line-utilities", "network-programming"]
 [features]
 default = ["cli"]
 adapter-tshark = ["dep:csv", "dep:tempfile"]
+adapter-kismetdb = ["dep:rusqlite"]
+adapter-kismetdb-bundled = ["adapter-kismetdb", "rusqlite/bundled"]
+adapter-npy = []
+adapter-sigmf = []
 cli = ["adapter-tshark", "dep:anyhow", "dep:clap"]
 scenario-fixtures = []
 scenario-fixtures-capture-derived = []
@@ -42,6 +46,21 @@ path = "tests/adapter_tshark_smoke.rs"
 required-features = ["adapter-tshark"]
 
 [[test]]
+name = "adapter_kismetdb"
+path = "tests/adapter_kismetdb.rs"
+required-features = ["adapter-kismetdb"]
+
+[[test]]
+name = "adapter_npy"
+path = "tests/adapter_npy.rs"
+required-features = ["adapter-npy"]
+
+[[test]]
+name = "adapter_sigmf"
+path = "tests/adapter_sigmf.rs"
+required-features = ["adapter-sigmf"]
+
+[[test]]
 name = "cli_identity"
 path = "tests/cli_identity.rs"
 required-features = ["cli"]
@@ -56,6 +75,9 @@ name = "scenario_cli"
 path = "tests/scenario_cli.rs"
 required-features = ["cli"]
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
 anyhow = { version = "1", optional = true }
 clap = { version = "4", features = ["derive"], optional = true }
@@ -64,10 +86,12 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10.9"
 tempfile = { version = "3", optional = true }
+rusqlite = { version = "0.39.0", optional = true, default-features = false }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [dev-dependencies]
+proptest = "1"
 sha1 = "0.10"
 tempfile = "3"

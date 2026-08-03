@@ -3,9 +3,9 @@
 Netbraid normalizes network evidence and replays it deterministically.
 
 The Rust package provides a library and operator CLI for strict evidence logs,
-finite scenario bundles, and bounded saved-PCAP normalization. The repository
-also contains a legacy Go capture CLI; it is maintained for compatibility, not
-used by the Rust package.
+finite scenario bundles, bounded saved-PCAP normalization, and conservative
+derived hypotheses. The repository also contains a legacy Go capture CLI; it is
+maintained for compatibility, not used by the Rust package.
 
 ```text
 scenario wifi-hotspot-wifi @ wifi-returned (120000 ms) — manifest sha256:0039c3aec486771112102010b07d873b276b71547d089886b13f3235bb2d0ba2
@@ -26,18 +26,18 @@ Status: experimental.
 The Rust package requires Rust 1.88 or newer:
 
 ```sh
-cargo install netbraid --version 0.3.1 --locked
+cargo install netbraid --version 0.3.2 --locked
 ```
 
 Checksummed native archives for x86-64 Linux, Intel macOS, and Apple silicon
 macOS are attached to the
-[`netbraid-v0.3.1` release](https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.3.1):
+[`netbraid-v0.3.2` release](https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.3.2):
 
 ```sh
-gh release download netbraid-v0.3.1 \
+gh release download netbraid-v0.3.2 \
   --repo arclabs561/netbraid \
-  --dir netbraid-v0.3.1
-(cd netbraid-v0.3.1 && shasum -a 256 --check SHA256SUMS)
+  --dir netbraid-v0.3.2
+(cd netbraid-v0.3.2 && shasum -a 256 --check SHA256SUMS)
 ```
 
 The macOS archives are not code-signed or notarized. Cargo installation is the
@@ -57,6 +57,8 @@ netbraid evidence ./host-path.jsonl
 netbraid pcap ./incident.pcapng
 netbraid pcap ./incident.pcapng --json
 netbraid pcap ./incident.pcapng --records-jsonl
+netbraid pcap ./incident.pcapng --fingerprint-json
+netbraid pcap ./incident.pcapng --wlan-fingerprint-json
 netbraid scenario validate ./scenario
 netbraid scenario replay ./scenario --checkpoint CHECKPOINT
 ```
@@ -101,6 +103,8 @@ The output modes serve different consumers:
 | `--json` | program or agent | one provenance-complete triage document |
 | `--jsonl` | archival pipeline | manifest, run receipt, records, quarantines |
 | `--records-jsonl` | deterministic replay | occurrence-independent normalized records |
+| `--fingerprint-json` | evaluator | identifier-free packet-shape candidate |
+| `--wlan-fingerprint-json` | evaluator | identifier-free WLAN candidate |
 
 `--packet-limit`, `--max-input-mib`, `--max-output-mib`, and
 `--timeout-seconds` bound work. `--tail-seconds` narrows analysis to an artifact
@@ -156,6 +160,58 @@ See
 and
 [IEEE 802.11 evidence](https://github.com/arclabs561/netbraid/blob/main/docs/wlan-evidence.md).
 
+## Maintainer evaluation data
+
+Tracked source metadata and fetchers live under `data/`. Public corpora stay in
+ignored `data/raw/`, generated products stay in ignored `data/derived/`, and
+local integrity receipts stay in ignored `data/receipts/`. The fetchers verify
+publisher-declared sizes and checksums where available, resume completed work,
+and never admit downloaded bytes into Git. Evaluation harnesses, fixtures, and
+aggregate experiment ledgers live under `eval/`.
+
+```sh
+uv run --script data/fetch/fetch-public-eval-corpus.py list
+uv run --script data/fetch/fetch-public-eval-corpus.py baseline
+uv run --script data/fetch/fetch-public-eval-corpus.py motivating
+uv run --script data/fetch/fetch-public-eval-corpus.py fusion
+uv run --script data/fetch/fetch-public-eval-corpus.py all
+just xrf55-fetch list
+```
+
+The on-demand evaluators cover bounded public-corpus slices, a cross-sniffer
+same-event oracle, deterministic structural reduction, archive-layout and
+cross-layer alignment profiles, IoT-23 flow lineage, and counter-capture
+campaign output. Controlled-jamming recipes separately compile metadata-only
+oracles and run a bounded controlled-cause smoke evaluation. Dataset-derived
+metrics are not part of the default test gate.
+
+```sh
+just public-corpus-eval-check
+just legacy-derived-migration-check
+just public-corpus-eval
+just sorbonne-same-event-audit
+just sorbonne-structural-reducer-eval
+just operanet-layout-profile
+just caez-alignment-profile
+just data4cyber-alignment-profile
+just netslab-alignment-profile
+just iot23-flow-lineage-check
+just osu-lora-corpus
+just counter-capture-eval-check
+just ruff-uwb-heldout-location-check
+just ruff-uwb-heldout-location
+just mmwave-jamming-oracles-check
+just indoor-jamming-oracles-check
+just indoor-jamming-controlled-cause-check
+just indoor-jamming-controlled-cause-eval
+```
+
+The
+[evaluation protocol](https://github.com/arclabs561/netbraid/blob/main/docs/public-corpus-evaluation.md)
+defines lineage, split groups, metrics, and the separate fixture-admission gate.
+Review source terms and receipts before promoting any public slice into a
+committed fixture.
+
 ## Library
 
 The CLI and library share one package and release version. Policy-neutral
@@ -170,6 +226,10 @@ netbraid = { version = "0.3", default-features = false }
 | Feature | Default | Adds |
 | --- | --- | --- |
 | `cli` | yes | operator binary and TShark adapter |
+| `adapter-kismetdb` | no | read-only KismetDB packet-metadata normalization |
+| `adapter-kismetdb-bundled` | no | KismetDB adapter with bundled SQLite |
+| `adapter-npy` | no | bounded positional row-window summaries for narrow NPY arrays |
+| `adapter-sigmf` | no | bounded positional IQ-window evidence from strict SigMF metadata |
 | `adapter-tshark` | via `cli` | bounded saved-capture process boundary |
 | `scenario-fixtures` | no | public-synthetic scenario accessors |
 | `scenario-fixtures-capture-derived` | no | reviewed capture-derived scenario |
@@ -178,6 +238,10 @@ The primary public modules are:
 
 - `netbraid::evidence`: versioned, policy-neutral record types;
 - `netbraid::replay`: strict JSONL, scenario, triage, and pure reduction;
+- `netbraid::infer`: finite, versioned evidence and hypothesis reducers;
+- `netbraid::adapters::kismetdb`: optional read-only KismetDB boundary;
+- `netbraid::adapters::npy`: optional bounded NPY row-window boundary;
+- `netbraid::adapters::sigmf`: optional bounded SigMF IQ-window boundary;
 - `netbraid::adapters::tshark`: optional offline normalization boundary.
 
 Schema IDs retain the historical `netmon.*` namespace where changing them
@@ -223,6 +287,8 @@ source compatibility.
   or client/server direction.
 - Protocol and traffic fingerprints are evidence candidates, not verified
   application, actor, role, or intent labels.
+- Hypotheses are derived, versioned, and revisable; source evidence remains
+  immutable.
 - Absence claims require source coverage, freshness, and a complete relevant
   interval.
 
@@ -243,7 +309,8 @@ just test             # legacy Go compatibility
 The Rust checks cover no-default-feature consumers, all package features,
 formatting, tests, clippy, rustdoc warnings, fixture inventory, and extracted
 package contents. The saved-capture smoke lane runs separately because it
-depends on installed Wireshark tools.
+depends on installed Wireshark tools. Set `PYTHON=/path/to/python` to select
+the interpreter used by `just` evaluation targets.
 
 ## License
 

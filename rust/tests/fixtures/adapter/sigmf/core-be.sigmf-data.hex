@@ -1,0 +1,5 @@
+# The same four logical samples as core-le, encoded cf32_be.
+3f800000 c0000000
+00000000 80000000
+7f800000 7fc00000
+00000001 bfc00000

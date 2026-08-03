@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, SystemTimeError, UNIX_EPOCH};
 
+use crate::evidence::digest::NormalizedRecordsDigest;
 use crate::evidence::{
     CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureManifestV0, CaptureNormalizationV0,
     CaptureRunReceiptV0, CollectionPolicyV0, NormalizationStateV0, PacketEnvelopeV0,
@@ -72,6 +73,33 @@ impl Default for NormalizeOptions {
     }
 }
 
+/// One saved-capture normalization request in an atomic batch.
+#[derive(Debug, Clone)]
+pub struct NormalizeRequest {
+    path: PathBuf,
+    options: NormalizeOptions,
+}
+
+impl NormalizeRequest {
+    /// Creates a request whose options are validated with the complete batch.
+    pub fn new(path: impl Into<PathBuf>, options: NormalizeOptions) -> Self {
+        Self {
+            path: path.into(),
+            options,
+        }
+    }
+
+    /// Returns the saved-capture path for this request.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Returns the normalization options for this request.
+    pub fn options(&self) -> &NormalizeOptions {
+        &self.options
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizationReport {
     pub manifest: CaptureManifestV0,
@@ -81,8 +109,16 @@ pub struct NormalizationReport {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum AdapterError {
     InvalidOption(&'static str),
+    BatchConfigurationMismatch {
+        request_index: usize,
+        option: &'static str,
+    },
+    BatchWorkerPanicked {
+        request_index: usize,
+    },
     InputMetadata {
         path: PathBuf,
         source: io::Error,
@@ -135,6 +171,12 @@ pub enum AdapterError {
         rows_seen: u64,
         packet_limit: u64,
     },
+    TsharkConfigurationChanged {
+        before_version: String,
+        before_configuration_sha256: String,
+        after_version: String,
+        after_configuration_sha256: String,
+    },
     NonUtf8Executable(&'static str),
     ClockBeforeUnixEpoch(SystemTimeError),
     ClockOutOfRange,
@@ -147,6 +189,16 @@ impl std::fmt::Display for AdapterError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidOption(option) => write!(formatter, "{option} must be greater than zero"),
+            Self::BatchConfigurationMismatch {
+                request_index,
+                option,
+            } => write!(
+                formatter,
+                "batch request {request_index} has a different {option} configuration-discovery option"
+            ),
+            Self::BatchWorkerPanicked { request_index } => {
+                write!(formatter, "batch request {request_index} worker panicked")
+            }
             Self::InputMetadata { path, source } => {
                 write!(formatter, "reading metadata for {}: {source}", path.display())
             }
@@ -241,6 +293,15 @@ impl std::fmt::Display for AdapterError {
                 formatter,
                 "Capinfos reported {file_packets} packets but TShark emitted {rows_seen} rows with limit {packet_limit}"
             ),
+            Self::TsharkConfigurationChanged {
+                before_version,
+                before_configuration_sha256,
+                after_version,
+                after_configuration_sha256,
+            } => write!(
+                formatter,
+                "TShark configuration changed during batch normalization: {before_version} ({before_configuration_sha256}) became {after_version} ({after_configuration_sha256})"
+            ),
             Self::NonUtf8Executable(tool) => {
                 write!(formatter, "configured {tool} executable path is not valid UTF-8")
             }
@@ -277,14 +338,128 @@ pub fn normalize_saved_capture(
     input: &Path,
     options: &NormalizeOptions,
 ) -> Result<NormalizationReport, AdapterError> {
+    normalize_saved_capture_with_snapshot(input, options, None)
+}
+
+/// Normalize a batch under one opening and closing TShark configuration fence.
+///
+/// Each capture retains independent staging, tool receipts, clocks, and source
+/// integrity checks. No reports are returned if normalization fails or if the
+/// complete TShark version/configuration snapshot changes during the batch.
+pub fn normalize_saved_captures(
+    inputs: &[PathBuf],
+    options: &NormalizeOptions,
+) -> Result<Vec<NormalizationReport>, AdapterError> {
+    validate_options(options)?;
+    let environment = WiresharkEnvironment::new()?;
+    run_atomic_batch(
+        inputs,
+        || {
+            reject_personal_plugins_unless_allowed(options.allow_personal_plugins)?;
+            discover_tshark_snapshot(options, &environment)
+        },
+        |input, snapshot| {
+            normalize_saved_capture_with_snapshot(input, options, Some((&environment, snapshot)))
+        },
+    )
+}
+
+/// Normalize per-request options under one TShark configuration fence.
+///
+/// All request options are validated before any tool starts. Packet limits,
+/// input bounds, Capinfos settings, and provenance metadata may differ, while
+/// the TShark executable, plugin policy, and discovery process bounds must be
+/// shared. At most `max_parallelism` normalizations run concurrently. An empty
+/// request set returns no reports without starting a tool.
+pub fn normalize_saved_capture_requests(
+    requests: &[NormalizeRequest],
+    max_parallelism: usize,
+) -> Result<Vec<NormalizationReport>, AdapterError> {
+    if max_parallelism == 0 {
+        return Err(AdapterError::InvalidOption("max_parallelism"));
+    }
+    let Some(discovery_options) = validate_batch_requests(requests)? else {
+        return Ok(Vec::new());
+    };
+    let environment = WiresharkEnvironment::new()?;
+    reject_personal_plugins_unless_allowed(discovery_options.allow_personal_plugins)?;
+    let before = discover_tshark_snapshot(discovery_options, &environment)?;
+    let reports = run_bounded_parallel(requests, max_parallelism, |request| {
+        normalize_saved_capture_with_snapshot(
+            &request.path,
+            &request.options,
+            Some((&environment, &before)),
+        )
+    });
+    let after = discover_tshark_snapshot(discovery_options, &environment)?;
+    if before != after {
+        return Err(AdapterError::TsharkConfigurationChanged {
+            before_version: before.tool_version,
+            before_configuration_sha256: before.configuration_sha256,
+            after_version: after.tool_version,
+            after_configuration_sha256: after.configuration_sha256,
+        });
+    }
+    reports
+}
+
+fn run_bounded_parallel<Request, T, Normalize>(
+    requests: &[Request],
+    max_parallelism: usize,
+    normalize: Normalize,
+) -> Result<Vec<T>, AdapterError>
+where
+    Request: Sync,
+    T: Send,
+    Normalize: Fn(&Request) -> Result<T, AdapterError> + Sync,
+{
+    std::thread::scope(|scope| {
+        let mut reports = Vec::with_capacity(requests.len());
+        for (chunk_index, chunk) in requests.chunks(max_parallelism).enumerate() {
+            let request_offset = chunk_index * max_parallelism;
+            let workers = chunk
+                .iter()
+                .enumerate()
+                .map(|(index, request)| {
+                    let normalize = &normalize;
+                    (
+                        request_offset + index,
+                        scope.spawn(move || normalize(request)),
+                    )
+                })
+                .collect::<Vec<_>>();
+            for (request_index, worker) in workers {
+                let report = worker
+                    .join()
+                    .map_err(|_| AdapterError::BatchWorkerPanicked { request_index })??;
+                reports.push(report);
+            }
+        }
+        Ok(reports)
+    })
+}
+
+fn normalize_saved_capture_with_snapshot(
+    input: &Path,
+    options: &NormalizeOptions,
+    tshark_context: Option<(&WiresharkEnvironment, &TsharkSnapshot)>,
+) -> Result<NormalizationReport, AdapterError> {
     validate_options(options)?;
     let started_time_unix_ns = unix_time_ns(SystemTime::now())?;
     let started = Instant::now();
     let staged = stage_capture(input, options.max_input_bytes)?;
-    reject_personal_plugins_unless_allowed(options.allow_personal_plugins)?;
-    let environment = WiresharkEnvironment::new()?;
 
-    let capinfos_identity = capinfos_version(options, &environment)?;
+    let owned_environment;
+    let (environment, supplied_snapshot) = match tshark_context {
+        Some((environment, snapshot)) => (environment, Some(snapshot)),
+        None => {
+            reject_personal_plugins_unless_allowed(options.allow_personal_plugins)?;
+            owned_environment = WiresharkEnvironment::new()?;
+            (&owned_environment, None)
+        }
+    };
+
+    let capinfos_identity = capinfos_version(options, environment)?;
     let capinfos_args = capinfos::arguments(&staged.path);
     let capinfos_output = run_bounded(
         &options.capinfos_path,
@@ -305,9 +480,14 @@ pub fn normalize_saved_capture(
         });
     }
 
-    let tool_identity = tshark_version(options, &environment)?;
-    let configuration_sha256 =
-        tshark_configuration_sha256(options, &environment, &tool_identity.full_output)?;
+    let owned_snapshot;
+    let snapshot = match supplied_snapshot {
+        Some(snapshot) => snapshot,
+        None => {
+            owned_snapshot = discover_tshark_snapshot(options, environment)?;
+            &owned_snapshot
+        }
+    };
     let tshark_args = tshark_args(&staged.path, options.packet_limit);
     let output = run_bounded(
         &options.tshark_path,
@@ -364,8 +544,8 @@ pub fn normalize_saved_capture(
             adapter: TSHARK_ADAPTER_ID.into(),
             adapter_version: env!("CARGO_PKG_VERSION").into(),
             tool: "tshark".into(),
-            tool_version: tool_identity.version.clone(),
-            configuration_sha256,
+            tool_version: snapshot.tool_version.clone(),
+            configuration_sha256: snapshot.configuration_sha256.clone(),
             field_registry: FIELD_REGISTRY_ID.into(),
         },
         acquisition_policy: options.acquisition_policy.clone(),
@@ -406,7 +586,7 @@ pub fn normalize_saved_capture(
         tshark: tool_run_receipt(
             "tshark",
             &options.tshark_path,
-            &tool_identity.version,
+            &snapshot.tool_version,
             tshark_argument_template(options.packet_limit),
             &output,
         )?,
@@ -423,6 +603,67 @@ pub fn normalize_saved_capture(
         packets: parsed.packets,
         quarantines: parsed.quarantines,
     })
+}
+
+fn run_atomic_batch<Request, T, Discover, Normalize>(
+    requests: &[Request],
+    mut discover: Discover,
+    mut normalize: Normalize,
+) -> Result<Vec<T>, AdapterError>
+where
+    Discover: FnMut() -> Result<TsharkSnapshot, AdapterError>,
+    Normalize: FnMut(&Request, &TsharkSnapshot) -> Result<T, AdapterError>,
+{
+    let before = discover()?;
+    let reports = requests
+        .iter()
+        .map(|input| normalize(input, &before))
+        .collect::<Result<Vec<_>, _>>();
+    let after = discover()?;
+    if before != after {
+        return Err(AdapterError::TsharkConfigurationChanged {
+            before_version: before.tool_version,
+            before_configuration_sha256: before.configuration_sha256,
+            after_version: after.tool_version,
+            after_configuration_sha256: after.configuration_sha256,
+        });
+    }
+    reports
+}
+
+fn validate_batch_requests(
+    requests: &[NormalizeRequest],
+) -> Result<Option<&NormalizeOptions>, AdapterError> {
+    for request in requests {
+        validate_options(&request.options)?;
+    }
+    let Some(first) = requests.first() else {
+        return Ok(None);
+    };
+    let shared = &first.options;
+    for (request_index, request) in requests.iter().enumerate().skip(1) {
+        let options = &request.options;
+        let mismatch = if options.tshark_path != shared.tshark_path {
+            Some("tshark_path")
+        } else if options.allow_personal_plugins != shared.allow_personal_plugins {
+            Some("allow_personal_plugins")
+        } else if options.timeout != shared.timeout {
+            Some("timeout")
+        } else if options.max_stdout_bytes != shared.max_stdout_bytes {
+            Some("max_stdout_bytes")
+        } else if options.max_stderr_bytes != shared.max_stderr_bytes {
+            Some("max_stderr_bytes")
+        } else {
+            None
+        };
+        if let Some(option) = mismatch {
+            return Err(AdapterError::BatchConfigurationMismatch {
+                request_index,
+                option,
+            });
+        }
+    }
+    Ok(Some(shared))
 }
 
 fn validate_options(options: &NormalizeOptions) -> Result<(), AdapterError> {
@@ -524,6 +765,12 @@ struct ToolIdentity {
     full_output: Vec<u8>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TsharkSnapshot {
+    tool_version: String,
+    configuration_sha256: String,
+}
+
 fn capinfos_version(
     options: &NormalizeOptions,
     environment: &WiresharkEnvironment,
@@ -603,6 +850,19 @@ fn tshark_version(
     Ok(ToolIdentity {
         version,
         full_output: output.stdout,
+    })
+}
+
+fn discover_tshark_snapshot(
+    options: &NormalizeOptions,
+    environment: &WiresharkEnvironment,
+) -> Result<TsharkSnapshot, AdapterError> {
+    let identity = tshark_version(options, environment)?;
+    let configuration_sha256 =
+        tshark_configuration_sha256(options, environment, &identity.full_output)?;
+    Ok(TsharkSnapshot {
+        tool_version: identity.version,
+        configuration_sha256,
     })
 }
 
@@ -731,39 +991,25 @@ fn normalized_records_sha256(
     packets: &[PacketEnvelopeV0],
     quarantines: &[PacketQuarantineV0],
 ) -> Result<String, AdapterError> {
-    let mut hasher = Sha256::new();
-    hasher.update(b"netmon.normalized_records.v0\0");
-
-    let manifest = serde_json::to_vec(manifest).map_err(AdapterError::RecordSerialization)?;
-    hash_indexed_record(&mut hasher, "manifest", 0, &manifest);
+    let mut digest = NormalizedRecordsDigest::new();
+    digest
+        .update("manifest", 0, manifest)
+        .map_err(AdapterError::RecordSerialization)?;
     for (index, packet) in packets.iter().enumerate() {
-        let packet = serde_json::to_vec(packet).map_err(AdapterError::RecordSerialization)?;
-        hash_indexed_record(
-            &mut hasher,
-            "packet",
-            u64::try_from(index).unwrap_or(u64::MAX),
-            &packet,
-        );
+        digest
+            .update("packet", u64::try_from(index).unwrap_or(u64::MAX), packet)
+            .map_err(AdapterError::RecordSerialization)?;
     }
     for (index, quarantine) in quarantines.iter().enumerate() {
-        let quarantine =
-            serde_json::to_vec(quarantine).map_err(AdapterError::RecordSerialization)?;
-        hash_indexed_record(
-            &mut hasher,
-            "quarantine",
-            u64::try_from(index).unwrap_or(u64::MAX),
-            &quarantine,
-        );
+        digest
+            .update(
+                "quarantine",
+                u64::try_from(index).unwrap_or(u64::MAX),
+                quarantine,
+            )
+            .map_err(AdapterError::RecordSerialization)?;
     }
-    Ok(format!("sha256:{:x}", hasher.finalize()))
-}
-
-fn hash_indexed_record(hasher: &mut Sha256, kind: &str, index: u64, bytes: &[u8]) {
-    hasher.update(kind.as_bytes());
-    hasher.update([0]);
-    hasher.update(index.to_le_bytes());
-    hasher.update(u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_le_bytes());
-    hasher.update(bytes);
+    Ok(digest.finish())
 }
 
 fn sha256_bytes(bytes: &[u8]) -> String {
@@ -956,6 +1202,23 @@ impl std::fmt::Display for ProcessError {
 mod tests {
     use super::*;
 
+    fn snapshot(version: &str, configuration_sha256: &str) -> TsharkSnapshot {
+        TsharkSnapshot {
+            tool_version: version.into(),
+            configuration_sha256: configuration_sha256.into(),
+        }
+    }
+
+    fn request(path: &str, packet_limit: usize) -> NormalizeRequest {
+        NormalizeRequest {
+            path: PathBuf::from(path),
+            options: NormalizeOptions {
+                packet_limit,
+                ..NormalizeOptions::default()
+            },
+        }
+    }
+
     #[test]
     fn command_is_offline_name_resolution_free_and_registry_owned() {
         let args = tshark_args(Path::new("capture file.pcap"), 17);
@@ -1035,6 +1298,197 @@ mod tests {
         let mut changed = Sha256::new();
         hash_named_report(&mut changed, "fields", b"a\nc\n");
         assert_ne!(right, changed.finalize());
+    }
+
+    #[test]
+    fn request_batch_accepts_heterogeneous_packet_limits_under_one_fence() {
+        let mut requests = vec![request("first.pcap", 17), request("second.pcap", 23)];
+        requests[1].options.capinfos_path = PathBuf::from("alternate-capinfos");
+        requests[1].options.max_input_bytes = 4096;
+        let shared = validate_batch_requests(&requests).unwrap().unwrap();
+        assert_eq!(shared.packet_limit, 17);
+
+        let stable = snapshot("TShark 4.4.0", "sha256:stable");
+        let mut discoveries = vec![stable.clone(), stable].into_iter();
+        let mut observed = Vec::new();
+        let reports = run_atomic_batch(
+            &requests,
+            || Ok(discoveries.next().unwrap()),
+            |request, discovered| {
+                observed.push((
+                    request.path.clone(),
+                    request.options.packet_limit,
+                    discovered.clone(),
+                ));
+                Ok(request.options.packet_limit)
+            },
+        )
+        .unwrap();
+
+        assert_eq!(reports, vec![17, 23]);
+        assert_eq!(observed[0].0, PathBuf::from("first.pcap"));
+        assert_eq!(observed[1].0, PathBuf::from("second.pcap"));
+        assert_eq!(observed[0].1, 17);
+        assert_eq!(observed[1].1, 23);
+        assert_eq!(observed[0].2, observed[1].2);
+        assert!(discoveries.next().is_none());
+    }
+
+    #[test]
+    fn request_batch_rejects_each_configuration_discovery_mismatch() {
+        let shared = NormalizeOptions::default();
+        let mut mismatches = Vec::new();
+
+        let mut changed = shared.clone();
+        changed.tshark_path = PathBuf::from("other-tshark");
+        mismatches.push(("tshark_path", changed));
+        let mut changed = shared.clone();
+        changed.allow_personal_plugins = true;
+        mismatches.push(("allow_personal_plugins", changed));
+        let mut changed = shared.clone();
+        changed.timeout += Duration::from_secs(1);
+        mismatches.push(("timeout", changed));
+        let mut changed = shared.clone();
+        changed.max_stdout_bytes += 1;
+        mismatches.push(("max_stdout_bytes", changed));
+        let mut changed = shared.clone();
+        changed.max_stderr_bytes += 1;
+        mismatches.push(("max_stderr_bytes", changed));
+
+        for (option, changed) in mismatches {
+            let requests = vec![
+                NormalizeRequest {
+                    path: PathBuf::from("first.pcap"),
+                    options: shared.clone(),
+                },
+                NormalizeRequest {
+                    path: PathBuf::from("second.pcap"),
+                    options: changed,
+                },
+            ];
+            assert!(matches!(
+                validate_batch_requests(&requests),
+                Err(AdapterError::BatchConfigurationMismatch {
+                    request_index: 1,
+                    option: actual,
+                }) if actual == option
+            ));
+        }
+    }
+
+    #[test]
+    fn request_batch_validates_every_request_before_opening_the_fence() {
+        let requests = vec![request("first.pcap", 17), request("second.pcap", 0)];
+
+        assert!(matches!(
+            validate_batch_requests(&requests),
+            Err(AdapterError::InvalidOption("packet_limit"))
+        ));
+        assert!(validate_batch_requests(&[]).unwrap().is_none());
+        assert!(matches!(
+            normalize_saved_capture_requests(&[], 0),
+            Err(AdapterError::InvalidOption("max_parallelism"))
+        ));
+        assert!(normalize_saved_capture_requests(&[], 1).unwrap().is_empty());
+    }
+
+    #[test]
+    fn bounded_parallel_mapping_preserves_sequential_semantics() {
+        let inputs = (0_u64..97).collect::<Vec<_>>();
+        let expected = inputs
+            .iter()
+            .map(|value| value * value + 3)
+            .collect::<Vec<_>>();
+
+        for max_parallelism in 1..=16 {
+            let observed =
+                run_bounded_parallel(&inputs, max_parallelism, |value| Ok(value * value + 3))
+                    .unwrap();
+            assert_eq!(observed, expected);
+        }
+    }
+
+    #[test]
+    fn atomic_batch_reuses_entry_snapshot_and_preserves_input_order() {
+        let inputs = vec![PathBuf::from("first.pcap"), PathBuf::from("second.pcap")];
+        let expected = snapshot("TShark 4.4.0", "sha256:stable");
+        let mut discoveries = vec![expected.clone(), expected.clone()].into_iter();
+        let mut observed = Vec::new();
+
+        let reports = run_atomic_batch(
+            &inputs,
+            || Ok(discoveries.next().unwrap()),
+            |input, discovered| {
+                observed.push((input.to_owned(), discovered.clone()));
+                Ok(input.to_owned())
+            },
+        )
+        .unwrap();
+
+        assert_eq!(reports, inputs);
+        assert_eq!(
+            observed,
+            vec![
+                (PathBuf::from("first.pcap"), expected.clone()),
+                (PathBuf::from("second.pcap"), expected),
+            ]
+        );
+        assert!(discoveries.next().is_none());
+    }
+
+    #[test]
+    fn atomic_batch_rejects_snapshot_mismatch_after_normalizing_every_input() {
+        let inputs = vec![PathBuf::from("first.pcap"), PathBuf::from("second.pcap")];
+        let before = snapshot("TShark 4.4.0", "sha256:before");
+        let after = snapshot("TShark 4.4.1", "sha256:after");
+        let mut discoveries = vec![before, after].into_iter();
+        let mut normalized = Vec::new();
+
+        let error = run_atomic_batch(
+            &inputs,
+            || Ok(discoveries.next().unwrap()),
+            |input, _| {
+                normalized.push(input.to_owned());
+                Ok(())
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(normalized, inputs);
+        assert!(matches!(
+            error,
+            AdapterError::TsharkConfigurationChanged {
+                before_version,
+                before_configuration_sha256,
+                after_version,
+                after_configuration_sha256,
+            } if before_version == "TShark 4.4.0"
+                && before_configuration_sha256 == "sha256:before"
+                && after_version == "TShark 4.4.1"
+                && after_configuration_sha256 == "sha256:after"
+        ));
+    }
+
+    #[test]
+    fn atomic_batch_preserves_normalization_error_after_stable_closing_fence() {
+        let inputs = vec![PathBuf::from("first.pcap"), PathBuf::from("second.pcap")];
+        let stable = snapshot("TShark 4.4.0", "sha256:stable");
+        let mut discoveries = vec![stable.clone(), stable].into_iter();
+        let mut attempts = 0;
+
+        let error = run_atomic_batch::<_, (), _, _>(
+            &inputs,
+            || Ok(discoveries.next().unwrap()),
+            |_, _| {
+                attempts += 1;
+                Err(AdapterError::InvalidOption("fixture"))
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(attempts, 1);
+        assert!(matches!(error, AdapterError::InvalidOption("fixture")));
+        assert!(discoveries.next().is_none());
     }
 
     #[test]

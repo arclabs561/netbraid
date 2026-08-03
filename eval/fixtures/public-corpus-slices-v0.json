@@ -1,0 +1,435 @@
+{
+  "schema": "netbraid.public_corpus_slices.v0",
+  "archives": {
+    "matter-thread-n1": {
+      "bytes": 26008,
+      "filename": "matter-2hop_ThreadN1.pcapng",
+      "format": "file",
+      "md5": "af7b471ae4c8e48f2afa36238f943b5e",
+      "receipt": {
+        "bytes": 669,
+        "filename": "matter-2hop_ThreadN1.pcapng.json",
+        "sha256": "f9d35fb5f20bf8935d83f1cc932c8c6be664e6c6f08e7181a11f39f361aa1aab"
+      },
+      "sha256": "e6e05945aaebdb41c2a1acd07098fbb0d59da001d14b5660545dd97d7b7a8d73"
+    },
+    "sorbonne-campus-rssi": {
+      "bytes": 3144312,
+      "filename": "220211012-SU-Outdoors-Campus.zip",
+      "md5": "3ce2868b97eb1a8750233e67fb3cfbe3"
+    },
+    "sdr4iot-ble-zigbee": {
+      "bytes": 78658727,
+      "filename": "sdr4iot-ble-zigbee-dataset.zip",
+      "md5": "c966c5cbf1243b5a16f59675451de84e"
+    },
+    "v2i-80211ad": {
+      "bytes": 660248364,
+      "filename": "v2i-80211ad-dataset.zip",
+      "md5": "a37836cce4f3d37f8ef374850069fc9e"
+    },
+    "wifi-management-frames": {
+      "bytes": 4126124,
+      "filename": "wifi-management-frames.zip",
+      "md5": "835320ace908243f23cb03fc48ce44fc"
+    },
+    "wifi-probe-requests": {
+      "bytes": 49977913,
+      "filename": "wifi-probe-requests.zip",
+      "md5": "3eeab562d6140adc0891aa122e829b8b"
+    },
+    "zbds2023": {
+      "bytes": 1251060836,
+      "filename": "zigbee_dataset.zip",
+      "md5": "6e8d9fc1c76688393ccdfb6364436ac1"
+    }
+  },
+  "cases": [
+    {
+      "archive": "v2i-80211ad",
+      "expect": {
+        "reason": null,
+        "scope": "normalized_packet_subset",
+        "status": "observed"
+      },
+      "id": "v2i-2020-trace-236",
+      "member": {
+        "bytes": 517788,
+        "name": "v2i-80211ad-dataset/2020/pcap/trace-236/monitor.ad.1593946636.pcap",
+        "sha256": "86efce30bcde0d7c625c349221b0ba58186ca987205db7c27fa743c7cb0282a7"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "wifi-management-frames",
+      "expect": {
+        "reason": null,
+        "scope": "complete_capture",
+        "status": "observed"
+      },
+      "id": "wifi-management-capture-1",
+      "member": {
+        "bytes": 4440631,
+        "name": "datasets/1/capture-1.pcap",
+        "sha256": "ca6d686ab53c93ead0412dffe181590bdb09da84274653ab79216b957610c48a"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 100000,
+      "reference": {
+        "format": "wifi-management-csv-v1",
+        "member": {
+          "bytes": 4106419,
+          "name": "datasets/1/capture-1.csv",
+          "sha256": "4225868082578e28a0af481d18d0b708e093348916b6427167816c50de1a1654"
+        }
+      }
+    },
+    {
+      "archive": "wifi-management-frames",
+      "expect": {
+        "reason": null,
+        "scope": "complete_capture",
+        "status": "observed"
+      },
+      "id": "wifi-management-capture-2",
+      "member": {
+        "bytes": 7460125,
+        "name": "datasets/2/capture-2.pcap",
+        "sha256": "7c0befc8c32684444fd3404b2b9960ff637d333869bc8b5792a03ff2c0f6607a"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 100000,
+      "reference": {
+        "format": "wifi-management-csv-v1",
+        "member": {
+          "bytes": 6966702,
+          "name": "datasets/2/capture-2.csv",
+          "sha256": "6aaee283dabb86a6e1a7aa19d0875ce6a70544d2ca9c0f49930b545217a30f2c"
+        }
+      }
+    },
+    {
+      "archive": "sdr4iot-ble-zigbee",
+      "expect": {
+        "address_forms": {
+          "destination": {"absent_frames": 20, "extended_frames": 0, "short_frames": 30},
+          "source": {"absent_frames": 20, "extended_frames": 0, "short_frames": 30}
+        },
+        "commands": {
+          "command_mix": [{"command": 4, "frames": 20}],
+          "present_frames": 20,
+          "unavailable_frames": 30
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": false,
+          "scope": "complete_capture",
+          "state": "complete"
+        },
+        "counts": {
+          "ieee802154_frames": 50,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 50,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 50
+        },
+        "fcs": {"invalid_frames": 0, "unavailable_frames": 0, "valid_frames": 50},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 0, "frames": 10},
+          {"frame_type": 2, "frame_version": 0, "frames": 20},
+          {"frame_type": 3, "frame_version": 0, "frames": 20}
+        ]
+      },
+      "id": "sdr4iot-zigbee-scene-38-server-9",
+      "member": {
+        "bytes": 1664,
+        "name": "zigbee/scenario6/scene38/20201124_1215/S6_s38_2020-11-24_12-15_server9.cap",
+        "sha256": "ce34428c893fcaa08acb9f356b8c744c936cefc85c0cb96b2ce3661caf0bfb91"
+      },
+      "mode": "netbraid-ieee802154",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "matter-thread-n1",
+      "expect": {
+        "address_forms": {
+          "destination": {"absent_frames": 14, "extended_frames": 0, "short_frames": 18},
+          "source": {"absent_frames": 14, "extended_frames": 2, "short_frames": 16}
+        },
+        "commands": {
+          "command_mix": [{"command": 4, "frames": 16}],
+          "present_frames": 16,
+          "unavailable_frames": 16
+        },
+        "completeness": {
+          "packet_limit": 32,
+          "packet_limit_reached": true,
+          "scope": "normalized_packet_subset",
+          "state": "partial"
+        },
+        "counts": {
+          "ieee802154_frames": 32,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 32,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 32
+        },
+        "fcs": {"invalid_frames": 0, "unavailable_frames": 32, "valid_frames": 0},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 1, "frames": 2},
+          {"frame_type": 2, "frame_version": 0, "frames": 14},
+          {"frame_type": 3, "frame_version": 1, "frames": 16}
+        ],
+        "preserved_6lowpan_decoded_ipv6": {
+          "total_length_exceeds_frame": 2
+        }
+      },
+      "id": "matter-data1813-thread-n1-prefix",
+      "member": {
+        "bytes": 26008,
+        "name": "matter-2hop_ThreadN1.pcapng",
+        "sha256": "e6e05945aaebdb41c2a1acd07098fbb0d59da001d14b5660545dd97d7b7a8d73"
+      },
+      "mode": "netbraid-ieee802154",
+      "packet_limit": 32
+    },
+    {
+      "archive": "zbds2023",
+      "expect": {
+        "address_forms": {
+          "destination": {"absent_frames": 233, "extended_frames": 0, "short_frames": 767},
+          "source": {"absent_frames": 233, "extended_frames": 0, "short_frames": 767}
+        },
+        "commands": {
+          "command_mix": [{"command": 4, "frames": 9}],
+          "present_frames": 9,
+          "unavailable_frames": 991
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": true,
+          "scope": "normalized_packet_subset",
+          "state": "partial"
+        },
+        "counts": {
+          "ieee802154_frames": 1000,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 1000,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 1000
+        },
+        "fcs": {"invalid_frames": 999, "unavailable_frames": 1, "valid_frames": 0},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 0, "frames": 758},
+          {"frame_type": 1, "frame_version": 3, "frames": 1},
+          {"frame_type": 2, "frame_version": 0, "frames": 232},
+          {"frame_type": 3, "frame_version": 0, "frames": 9}
+        ]
+      },
+      "id": "zbds-2022-07-01-hour-rpi1",
+      "member": {
+        "bytes": 4992756,
+        "name": "rpi1/rpi1-2022-07-01-19-59-58.pcap",
+        "sha256": "fee3bc8ee85aa6685cc794abdb3dc092bed07a0d286af354cc6ed9092d669c9a"
+      },
+      "mode": "netbraid-ieee802154",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "zbds2023",
+      "expect": {
+        "address_forms": {
+          "destination": {"absent_frames": 226, "extended_frames": 0, "short_frames": 774},
+          "source": {"absent_frames": 226, "extended_frames": 0, "short_frames": 774}
+        },
+        "commands": {
+          "command_mix": [{"command": 4, "frames": 10}],
+          "present_frames": 10,
+          "unavailable_frames": 990
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": true,
+          "scope": "normalized_packet_subset",
+          "state": "partial"
+        },
+        "counts": {
+          "ieee802154_frames": 1000,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 1000,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 1000
+        },
+        "fcs": {"invalid_frames": 1000, "unavailable_frames": 0, "valid_frames": 0},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 0, "frames": 764},
+          {"frame_type": 2, "frame_version": 0, "frames": 226},
+          {"frame_type": 3, "frame_version": 0, "frames": 10}
+        ]
+      },
+      "id": "zbds-2022-07-01-hour-rpi2",
+      "member": {
+        "bytes": 4989899,
+        "name": "rpi2/rpi2-2022-07-01-20-00-00.pcap",
+        "sha256": "cc77bbc4e12ed783b8c201f48312eaff1c2b4850c560ab7afff25426e2cde7b8"
+      },
+      "mode": "netbraid-ieee802154",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "zbds2023",
+      "expect": {
+        "address_forms": {
+          "destination": {"absent_frames": 228, "extended_frames": 1, "short_frames": 771},
+          "source": {"absent_frames": 228, "extended_frames": 0, "short_frames": 772}
+        },
+        "commands": {
+          "command_mix": [{"command": 4, "frames": 9}],
+          "present_frames": 9,
+          "unavailable_frames": 991
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": true,
+          "scope": "normalized_packet_subset",
+          "state": "partial"
+        },
+        "counts": {
+          "ieee802154_frames": 1000,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 1000,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 1000
+        },
+        "fcs": {"invalid_frames": 1000, "unavailable_frames": 0, "valid_frames": 0},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 0, "frames": 763},
+          {"frame_type": 2, "frame_version": 0, "frames": 228},
+          {"frame_type": 3, "frame_version": 0, "frames": 9}
+        ]
+      },
+      "id": "zbds-2022-07-01-hour-rpi3",
+      "member": {
+        "bytes": 4996881,
+        "name": "rpi3/rpi3-2022-07-01-20-00-03.pcap",
+        "sha256": "7243b3b3cad81092c9e99bfe528a5e6b51d09439fd3c54ea648ee56a1be553e6"
+      },
+      "mode": "netbraid-ieee802154",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "zbds2023",
+      "expect": {
+        "address_forms": {
+          "destination": {"absent_frames": 217, "extended_frames": 0, "short_frames": 783},
+          "source": {"absent_frames": 218, "extended_frames": 1, "short_frames": 781}
+        },
+        "commands": {
+          "command_mix": [
+            {"command": 4, "frames": 2},
+            {"command": 24, "frames": 1}
+          ],
+          "present_frames": 3,
+          "unavailable_frames": 997
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": true,
+          "scope": "normalized_packet_subset",
+          "state": "partial"
+        },
+        "counts": {
+          "ieee802154_frames": 1000,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 1000,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 1000
+        },
+        "fcs": {"invalid_frames": 996, "unavailable_frames": 4, "valid_frames": 0},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 0, "frames": 776},
+          {"frame_type": 1, "frame_version": 2, "frames": 3},
+          {"frame_type": 2, "frame_version": 0, "frames": 214},
+          {"frame_type": 2, "frame_version": 3, "frames": 1},
+          {"frame_type": 3, "frame_version": 0, "frames": 3},
+          {"frame_type": 4, "frame_version": 0, "frames": 1},
+          {"frame_type": 6, "frame_version": 0, "frames": 1},
+          {"frame_type": 7, "frame_version": 0, "frames": 1}
+        ]
+      },
+      "id": "zbds-2022-07-01-hour-rpi4",
+      "member": {
+        "bytes": 4926246,
+        "name": "rpi4/rpi4-2022-07-01-20-00-05.pcap",
+        "sha256": "997e4beffb928156430cf44f04bd5b9fddce10dc5be6386bbe9da8393568ad0f"
+      },
+      "mode": "netbraid-ieee802154",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "wifi-probe-requests",
+      "expect": {
+        "top_level_keys": [
+          "dataStreamId",
+          "payload"
+        ]
+      },
+      "id": "wifi-probe-request-structured-example",
+      "member": {
+        "bytes": 1374,
+        "name": "Single_PR_capture_example.json",
+        "sha256": "410b36ffb49ff9f5071c92ab86ae392f650c67ce4c19798f76848eb7a32c0328"
+      },
+      "mode": "structured-json"
+    },
+    {
+      "archive": "sorbonne-campus-rssi",
+      "expect": {
+        "reason": null,
+        "scope": "complete_capture",
+        "status": "observed"
+      },
+      "id": "sorbonne-campus-1m-sniffer-08",
+      "member": {
+        "bytes": 152709,
+        "name": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/1m/pcapTraces/01m-S08.pcap",
+        "sha256": "f0a4abd76466c519c19b6849397c272a2ad4ff3bff11db65ac3a12c1c70a579f"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 100000,
+      "reference": {
+        "format": "sorbonne-rssi-tsv-v1",
+        "member": {
+          "bytes": 108105,
+          "name": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/1m/csvTraces/01m-S08.txt",
+          "sha256": "c9ca8e4f75115360574b8bb0cb23164b8e34f4433db025a2110e8610c876936e"
+        }
+      }
+    },
+    {
+      "archive": "sorbonne-campus-rssi",
+      "expect": {
+        "reason": null,
+        "scope": "complete_capture",
+        "status": "observed"
+      },
+      "id": "sorbonne-campus-50m-sniffer-08",
+      "member": {
+        "bytes": 103704,
+        "name": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/50m/pcapTraces/50m-S08.pcap",
+        "sha256": "ee30544f1737c6afc85339f5ed42b8445c46c56ce52961cbe8f909ad46873baa"
+      },
+      "mode": "netbraid-wlan",
+      "packet_limit": 100000,
+      "reference": {
+        "format": "sorbonne-rssi-tsv-v1",
+        "member": {
+          "bytes": 73132,
+          "name": "220211012-SU-Outdoors-Campus/220211012-SU-Outdoors-Campus/50m/csvTraces/50m-S08.txt",
+          "sha256": "5603278b3a9adeec6047e5e3e3b5f9b78b78bda5f0f9144a4ba66538c83827d3"
+        }
+      }
+    }
+  ]
+}

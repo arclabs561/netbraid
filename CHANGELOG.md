@@ -9,6 +9,49 @@ GitHub native binary releases remain available independently.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-03
+
+### Added
+
+- Identifier-free packet-shape and WLAN fingerprint candidates, conservative
+  comparison results, and an explicitly promotion-gated same-event hypothesis
+  reducer. Unsupported, partial, malformed, or incompatible evidence remains
+  typed abstention rather than a relation claim.
+- A public inference facade for finite counter-capture, packet-shape,
+  same-event, and RSSI reference-frame hypothesis families, with content-bound
+  references and explicit unknown states.
+- Pinned fetchers and deterministic local evaluators for the public capture
+  corpus, Sorbonne same-event oracle, OPERAnet, CAEZ, Data4Cyber, NetsLab,
+  IoT-23 flow lineage, RUFF-UWB held-out locations, controlled jamming causes,
+  counter-capture campaigns, and XRF55 archives. Raw corpus bytes and generated
+  reports remain outside Git.
+- Optional read-only KismetDB, NPY, and SigMF adapters with bounded packet,
+  row, or IQ-window projections and source-mutation fences.
+- A checked-in producer/recipe contract for ignored derived artifacts, with a
+  content-blind audit that rejects unclassified outputs and untracked
+  provenance.
+
+### Changed
+
+- Scenario artifact ingestion now retains typed host-path and saved-capture
+  sources behind an internal family boundary. Replay, disclosure validation, and
+  checkpoint input projection reuse the validated saved-capture stream instead
+  of reparsing its bytes, without changing public schemas or APIs.
+- Saved-capture request batches may carry independent packet and input bounds
+  while sharing one opening/closing TShark configuration fence. Bounded
+  parallel normalization preserves input order and sequential result semantics;
+  the public-corpus evaluator co-schedules its deterministic replicas through
+  the evaluated Netbraid binary.
+
+### Fixed
+
+- Count only schema-validated HDF5 windows toward controlled-cause payload
+  receipts, including when a reader returns a malformed summary.
+- Reconnected the saved-capture parser fuzz target to the unified `netbraid`
+  package so its nightly smoke recipe builds and runs again.
+- Kept the optional KismetDB adapter on the declared Rust 1.88 floor by using
+  the preceding compatible rusqlite/libsqlite release line.
+
 ## [0.3.1] - 2026-07-28
 
 ### Changed
@@ -156,7 +199,8 @@ GitHub native binary releases remain available independently.
 - Raw PCAP, PCAPNG, and CAP artifacts are ignored recursively; reviewed
   synthetic fixtures remain readable source encodings.
 
-[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.1...HEAD
+[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.2...HEAD
+[0.3.2]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.1...netbraid-v0.3.2
 [0.3.1]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.0...netbraid-v0.3.1
 [0.3.0]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.2.0...netbraid-v0.3.0
 [0.2.0]: https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.2.0
