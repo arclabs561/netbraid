@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9,<3.10"
+# dependencies = ["numpy==2.0.2"]
+# ///
+
 """Leakage-safe held-out-location baseline harness for RUFF-UWB.
 
 The aggregate oracle remains a zero-waveform-open evidence boundary and the
