@@ -221,6 +221,14 @@ xrf55-fetch dataset="list":
 xrf55-status:
     {{ python }} data/fetch/fetch-xrf55.py status
 
+# Inspect only bounded ZIP metadata. The report records receipt validation but
+# explicitly does not claim a fresh archive-payload digest verification.
+xrf55-layout-profile:
+    {{ python }} eval/test-profile-xrf55-layout.py
+    {{ python }} eval/profile-xrf55-layout.py --report {{ eval_output }}/xrf55-layout-profile.json
+    {{ python }} eval/profile-xrf55-layout.py --report {{ eval_output }}/xrf55-layout-profile-repeat.json
+    cmp {{ eval_output }}/xrf55-layout-profile.json {{ eval_output }}/xrf55-layout-profile-repeat.json
+
 # Inventory or explicitly fetch one Oregon State LoRa RFFI setup. The fetcher
 # rejects redirects and traversal, and defaults to a 10 GiB aggregate cap.
 osu-lora-fetcher-check:

@@ -72,6 +72,15 @@ domain, receiver, location, path, or input order for missing session evidence.
 The current oracle therefore returns `unbounded_session_axis` and publishes no
 manifest; the hermetic check covers the successful known-session boundary.
 
+`profile-xrf55-layout.py` validates the three local XRF55 archive and receipt
+metadata contracts, bounds their ZIP central directories, and reports aggregate
+format, path-depth, and cross-archive path-overlap evidence. The publisher's
+scene-scoped subject/action/repetition grammar must form complete synchronized
+Wi-Fi/RFID/mmWave event triples. It never opens member payloads or retains
+member names or identifier values. Receipt validation is reported separately
+from the intentionally deferred full archive rehash; performer groups are not
+promoted to RF-device or physical-source identity.
+
 `evaluate-ujiindoorloc-split-capability.py` streams the pinned IPIN 2015 Track
 3 CSV members after verifying the archive and central receipt. It reports
 aggregate user, phone, building, floor, building/floor, and location-cell

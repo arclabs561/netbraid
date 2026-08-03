@@ -232,6 +232,20 @@
       "retention": "reproducibility_output",
       "producer": "eval/profile-wlan-rff-layout.py",
       "recipe": "wlan-rff-layout-profile"
+    },
+    {
+      "path": "data/derived/eval/xrf55-layout-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-xrf55-layout.py",
+      "recipe": "xrf55-layout-profile"
+    },
+    {
+      "path": "data/derived/eval/xrf55-layout-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-xrf55-layout.py",
+      "recipe": "xrf55-layout-profile"
     }
   ]
 }
