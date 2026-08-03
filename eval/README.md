@@ -129,6 +129,16 @@ group, alongside a direct unaligned-feature control and the theoretical
 six-candidate chance reference. No real-data hyperparameter tuning or
 cross-direction aggregate hides a weak modality pair.
 
+`evaluate-xrf55-calibrated-event-relation.py` fixes Wi-Fi/RFID as one
+unordered modality pair, fits reciprocal ridge maps on repetitions 1 through
+8, selects directional same/different thresholds from repetitions 9 through
+11, and gates the one-shot repetitions 15 through 20 score on repetitions 12
+through 14. Pair candidates stay inside one opaque performer/action group.
+The report uses exact dependent-pair confusion, coverage, selective-risk,
+false-link, false-nonmatch, and reciprocal-disagreement counts; it emits no
+row-level probability or confidence interval. Its qualified projection can
+change only `event_relation`; all identity-bearing axes abstain.
+
 `evaluate-ujiindoorloc-split-capability.py` streams the pinned IPIN 2015 Track
 3 CSV members after verifying the archive and central receipt. It reports
 aggregate user, phone, building, floor, building/floor, and location-cell

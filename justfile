@@ -272,6 +272,16 @@ xrf55-cross-modal-retrieval: xrf55-feature-cache
     uv run --script eval/evaluate-xrf55-cross-modal-retrieval.py --report {{ eval_output }}/xrf55-cross-modal-retrieval-report-repeat.json
     cmp {{ eval_output }}/xrf55-cross-modal-retrieval-report.json {{ eval_output }}/xrf55-cross-modal-retrieval-report-repeat.json
 
+xrf55-calibrated-event-relation-check: calibrated-event-relation-check
+    uv run --script eval/test-evaluate-xrf55-calibrated-event-relation.py
+
+# Fit on repetitions 1-8, calibrate on 9-11, gate on 12-14, and score
+# repetitions 15-20 only when the preregistered validation gate passes.
+xrf55-calibrated-event-relation: xrf55-feature-cache
+    uv run --script eval/evaluate-xrf55-calibrated-event-relation.py
+    uv run --script eval/evaluate-xrf55-calibrated-event-relation.py --report {{ eval_output }}/xrf55-calibrated-event-relation-report-repeat.json
+    cmp {{ eval_output }}/xrf55-calibrated-event-relation-report.json {{ eval_output }}/xrf55-calibrated-event-relation-report-repeat.json
+
 xrf55-hypothesis-frames-check:
     {{ python }} eval/test-compile-xrf55-hypothesis-frames.py
 

@@ -248,6 +248,20 @@
       "recipe": "wlan-rff-layout-profile"
     },
     {
+      "path": "data/derived/eval/xrf55-calibrated-event-relation-report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-calibrated-event-relation.py",
+      "recipe": "xrf55-calibrated-event-relation"
+    },
+    {
+      "path": "data/derived/eval/xrf55-calibrated-event-relation-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-calibrated-event-relation.py",
+      "recipe": "xrf55-calibrated-event-relation"
+    },
+    {
       "path": "data/derived/eval/xrf55-cross-modal-retrieval-report-repeat.json",
       "format": "json",
       "retention": "reproducibility_output",
