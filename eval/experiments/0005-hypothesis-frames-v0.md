@@ -364,11 +364,15 @@ These are controlled-cause and split-group oracles, not attack or identity
 predictions.
 
 The Rust inference checkpoint added content-bound validation for packet
-same-event assessments, a test-local decision law shared by the two finite
-hypothesis families, and a fixed-point RSSI reference-frame reducer. The RSSI
-reducer removes source-wide shifts before observer attribution and emits only
-evidence and candidates, not movement, location, identity, intent, or attack
-verdicts. These are contract tests, not RF model-performance results.
+same-event assessments, a fixed-point RSSI reference-frame reducer, and a
+validated source-neutral projection shared by the packet same-event,
+saved-PCAP packet-shape, and counter/capture hypothesis families. The
+projection retains only the source family schema, reducer, and bounded finite
+alternatives; it admits multi-state sets but adds no evidence fusion, score,
+probability, ranking, identity claim, or inference policy. The RSSI reducer
+removes source-wide shifts before observer attribution and emits only evidence
+and candidates, not movement, location, identity, intent, or attack verdicts.
+These are contract tests, not RF model-performance results.
 
 The external Matter conformance checkpoint binds one public DATA1813 Thread
 capture and its fetch receipt to a 32-packet prefix. The clean-revision
