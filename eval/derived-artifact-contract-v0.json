@@ -241,6 +241,20 @@
       "recipe": "ruff-uwb-row-adapter"
     },
     {
+      "path": "data/derived/eval/ruff-uwb-two-meter-row-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-ruff-uwb-row-adapter.py",
+      "recipe": "ruff-uwb-two-meter-row-adapter"
+    },
+    {
+      "path": "data/derived/eval/ruff-uwb-two-meter-waveforms.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-ruff-uwb-row-adapter.py",
+      "recipe": "ruff-uwb-two-meter-row-adapter"
+    },
+    {
       "path": "data/derived/eval/sorbonne-same-event-report.json",
       "format": "json",
       "retention": "reproducibility_output",

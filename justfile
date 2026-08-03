@@ -355,7 +355,12 @@ ruff-uwb-row-adapter-check:
 # Verify the pinned one-meter archive and central fetch receipt, then stream its
 # waveform member to a private standalone NPY suitable for read-only mmap.
 ruff-uwb-row-adapter:
-    {{ python }} eval/compile-ruff-uwb-row-adapter.py
+    {{ python }} eval/compile-ruff-uwb-row-adapter.py --waveforms-output data/derived/eval/ruff-uwb-one-meter-waveforms.npy --adapter-output data/derived/eval/ruff-uwb-one-meter-row-adapter.json
+
+# Apply the same fail-closed adapter contract to the pinned two-meter collection.
+# This is intentionally separate because extraction reads and writes several GiB.
+ruff-uwb-two-meter-row-adapter:
+    {{ python }} eval/compile-ruff-uwb-row-adapter.py --collection distance-2 --waveforms-output data/derived/eval/ruff-uwb-two-meter-waveforms.npy --adapter-output data/derived/eval/ruff-uwb-two-meter-row-adapter.json
 
 # Record the current leakage-safe RUFF-UWB baseline boundary. The aggregate
 # oracle cannot yet bind waveform rows, so this succeeds only for that exact
