@@ -11,8 +11,9 @@ GitHub native binary releases remain available independently.
 
 ### Added
 
-- An optional bounded Zeek `conn.log` adapter that projects typed session
-  evidence without retaining source-local identifiers or unselected columns.
+- An optional bounded Unix adapter for canonical full-metadata Zeek `conn.log`
+  files that projects typed session evidence without retaining source-local
+  identifiers or unselected columns.
 
 ## [0.3.2] - 2026-08-03
 

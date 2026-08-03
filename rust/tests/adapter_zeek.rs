@@ -172,10 +172,10 @@ fn exact_ipv4_ipv6_and_optional_duration_oracle_matches() {
     assert_eq!(ipv6.responder().port(), 53);
     assert_eq!(ipv6.protocol(), ZeekConnProtocolV0::Udp);
     assert_eq!(ipv6.duration_ns(), None);
-    assert_eq!(ipv6.orig_packets(), 1);
-    assert_eq!(ipv6.orig_ip_bytes(), 48);
-    assert_eq!(ipv6.resp_packets(), 0);
-    assert_eq!(ipv6.resp_ip_bytes(), 0);
+    assert_eq!(ipv6.orig_packets(), Some(1));
+    assert_eq!(ipv6.orig_ip_bytes(), Some(48));
+    assert_eq!(ipv6.resp_packets(), Some(0));
+    assert_eq!(ipv6.resp_ip_bytes(), Some(0));
 
     let ipv4 = &stream.connections()[1];
     assert_eq!(ipv4.start_time_unix_ns(), 1_700_000_001_250_000_000);
@@ -183,10 +183,10 @@ fn exact_ipv4_ipv6_and_optional_duration_oracle_matches() {
     assert_eq!(ipv4.responder().address().to_string(), "198.51.100.20");
     assert_eq!(ipv4.protocol(), ZeekConnProtocolV0::Tcp);
     assert_eq!(ipv4.duration_ns(), Some(125_000_001));
-    assert_eq!(ipv4.orig_packets(), 2);
-    assert_eq!(ipv4.orig_ip_bytes(), 120);
-    assert_eq!(ipv4.resp_packets(), 3);
-    assert_eq!(ipv4.resp_ip_bytes(), 240);
+    assert_eq!(ipv4.orig_packets(), Some(2));
+    assert_eq!(ipv4.orig_ip_bytes(), Some(120));
+    assert_eq!(ipv4.resp_packets(), Some(3));
+    assert_eq!(ipv4.resp_ip_bytes(), Some(240));
 }
 
 #[test]
@@ -246,10 +246,32 @@ fn reordered_required_and_extra_fields_are_projected_by_declared_name() {
     assert_eq!(connection.responder().address().to_string(), "203.0.113.10");
     assert_eq!(connection.responder().port(), 22);
     assert_eq!(connection.duration_ns(), Some(1_000_000_001));
-    assert_eq!(connection.orig_packets(), 4);
-    assert_eq!(connection.orig_ip_bytes(), 77);
-    assert_eq!(connection.resp_packets(), 5);
-    assert_eq!(connection.resp_ip_bytes(), 88);
+    assert_eq!(connection.orig_packets(), Some(4));
+    assert_eq!(connection.orig_ip_bytes(), Some(77));
+    assert_eq!(connection.resp_packets(), Some(5));
+    assert_eq!(connection.resp_ip_bytes(), Some(88));
+}
+
+#[test]
+fn unset_optional_counters_remain_unavailable() {
+    let unavailable = row(
+        "1",
+        "192.0.2.1",
+        "1",
+        "192.0.2.2",
+        "2",
+        "tcp",
+        "-",
+        ["-", "-", "-", "-"],
+    );
+    let stream = project(&zeek_log(REQUIRED_FIELDS, REQUIRED_TYPES, &[unavailable])).unwrap();
+    let connection = &stream.connections()[0];
+
+    assert_eq!(connection.duration_ns(), None);
+    assert_eq!(connection.orig_packets(), None);
+    assert_eq!(connection.orig_ip_bytes(), None);
+    assert_eq!(connection.resp_packets(), None);
+    assert_eq!(connection.resp_ip_bytes(), None);
 }
 
 #[test]
@@ -318,6 +340,7 @@ fn malformed_directives_fields_and_types_fail_closed() {
         valid.replace("#set_separator\t,", "#set_separator\t\t"),
         valid.replace("#empty_field\t(empty)", "#empty_field\t-"),
         valid.replace("#path\tconn", "#path\tdns"),
+        valid.replace("#separator \\x09", "!separator \\x09"),
         valid.replace("#open\t2026-08-03-00-00-00", "#rotate\t2026-08-03-00-00-00"),
         valid.replace("#close\t2026-08-03-00-00-01", "#close\tyesterday"),
         valid.replace("\tinterval\tcount", "\tdouble\tcount"),
@@ -357,6 +380,21 @@ fn malformed_directives_fields_and_types_fail_closed() {
             &[]
         )),
         Err(ZeekAdapterError::MissingField("orig_pkts"))
+    ));
+}
+
+#[test]
+fn declared_field_count_is_bounded_before_row_parsing() {
+    let mut fields = REQUIRED_FIELDS.to_vec();
+    let mut types = REQUIRED_TYPES.to_vec();
+    for _ in fields.len()..257 {
+        fields.push("extra");
+        types.push("string");
+    }
+
+    assert!(matches!(
+        project(&zeek_log(&fields, &types, &[])),
+        Err(ZeekAdapterError::MalformedDirective("#fields"))
     ));
 }
 

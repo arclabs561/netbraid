@@ -1,7 +1,9 @@
-//! Bounded projection of Zeek ASCII `conn.log` session evidence.
+//! Bounded projection of canonical, full-metadata Zeek ASCII `conn.log` session evidence.
 
 use std::collections::BTreeSet;
-use std::fs::{self, File, Metadata, OpenOptions};
+#[cfg(unix)]
+use std::fs::OpenOptions;
+use std::fs::{self, File, Metadata};
 use std::io::{self, Read};
 use std::net::IpAddr;
 use std::path::Path;
@@ -28,6 +30,7 @@ const REQUIRED_FIELDS: [(&str, &str); 11] = [
     ("resp_pkts", "count"),
     ("resp_ip_bytes", "count"),
 ];
+const MAX_ZEEK_CONN_FIELDS: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -62,10 +65,10 @@ pub struct ZeekConnV0 {
     responder: ZeekConnEndpointV0,
     protocol: ZeekConnProtocolV0,
     duration_ns: Option<u64>,
-    orig_packets: u64,
-    orig_ip_bytes: u64,
-    resp_packets: u64,
-    resp_ip_bytes: u64,
+    orig_packets: Option<u64>,
+    orig_ip_bytes: Option<u64>,
+    resp_packets: Option<u64>,
+    resp_ip_bytes: Option<u64>,
 }
 
 impl ZeekConnV0 {
@@ -89,19 +92,19 @@ impl ZeekConnV0 {
         self.duration_ns
     }
 
-    pub const fn orig_packets(&self) -> u64 {
+    pub const fn orig_packets(&self) -> Option<u64> {
         self.orig_packets
     }
 
-    pub const fn orig_ip_bytes(&self) -> u64 {
+    pub const fn orig_ip_bytes(&self) -> Option<u64> {
         self.orig_ip_bytes
     }
 
-    pub const fn resp_packets(&self) -> u64 {
+    pub const fn resp_packets(&self) -> Option<u64> {
         self.resp_packets
     }
 
-    pub const fn resp_ip_bytes(&self) -> u64 {
+    pub const fn resp_ip_bytes(&self) -> Option<u64> {
         self.resp_ip_bytes
     }
 }
@@ -143,6 +146,7 @@ impl Default for ZeekConnOptions {
 #[non_exhaustive]
 pub enum ZeekAdapterError {
     InvalidOption(&'static str),
+    UnsupportedPlatform,
     SourceMetadata(io::Error),
     SourceOpen(io::Error),
     SourceRead(io::Error),
@@ -167,6 +171,9 @@ impl std::fmt::Display for ZeekAdapterError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidOption(name) => write!(formatter, "invalid Zeek option {name}"),
+            Self::UnsupportedPlatform => {
+                formatter.write_str("Zeek projection requires a Unix no-follow file boundary")
+            }
             Self::SourceMetadata(_) => formatter.write_str("could not inspect Zeek source"),
             Self::SourceOpen(_) => formatter.write_str("could not open Zeek source"),
             Self::SourceRead(_) => formatter.write_str("could not read Zeek source"),
@@ -207,7 +214,10 @@ impl std::error::Error for ZeekAdapterError {
     }
 }
 
-/// Project one static Zeek ASCII `conn.log` without retaining source-local columns.
+/// Project one static, full-metadata Zeek ASCII `conn.log` using the default `#` prefix.
+///
+/// Source-local and unselected columns are not retained. The no-follow source
+/// identity fence currently requires Unix.
 pub fn project_zeek_conn_log(
     path: &Path,
     options: &ZeekConnOptions,
@@ -293,6 +303,12 @@ impl FileIdentity {
     }
 }
 
+#[cfg(not(unix))]
+fn open_regular(_path: &Path) -> Result<(File, FileIdentity), ZeekAdapterError> {
+    Err(ZeekAdapterError::UnsupportedPlatform)
+}
+
+#[cfg(unix)]
 fn open_regular(path: &Path) -> Result<(File, FileIdentity), ZeekAdapterError> {
     let path_metadata = fs::symlink_metadata(path).map_err(ZeekAdapterError::SourceMetadata)?;
     if path_metadata.file_type().is_symlink() {
@@ -303,11 +319,8 @@ fn open_regular(path: &Path) -> Result<(File, FileIdentity), ZeekAdapterError> {
     }
     let mut options = OpenOptions::new();
     options.read(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
-    }
+    use std::os::unix::fs::OpenOptionsExt;
+    options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
     let file = options.open(path).map_err(ZeekAdapterError::SourceOpen)?;
     let opened_metadata = file.metadata().map_err(ZeekAdapterError::SourceMetadata)?;
     if !opened_metadata.is_file() {
@@ -643,6 +656,9 @@ fn directive_parts<'a>(
     expected: &[u8],
     name: &'static str,
 ) -> Result<Vec<&'a [u8]>, ZeekAdapterError> {
+    if line.iter().filter(|byte| **byte == separator).count() > MAX_ZEEK_CONN_FIELDS {
+        return Err(ZeekAdapterError::MalformedDirective(name));
+    }
     let parts: Vec<_> = line.split(|byte| *byte == separator).collect();
     if parts.first().copied() != Some(expected) {
         return Err(if line.starts_with(b"#") {
@@ -726,6 +742,22 @@ fn parse_connection(
             })?,
         )
     };
+    let optional_count = |name: &'static str| -> Result<Option<u64>, ZeekAdapterError> {
+        let index = header
+            .indices
+            .index(name)
+            .expect("required field indices were validated");
+        let value = record
+            .get(index)
+            .ok_or(ZeekAdapterError::InvalidRow { row })?;
+        if value == header.unset_field {
+            Ok(None)
+        } else if value == header.empty_field {
+            Err(ZeekAdapterError::InvalidValue { row, field: name })
+        } else {
+            parse_count(value, row, name).map(Some)
+        }
+    };
 
     Ok(ZeekConnV0 {
         start_time_unix_ns: i64::try_from(
@@ -754,10 +786,10 @@ fn parse_connection(
             }
         },
         duration_ns,
-        orig_packets: parse_count(value("orig_pkts")?, row, "orig_pkts")?,
-        orig_ip_bytes: parse_count(value("orig_ip_bytes")?, row, "orig_ip_bytes")?,
-        resp_packets: parse_count(value("resp_pkts")?, row, "resp_pkts")?,
-        resp_ip_bytes: parse_count(value("resp_ip_bytes")?, row, "resp_ip_bytes")?,
+        orig_packets: optional_count("orig_pkts")?,
+        orig_ip_bytes: optional_count("orig_ip_bytes")?,
+        resp_packets: optional_count("resp_pkts")?,
+        resp_ip_bytes: optional_count("resp_ip_bytes")?,
     })
 }
 

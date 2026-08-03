@@ -232,7 +232,7 @@ netbraid = { version = "0.3", default-features = false }
 | `adapter-npy` | no | bounded positional row-window summaries for narrow NPY arrays |
 | `adapter-sigmf` | no | bounded positional IQ-window evidence from strict SigMF metadata |
 | `adapter-tshark` | via `cli` | bounded saved-capture process boundary |
-| `adapter-zeek` | no | bounded session evidence from Zeek ASCII `conn.log` files |
+| `adapter-zeek` | no | bounded Unix projection of canonical full-metadata Zeek ASCII `conn.log` files |
 | `scenario-fixtures` | no | public-synthetic scenario accessors |
 | `scenario-fixtures-capture-derived` | no | reviewed capture-derived scenario |
 
