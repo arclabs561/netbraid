@@ -4,29 +4,35 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
+import shlex
 import stat
 import subprocess
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Union
 
 SCHEMA = "netbraid.derived_artifact_contract.v0"
 REPORT_SCHEMA = "netbraid.derived_artifact_audit.v0"
 DEFAULT_CONTRACT = PurePosixPath("eval/derived-artifact-contract-v0.json")
 DEFAULT_JUSTFILE = PurePosixPath("justfile")
 CONTRACT_KEYS = frozenset({"schema", "derived_root", "artifacts"})
-ARTIFACT_KEYS = frozenset({"path", "format", "retention", "producer", "recipe"})
+COMMON_ARTIFACT_KEYS = frozenset({"path", "format", "retention"})
+SCRIPTED_ARTIFACT_KEYS = COMMON_ARTIFACT_KEYS | {"producer", "recipe"}
+EXCEPTION_ARTIFACT_KEYS = COMMON_ARTIFACT_KEYS | {"custodian"}
 FORMATS = frozenset({"json", "npy", "tsv"})
 RETENTIONS = frozenset({"legacy/unknown", "reproducibility_output"})
 RECIPE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*\Z")
+PYTHON_COMMAND = re.compile(r"python(?:\d+(?:\.\d+)*)?\Z")
 WINDOWS_ABSOLUTE = re.compile(r"[A-Za-z]:[\\/]")
 PRIVATE_PATH_FRAGMENT = re.compile(
     r"(?:^|[/\\])(?:Users|home|private|Volumes)(?:[/\\])"
 )
+LEGACY_ARCHIVE_ROOT = PurePosixPath("data/derived/archive/legacy-unscripted")
 MAX_CONTRACT_BYTES = 1024 * 1024
 MAX_JUSTFILE_BYTES = 2 * 1024 * 1024
 MAX_PRODUCER_BYTES = 4 * 1024 * 1024
@@ -38,7 +44,7 @@ MAX_REPORT_BYTES = 16 * 1024
 
 
 @dataclass(frozen=True)
-class Artifact:
+class ScriptedArtifact:
     path: str
     format: str
     retention: str
@@ -47,10 +53,27 @@ class Artifact:
 
 
 @dataclass(frozen=True)
+class LegacyException:
+    path: str
+    format: str
+    retention: str
+    custodian: str
+
+
+Artifact = Union[ScriptedArtifact, LegacyException]
+
+
+@dataclass(frozen=True)
 class Contract:
     derived_root: str
     artifacts: tuple[Artifact, ...]
     declared_entries: int
+
+
+@dataclass(frozen=True)
+class ProducerEvidence:
+    literals: frozenset[str]
+    has_entrypoint: bool
 
 
 class AuditInputError(Exception):
@@ -174,15 +197,25 @@ def _load_contract(
     artifacts: list[Artifact] = []
     seen: set[str] = set()
     for raw in raw_artifacts:
-        if not isinstance(raw, dict) or set(raw) != ARTIFACT_KEYS:
+        if not isinstance(raw, dict):
             errors["invalid_contract_entry"] += 1
             continue
-        if not all(isinstance(raw[key], str) for key in ARTIFACT_KEYS):
+        retention = raw.get("retention")
+        if not isinstance(retention, str) or retention not in RETENTIONS:
+            errors["invalid_retention"] += 1
+            continue
+        expected_keys = (
+            SCRIPTED_ARTIFACT_KEYS
+            if retention == "reproducibility_output"
+            else EXCEPTION_ARTIFACT_KEYS
+        )
+        if set(raw) != expected_keys or not all(
+            isinstance(raw[key], str) for key in expected_keys
+        ):
             errors["invalid_contract_entry"] += 1
             continue
 
         artifact_path = _relative_path(raw["path"])
-        producer_path = _relative_path(raw["producer"])
         valid = True
         if artifact_path is None or root_path is None:
             errors["invalid_artifact_path"] += 1
@@ -192,20 +225,11 @@ def _load_contract(
         ) <= len(root_path.parts):
             errors["artifact_outside_derived_root"] += 1
             valid = False
-        if producer_path is None or producer_path.suffix != ".py":
-            errors["invalid_producer_path"] += 1
-            valid = False
         if raw["format"] not in FORMATS:
             errors["invalid_artifact_format"] += 1
             valid = False
         elif artifact_path is not None and artifact_path.suffix != f".{raw['format']}":
             errors["artifact_format_mismatch"] += 1
-            valid = False
-        if raw["retention"] not in RETENTIONS:
-            errors["invalid_retention"] += 1
-            valid = False
-        if RECIPE_NAME.fullmatch(raw["recipe"]) is None:
-            errors["invalid_recipe_name"] += 1
             valid = False
         normalized = (
             artifact_path.as_posix() if artifact_path is not None else raw["path"]
@@ -214,20 +238,50 @@ def _load_contract(
             errors["duplicate_contract_entry"] += 1
             valid = False
         seen.add(normalized)
-        if valid:
-            artifacts.append(
-                Artifact(
-                    path=normalized,
-                    format=raw["format"],
-                    retention=raw["retention"],
-                    producer=producer_path.as_posix(),
-                    recipe=raw["recipe"],
+
+        if retention == "reproducibility_output":
+            producer_path = _relative_path(raw["producer"])
+            if producer_path is None or producer_path.suffix != ".py":
+                errors["invalid_producer_path"] += 1
+                valid = False
+            if RECIPE_NAME.fullmatch(raw["recipe"]) is None:
+                errors["invalid_recipe_name"] += 1
+                valid = False
+            if valid and producer_path is not None:
+                artifacts.append(
+                    ScriptedArtifact(
+                        path=normalized,
+                        format=raw["format"],
+                        retention=retention,
+                        producer=producer_path.as_posix(),
+                        recipe=raw["recipe"],
+                    )
                 )
-            )
+        else:
+            custodian_path = _relative_path(raw["custodian"])
+            if custodian_path is None or custodian_path.suffix != ".py":
+                errors["invalid_custodian_path"] += 1
+                valid = False
+            if (
+                artifact_path is not None
+                and artifact_path.parts[: len(LEGACY_ARCHIVE_ROOT.parts)]
+                != LEGACY_ARCHIVE_ROOT.parts
+            ):
+                errors["legacy_exception_outside_archive"] += 1
+                valid = False
+            if valid and custodian_path is not None:
+                artifacts.append(
+                    LegacyException(
+                        path=normalized,
+                        format=raw["format"],
+                        retention=retention,
+                        custodian=custodian_path.as_posix(),
+                    )
+                )
     return Contract(derived_root, tuple(artifacts), len(raw_artifacts))
 
 
-def _parse_justfile(text: str, errors: Counter[str]) -> dict[str, str]:
+def _parse_justfile(text: str, errors: Counter[str]) -> dict[str, tuple[str, ...]]:
     recipes: dict[str, list[str]] = {}
     current: str | None = None
     for line in text.splitlines():
@@ -240,7 +294,7 @@ def _parse_justfile(text: str, errors: Counter[str]) -> dict[str, str]:
         stripped = line.strip()
         if not stripped or stripped.startswith(("#", "[")) or ":=" in line:
             continue
-        header, separator, inline = line.partition(":")
+        header, separator, _dependencies = line.partition(":")
         if not separator:
             continue
         name = header.split(maxsplit=1)[0]
@@ -249,9 +303,116 @@ def _parse_justfile(text: str, errors: Counter[str]) -> dict[str, str]:
         if name in recipes:
             errors["duplicate_recipe_definition"] += 1
             continue
-        recipes[name] = [inline.strip()] if inline.strip() else []
+        recipes[name] = []
         current = name
-    return {name: "\n".join(body) for name, body in recipes.items()}
+    return {name: tuple(commands) for name, commands in recipes.items()}
+
+
+def _shell_tokens(command: str) -> tuple[str, ...] | None:
+    command = command.lstrip("@-+")
+    try:
+        return tuple(shlex.split(command, comments=True, posix=True))
+    except ValueError:
+        return None
+
+
+def _python_script_index(tokens: tuple[str, ...]) -> int | None:
+    if not tokens:
+        return None
+    executable = PurePosixPath(tokens[0]).name
+    if PYTHON_COMMAND.fullmatch(executable):
+        return 1
+    if len(tokens) >= 3 and tokens[:3] == ("{{", "python", "}}"):
+        return 3
+    if tokens[0].replace(" ", "") == "{{python}}":
+        return 1
+    return None
+
+
+def _producer_invocation_tokens(command: str, producer: str) -> tuple[str, ...] | None:
+    tokens = _shell_tokens(command)
+    if tokens is None:
+        return None
+    script_index = _python_script_index(tokens)
+    if script_index is not None:
+        if len(tokens) > script_index and tokens[script_index] == producer:
+            return tokens
+        return None
+    if len(tokens) < 3 or tokens[:2] != ("uv", "run"):
+        return None
+    if tokens[2] == "--script":
+        if len(tokens) > 3 and tokens[3] == producer:
+            return tokens
+        return None
+    nested_index = _python_script_index(tokens[2:])
+    if nested_index is not None:
+        absolute_index = 2 + nested_index
+        if len(tokens) > absolute_index and tokens[absolute_index] == producer:
+            return tokens
+        return None
+    return tokens if tokens[2] == producer else None
+
+
+def _invocation_declares_output(tokens: tuple[str, ...], artifact: str) -> bool:
+    basename = PurePosixPath(artifact).name
+    return any(
+        token == artifact or PurePosixPath(token).name == basename for token in tokens
+    )
+
+
+def _is_main_guard(node: ast.AST) -> bool:
+    if not isinstance(node, ast.If) or not isinstance(node.test, ast.Compare):
+        return False
+    comparison = node.test
+    if len(comparison.ops) != 1 or not isinstance(comparison.ops[0], ast.Eq):
+        return False
+    if len(comparison.comparators) != 1:
+        return False
+    operands = (comparison.left, comparison.comparators[0])
+    has_name = any(
+        isinstance(operand, ast.Name) and operand.id == "__name__"
+        for operand in operands
+    )
+    has_main = any(
+        isinstance(operand, ast.Constant) and operand.value == "__main__"
+        for operand in operands
+    )
+    return (
+        has_name
+        and has_main
+        and any(
+            isinstance(descendant, ast.Call)
+            for statement in node.body
+            for descendant in ast.walk(statement)
+        )
+    )
+
+
+def _producer_evidence(text: str) -> ProducerEvidence:
+    tree = ast.parse(text)
+    docstrings: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(
+            node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+        ):
+            if (
+                node.body
+                and isinstance(node.body[0], ast.Expr)
+                and isinstance(node.body[0].value, ast.Constant)
+                and isinstance(node.body[0].value.value, str)
+            ):
+                docstrings.add(id(node.body[0].value))
+    literals = frozenset(
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and id(node) not in docstrings
+    )
+    return ProducerEvidence(
+        literals=literals,
+        has_entrypoint=any(_is_main_guard(node) for node in tree.body),
+    )
 
 
 def _tracked_paths(root: Path) -> set[str]:
@@ -280,8 +441,10 @@ def _inventory_derived(
         directory = directory / part
         try:
             metadata = directory.lstat()
+        except FileNotFoundError:
+            return set()
         except OSError:
-            errors["missing_derived_root"] += 1
+            errors["unsafe_derived_root"] += 1
             return set()
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
             errors["unsafe_derived_root"] += 1
@@ -329,28 +492,6 @@ def _inventory_derived(
     return files
 
 
-def _mentions_path(text: str, path: str) -> bool:
-    token_characters = r"A-Za-z0-9_./-"
-    return (
-        re.search(
-            rf"(?<![{token_characters}]){re.escape(path)}(?![{token_characters}])",
-            text,
-        )
-        is not None
-    )
-
-
-def _mentions_filename(text: str, filename: str) -> bool:
-    token_characters = r"A-Za-z0-9_.-"
-    return (
-        re.search(
-            rf"(?<![{token_characters}]){re.escape(filename)}(?![{token_characters}])",
-            text,
-        )
-        is not None
-    )
-
-
 def audit_repository(
     root: Path,
     contract_path: PurePosixPath = DEFAULT_CONTRACT,
@@ -393,37 +534,71 @@ def audit_repository(
     if contract_path.as_posix() not in tracked_paths:
         errors["untracked_contract"] += 1
 
-    producer_texts: dict[str, str | None] = {}
-    for producer in sorted({artifact.producer for artifact in contract.artifacts}):
+    scripted_artifacts = tuple(
+        artifact
+        for artifact in contract.artifacts
+        if isinstance(artifact, ScriptedArtifact)
+    )
+    exceptions = tuple(
+        artifact
+        for artifact in contract.artifacts
+        if isinstance(artifact, LegacyException)
+    )
+
+    producers = sorted({artifact.producer for artifact in scripted_artifacts})
+    producer_evidence: dict[str, ProducerEvidence | None] = {}
+    for producer in producers:
         relative = PurePosixPath(producer)
         try:
-            producer_texts[producer] = _read_bounded_file(
+            producer_text = _read_bounded_file(
                 root, relative, MAX_PRODUCER_BYTES, "missing_or_unsafe_producer"
             )
         except AuditInputError as error:
             errors[error.code] += 1
-            producer_texts[producer] = None
+            producer_evidence[producer] = None
             continue
         if producer not in tracked_paths:
             errors["untracked_producer"] += 1
+        try:
+            evidence = _producer_evidence(producer_text)
+        except SyntaxError:
+            errors["invalid_producer_python"] += 1
+            producer_evidence[producer] = None
+            continue
+        producer_evidence[producer] = evidence
+        if not evidence.has_entrypoint:
+            errors["producer_missing_entrypoint"] += 1
 
-    for artifact in contract.artifacts:
-        recipe_body = recipes.get(artifact.recipe)
-        if recipe_body is None:
+    custodians = sorted({artifact.custodian for artifact in exceptions})
+    for custodian in custodians:
+        if _safe_file_path(root, PurePosixPath(custodian)) is None:
+            errors["missing_or_unsafe_custodian"] += 1
+        if custodian not in tracked_paths:
+            errors["untracked_custodian"] += 1
+
+    for artifact in scripted_artifacts:
+        recipe_commands = recipes.get(artifact.recipe)
+        if recipe_commands is None:
             errors["missing_recipe"] += 1
             continue
-        if not _mentions_path(recipe_body, artifact.producer):
+        invocations = tuple(
+            tokens
+            for command in recipe_commands
+            if (tokens := _producer_invocation_tokens(command, artifact.producer))
+            is not None
+        )
+        if not invocations:
             errors["producer_not_invoked_by_recipe"] += 1
-        producer_text = producer_texts.get(artifact.producer)
-        if producer_text is not None:
-            basename = PurePosixPath(artifact.path).name
-            if not _mentions_filename(
-                producer_text, basename
-            ) and not _mentions_filename(
-                recipe_body,
-                basename,
-            ):
-                errors["artifact_not_declared_by_producer_or_recipe"] += 1
+        evidence = producer_evidence.get(artifact.producer)
+        output_literals = {artifact.path, PurePosixPath(artifact.path).name}
+        declared_in_producer = evidence is not None and bool(
+            output_literals & evidence.literals
+        )
+        declared_in_invocation = any(
+            _invocation_declares_output(tokens, artifact.path) for tokens in invocations
+        )
+        if not declared_in_producer and not declared_in_invocation:
+            errors["artifact_not_declared_by_producer_or_recipe"] += 1
 
     error_counts = {key: count for key, count in sorted(errors.items()) if count}
     artifacts_by_path = {artifact.path: artifact for artifact in contract.artifacts}
@@ -437,8 +612,11 @@ def audit_repository(
         "ok": not error_counts,
         "artifact_count": len(actual_files),
         "contract_entry_count": contract.declared_entries,
-        "producer_count": len(producer_texts),
-        "recipe_count": len({artifact.recipe for artifact in contract.artifacts}),
+        "scripted_output_count": len(scripted_artifacts),
+        "exception_count": len(exceptions),
+        "producer_count": len(producers),
+        "custodian_count": len(custodians),
+        "recipe_count": len({artifact.recipe for artifact in scripted_artifacts}),
         "retention_counts": {
             retention: retention_counts[retention] for retention in sorted(RETENTIONS)
         },
@@ -471,7 +649,10 @@ def main(argv: list[str] | None = None) -> int:
             "ok": False,
             "artifact_count": 0,
             "contract_entry_count": 0,
+            "scripted_output_count": 0,
+            "exception_count": 0,
             "producer_count": 0,
+            "custodian_count": 0,
             "recipe_count": 0,
             "retention_counts": {name: 0 for name in sorted(RETENTIONS)},
             "format_counts": {name: 0 for name in sorted(FORMATS)},
@@ -494,7 +675,10 @@ if __name__ == "__main__":
             "ok": False,
             "artifact_count": 0,
             "contract_entry_count": 0,
+            "scripted_output_count": 0,
+            "exception_count": 0,
             "producer_count": 0,
+            "custodian_count": 0,
             "recipe_count": 0,
             "retention_counts": {name: 0 for name in sorted(RETENTIONS)},
             "format_counts": {name: 0 for name in sorted(FORMATS)},

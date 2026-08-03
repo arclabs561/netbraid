@@ -209,97 +209,84 @@
       "path": "data/derived/archive/legacy-unscripted/caez-alignment-profile-repeat.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/caez-alignment-profile.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/caez-csi-profile-repeat.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/caez-csi-profile.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/corpus-report.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/data4cyber-alignment-profile-repeat.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/data4cyber-alignment-profile.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/iot23-flow-lineage-report-repeat.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/iot23-flow-lineage-report-v2-repeat.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/iot23-flow-lineage-report-v2.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/iot23-flow-lineage-report.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/iot23v2-hakai-flow-v0-repeat.tsv",
       "format": "tsv",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/iot23v2-hakai-flow-v0.tsv",
       "format": "tsv",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/migration-receipt.json",
       "format": "json",
-      "retention": "legacy/unknown",
+      "retention": "reproducibility_output",
       "producer": "data/migrate/migrate-legacy-derived.py",
       "recipe": "legacy-derived-migration"
     },
@@ -307,92 +294,79 @@
       "path": "data/derived/archive/legacy-unscripted/netslab-alignment-profile-repeat.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/netslab-alignment-profile.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/operanet-layout-profile-repeat.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/operanet-layout-profile.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/public-corpus-eval-report.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/public-corpus-inventory.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/sorbonne-campus-rssi-inventory.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/sorbonne-same-event-report-a.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/sorbonne-same-event-report-b.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/sorbonne-same-event-report-py39.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/sorbonne-same-event-report.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/sorbonne-structural-reducer-report-repeat.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     },
     {
       "path": "data/derived/archive/legacy-unscripted/sorbonne-structural-reducer-report.json",
       "format": "json",
       "retention": "legacy/unknown",
-      "producer": "data/migrate/migrate-legacy-derived.py",
-      "recipe": "legacy-derived-migration"
+      "custodian": "data/migrate/migrate-legacy-derived.py"
     }
   ]
 }

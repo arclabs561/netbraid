@@ -28,9 +28,14 @@ class DerivedArtifactAuditTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         (self.root / "eval").mkdir()
-        (self.root / "data/derived/eval/campaign").mkdir(parents=True)
+        (self.root / "data/derived/eval").mkdir(parents=True)
+        (self.root / "data/derived/archive/legacy-unscripted").mkdir(parents=True)
         (self.root / "eval/produce.py").write_text(
-            "OUTPUTS = ('result.json', 'campaign/archive.tsv', 'future.json')\n",
+            "OUTPUTS = ('result.json', 'future.json')\n"
+            "def main():\n"
+            "    return 0\n"
+            "if __name__ == '__main__':\n"
+            "    raise SystemExit(main())\n",
             encoding="utf-8",
         )
         (self.root / "justfile").write_text(
@@ -40,7 +45,7 @@ class DerivedArtifactAuditTests(unittest.TestCase):
         (self.root / "data/derived/eval/result.json").write_bytes(
             b"opaque corpus output"
         )
-        (self.root / "data/derived/eval/campaign/archive.tsv").write_bytes(
+        (self.root / "data/derived/archive/legacy-unscripted/archive.tsv").write_bytes(
             b"opaque\tcorpus\n"
         )
         self.contract = {
@@ -55,11 +60,10 @@ class DerivedArtifactAuditTests(unittest.TestCase):
                     "recipe": "derive",
                 },
                 {
-                    "path": "data/derived/eval/campaign/archive.tsv",
+                    "path": "data/derived/archive/legacy-unscripted/archive.tsv",
                     "format": "tsv",
                     "retention": "legacy/unknown",
-                    "producer": "eval/produce.py",
-                    "recipe": "derive",
+                    "custodian": "eval/produce.py",
                 },
                 {
                     "path": "data/derived/eval/future.json",
@@ -101,13 +105,16 @@ class DerivedArtifactAuditTests(unittest.TestCase):
         self.assertTrue(report["ok"])
         self.assertEqual(report["artifact_count"], 2)
         self.assertEqual(report["contract_entry_count"], 3)
+        self.assertEqual(report["scripted_output_count"], 2)
+        self.assertEqual(report["exception_count"], 1)
+        self.assertEqual(report["producer_count"], 1)
+        self.assertEqual(report["custodian_count"], 1)
+        self.assertNotIn("missing_declared_artifact", report["error_counts"])
         self.assertEqual(
             report["retention_counts"],
             {"legacy/unknown": 1, "reproducibility_output": 1},
         )
-        self.assertEqual(
-            report["format_counts"], {"json": 1, "npy": 0, "tsv": 1}
-        )
+        self.assertEqual(report["format_counts"], {"json": 1, "npy": 0, "tsv": 1})
         encoded = json.dumps(report, sort_keys=True)
         for forbidden in (
             os.fspath(self.root),
@@ -165,6 +172,69 @@ class DerivedArtifactAuditTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.assertIn("producer_not_invoked_by_recipe", self._audit()["error_counts"])
+
+    def test_requires_actual_python_or_uv_producer_invocation(self) -> None:
+        invalid_recipes = {
+            "echo": "derive:\n    echo python3 eval/produce.py result.json\n",
+            "comment": "derive:\n    # python3 eval/produce.py result.json\n",
+        }
+        for label, recipe in invalid_recipes.items():
+            with self.subTest(label=label):
+                (self.root / "justfile").write_text(recipe, encoding="utf-8")
+                errors = self._audit()["error_counts"]
+                self.assertEqual(errors["producer_not_invoked_by_recipe"], 2)
+
+        (self.root / "justfile").write_text(
+            "derive:\n"
+            "    uv run --script eval/produce.py --out "
+            "data/derived/eval/result.json\n",
+            encoding="utf-8",
+        )
+        errors = self._audit()["error_counts"]
+        self.assertNotIn("producer_not_invoked_by_recipe", errors)
+
+    def test_rejects_comment_only_producer(self) -> None:
+        (self.root / "eval/produce.py").write_text(
+            "# result.json\n# executable producer entrypoint\n",
+            encoding="utf-8",
+        )
+
+        errors = self._audit()["error_counts"]
+
+        self.assertEqual(errors["producer_missing_entrypoint"], 1)
+        self.assertEqual(errors["artifact_not_declared_by_producer_or_recipe"], 2)
+
+    def test_ignores_producer_docstrings_as_output_evidence(self) -> None:
+        (self.root / "eval/produce.py").write_text(
+            '"""result.json"""\n'
+            "def main():\n"
+            "    return 0\n"
+            "if __name__ == '__main__':\n"
+            "    raise SystemExit(main())\n",
+            encoding="utf-8",
+        )
+
+        errors = self._audit()["error_counts"]
+
+        self.assertEqual(errors["artifact_not_declared_by_producer_or_recipe"], 2)
+
+    def test_allows_an_absent_derived_root_for_a_fresh_clone(self) -> None:
+        self.contract["derived_root"] = "fresh/derived"
+        self.contract["artifacts"] = [
+            {
+                "path": "fresh/derived/future.json",
+                "format": "json",
+                "retention": "reproducibility_output",
+                "producer": "eval/produce.py",
+                "recipe": "derive",
+            }
+        ]
+        self._write_contract()
+
+        report = self._audit()
+
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["artifact_count"], 0)
 
     def test_rejects_untracked_contract(self) -> None:
         tracked = self.tracked - {"eval/contract.json"}

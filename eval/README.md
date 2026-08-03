@@ -119,17 +119,28 @@ Evaluators read ignored artifacts from `data/raw/` and write ignored results to
 `data/derived/eval/`. A dataset result is not a unit test and is not part of the
 default CI gate unless its oracle is exact and corpus-independent.
 
-Derived campaign artifacts must have a checked-in producer and canonical
-`just` recipe; an interactive shell transcript is not provenance. The IoT-23
-lineage campaign is the reference pattern: `just iot23-flow-lineage` derives
-flows and evaluates them twice, rejects byte drift, and writes a path-free
-receipt beside the ignored outputs. Its hermetic producer/evaluator boundary is
-covered by `just iot23-flow-lineage-check` without requiring corpus bytes.
-Older local reports whose producer context predates this rule are not treated
-as evaluation evidence. `just legacy-derived-migration` moves only their fixed
-allowlist from `data/raw/` to `data/derived/archive/legacy-unscripted/`, marks
-their provenance `legacy/unknown`, and verifies the path-free receipt on rerun.
-`just derived-artifact-audit` then fails closed on unclassified outputs,
-untracked producers, missing recipes, unsafe filesystem entries, and private or
-absolute paths. It inventories metadata only and emits bounded aggregate counts;
-it never opens retained artifact contents.
+The derived-artifact contract is a presence allowlist: declared outputs and the
+entire derived root may be absent, so the audit is suitable for a fresh clone.
+When an output is present, it must be classified. A `reproducibility_output`
+entry must name a checked-in Python producer and canonical `just` recipe. The
+audit parses the producer AST, requires an executable `__main__` entrypoint, and
+accepts output-path evidence only from a non-docstring string literal or an
+argument token on the recipe's actual Python/`uv` invocation. It parses only the
+named recipe's indented command lines, so comments and `echo` mentions do not
+count. This is a prospective static wiring guarantee, not proof that retained
+bytes came from that producer or recipe.
+
+The IoT-23 lineage campaign is the reference pattern. Running
+`just iot23-flow-lineage` derives flows and evaluates them twice, rejects byte
+drift, and writes a path-free receipt beside the ignored outputs. Its hermetic
+producer/evaluator boundary is covered by `just iot23-flow-lineage-check`
+without requiring corpus bytes. Older local reports whose producer context
+predates this rule are explicit `legacy/unknown` exceptions, not scripted
+outputs. `just legacy-derived-migration` moves only their fixed allowlist from
+`data/raw/` to `data/derived/archive/legacy-unscripted/`; each exception names a
+checked-in custodian, while the migration receipt remains a generated
+`reproducibility_output`. `just derived-artifact-audit` reports those exceptions
+separately and fails closed on unclassified outputs, unsafe filesystem entries,
+untracked producers or custodians, missing recipes, and private or absolute
+paths. It inventories metadata only and emits bounded aggregate counts; it
+never opens retained artifact contents.
