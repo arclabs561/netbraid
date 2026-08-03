@@ -15,14 +15,12 @@ row sampling. Both waveform arrays remain read-only NumPy memory maps.
 from __future__ import annotations
 
 import argparse
-import heapq
 import importlib.util
 import json
 import sys
-from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,14 +123,6 @@ class TransferConfig:
         return config
 
 
-@dataclass(frozen=True)
-class RoleSelection:
-    location_count: int
-    atomic_group_count: int
-    source_row_count: int
-    sampled: Tuple[Any, ...]
-
-
 def _adapter_spans(adapter: Any) -> Tuple[Any, ...]:
     if isinstance(adapter, BASE.LoadedRowSpanAdapter):
         return adapter.spans
@@ -177,98 +167,12 @@ def _validate_transfer_adapters(source: Any, target: Any) -> None:
         raise BASE.EvaluationInputError("cross_distance_collection_alias")
 
 
-def _select_group_rows(
-    group_ranges: Dict[Tuple[str, str, str, str], List[Tuple[int, int]]],
-    maximum: int,
-    rank: Any,
-) -> Tuple[Any, ...]:
-    selected: List[Any] = []
-    for group, ranges in sorted(group_ranges.items()):
-        indices = (
-            row_index for start, stop in ranges for row_index in range(start, stop)
-        )
-        for row_index in heapq.nsmallest(
-            maximum, indices, key=lambda item: rank(group, item)
-        ):
-            selected.append(
-                BASE.RowMetadata(
-                    row_index=row_index,
-                    distance_collection=group[0],
-                    physical_source=group[1],
-                    physical_device=group[2],
-                    location=group[3],
-                )
-            )
-    return tuple(sorted(selected, key=lambda row: (row.atomic_group(), row.row_index)))
-
-
-def _partition_and_sample_source(
-    spans: Sequence[Any], config: TransferConfig
-) -> Dict[str, RoleSelection]:
-    base = config.base()
-    locations = sorted(
-        {span.location for span in spans},
-        key=lambda location: (
-            BASE._hash_parts(base.seed, "location-split", location),
-            location,
-        ),
-    )
-    train_count = len(locations) * BASE.SPLIT_PERCENTAGES["train"] // 100
-    validation_count = len(locations) * BASE.SPLIT_PERCENTAGES["validation"] // 100
-    if train_count == 0 or validation_count == 0:
-        raise BASE.EvaluationInputError("empty_location_partition")
-    location_role = {
-        location: (
-            "train"
-            if index < train_count
-            else "validation"
-            if index < train_count + validation_count
-            else "test"
-        )
-        for index, location in enumerate(locations)
-    }
-    ranges = {role: defaultdict(list) for role in BASE.SPLITS}
-    role_locations = {role: set() for role in BASE.SPLITS}
-    role_rows = {role: 0 for role in BASE.SPLITS}
-    for span in spans:
-        role = location_role[span.location]
-        group = span.atomic_group()
-        ranges[role][group].append((span.row_start, span.row_stop))
-        role_locations[role].add(span.location)
-        role_rows[role] += span.row_stop - span.row_start
-    if any(not ranges[role] for role in BASE.SPLITS):
-        raise BASE.EvaluationInputError("empty_row_partition")
-    return {
-        role: RoleSelection(
-            location_count=len(role_locations[role]),
-            atomic_group_count=len(ranges[role]),
-            source_row_count=role_rows[role],
-            sampled=_select_group_rows(
-                ranges[role],
-                base.max_rows_per_atomic_group,
-                lambda group, row_index: (
-                    BASE._hash_parts(base.seed, "row-sample", *group, row_index),
-                    row_index,
-                ),
-            ),
-        )
-        for role in BASE.SPLITS
-    }
-
-
 def _sample_target_rows(
     spans: Sequence[Any], adapter_id: str, config: TransferConfig
-) -> RoleSelection:
+) -> Any:
     base = config.base()
-    ranges: Dict[Tuple[str, str, str, str], List[Tuple[int, int]]] = defaultdict(list)
-    locations = set()
-    source_rows = 0
-    for span in spans:
-        ranges[span.atomic_group()].append((span.row_start, span.row_stop))
-        locations.add(span.location)
-        source_rows += span.row_stop - span.row_start
-    sampled = _select_group_rows(
-        ranges,
+    return BASE.sample_row_spans(
+        spans,
         base.max_rows_per_atomic_group,
         lambda group, row_index: (
             BASE._hash_parts(
@@ -280,12 +184,6 @@ def _sample_target_rows(
             ),
             row_index,
         ),
-    )
-    return RoleSelection(
-        location_count=len(locations),
-        atomic_group_count=len(ranges),
-        source_row_count=source_rows,
-        sampled=sampled,
     )
 
 
@@ -340,7 +238,7 @@ def _source_receipt(loaded: Any, contract: Any, adapter_id: str) -> Dict[str, An
 
 def _role_receipt(
     adapter_id: str,
-    selection: RoleSelection,
+    selection: Any,
     features: Sequence[Any],
 ) -> Dict[str, Any]:
     return {
@@ -388,7 +286,7 @@ def evaluate_transfer(
     # fixed before either waveform source is opened.
     source_spans = _adapter_spans(source_adapter)
     target_spans = _adapter_spans(target_adapter)
-    source_roles = _partition_and_sample_source(source_spans, selected)
+    source_roles = BASE.partition_and_sample_row_spans(source_spans, base)
     target_role = _sample_target_rows(target_spans, target_adapter.adapter_id, selected)
     feature_values = (
         (
@@ -452,7 +350,7 @@ def evaluate_transfer(
         label: f"device-{index + 1:03d}" for index, label in enumerate(chosen.labels)
     }
 
-    source_test_unused = RoleSelection(
+    source_test_unused = BASE.RowRoleSelection(
         location_count=source_roles["test"].location_count,
         atomic_group_count=source_roles["test"].atomic_group_count,
         source_row_count=source_roles["test"].source_row_count,

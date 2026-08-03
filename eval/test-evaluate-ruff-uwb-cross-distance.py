@@ -271,7 +271,9 @@ class RuffUwbCrossDistanceTests(unittest.TestCase):
 
         assigned = CROSS.BASE.partition_rows(expanded.rows, config().seed)
         oracle = CROSS.BASE.sample_rows(assigned, config().base())
-        actual = CROSS._partition_and_sample_source(compact.spans, config())
+        actual = CROSS.BASE.partition_and_sample_row_spans(
+            compact.spans, config().base()
+        )
 
         for role in CROSS.BASE.SPLITS:
             self.assertEqual(actual[role].sampled, oracle[role])

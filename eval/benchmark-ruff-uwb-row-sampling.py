@@ -55,7 +55,7 @@ def main() -> int:
         adapter = BASE.load_row_span_adapter(
             args.row_adapter, CROSS.PINNED_SOURCE_BINDING
         )
-        selections = CROSS._partition_and_sample_source(adapter.spans, config)
+        selections = BASE.partition_and_sample_row_spans(adapter.spans, config.base())
         sampled = {role: selections[role].sampled for role in BASE.SPLITS}
         source_rows = sum(selections[role].source_row_count for role in BASE.SPLITS)
     else:

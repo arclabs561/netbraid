@@ -17,6 +17,7 @@ No report contains input paths, raw waveform rows, or source identifiers.
 from __future__ import annotations
 
 import argparse
+import heapq
 import hashlib
 import json
 import os
@@ -369,6 +370,14 @@ class LoadedRowSpanAdapter:
     adapter_id: str
     spans: Tuple[RowSpanMetadata, ...]
     source_contract: WaveformSourceContract
+
+
+@dataclass(frozen=True)
+class RowRoleSelection:
+    location_count: int
+    atomic_group_count: int
+    source_row_count: int
+    sampled: Tuple[RowMetadata, ...]
 
 
 @dataclass(frozen=True)
@@ -1003,6 +1012,117 @@ def sample_rows(
         )
     _assert_no_split_overlap(sampled)
     return sampled
+
+
+def _validated_row_spans(
+    spans: Sequence[RowSpanMetadata],
+) -> Tuple[RowSpanMetadata, ...]:
+    if (
+        not isinstance(spans, Sequence)
+        or isinstance(spans, (str, bytes))
+        or not 1 <= len(spans) <= MAX_ROW_SPANS
+        or any(not isinstance(span, RowSpanMetadata) for span in spans)
+    ):
+        raise EvaluationInputError("invalid_row_span_metadata")
+    return tuple(spans)
+
+
+def _select_span_rows(
+    group_ranges: Mapping[Tuple[str, str, str, str], Sequence[Tuple[int, int]]],
+    maximum: int,
+    rank: Any,
+) -> Tuple[RowMetadata, ...]:
+    if (
+        type(maximum) is not int
+        or not 1 <= maximum <= MAX_ROWS_PER_ATOMIC_GROUP
+        or not callable(rank)
+    ):
+        raise EvaluationInputError("invalid_span_row_selection")
+    selected: List[RowMetadata] = []
+    for group, ranges in sorted(group_ranges.items()):
+        indices = (
+            row_index for start, stop in ranges for row_index in range(start, stop)
+        )
+        for row_index in heapq.nsmallest(
+            maximum, indices, key=lambda item: rank(group, item)
+        ):
+            selected.append(
+                RowMetadata(
+                    row_index=row_index,
+                    distance_collection=group[0],
+                    physical_source=group[1],
+                    physical_device=group[2],
+                    location=group[3],
+                )
+            )
+    return tuple(sorted(selected, key=lambda row: (row.atomic_group(), row.row_index)))
+
+
+def sample_row_spans(
+    spans: Sequence[RowSpanMetadata], maximum: int, rank: Any
+) -> RowRoleSelection:
+    """Select exact bounded rows while retaining compact role counts."""
+
+    validated = _validated_row_spans(spans)
+    ranges: Dict[Tuple[str, str, str, str], List[Tuple[int, int]]] = defaultdict(list)
+    locations = set()
+    source_rows = 0
+    for span in validated:
+        ranges[span.atomic_group()].append((span.row_start, span.row_stop))
+        locations.add(span.location)
+        source_rows += span.row_stop - span.row_start
+    return RowRoleSelection(
+        location_count=len(locations),
+        atomic_group_count=len(ranges),
+        source_row_count=source_rows,
+        sampled=_select_span_rows(ranges, maximum, rank),
+    )
+
+
+def partition_and_sample_row_spans(
+    spans: Sequence[RowSpanMetadata], config: EvaluationConfig
+) -> Dict[str, RowRoleSelection]:
+    """Globally partition compact spans, then select exact bounded rows."""
+
+    config.validate()
+    validated = _validated_row_spans(spans)
+    locations = sorted(
+        {span.location for span in validated},
+        key=lambda location: (
+            _hash_parts(config.seed, "location-split", location),
+            location,
+        ),
+    )
+    train_count = len(locations) * SPLIT_PERCENTAGES["train"] // 100
+    validation_count = len(locations) * SPLIT_PERCENTAGES["validation"] // 100
+    if train_count == 0 or validation_count == 0:
+        raise EvaluationInputError("empty_location_partition")
+    location_role = {
+        location: (
+            "train"
+            if index < train_count
+            else "validation"
+            if index < train_count + validation_count
+            else "test"
+        )
+        for index, location in enumerate(locations)
+    }
+    role_spans = {role: [] for role in SPLITS}
+    for span in validated:
+        role_spans[location_role[span.location]].append(span)
+    if any(not role_spans[role] for role in SPLITS):
+        raise EvaluationInputError("empty_row_partition")
+    return {
+        role: sample_row_spans(
+            role_spans[role],
+            config.max_rows_per_atomic_group,
+            lambda group, row_index: (
+                _hash_parts(config.seed, "row-sample", *group, row_index),
+                row_index,
+            ),
+        )
+        for role in SPLITS
+    }
 
 
 def _sha256_regular_file(path: Path, expected: os.stat_result) -> str:
