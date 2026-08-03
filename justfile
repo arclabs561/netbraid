@@ -201,6 +201,18 @@ gnss-rff-layout-profile-check:
 gnss-rff-layout-profile:
     {{ python }} eval/profile-gnss-rff-layout.py
 
+mmwave-jamming-oracles-check:
+    {{ python }} eval/test-compile-mmwave-jamming-oracles.py
+
+mmwave-jamming-oracles:
+    {{ python }} eval/compile-mmwave-jamming-oracles.py
+
+indoor-jamming-oracles-check:
+    uv run --script eval/test-compile-indoor-jamming-oracles.py
+
+indoor-jamming-oracles integrity="receipt-only":
+    uv run --script eval/compile-indoor-jamming-oracles.py --integrity {{ integrity }}
+
 fuzz-smoke:
     cd rust && RUSTUP_TOOLCHAIN=nightly cargo fuzz run parse_saved_capture_jsonl -- -runs=1000
 

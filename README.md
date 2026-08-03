@@ -193,6 +193,8 @@ just data4cyber-alignment-profile
 just netslab-alignment-profile
 just iot23-flow-lineage-check
 just counter-capture-eval-check
+just mmwave-jamming-oracles-check
+just indoor-jamming-oracles-check
 ```
 
 The
@@ -225,7 +227,7 @@ The primary public modules are:
 
 - `netbraid::evidence`: versioned, policy-neutral record types;
 - `netbraid::replay`: strict JSONL, scenario, triage, and pure reduction;
-- `netbraid::infer`: conservative, revisable hypothesis projections;
+- `netbraid::infer`: finite, versioned evidence and hypothesis reducers;
 - `netbraid::adapters::kismetdb`: optional read-only KismetDB boundary;
 - `netbraid::adapters::tshark`: optional offline normalization boundary.
 

@@ -334,11 +334,32 @@ category/scenario pairs have members on both days. All 13,363 file members are
 traditionally encrypted, and the profiler opened zero member payload streams
 and used no password. These are layout counts, not classifier results.
 
+The mmWave controlled-jamming compiler passed eleven hermetic tests and a full
+real-corpus run. It hashed 738,542,988 bytes across 80 exact artifacts and
+compiled 40 paired controlled-cause cells while parsing zero MAT payloads. The
+pairing preserves receiver element, radar regime, radar configuration, and
+target count as split groups; it assigns no train/test role or identity,
+tamper, or malicious-intent label.
+
+The indoor controlled-jamming compiler passed nine hermetic tests. Its strict
+contract maps 31 workbook groups and three HDF5 datasets per group to 93
+condition segments while reading zero dataset elements. The complete corpus
+run remains pending until acquisition has all 31 MAT files and exact receipts;
+no partial inventory is admitted.
+
+The Rust inference checkpoint added content-bound validation for packet
+same-event assessments, a test-local decision law shared by the two finite
+hypothesis families, and a fixed-point RSSI reference-frame reducer. The RSSI
+reducer removes source-wide shifts before observer attribution and emits only
+evidence and candidates, not movement, location, identity, intent, or attack
+verdicts. These are contract tests, not RF model-performance results.
+
 ## Conclusion
 
-The source-neutral hypothesis-set boundary and its exact-rational compatibility
-oracle are implemented and fail closed for the tested evidence gaps. This does
-not validate physical-source identity or attack attribution. The next
-evidence-bearing step is to construct leakage-safe relation labels and splits
-from the public multi-device, multi-domain, clone, replay, and benign-confounder
-corpora before choosing an RF model or threshold.
+The source-neutral hypothesis-set boundary and its deterministic reducers are
+implemented and fail closed for the tested evidence gaps. Controlled-cause and
+identity/variant split groups now exist for several corpora, but this does not
+validate physical-source identity or attack attribution. The next
+evidence-bearing step is to finish acquisition, compile the remaining complete
+inventories, assign leakage-safe roles, and run preregistered baselines before
+choosing an RF model or threshold.

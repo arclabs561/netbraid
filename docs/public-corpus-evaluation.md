@@ -287,6 +287,19 @@ with:
 just iot23-flow-lineage-check
 ```
 
+Two controlled-jamming records provide exact condition structure without
+providing identity, tamper, or malicious-intent truth. The 80-file mmWave
+record forms 40 receiver/regime/target-matched with/without-jammer pairs; its
+compiler hashes every byte but never parses MAT payloads. The indoor record
+uses one publisher workbook and HDF5 metadata from 31 MAT files to bind silent,
+sine, and Gaussian segments while reading no dataset elements. Both compilers
+emit opaque split groups and assign no train/test roles.
+
+```sh
+just mmwave-jamming-oracles-check
+just indoor-jamming-oracles-check
+```
+
 XRF55 is a larger deferred multimodal corpus: its three official Kaggle dataset
 records total 235,496,571,505 metadata bytes, while the compressed archives
 total 195,896,168,944 bytes and cover synchronized Wi-Fi, RFID, and mmWave

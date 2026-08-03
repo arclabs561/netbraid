@@ -60,6 +60,20 @@ collection day are explicit controls; event and session remain unobserved. The
 compiler emits opaque groups without opening waveform members or synthesizing
 missing source/location combinations.
 
+`compile-mmwave-jamming-oracles.py` hashes all 80 pinned MAT artifacts without
+parsing them and compiles the exact receiver/regime/target/condition grid into
+40 opaque with/without-jammer pairs. Receiver element, radar regime, radar
+configuration, and target count remain explicit split groups. Jammer presence
+is a controlled cause, not malicious intent, tamper, event, device, variant, or
+physical-source truth.
+
+`compile-indoor-jamming-oracles.py` binds the publisher workbook to the exact
+three HDF5 datasets in each of 31 MAT files. It reads dataset metadata but no
+dataset elements, producing 93 opaque condition segments with file, setup,
+power, and distance split groups. Receipt-only mode reports that it did not
+rehash payload bytes; `--integrity full-digest` rehashes all artifacts. The
+compiler assigns no identity, intent, tamper, or train/test labels.
+
 Manifest schema v1 is the frozen 24-run compatibility profile. Schema v2 adds
 an explicit policy for opaque regime tokens, per-regime split sizes, candidate
 count, truth position, and an engineering acceptance threshold. V2 also

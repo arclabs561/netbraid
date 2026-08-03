@@ -25,3 +25,10 @@ and MD5 digests without admitting their scenario labels as malicious-intent or
 tamper truth. `fetch-controlled-jamming.py` downloads complete selected records
 with strict byte caps, resumable ranges, local SHA-256 receipts, and no payload
 extraction.
+
+The corresponding eval compilers keep the two formats separate. The 80-file
+record is an exact filename-grid compiler that hashes but never parses MAT
+payloads. The 31-file record uses its publisher workbook and HDF5 metadata to
+bind three condition segments per file without reading dataset elements. Both
+emit opaque split groups and treat jamming as controlled cause rather than
+malicious-intent, tamper, or identity truth.
