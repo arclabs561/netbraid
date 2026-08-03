@@ -155,9 +155,13 @@ netslab-alignment-profile:
 # ignored IoT-23 corpus. Production use supplies externally sessionized flows.
 iot23-flow-lineage-check:
     {{ python }} eval/test-evaluate-iot23-flow-lineage.py
+    {{ python }} eval/test-run-iot23-flow-lineage-campaign.py
 
-iot23-flow-lineage zeek_log packet_flows report="data/derived/eval/iot23-flow-lineage-report.json":
-    {{ python }} eval/evaluate-iot23-flow-lineage.py --zeek-log {{ zeek_log }} --packet-flows {{ packet_flows }} --report {{ report }}
+# Reproduce packet-flow derivation and oracle evaluation twice from the pinned
+# ignored IoT-23 pair, then write a path-free deterministic campaign receipt.
+iot23-flow-lineage:
+    cargo build --locked --manifest-path rust/Cargo.toml --bin netbraid
+    {{ python }} eval/run-iot23-flow-lineage-campaign.py --capture {{ raw_data }}/iot23v2-hakai-capture-8-1.pcap --zeek-log {{ raw_data }}/iot23v2-hakai-capture-8-1-zeek.log.labeled --netbraid-bin rust/target/debug/netbraid --output-dir {{ eval_output }}/iot23-flow-lineage-v0
 
 # Fetch pinned XRF55 bundles into the ignored corpus directory. Archives are
 # never extracted; a local SHA-256 receipt protects reuse after acquisition.

@@ -90,3 +90,10 @@ abstentions without a binomial confidence interval.
 Evaluators read ignored artifacts from `data/raw/` and write ignored results to
 `data/derived/eval/`. A dataset result is not a unit test and is not part of the
 default CI gate unless its oracle is exact and corpus-independent.
+
+Derived campaign artifacts must have a checked-in producer and canonical
+`just` recipe; an interactive shell transcript is not provenance. The IoT-23
+lineage campaign is the reference pattern: `just iot23-flow-lineage` derives
+flows and evaluates them twice, rejects byte drift, and writes a path-free
+receipt beside the ignored outputs. Its hermetic producer/evaluator boundary is
+covered by `just iot23-flow-lineage-check` without requiring corpus bytes.
