@@ -26,6 +26,7 @@ def frame():
         "artifact_object_relation": "different_object",
         "content_relation": "different",
         "event_relation": "different",
+        "event_performer_relation": "different",
         "claimed_identifier_relation": "different",
         "cryptographic_principal_relation": "not_observed",
         "physical_device_relation": "different",
@@ -69,6 +70,32 @@ class HypothesisFrameTests(unittest.TestCase):
         self.assertEqual(parsed.variant_relation, "same")
         self.assertEqual(parsed.physical_device_relation, "different")
         self.assertEqual(parsed.physical_source_relation, "different")
+
+    def test_same_event_performer_is_independent_from_physical_source(self):
+        value = frame()
+        value.update(
+            {
+                "frame_id": "synchronized-multimodal-event",
+                "event_relation": "same",
+                "event_performer_relation": "same",
+                "physical_device_relation": "different",
+                "physical_source_relation": "different",
+                "configuration_relation": "different",
+            }
+        )
+        parsed = MODULE.parse_frame(value)
+        self.assertEqual(parsed.event_relation, "same")
+        self.assertEqual(parsed.event_performer_relation, "same")
+        self.assertEqual(parsed.physical_source_relation, "different")
+
+    def test_unobserved_event_performer_is_distinct_from_unknown(self):
+        value = frame()
+        value["event_performer_relation"] = "not_observed"
+        self.assertEqual(
+            MODULE.parse_frame(value).event_performer_relation, "not_observed"
+        )
+        value["event_performer_relation"] = "unknown"
+        self.assertEqual(MODULE.parse_frame(value).event_performer_relation, "unknown")
 
     def test_compromised_enrolled_source_can_be_malicious_and_unchanged(self):
         value = frame()
@@ -186,7 +213,7 @@ class HypothesisFrameTests(unittest.TestCase):
         self.assertEqual(transposed.transpose(), parsed)
 
     def test_bare_identity_tampered_and_malicious_fields_are_rejected(self):
-        for field_name in ("identity", "tampered", "malicious"):
+        for field_name in ("identity", "actor", "performer", "tampered", "malicious"):
             with self.subTest(field_name=field_name):
                 value = frame()
                 value[field_name] = True

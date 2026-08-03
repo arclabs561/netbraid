@@ -14,12 +14,14 @@ identifier-free traffic windows. Collection paths, addresses, interfaces, and
 deployment-selected runs remain outside this repository.
 
 `hypothesis_frame.py` validates evaluation-only pair labels for artifact,
-content, event, claimed-identifier, cryptographic-principal, physical-device,
-physical-source, software, configuration, variant, and lineage relations. It
-keeps integrity, admissibility, freshness, continuity, transmission, scenario
-cause, authorization, intent, and tamper evidence separate. The strict schema
-rejects bare identity or attack labels and contains no raw observations or
-deployment identifiers.
+content, event, event-performer, claimed-identifier, cryptographic-principal,
+physical-device, physical-source, software, configuration, variant, and
+lineage relations. An event performer is the entity performing the activity
+that defines the event; it is not a generic actor, RF source, device, principal,
+or intent label. The frame keeps integrity, admissibility, freshness,
+continuity, transmission, scenario cause, authorization, intent, and tamper
+evidence separate. The strict schema rejects bare identity or attack labels and
+contains no raw observations or deployment identifiers.
 
 `hypothesis_metrics.py` evaluates those qualified relation axes without
 collapsing them into one identity or attack score. Its strict manifest accepts

@@ -15,7 +15,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
-SCHEMA = "netbraid.hypothesis_frame_manifest.v1"
+SCHEMA = "netbraid.hypothesis_frame_manifest.v2"
 MAX_FRAMES = 10_000
 FRAME_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9._-]{0,95}\Z")
 
@@ -24,6 +24,7 @@ FRAME_FIELDS = (
     "artifact_object_relation",
     "content_relation",
     "event_relation",
+    "event_performer_relation",
     "claimed_identifier_relation",
     "cryptographic_principal_relation",
     "physical_device_relation",
@@ -56,6 +57,9 @@ RELATION_STATES = {
     ),
     "content_relation": frozenset(("equal", "different", "unknown")),
     "event_relation": frozenset(("same", "different", "unknown")),
+    "event_performer_relation": frozenset(
+        ("same", "different", "not_observed", "unknown")
+    ),
     "claimed_identifier_relation": frozenset(
         ("same", "different", "not_observed", "unknown")
     ),
@@ -254,6 +258,7 @@ class HypothesisFrameV0:
     artifact_object_relation: str
     content_relation: str
     event_relation: str
+    event_performer_relation: str
     claimed_identifier_relation: str
     cryptographic_principal_relation: str
     physical_device_relation: str
@@ -404,12 +409,6 @@ def parse_frame(value: Any) -> HypothesisFrameV0:
             raise HypothesisFrameError("replay_cannot_be_fresh")
     if "relay" in scenario.mechanisms and transmission == "direct":
         raise HypothesisFrameError("relay_cannot_be_direct")
-    if (
-        relations["event_relation"] == "same"
-        and relations["physical_source_relation"] == "different"
-    ):
-        raise HypothesisFrameError("same_event_cannot_have_different_physical_source")
-
     return HypothesisFrameV0(
         frame_id=frame_id,
         **relations,

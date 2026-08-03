@@ -25,10 +25,10 @@ from hypothesis_frame import (
     parse_manifest as parse_frame_manifest,
 )
 
-SCHEMA = "netbraid.hypothesis_metrics_manifest.v1"
-REPORT_SCHEMA = "netbraid.hypothesis_metrics_report.v1"
-QUALIFIED_SCHEMA = "netbraid.qualified_hypothesis_evaluation_manifest.v1"
-QUALIFIED_REPORT_SCHEMA = "netbraid.qualified_hypothesis_evaluation_report.v1"
+SCHEMA = "netbraid.hypothesis_metrics_manifest.v2"
+REPORT_SCHEMA = "netbraid.hypothesis_metrics_report.v2"
+QUALIFIED_SCHEMA = "netbraid.qualified_hypothesis_evaluation_manifest.v2"
+QUALIFIED_REPORT_SCHEMA = "netbraid.qualified_hypothesis_evaluation_report.v2"
 ABSTAIN = "abstain"
 MAX_INPUT_BYTES = 16 * 1024 * 1024
 MAX_STRATA_PER_ROW = 8
@@ -43,6 +43,7 @@ RELATION_AXES = tuple(sorted(RELATION_STATES))
 ROW_FIELDS = ("frame_id", "references", "predictions", "strata")
 QUALIFIED_ROW_FIELDS = ("frame_id", "predictions", "strata")
 QUALIFIED_CELL_AXES = (
+    "event_performer_relation",
     "physical_device_relation",
     "physical_source_relation",
     "variant_relation",
@@ -80,6 +81,7 @@ class PredictionRowV1:
 
 @dataclass(frozen=True, order=True)
 class QualifiedReferenceCellV1:
+    event_performer_relation: str
     physical_device_relation: str
     physical_source_relation: str
     variant_relation: str
@@ -101,6 +103,7 @@ class QualifiedReferenceCellV1:
     def from_frame(cls, frame: HypothesisFrameV0) -> QualifiedReferenceCellV1:
         scenario = frame.scenario
         return cls(
+            event_performer_relation=frame.event_performer_relation,
             physical_device_relation=frame.physical_device_relation,
             physical_source_relation=frame.physical_source_relation,
             variant_relation=frame.variant_relation,
@@ -121,6 +124,7 @@ class QualifiedReferenceCellV1:
 
     def document(self) -> dict[str, Any]:
         return {
+            "event_performer_relation": self.event_performer_relation,
             "physical_device_relation": self.physical_device_relation,
             "physical_source_relation": self.physical_source_relation,
             "variant_relation": self.variant_relation,
