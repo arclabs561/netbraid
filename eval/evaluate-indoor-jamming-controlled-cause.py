@@ -180,6 +180,7 @@ class BoundObservation:
 class FeatureOutcome:
     vector: tuple[float, ...] | None
     reason: str | None
+    verified_windows: int = 0
 
 
 @dataclass(frozen=True)
@@ -717,42 +718,42 @@ def extract_features(
         except EvaluationInputError:
             raise
         except HDF5_WINDOW.Hdf5WindowError as error:
-            return FeatureOutcome(None, f"window_read_{error}")
+            return FeatureOutcome(None, f"window_read_{error}", len(vectors))
         except (OSError, RuntimeError, TypeError, ValueError):
-            return FeatureOutcome(None, "window_read_failed")
+            return FeatureOutcome(None, "window_read_failed", len(vectors))
         if not isinstance(summary, Mapping):
-            return FeatureOutcome(None, "window_summary_schema")
+            return FeatureOutcome(None, "window_summary_schema", len(vectors))
         if summary.get("truncated") is not False:
-            return FeatureOutcome(None, "window_truncated")
+            return FeatureOutcome(None, "window_truncated", len(vectors))
         expected_interval = {"start": expected_start, "stop": expected_stop}
         if (
             summary.get("requested_interval") != expected_interval
             or summary.get("selected_interval") != expected_interval
         ):
-            return FeatureOutcome(None, "window_interval_mismatch")
+            return FeatureOutcome(None, "window_interval_mismatch", len(vectors))
         if summary.get("selected_bytes") != WINDOW_BYTE_BUDGET:
-            return FeatureOutcome(None, "window_selected_bytes_mismatch")
+            return FeatureOutcome(None, "window_selected_bytes_mismatch", len(vectors))
         rows = summary.get("rows")
         if not isinstance(rows, list) or len(rows) != 2:
-            return FeatureOutcome(None, "window_row_schema")
+            return FeatureOutcome(None, "window_row_schema", len(vectors))
         row_features = [
             _numeric_row_features(row, expected_stop - expected_start) for row in rows
         ]
         if any(value is None for value in row_features):
-            return FeatureOutcome(None, "window_invalid_aggregate")
+            return FeatureOutcome(None, "window_invalid_aggregate", len(vectors))
         vector = tuple(value for row in row_features for value in row or ())
         if len(vector) != len(FEATURE_NAMES) or not all(map(math.isfinite, vector)):
-            return FeatureOutcome(None, "window_nonfinite_feature")
+            return FeatureOutcome(None, "window_nonfinite_feature", len(vectors))
         vectors.append(vector)
     if len(vectors) != 4:
-        return FeatureOutcome(None, "fewer_than_four_valid_windows")
+        return FeatureOutcome(None, "fewer_than_four_valid_windows", len(vectors))
     averaged = tuple(
         math.fsum(vector[index] for vector in vectors) / len(vectors)
         for index in range(len(FEATURE_NAMES))
     )
     if not all(map(math.isfinite, averaged)):
-        return FeatureOutcome(None, "nonfinite_feature_average")
-    return FeatureOutcome(averaged, None)
+        return FeatureOutcome(None, "nonfinite_feature_average", len(vectors))
+    return FeatureOutcome(averaged, None, len(vectors))
 
 
 def _extract_role(
@@ -1078,6 +1079,16 @@ def evaluate_bound_observations(
             partitions["test"], test_outcomes, model
         )
 
+    verified_selected_windows = sum(
+        outcome.verified_windows
+        for outcomes in (train_outcomes, validation_outcomes)
+        for outcome in outcomes.values()
+    )
+    if gate_passed:
+        verified_selected_windows += sum(
+            outcome.verified_windows for outcome in test_outcomes.values()
+        )
+
     minimum_extent = min(
         item.sample_count for role in SPLITS for item in partitions[role]
     )
@@ -1119,7 +1130,9 @@ def evaluate_bound_observations(
             "attempted_reads": attempted_reads,
             "completed_reads": completed_reads,
             "failed_reader_calls": attempted_reads - completed_reads,
-            "verified_completed_selected_bytes": completed_reads * WINDOW_BYTE_BUDGET,
+            "verified_selected_windows": verified_selected_windows,
+            "verified_completed_selected_bytes": verified_selected_windows
+            * WINDOW_BYTE_BUDGET,
             "formula": "floor(k*minimum_extent/5)-floor(window_columns/2)",
         },
         "feature_policy": policy["feature_policy"],

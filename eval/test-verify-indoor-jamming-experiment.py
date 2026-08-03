@@ -29,6 +29,7 @@ def summary() -> dict:
         "attempted_reads": 60,
         "completed_reads": 60,
         "failed_reader_calls": 0,
+        "verified_selected_windows": 60,
         "verified_completed_selected_bytes": 62_914_560,
         "validation": {
             "observations": 6,
@@ -52,6 +53,7 @@ def report() -> dict:
             "attempted_reads": expected["attempted_reads"],
             "completed_reads": expected["completed_reads"],
             "failed_reader_calls": expected["failed_reader_calls"],
+            "verified_selected_windows": expected["verified_selected_windows"],
             "verified_completed_selected_bytes": expected[
                 "verified_completed_selected_bytes"
             ],

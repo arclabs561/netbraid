@@ -365,6 +365,7 @@ class IndoorJammingControlledCauseTests(unittest.TestCase):
         reader = SyntheticReader(mutate_paths=validation_paths)
 
         report = evaluate(self.observations, reader)
+        train_windows = len(partitions["train"]) * policy()["window_policy"]["count"]
 
         self.assertEqual(report["status"], "validation_failed")
         self.assertIsNone(report["test_metrics"])
@@ -377,8 +378,11 @@ class IndoorJammingControlledCauseTests(unittest.TestCase):
         self.assertEqual(report["window_policy"]["completed_reads"], len(reader.calls))
         self.assertEqual(report["window_policy"]["failed_reader_calls"], 0)
         self.assertEqual(
+            report["window_policy"]["verified_selected_windows"], train_windows
+        )
+        self.assertEqual(
             report["window_policy"]["verified_completed_selected_bytes"],
-            len(reader.calls) * MODULE.WINDOW_BYTE_BUDGET,
+            train_windows * MODULE.WINDOW_BYTE_BUDGET,
         )
 
     def test_read_receipt_separates_attempted_and_completed_calls(self):
@@ -402,7 +406,38 @@ class IndoorJammingControlledCauseTests(unittest.TestCase):
         self.assertEqual(report["window_policy"]["completed_reads"], calls - 1)
         self.assertEqual(report["window_policy"]["failed_reader_calls"], 1)
         self.assertEqual(
+            report["window_policy"]["verified_selected_windows"], calls - 1
+        )
+        self.assertEqual(
             report["window_policy"]["verified_completed_selected_bytes"],
+            (calls - 1) * MODULE.WINDOW_BYTE_BUDGET,
+        )
+
+    def test_malformed_completed_call_is_not_counted_as_verified_payload(self):
+        partitions, _intervals = MODULE.preflight(self.observations, policy())
+        malformed_path = partitions["validation"][0].source_path
+        synthetic = SyntheticReader()
+        calls = 0
+        malformed = False
+
+        def malformed_once_reader(source_path, dataset_path, start, stop):
+            nonlocal calls, malformed
+            calls += 1
+            result = synthetic(source_path, dataset_path, start, stop)
+            if source_path == malformed_path and not malformed:
+                malformed = True
+                return {**result, "selected_bytes": 1}
+            return result
+
+        report = evaluate(self.observations, malformed_once_reader)
+        window = report["window_policy"]
+
+        self.assertEqual(window["attempted_reads"], calls)
+        self.assertEqual(window["completed_reads"], calls)
+        self.assertEqual(window["failed_reader_calls"], 0)
+        self.assertEqual(window["verified_selected_windows"], calls - 1)
+        self.assertEqual(
+            window["verified_completed_selected_bytes"],
             (calls - 1) * MODULE.WINDOW_BYTE_BUDGET,
         )
 

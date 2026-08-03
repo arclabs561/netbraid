@@ -89,6 +89,7 @@ The canonical recipe verifies this tracked result summary against that report:
     "macro_f1": 0.222222222222,
     "observations": 6
   },
+  "verified_selected_windows": 60,
   "verified_completed_selected_bytes": 62914560
 }
 ```

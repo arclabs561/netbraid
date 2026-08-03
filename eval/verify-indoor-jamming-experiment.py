@@ -95,6 +95,7 @@ def report_summary(report: Mapping[str, Any]) -> dict[str, Any]:
             "attempted_reads": window["attempted_reads"],
             "completed_reads": window["completed_reads"],
             "failed_reader_calls": window["failed_reader_calls"],
+            "verified_selected_windows": window["verified_selected_windows"],
             "verified_completed_selected_bytes": window[
                 "verified_completed_selected_bytes"
             ],
