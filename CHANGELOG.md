@@ -19,6 +19,11 @@ GitHub native binary releases remain available independently.
   corpus, Sorbonne same-event oracle, OPERAnet, CAEZ, Data4Cyber, NetsLab,
   IoT-23 flow lineage, counter-capture campaigns, and XRF55 archives. Raw
   corpus bytes and generated reports remain outside Git.
+- Optional read-only KismetDB, NPY, and SigMF adapters with bounded packet,
+  row, or IQ-window projections and source-mutation fences.
+- A checked-in producer/recipe contract for ignored derived artifacts, with a
+  content-blind audit that rejects unclassified outputs and untracked
+  provenance.
 
 ### Changed
 
