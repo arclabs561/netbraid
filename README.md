@@ -181,8 +181,8 @@ just xrf55-status
 
 The on-demand evaluators cover bounded public-corpus slices, a cross-sniffer
 same-event oracle, deterministic structural reduction, archive-layout and
-cross-layer alignment profiles, IoT-23 flow lineage, and counter-capture
-campaign output. Controlled-jamming recipes separately compile metadata-only
+cross-layer alignment profiles, IoT-23 flow lineage with an independent Zeek
+adapter profile, and counter-capture campaign output. Controlled-jamming recipes separately compile metadata-only
 oracles and run a bounded controlled-cause smoke evaluation. Dataset-derived
 metrics are not part of the default test gate.
 

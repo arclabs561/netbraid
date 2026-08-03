@@ -290,8 +290,12 @@ IoT-23 supplies a separate packet-to-flow lineage oracle. The evaluator accepts
 strict, externally sessionized packet-flow metadata and the publisher's Zeek
 log, then reports aggregate five-tuple/time-envelope match, split, merge,
 unmatched, counter-delta, and label-lineage metrics. Reports omit paths,
-endpoints, payloads, and hashes. Netbraid can now emit the evaluator's locked
-TSV directly with `pcap --flows-tsv`; callers must explicitly supply both TCP
+endpoints, payloads, and hashes. The campaign also projects the same publisher
+log through the bounded Rust Zeek adapter twice and requires its row and
+missing-duration counts to match the independent evaluator parser. The retained
+adapter profile contains aggregates and a deterministic projection digest, not
+source rows or endpoint values. Netbraid can emit the evaluator's locked TSV
+directly with `pcap --flows-tsv`; callers must explicitly supply both TCP
 and UDP inactivity thresholds. The projection uses normalized IP lengths and
 TCP stream indices, records split/orientation boundaries, and excludes legacy
 or ambiguous packets. Corpus-level agreement with the publisher remains an

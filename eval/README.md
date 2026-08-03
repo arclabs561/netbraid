@@ -232,10 +232,12 @@ count. This is a prospective static wiring guarantee, not proof that retained
 bytes came from that producer or recipe.
 
 The IoT-23 lineage campaign is the reference pattern. Running
-`just iot23-flow-lineage` derives flows and evaluates them twice, rejects byte
-drift, and writes a path-free receipt beside the ignored outputs. Its hermetic
-producer/evaluator boundary is covered by `just iot23-flow-lineage-check`
-without requiring corpus bytes. The Sorbonne same-event recipe likewise writes
+`just iot23-flow-lineage` derives flows, evaluates them, and profiles the same
+publisher log through the Rust Zeek adapter twice. It rejects byte drift and
+requires the independent parser paths to agree on row and duration coverage
+before writing a path-free receipt beside the ignored outputs. Its hermetic
+producer/evaluator/adapter boundary is covered by
+`just iot23-flow-lineage-check` without requiring corpus bytes. The Sorbonne same-event recipe likewise writes
 two reports and rejects byte drift. Older local reports whose producer context
 predates this rule are not active derived outputs: `just
 legacy-derived-migration` preserves only their fixed allowlist under

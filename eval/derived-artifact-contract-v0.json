@@ -101,6 +101,55 @@
       "recipe": "iot23-flow-lineage"
     },
     {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/campaign-receipt.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/packet-flows-repeat.tsv",
+      "format": "tsv",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/packet-flows.tsv",
+      "format": "tsv",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/zeek-adapter-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/zeek-adapter-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
       "path": "data/derived/eval/mmwave-jamming-observation-oracles.json",
       "format": "json",
       "retention": "reproducibility_output",

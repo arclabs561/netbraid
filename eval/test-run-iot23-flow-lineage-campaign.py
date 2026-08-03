@@ -41,11 +41,16 @@ parser.add_argument('--packet-flows')
 parser.add_argument('--report')
 args = parser.parse_args()
 payload = Path(args.packet_flows).read_bytes()
-report = {'flow_sha256': hashlib.sha256(payload).hexdigest(), 'status': 'ok'}
+report = {
+    'flow_sha256': hashlib.sha256(payload).hexdigest(),
+    'status': 'ok',
+    'inputs': {'publisher_flows': 1, 'publisher_flows_without_duration': 0},
+}
 Path(args.report).write_text(json.dumps(report, sort_keys=True) + '\\n')
 """,
             encoding="utf-8",
         )
+        self.profiler = self.write_profiler()
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -55,6 +60,36 @@ Path(args.report).write_text(json.dumps(report, sort_keys=True) + '\\n')
         producer.write_text(f"#!/usr/bin/env python3\n{body}\n", encoding="utf-8")
         producer.chmod(0o700)
         return producer
+
+    def write_profiler(
+        self, connection_count: int = 1, missing_duration_count: int = 0
+    ) -> Path:
+        profiler = self.root / "zeek-profiler"
+        profile = {
+            "schema": "netbraid.zeek_conn_adapter_profile.v0",
+            "connection_count": connection_count,
+            "protocol_counts": {
+                "icmp": 0,
+                "tcp": 0,
+                "udp": connection_count,
+                "unknown_transport": 0,
+            },
+            "missing_duration_count": missing_duration_count,
+            "missing_counter_counts": {
+                "orig_ip_bytes": 0,
+                "orig_packets": 0,
+                "resp_ip_bytes": 0,
+                "resp_packets": 0,
+            },
+            "projection_sha256": "0" * 64,
+        }
+        profiler.write_text(
+            "#!/usr/bin/env python3\n"
+            f"import json\nprint(json.dumps({profile!r}, sort_keys=True))\n",
+            encoding="utf-8",
+        )
+        profiler.chmod(0o700)
+        return profiler
 
     def run_campaign(
         self, producer: Path, output: Path | None = None
@@ -69,6 +104,8 @@ Path(args.report).write_text(json.dumps(report, sort_keys=True) + '\\n')
                 str(self.zeek),
                 "--netbraid-bin",
                 str(producer),
+                "--zeek-profile-bin",
+                str(self.profiler),
                 "--evaluator",
                 str(self.evaluator),
                 "--output-dir",
@@ -101,8 +138,27 @@ Path(args.report).write_text(json.dumps(report, sort_keys=True) + '\\n')
         self.assertEqual(receipt["repetitions"], 2)
         self.assertEqual(receipt["producer"]["tcp_inactivity_seconds"], 300)
         self.assertEqual(receipt["producer"]["udp_inactivity_seconds"], 60)
+        self.assertEqual(
+            receipt["zeek_adapter"]["schema"],
+            "netbraid.zeek_conn_adapter_profile.v0",
+        )
         self.assertNotIn(str(self.root), receipt_bytes)
         self.assertNotIn("192.0.2.1", receipt_bytes)
+
+    def test_adapter_and_evaluator_count_mismatch_fails_closed(self) -> None:
+        producer = self.write_producer(
+            f"print({FLOW_HEADER!r})\n"
+            "print('1.0\\t1.0\\t192.0.2.1\\t1\\t198.51.100.2\\t2\\tudp\\t1\\t20\\t0\\t0')"
+        )
+        self.profiler = self.write_profiler(connection_count=2)
+
+        result = self.run_campaign(producer)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(
+            "Zeek adapter and evaluator connection counts differ", result.stderr
+        )
+        self.assertFalse((self.root / "derived" / "campaign-receipt.json").exists())
 
     def test_nondeterministic_producer_fails_closed(self) -> None:
         state = self.root / "state"
@@ -163,6 +219,8 @@ Path(args.report).write_text(json.dumps(report, sort_keys=True) + '\\n')
                 str(self.zeek),
                 "--netbraid-bin",
                 str(producer),
+                "--zeek-profile-bin",
+                str(self.profiler),
                 "--evaluator",
                 str(self.evaluator),
                 "--output-dir",

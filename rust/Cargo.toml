@@ -36,6 +36,11 @@ name = "netbraid"
 path = "src/main.rs"
 required-features = ["cli"]
 
+[[example]]
+name = "zeek_conn_profile"
+path = "examples/zeek_conn_profile.rs"
+required-features = ["adapter-zeek"]
+
 [[test]]
 name = "adapter_curated_corpus"
 path = "tests/adapter_curated_corpus.rs"
