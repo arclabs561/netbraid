@@ -24,6 +24,7 @@ test: lint
 
 rust-check:
     cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+    cargo check --manifest-path rust/fuzz/Cargo.toml --bin parse_saved_capture_jsonl
     cargo test --locked --manifest-path rust/Cargo.toml --no-default-features
     cargo check --locked --manifest-path rust/Cargo.toml --lib --no-default-features --features scenario-fixtures,scenario-fixtures-capture-derived
     cargo build --locked --manifest-path rust/Cargo.toml

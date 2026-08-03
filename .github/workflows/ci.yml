@@ -36,6 +36,8 @@ jobs:
           sudo apt-get update
           sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends tshark
       - run: cargo fmt --all -- --check
+      - name: Check parser fuzz harness
+        run: cargo check --manifest-path fuzz/Cargo.toml --bin parse_saved_capture_jsonl
       - name: Exercise default feature configurations
         run: |
           cargo test --locked --no-default-features
