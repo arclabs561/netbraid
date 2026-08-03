@@ -1,7 +1,6 @@
 //! Bounded projection of canonical, full-metadata Zeek ASCII `conn.log` session evidence.
 
 use std::collections::BTreeSet;
-#[cfg(unix)]
 use std::fs::OpenOptions;
 use std::fs::{self, File, Metadata};
 use std::io::{self, Read};
@@ -216,8 +215,8 @@ impl std::error::Error for ZeekAdapterError {
 
 /// Project one static, full-metadata Zeek ASCII `conn.log` using the default `#` prefix.
 ///
-/// Source-local and unselected columns are not retained. The no-follow source
-/// identity fence currently requires Unix.
+/// Source-local and unselected columns are not retained. The source is opened
+/// without following filesystem links and fenced against in-place mutation.
 pub fn project_zeek_conn_log(
     path: &Path,
     options: &ZeekConnOptions,
@@ -303,12 +302,12 @@ impl FileIdentity {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn open_regular(_path: &Path) -> Result<(File, FileIdentity), ZeekAdapterError> {
     Err(ZeekAdapterError::UnsupportedPlatform)
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn open_regular(path: &Path) -> Result<(File, FileIdentity), ZeekAdapterError> {
     let path_metadata = fs::symlink_metadata(path).map_err(ZeekAdapterError::SourceMetadata)?;
     if path_metadata.file_type().is_symlink() {
@@ -319,8 +318,17 @@ fn open_regular(path: &Path) -> Result<(File, FileIdentity), ZeekAdapterError> {
     }
     let mut options = OpenOptions::new();
     options.read(true);
-    use std::os::unix::fs::OpenOptionsExt;
-    options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
     let file = options.open(path).map_err(ZeekAdapterError::SourceOpen)?;
     let opened_metadata = file.metadata().map_err(ZeekAdapterError::SourceMetadata)?;
     if !opened_metadata.is_file() {
@@ -838,7 +846,7 @@ fn parse_seconds_ns(value: &[u8]) -> Option<u64> {
     seconds.checked_mul(1_000_000_000)?.checked_add(fraction)
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use std::io::{Seek, SeekFrom, Write};
 
