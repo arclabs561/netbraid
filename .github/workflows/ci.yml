@@ -67,7 +67,8 @@ jobs:
       - name: Exercise installed Wireshark tools and CLI projections
         run: |
           cargo test --locked --test adapter_tshark_smoke --test adapter_curated_corpus -- --ignored
-          cargo test --locked --test pcap_cli -- --ignored
+          cargo build --locked --example zeek_conn_profile --features adapter-zeek
+          NETBRAID_ZEEK_PROFILE_BIN="$PWD/target/debug/examples/zeek_conn_profile" cargo test --locked --test pcap_cli -- --ignored
       - name: Verify crates.io package inventory
         run: |
           cargo package --locked --list -p netbraid >"$RUNNER_TEMP/netbraid-package.txt"

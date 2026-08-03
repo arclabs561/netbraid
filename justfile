@@ -37,7 +37,8 @@ scenario-check:
 
 pcap-smoke:
     cargo test --locked --manifest-path rust/Cargo.toml --test adapter_tshark_smoke --test adapter_curated_corpus -- --ignored
-    cargo test --locked --manifest-path rust/Cargo.toml --test pcap_cli -- --ignored
+    cargo build --locked --manifest-path rust/Cargo.toml --example zeek_conn_profile --features adapter-zeek
+    NETBRAID_ZEEK_PROFILE_BIN="$PWD/rust/target/debug/examples/zeek_conn_profile" cargo test --locked --manifest-path rust/Cargo.toml --test pcap_cli -- --ignored
 
 counter-capture-eval-check:
     {{ python }} eval/test-counter-capture-eval.py
@@ -199,7 +200,8 @@ netslab-alignment-profile:
 iot23-flow-lineage-check:
     {{ python }} eval/test-evaluate-iot23-flow-lineage.py
     {{ python }} eval/test-run-iot23-flow-lineage-campaign.py
-    cargo test --locked --manifest-path rust/Cargo.toml --example zeek_conn_profile --features adapter-zeek
+    cargo build --locked --manifest-path rust/Cargo.toml --example zeek_conn_profile --features adapter-zeek
+    NETBRAID_ZEEK_PROFILE_BIN="$PWD/rust/target/debug/examples/zeek_conn_profile" cargo test --locked --manifest-path rust/Cargo.toml --test pcap_cli pcap_flows_tsv_drives_the_hermetic_production_lineage_campaign -- --ignored
 
 # Reproduce packet-flow derivation and oracle evaluation twice from the pinned
 # ignored IoT-23 pair, then write a path-free deterministic campaign receipt.

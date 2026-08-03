@@ -403,7 +403,7 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
 
 #[test]
 #[ignore = "requires installed tshark and capinfos; run through `just pcap-smoke`"]
-fn pcap_flows_tsv_is_deterministic_and_feeds_the_synthetic_lineage_oracle() {
+fn pcap_flows_tsv_drives_the_hermetic_production_lineage_campaign() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("synthetic.pcap");
     fs::write(
@@ -411,39 +411,37 @@ fn pcap_flows_tsv_is_deterministic_and_feeds_the_synthetic_lineage_oracle() {
         decode_hex(include_str!("fixtures/ethernet_mixed_conversations.hex")),
     )
     .unwrap();
-
-    let arguments = [
-        "pcap",
-        input.to_str().unwrap(),
-        "--packet-limit",
-        "10",
-        "--flows-tsv",
-        "--tcp-inactivity-seconds",
-        "60.000000001",
-        "--udp-inactivity-seconds",
-        "30",
-    ];
-    let first = Command::new(env!("CARGO_BIN_EXE_netbraid"))
-        .args(arguments)
+    let zeek_log = directory.path().join("synthetic-zeek.log");
+    fs::write(&zeek_log, SYNTHETIC_ZEEK_FLOW_LOG).unwrap();
+    let output = directory.path().join("lineage-campaign");
+    let campaign = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../eval/run-iot23-flow-lineage-campaign.py");
+    let zeek_profile_bin = std::env::var_os("NETBRAID_ZEEK_PROFILE_BIN")
+        .expect("NETBRAID_ZEEK_PROFILE_BIN must name the built zeek_conn_profile example");
+    let campaign_run = Command::new("python3")
+        .arg(campaign)
+        .args(["--capture", input.to_str().unwrap()])
+        .args(["--zeek-log", zeek_log.to_str().unwrap()])
+        .args(["--netbraid-bin", env!("CARGO_BIN_EXE_netbraid")])
+        .arg("--zeek-profile-bin")
+        .arg(zeek_profile_bin)
+        .args(["--output-dir", output.to_str().unwrap()])
+        .args(["--tcp-inactivity-seconds", "300"])
+        .args(["--udp-inactivity-seconds", "60"])
         .output()
         .unwrap();
     assert!(
-        first.status.success(),
+        campaign_run.status.success(),
         "{}",
-        String::from_utf8_lossy(&first.stderr)
+        String::from_utf8_lossy(&campaign_run.stderr)
     );
-    let second = Command::new(env!("CARGO_BIN_EXE_netbraid"))
-        .args(arguments)
-        .output()
-        .unwrap();
-    assert!(
-        second.status.success(),
-        "{}",
-        String::from_utf8_lossy(&second.stderr)
-    );
-    assert_eq!(first.stdout, second.stdout);
 
-    let expected = concat!(
+    let packet_flows = fs::read(output.join("packet-flows.tsv")).unwrap();
+    assert_eq!(
+        packet_flows,
+        fs::read(output.join("packet-flows-repeat.tsv")).unwrap()
+    );
+    let expected_packet_flows = concat!(
         "start_time\tend_time\tsrc_ip\tsrc_port\tdst_ip\tdst_port\tprotocol\t",
         "orig_packets\torig_ip_bytes\tresp_packets\tresp_ip_bytes\n",
         "1700000000.123456000\t1700000000.423456000\t192.0.2.1\t40000\t",
@@ -451,42 +449,141 @@ fn pcap_flows_tsv_is_deterministic_and_feeds_the_synthetic_lineage_oracle() {
         "1700000000.523456000\t1700000000.623456000\t203.0.113.10\t53000\t",
         "203.0.113.53\t53\tudp\t1\t40\t1\t40\n",
     );
-    assert_eq!(String::from_utf8(first.stdout.clone()).unwrap(), expected);
-    assert!(!expected.contains(input.to_str().unwrap()));
+    assert_eq!(
+        String::from_utf8(packet_flows).unwrap(),
+        expected_packet_flows
+    );
+    assert!(!expected_packet_flows.contains(input.to_str().unwrap()));
     for forbidden in ["sha256:", "payload", "capture_id", "record_id"] {
-        assert!(!expected.contains(forbidden));
+        assert!(!expected_packet_flows.contains(forbidden));
     }
 
-    let packet_flows = directory.path().join("packet-flows.tsv");
-    fs::write(&packet_flows, &first.stdout).unwrap();
-    let zeek_log = directory.path().join("synthetic-zeek.log");
-    fs::write(&zeek_log, SYNTHETIC_ZEEK_FLOW_LOG).unwrap();
-    let report = directory.path().join("lineage-report.json");
-    let evaluator = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../eval/evaluate-iot23-flow-lineage.py");
-    let evaluation = Command::new("python3")
-        .arg(evaluator)
-        .args(["--zeek-log", zeek_log.to_str().unwrap()])
-        .args(["--packet-flows", packet_flows.to_str().unwrap()])
-        .args(["--report", report.to_str().unwrap()])
-        .output()
-        .unwrap();
-    assert!(
-        evaluation.status.success(),
-        "{}",
-        String::from_utf8_lossy(&evaluation.stderr)
-    );
-    let report: serde_json::Value = serde_json::from_slice(&fs::read(report).unwrap()).unwrap();
-    assert_eq!(report["inputs"]["publisher_flows"], 2);
-    assert_eq!(report["inputs"]["packet_derived_flows"], 2);
-    assert_eq!(report["raw_lineage"]["one_to_one_pairs"], 2);
+    let report_bytes = fs::read(output.join("report.json")).unwrap();
     assert_eq!(
-        report["raw_lineage"]["packet_derived_matched"],
-        serde_json::json!({"numerator": 2, "denominator": 2})
+        report_bytes,
+        fs::read(output.join("report-repeat.json")).unwrap()
+    );
+    let report: serde_json::Value = serde_json::from_slice(&report_bytes).unwrap();
+    assert_eq!(
+        report["inputs"],
+        serde_json::json!({
+            "publisher_flows": 2,
+            "packet_derived_flows": 2,
+            "publisher_flows_without_duration": 0,
+        })
     );
     assert_eq!(
-        report["counter_deltas"]["total_ip_bytes"]["signed_packet_minus_publisher"],
-        0
+        report["raw_lineage"],
+        serde_json::json!({
+            "match_edges": 2,
+            "publisher_matched": {"numerator": 2, "denominator": 2},
+            "publisher_unmatched": {"numerator": 0, "denominator": 2},
+            "packet_derived_matched": {"numerator": 2, "denominator": 2},
+            "packet_derived_unmatched": {"numerator": 0, "denominator": 2},
+            "publisher_split": {"numerator": 0, "denominator": 2},
+            "publisher_split_extra_fragments": 0,
+            "packet_derived_merge": {"numerator": 0, "denominator": 2},
+            "packet_derived_merge_extra_publishers": 0,
+            "one_to_one_pairs": 2,
+        })
+    );
+    for (metric, total) in [
+        ("orig_packets", 3),
+        ("resp_packets", 3),
+        ("total_packets", 6),
+        ("orig_ip_bytes", 120),
+        ("resp_ip_bytes", 120),
+        ("total_ip_bytes", 240),
+    ] {
+        assert_eq!(
+            report["counter_deltas"][metric],
+            serde_json::json!({
+                "compared_pairs": 2,
+                "missing_publisher_counter_pairs": 0,
+                "publisher_total": total,
+                "packet_derived_total": total,
+                "signed_packet_minus_publisher": 0,
+                "absolute_pair_delta_sum": 0,
+            })
+        );
+    }
+    assert_eq!(
+        report["labels"],
+        serde_json::json!([{
+            "label": "Benign",
+            "matched": 2,
+            "one_to_one": 2,
+            "publisher_flows": 2,
+            "split": 0,
+            "unmatched": 0,
+        }])
+    );
+    assert_eq!(
+        report["detailed_rule_lineage"],
+        serde_json::json!({
+            "available_publisher_flows": 2,
+            "missing_publisher_flows": 0,
+            "missing_malicious_publisher_flows": 0,
+            "missing_by_label": [],
+            "rules": [{
+                "detailed_label": "Normal",
+                "matched": 2,
+                "publisher_flows": 2,
+                "unmatched": 0,
+            }],
+        })
+    );
+
+    let profile_bytes = fs::read(output.join("zeek-adapter-profile.json")).unwrap();
+    assert_eq!(
+        profile_bytes,
+        fs::read(output.join("zeek-adapter-profile-repeat.json")).unwrap()
+    );
+    let profile: serde_json::Value = serde_json::from_slice(&profile_bytes).unwrap();
+    assert_eq!(
+        profile,
+        serde_json::json!({
+            "schema": "netbraid.zeek_conn_adapter_profile.v0",
+            "connection_count": 2,
+            "protocol_counts": {
+                "icmp": 0,
+                "tcp": 1,
+                "udp": 1,
+                "unknown_transport": 0,
+            },
+            "missing_duration_count": 0,
+            "missing_counter_counts": {
+                "orig_ip_bytes": 0,
+                "orig_packets": 0,
+                "resp_ip_bytes": 0,
+                "resp_packets": 0,
+            },
+            "projection_sha256": profile["projection_sha256"],
+        })
+    );
+    let projection_digest = profile["projection_sha256"].as_str().unwrap();
+    assert_eq!(projection_digest.len(), 64);
+    assert!(projection_digest
+        .bytes()
+        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)));
+
+    let receipt: serde_json::Value =
+        serde_json::from_slice(&fs::read(output.join("campaign-receipt.json")).unwrap()).unwrap();
+    assert_eq!(
+        receipt["schema"],
+        "netbraid.iot23_flow_lineage_campaign_receipt.v1"
+    );
+    assert_eq!(receipt["status"], "complete_deterministic");
+    assert_eq!(receipt["repetitions"], 2);
+    assert_eq!(receipt["producer"]["tcp_inactivity_seconds"], 300);
+    assert_eq!(receipt["producer"]["udp_inactivity_seconds"], 60);
+    assert_eq!(
+        receipt["retained"],
+        serde_json::json!({
+            "endpoint_values": 0,
+            "raw_rows": 0,
+            "absolute_paths": 0,
+        })
     );
 }
 
