@@ -15,6 +15,9 @@ GitHub native binary releases remain available independently.
   comparison results, and an explicitly promotion-gated same-event hypothesis
   reducer. Unsupported, partial, malformed, or incompatible evidence remains
   typed abstention rather than a relation claim.
+- A public inference facade for finite counter-capture, packet-shape,
+  same-event, and RSSI reference-frame hypothesis families, with content-bound
+  references and explicit unknown states.
 - Pinned fetchers and deterministic local evaluators for the public capture
   corpus, Sorbonne same-event oracle, OPERAnet, CAEZ, Data4Cyber, NetsLab,
   IoT-23 flow lineage, counter-capture campaigns, and XRF55 archives. Raw

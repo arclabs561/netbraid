@@ -9,9 +9,10 @@ pub mod evidence;
 
 /// Auditable, revisable interpretations derived from immutable evidence.
 ///
-/// Inference remains a separate semantic plane even though its deterministic
-/// reference reducers currently live in [`replay`]. Evidence records do
-/// not acquire inferred identity semantics through this facade.
+/// Inference remains a separate semantic plane. Counter-capture and RSSI
+/// reference-frame reducers are owned here; packet-shape and same-event
+/// reducers are re-exported from [`replay`]. Evidence records do not acquire
+/// inferred identity semantics through this facade.
 pub mod infer;
 
 pub mod replay;
