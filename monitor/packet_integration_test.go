@@ -1,9 +1,12 @@
+//go:build integration
 // +build integration
 
 package monitor
 
 import (
 	"context"
+	"errors"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -22,11 +25,11 @@ func TestRealNetworkCapture(t *testing.T) {
 		t.Skip("Set NETWATCH_TEST_IFACE environment variable to run this test")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	m, err := NewMonitor(
-		OptMonitorDataDir("/tmp/netwatch_test"),
+		OptMonitorDataDir(t.TempDir()),
 		OptMonitorQuiet(true),
 		OptMonitorStopDur(3*time.Second),
 	)
@@ -34,9 +37,9 @@ func TestRealNetworkCapture(t *testing.T) {
 		t.Fatalf("NewMonitor() error = %v", err)
 	}
 
-	iface, err := FirstGoodInterface()
+	iface, err := net.InterfaceByName(ifaceName)
 	if err != nil {
-		t.Fatalf("FirstGoodInterface() error = %v", err)
+		t.Fatalf("InterfaceByName(%q) error = %v", ifaceName, err)
 	}
 
 	monIface := Interface{
@@ -55,7 +58,7 @@ func TestRealNetworkCapture(t *testing.T) {
 	// Wait for completion or timeout
 	select {
 	case err := <-errChan:
-		if err != nil && err != context.DeadlineExceeded {
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 			t.Errorf("Listen() error = %v", err)
 		}
 	case <-ctx.Done():
@@ -67,17 +70,13 @@ func TestRealNetworkCapture(t *testing.T) {
 		t.Logf("Packets captured: %d", agg.Global.PacketsTotal)
 		t.Logf("Channels seen: %d", len(agg.Channels))
 		t.Logf("Sources seen: %d", len(agg.Sources))
-		
-		if agg.Global.PacketsTotal > 0 {
-			t.Logf("✓ Successfully captured %d packets", agg.Global.PacketsTotal)
-			
-			// Log channel information
-			for ch, info := range agg.Channels {
-				t.Logf("  Channel %d: %d packets (direct: %d, indirect: %d)",
-					ch, info.PacketsTotal, info.PacketsDirect, info.PacketsIndirect)
-			}
-		} else {
-			t.Log("⚠ No packets captured (this may be normal if no traffic)")
+
+		if agg.Global.PacketsTotal == 0 {
+			t.Error("capture completed without observing a packet")
+		}
+		for ch, info := range agg.Channels {
+			t.Logf("Channel %d: %d packets (direct: %d, indirect: %d)",
+				ch, info.PacketsTotal, info.PacketsDirect, info.PacketsIndirect)
 		}
 	})
 }
@@ -90,11 +89,11 @@ func TestRadiotapParsing(t *testing.T) {
 		t.Skip("Set NETWATCH_TEST_IFACE environment variable to run this test")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	m, err := NewMonitor(
-		OptMonitorDataDir("/tmp/netwatch_test_radiotap"),
+		OptMonitorDataDir(t.TempDir()),
 		OptMonitorQuiet(true),
 		OptMonitorStopDur(3*time.Second),
 	)
@@ -102,9 +101,9 @@ func TestRadiotapParsing(t *testing.T) {
 		t.Fatalf("NewMonitor() error = %v", err)
 	}
 
-	iface, err := FirstGoodInterface()
+	iface, err := net.InterfaceByName(ifaceName)
 	if err != nil {
-		t.Fatalf("FirstGoodInterface() error = %v", err)
+		t.Fatalf("InterfaceByName(%q) error = %v", ifaceName, err)
 	}
 
 	monIface := Interface{
@@ -121,7 +120,7 @@ func TestRadiotapParsing(t *testing.T) {
 
 	select {
 	case err := <-errChan:
-		if err != nil && err != context.DeadlineExceeded {
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 			t.Errorf("Listen() error = %v", err)
 		}
 	case <-ctx.Done():
@@ -131,27 +130,27 @@ func TestRadiotapParsing(t *testing.T) {
 	m.WithAggregate(func(agg *Aggregate) {
 		packetsWithChannel := 0
 		packetsWithSignal := 0
-		
+
 		for _, chInfo := range agg.Channels {
 			if chInfo.PacketsTotal > 0 {
 				packetsWithChannel += chInfo.PacketsTotal
 			}
 		}
-		
+
 		for _, srcInfo := range agg.Sources {
 			if srcInfo.SignalsMean.Len() > 0 {
 				packetsWithSignal += srcInfo.Packets
 			}
 		}
-		
+
 		t.Logf("Packets with channel info: %d", packetsWithChannel)
 		t.Logf("Packets with signal info: %d", packetsWithSignal)
-		
-		if packetsWithChannel > 0 {
-			t.Logf("✓ Radiotap parsing successful - detected channel information")
-		} else {
-			t.Log("⚠ No channel information detected (may not be WiFi interface or no radiotap headers)")
+
+		if packetsWithChannel == 0 {
+			t.Error("capture completed without channel-bearing radiotap packets")
+		}
+		if packetsWithSignal == 0 {
+			t.Error("capture completed without signal-bearing radiotap packets")
 		}
 	})
 }
-
