@@ -132,6 +132,14 @@ public-corpus-fetch dataset="all" verify_workers="4":
 public-corpus-inventory dataset="all" verify_workers="4":
     uv run --script data/fetch/fetch-public-eval-corpus.py {{ dataset }} --verify-workers {{ verify_workers }} --inspect --inspect-output {{ eval_output }}/public-corpus-inventory.json
 
+ujiindoorloc-split-capability-check:
+    {{ python }} eval/test-evaluate-ujiindoorloc-split-capability.py
+
+# Verify the pinned IPIN 2015 archive and report aggregate publisher-split
+# intersections without retaining fingerprints, coordinates, or identifiers.
+ujiindoorloc-split-capability:
+    {{ python }} eval/evaluate-ujiindoorloc-split-capability.py
+
 # Evaluate the complete admitted capture-fixture manifest through the current
 # production binary and retain only the ignored metadata report.
 admitted-corpus-eval:

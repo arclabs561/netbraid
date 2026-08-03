@@ -220,6 +220,13 @@
       "recipe": "sorbonne-structural-reducer-eval"
     },
     {
+      "path": "data/derived/eval/ujiindoorloc-split-capability.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ujiindoorloc-split-capability.py",
+      "recipe": "ujiindoorloc-split-capability"
+    },
+    {
       "path": "data/derived/eval/wlan-rff-layout-profile.json",
       "format": "json",
       "retention": "reproducibility_output",

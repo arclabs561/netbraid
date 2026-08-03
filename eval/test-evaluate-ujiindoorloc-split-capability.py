@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""Hermetic tests for the UJIIndoorLoc split-capability evaluator."""
+
+from __future__ import annotations
+
+import csv
+import hashlib
+import importlib.util
+import io
+import json
+import stat
+import sys
+import tempfile
+import unittest
+import zipfile
+from pathlib import Path
+from unittest import mock
+
+sys.dont_write_bytecode = True
+HERE = Path(__file__).resolve().parent
+SPEC = importlib.util.spec_from_file_location(
+    "evaluate_ujiindoorloc_split_capability",
+    HERE / "evaluate-ujiindoorloc-split-capability.py",
+)
+assert SPEC is not None and SPEC.loader is not None
+MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
+SPEC.loader.exec_module(MODULE)
+
+FIXED_TIME = (2020, 1, 2, 3, 4, 6)
+
+
+def row(
+    *,
+    user: int,
+    phone: int,
+    building: int,
+    floor: int,
+    space: int,
+    relative: int = 1,
+    rssi: int = -50,
+) -> list[str]:
+    values = ["100"] * 520
+    values[0] = str(rssi)
+    return [
+        *values,
+        "-7500.25",
+        "4864900.75",
+        str(floor),
+        str(building),
+        str(space),
+        str(relative),
+        str(user),
+        str(phone),
+        "1370000000",
+    ]
+
+
+def csv_bytes(rows: list[list[str]]) -> bytes:
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(MODULE.EXPECTED_HEADER)
+    writer.writerows(rows)
+    return output.getvalue().encode("utf-8")
+
+
+def zip_info(name: str, *, directory: bool = False) -> zipfile.ZipInfo:
+    info = zipfile.ZipInfo(name, FIXED_TIME)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    if directory:
+        info.external_attr = (stat.S_IFDIR | 0o755) << 16
+    else:
+        info.external_attr = (stat.S_IFREG | 0o644) << 16
+    return info
+
+
+def fixture(
+    root: Path,
+    *,
+    train_rows: list[list[str]] | None = None,
+    validation_rows: list[list[str]] | None = None,
+    extra_member: bool = False,
+) -> tuple[Path, Path, object]:
+    if train_rows is None:
+        train_rows = [
+            row(user=1, phone=1, building=0, floor=0, space=1),
+            row(user=2, phone=2, building=1, floor=1, space=2),
+            row(user=2, phone=2, building=1, floor=1, space=3),
+        ]
+    if validation_rows is None:
+        validation_rows = [
+            row(user=0, phone=2, building=0, floor=0, space=1),
+            row(user=0, phone=3, building=1, floor=1, space=4),
+        ]
+    train_payload = csv_bytes(train_rows)
+    validation_payload = csv_bytes(validation_rows)
+    archive_path = root / "fixture.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(zip_info(MODULE.DIRECTORY_MEMBER, directory=True), b"")
+        archive.writestr(zip_info(MODULE.TRAIN_MEMBER), train_payload)
+        archive.writestr(zip_info(MODULE.VALIDATION_MEMBER), validation_payload)
+        if extra_member:
+            archive.writestr(zip_info("UJIndoorLoc/extra.txt"), b"unexpected")
+
+    payload = archive_path.read_bytes()
+    source = {
+        "bytes": len(payload),
+        "doi": "10.24432/C5MS59",
+        "filename": archive_path.name,
+        "group": "indoor-positioning",
+        "license": "CC BY 4.0",
+        "md5": hashlib.md5(payload, usedforsecurity=False).hexdigest(),
+        "record": "synthetic-ujiindoorloc",
+        "record_bytes": len(payload),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "sha256_provenance": "hermetic_fixture",
+        "url": "https://example.test/ujiindoorloc.zip",
+    }
+    contract = MODULE.ArtifactContract(
+        source=source,
+        member_sizes={
+            MODULE.TRAIN_MEMBER: len(train_payload),
+            MODULE.VALIDATION_MEMBER: len(validation_payload),
+        },
+        row_counts={"train": len(train_rows), "validation": len(validation_rows)},
+    )
+    receipt_path = root / "receipt.json"
+    receipt_path.write_text(
+        json.dumps(MODULE._expected_receipt(contract)), encoding="utf-8"
+    )
+    return archive_path, receipt_path, contract
+
+
+def axis(report: dict[str, object], name: str) -> dict[str, object]:
+    axes = report["axes"]
+    assert isinstance(axes, list)
+    return next(item for item in axes if item["axis"] == name)
+
+
+class UjiIndoorLocSplitCapabilityTests(unittest.TestCase):
+    def temporary_directory(self) -> Path:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        return Path(temporary.name)
+
+    def test_reports_identity_holdouts_separately_from_target_coverage(self):
+        archive, receipt, contract = fixture(self.temporary_directory())
+
+        report = MODULE.evaluate_archive(archive, receipt, contract)
+
+        self.assertEqual(report["status"], "pass")
+        self.assertEqual(report["rows"]["total"], 5)
+        self.assertEqual(axis(report, "user")["intersection_group_count"], 0)
+        self.assertEqual(axis(report, "phone")["intersection_group_count"], 1)
+        self.assertEqual(axis(report, "building_floor")["intersection_group_count"], 2)
+        self.assertEqual(axis(report, "location_cell")["intersection_group_count"], 1)
+        self.assertTrue(report["capabilities"]["user_disjoint"])
+        self.assertFalse(report["capabilities"]["phone_disjoint"])
+        self.assertTrue(report["capabilities"]["shared_building_floor_coverage"])
+
+    def test_report_is_aggregate_path_free_and_value_free(self):
+        root = self.temporary_directory()
+        archive, receipt, contract = fixture(root)
+
+        report = MODULE.evaluate_archive(archive, receipt, contract)
+        rendered = MODULE.render_report(report)
+
+        self.assertNotIn(str(root).encode(), rendered)
+        self.assertNotIn(str(contract.source["url"]).encode(), rendered)
+        self.assertNotIn(b"4864900.75", rendered)
+        self.assertNotIn(b"1370000000", rendered)
+        self.assertEqual(
+            set(report["privacy"].values()),
+            {0},
+        )
+
+    def test_unexpected_member_and_invalid_rssi_fail_closed(self):
+        extra_root = self.temporary_directory()
+        archive, receipt, contract = fixture(extra_root, extra_member=True)
+        with self.assertRaises(MODULE.SplitCapabilityError) as raised:
+            MODULE.evaluate_archive(archive, receipt, contract)
+        self.assertEqual(raised.exception.code, "unexpected_archive_inventory")
+
+        rssi_root = self.temporary_directory()
+        archive, receipt, contract = fixture(
+            rssi_root,
+            train_rows=[row(user=1, phone=1, building=0, floor=0, space=1, rssi=99)],
+        )
+        with self.assertRaises(MODULE.SplitCapabilityError) as raised:
+            MODULE.evaluate_archive(archive, receipt, contract)
+        self.assertEqual(raised.exception.code, "invalid_rssi_value")
+
+    def test_withheld_validation_location_is_unknown_not_disjoint(self):
+        root = self.temporary_directory()
+        archive, receipt, contract = fixture(
+            root,
+            validation_rows=[
+                row(
+                    user=0,
+                    phone=2,
+                    building=0,
+                    floor=0,
+                    space=0,
+                    relative=0,
+                )
+            ],
+        )
+
+        report = MODULE.evaluate_archive(archive, receipt, contract)
+
+        location = axis(report, "location_cell")
+        self.assertEqual(location["validation_observed_row_count"], 0)
+        self.assertEqual(location["intersection_group_count"], 0)
+        self.assertIsNone(report["capabilities"]["shared_location_cell_coverage"])
+
+    def test_receipt_is_required_and_report_write_is_private(self):
+        root = self.temporary_directory()
+        archive, receipt, contract = fixture(root)
+        receipt.write_text("{}", encoding="utf-8")
+        with self.assertRaises(MODULE.SplitCapabilityError) as raised:
+            MODULE.evaluate_archive(archive, receipt, contract)
+        self.assertEqual(raised.exception.code, "receipt_contract_mismatch")
+
+        receipt.write_text(
+            json.dumps(MODULE._expected_receipt(contract)), encoding="utf-8"
+        )
+        report_path = root / "derived" / "report.json"
+        MODULE.write_report(
+            report_path,
+            MODULE.render_report(MODULE.evaluate_archive(archive, receipt, contract)),
+        )
+        self.assertEqual(stat.S_IMODE(report_path.stat().st_mode), 0o600)
+
+    def test_archive_mutation_fence_fails_closed(self):
+        root = self.temporary_directory()
+        archive, receipt, contract = fixture(root)
+        integrity = MODULE._digest_regular_file(archive)
+        changed = (integrity[0], integrity[1], "0" * 64)
+
+        with mock.patch.object(
+            MODULE, "_digest_regular_file", side_effect=(integrity, changed)
+        ):
+            with self.assertRaises(MODULE.SplitCapabilityError) as raised:
+                MODULE.evaluate_archive(archive, receipt, contract)
+
+        self.assertEqual(raised.exception.code, "archive_changed_during_evaluation")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

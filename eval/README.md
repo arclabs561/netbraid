@@ -72,6 +72,14 @@ domain, receiver, location, path, or input order for missing session evidence.
 The current oracle therefore returns `unbounded_session_axis` and publishes no
 manifest; the hermetic check covers the successful known-session boundary.
 
+`evaluate-ujiindoorloc-split-capability.py` streams the pinned IPIN 2015 Track
+3 CSV members after verifying the archive and central receipt. It reports
+aggregate user, phone, building, floor, building/floor, and location-cell
+intersections across the publisher files. Identity/domain holdout capability is
+kept separate from target-space coverage; no fingerprint rows, coordinates,
+timestamps, identifier values, member paths, source URLs, or local paths enter
+the report.
+
 `compile-ruff-uwb-oracles.py` verifies the two pinned RUFF-UWB archives and
 reads only their bounded label arrays. It aggregates observed
 source/location/campaign cells, preserves cross-day source and device identity,
