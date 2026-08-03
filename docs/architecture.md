@@ -40,6 +40,18 @@ streams comparable. Occurrence receipts bind one run, its wall-clock interval,
 tool invocations, and the digest of the deterministic records. Occurrence
 fields are deliberately excluded from `--records-jsonl`.
 
+Evidence extent, observation provenance, interaction projections, event
+alignment, artifact lineage, topology, and attribution are orthogonal axes.
+Local containment exists where a source format guarantees it, but flow,
+conversation, session, transmission, device, source, variant, and identity are
+not successive levels of one hierarchy. Projection membership records its
+observation scope and reducer policy; inferred alignment and attribution use
+typed claim records with cited evidence and explicit alternatives.
+
+This is a finite semantic graph in the ordinary data-model sense, not a graph
+database or an open relation vocabulary. The core keeps small typed records and
+pure reducers; storage engines and indexes remain consumer choices.
+
 ## Saved-capture path
 
 1. Resolve one regular input file and copy it into a private staging directory.
