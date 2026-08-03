@@ -1,4 +1,5 @@
 mod counter_capture;
+mod rssi_reference_frame;
 
 pub use crate::replay::{
     assess_packet_same_event_v0, PacketSameEventBasisV0, PacketSameEventDifferenceV0,
@@ -20,4 +21,14 @@ pub use counter_capture::{
     TrafficWindowV0, TrafficWindowValidationErrorV0, COUNTER_CAPTURE_HYPOTHESIS_SET_SCHEMA_V0,
     COUNTER_CAPTURE_PROFILE_SCHEMA_V0, COUNTER_CAPTURE_REDUCER_V0,
     COUNTER_CAPTURE_SCALE_FLOOR_PPB_V0, PPB, TRAFFIC_WINDOW_SCHEMA_V0,
+};
+
+pub use rssi_reference_frame::{
+    assess_rssi_reference_frame_v0, RssiLinkShiftEvidenceV0, RssiLinkShiftKindV0, RssiMilliDbV0,
+    RssiObserverEvidenceV0, RssiReferenceFrameAssessmentV0, RssiReferenceFrameErrorV0,
+    RssiReferenceFrameLinkV0, RssiReferenceFrameLinkValidationErrorV0, RssiReferenceFrameProfileV0,
+    RssiReferenceFrameProfileValidationErrorV0, RssiSourceWideShiftCandidateV0,
+    RSSI_REFERENCE_FRAME_ASSESSMENT_SCHEMA_V0, RSSI_REFERENCE_FRAME_MAX_LINK_EVIDENCE_V0,
+    RSSI_REFERENCE_FRAME_PPB_V0, RSSI_REFERENCE_FRAME_PROFILE_SCHEMA_V0,
+    RSSI_REFERENCE_FRAME_REDUCER_V0,
 };
