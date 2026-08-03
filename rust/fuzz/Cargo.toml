@@ -11,7 +11,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-netbraid-replay = { path = "../crates/netbraid-replay" }
+netbraid = { path = "..", default-features = false }
 
 [[bin]]
 name = "parse_saved_capture_jsonl"
