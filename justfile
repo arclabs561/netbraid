@@ -197,6 +197,17 @@ osu-lora-discover setup workers="4":
 osu-lora-fetch setup max_total_bytes="10737418240" max_file_bytes="4294967296" workers="2":
     {{ python }} data/fetch/fetch-osu-lora.py fetch {{ setup }} --max-total-bytes {{ max_total_bytes }} --max-file-bytes {{ max_file_bytes }} --workers {{ workers }}
 
+# Verify or complete all seven publisher setups under one explicit corpus-wide
+# 384 GiB bound. This is the canonical acquisition command for later evals.
+osu-lora-fetch-all:
+    {{ python }} data/fetch/fetch-osu-lora.py fetch all --max-total-bytes 412316860416 --max-file-bytes 4294967296 --workers 4
+
+# Reproduce the full acquisition-to-oracle metadata pipeline. The profiler and
+# oracle compiler never open IQ/FFT payload streams.
+osu-lora-corpus: osu-lora-fetch-all
+    just osu-lora-profile
+    just osu-lora-oracles
+
 # Validate the bounded metadata-only profiler without requiring corpus bytes.
 osu-lora-profile-check:
     {{ python }} eval/test-profile-osu-lora-sigmf.py

@@ -193,6 +193,7 @@ just caez-alignment-profile
 just data4cyber-alignment-profile
 just netslab-alignment-profile
 just iot23-flow-lineage-check
+just osu-lora-corpus
 just counter-capture-eval-check
 just ruff-uwb-heldout-location-check
 just ruff-uwb-heldout-location
