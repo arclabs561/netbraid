@@ -12,10 +12,9 @@ that prediction for this projection and protocol.
 
 ## Method
 
-Status: preregistered; the real two-meter extraction and evaluation have not
-been executed. Implementation baseline before this experiment is `cf40d57`;
-the evaluator, exact-oracle suite, recipe, and this log land together in the
-next checkpoint.
+Status: completed. The real target was evaluated exactly once at implementation
+checkpoint `9fb8504`; implementation baseline before this experiment was
+`cf40d57`.
 
 The source campaign retains experiment 0006's seeded 80/10/10 location
 assignment. Prototype candidates are fit only on its 40-location train role and
@@ -90,18 +89,38 @@ The compact path is 3.56 times as fast for this boundary and reduces median
 maximum RSS by 91.7%. The benchmark excludes waveform hashing and projection;
 it isolates the metadata cost changed here.
 
-Real target metrics are not recorded because the two-meter standalone NPY has
-not yet been extracted. No predictive conclusion is available.
+The two-meter adapter compiled 1,152,491 rows into 1,145 validated compact
+spans. The frozen centroid rule was selected on 520 one-meter validation rows,
+then evaluated on 9,160 bounded rows spanning all 100 target locations and all
+13 devices. The quarantined one-meter test role retained 77,738 assigned rows
+but zero sampled, feature, prediction, or metric rows.
+
+| Target metric | Result |
+| --- | ---: |
+| Balanced accuracy | 0.131830153973 |
+| Macro-F1 | 0.128241021412 |
+| Uniform-chance balanced accuracy | 0.076923076923 |
+
+Per-device recall ranged from 0.0175 to 0.335, so the aggregate lift is uneven
+and does not imply reliable transfer for every board. All recorded leakage
+checks passed: source train/validation overlap was zero, source-test feature
+rows were zero, target configuration candidates were zero, and cross-adapter
+row identity was source-qualified.
+
+The complete command took 9.77 seconds wall time with maximum RSS of
+375,209,984 bytes, including full source-integrity hashing and feature/model
+work. The 5,159-byte report was written mode 0600 under the ignored derived-data
+root and retained no paths or raw source identifiers.
 
 ## Conclusion
 
-The protocol is executable and its leakage boundary is tested, but the
-hypothesis remains open. The eventual result is a cross-campaign transfer
-measurement, not an isolated distance effect: distance, day, room position,
-and stored representation all change together.
+The point estimate exceeds the preregistered 1/13 falsification boundary, so
+the narrow hypothesis is not falsified and the projection retains some
+cross-campaign device information. This is not an isolated distance effect:
+distance, day, room position, and stored representation all change together,
+and no cluster-aware uncertainty interval or population-level claim is made.
 
 The production cross-campaign path now retains compact validated spans and
 materializes only bounded sampled rows. Source verification still hashes
-approximately 4.93 GB before opening the two arrays by read-only mmap; that
-remaining integrity cost is separate from the metadata optimization and must
-be measured during the eventual two-campaign run.
+approximately 4.93 GB before opening the two arrays by read-only mmap; the
+completed runtime above includes that integrity cost.
