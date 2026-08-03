@@ -1,6 +1,18 @@
 {
   "schema": "netbraid.public_corpus_slices.v0",
   "archives": {
+    "matter-thread-n1": {
+      "bytes": 26008,
+      "filename": "matter-2hop_ThreadN1.pcapng",
+      "format": "file",
+      "md5": "af7b471ae4c8e48f2afa36238f943b5e",
+      "receipt": {
+        "bytes": 669,
+        "filename": "matter-2hop_ThreadN1.pcapng.json",
+        "sha256": "f9d35fb5f20bf8935d83f1cc932c8c6be664e6c6f08e7181a11f39f361aa1aab"
+      },
+      "sha256": "e6e05945aaebdb41c2a1acd07098fbb0d59da001d14b5660545dd97d7b7a8d73"
+    },
     "sorbonne-campus-rssi": {
       "bytes": 3144312,
       "filename": "220211012-SU-Outdoors-Campus.zip",
@@ -137,6 +149,50 @@
       },
       "mode": "netbraid-ieee802154",
       "packet_limit": 1000
+    },
+    {
+      "archive": "matter-thread-n1",
+      "expect": {
+        "address_forms": {
+          "destination": {"absent_frames": 14, "extended_frames": 0, "short_frames": 18},
+          "source": {"absent_frames": 14, "extended_frames": 2, "short_frames": 16}
+        },
+        "commands": {
+          "command_mix": [{"command": 4, "frames": 16}],
+          "present_frames": 16,
+          "unavailable_frames": 16
+        },
+        "completeness": {
+          "packet_limit": 32,
+          "packet_limit_reached": true,
+          "scope": "normalized_packet_subset",
+          "state": "partial"
+        },
+        "counts": {
+          "ieee802154_frames": 32,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 32,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 32
+        },
+        "fcs": {"invalid_frames": 0, "unavailable_frames": 32, "valid_frames": 0},
+        "frame_type_version_mix": [
+          {"frame_type": 1, "frame_version": 1, "frames": 2},
+          {"frame_type": 2, "frame_version": 0, "frames": 14},
+          {"frame_type": 3, "frame_version": 1, "frames": 16}
+        ],
+        "preserved_6lowpan_decoded_ipv6": {
+          "total_length_exceeds_frame": 2
+        }
+      },
+      "id": "matter-data1813-thread-n1-prefix",
+      "member": {
+        "bytes": 26008,
+        "name": "matter-2hop_ThreadN1.pcapng",
+        "sha256": "e6e05945aaebdb41c2a1acd07098fbb0d59da001d14b5660545dd97d7b7a8d73"
+      },
+      "mode": "netbraid-ieee802154",
+      "packet_limit": 32
     },
     {
       "archive": "zbds2023",

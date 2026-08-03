@@ -96,6 +96,9 @@ catalog-check:
 
 # Evaluate checked, bounded slices from the ignored public archives. Fetch the
 # archives first; this target never admits or writes corpus bytes into Git.
+public-corpus-eval-check:
+    {{ python }} eval/test-evaluate-public-corpus-slices.py
+
 public-corpus-eval:
     cargo build --locked --manifest-path rust/Cargo.toml --bin netbraid
     {{ python }} eval/evaluate-public-corpus-slices.py --report {{ eval_output }}/public-corpus-eval-report.json

@@ -22,7 +22,11 @@ MIB = 1024 * 1024
 MANIFEST_SCHEMA = "netbraid.public_corpus_slices.v0"
 REPORT_SCHEMA = "netbraid.public_corpus_eval.v1"
 IEEE802154_PROJECTION_SCHEMA = "netmon.saved_pcap_ieee802154_projection.v0"
-IEEE802154_ORACLE_KEYS = {
+CAPTURE_MANIFEST_SCHEMA = "netmon.capture_manifest.v0"
+PACKET_ENVELOPE_SCHEMA = "netmon.packet_envelope.v0"
+PACKET_QUARANTINE_SCHEMA = "netmon.packet_quarantine.v0"
+PUBLIC_ARCHIVE_RECEIPT_SCHEMA = "local.public_wireless_archive.v1"
+IEEE802154_BASE_ORACLE_KEYS = {
     "completeness",
     "counts",
     "frame_type_version_mix",
@@ -30,6 +34,7 @@ IEEE802154_ORACLE_KEYS = {
     "commands",
     "fcs",
 }
+IEEE802154_RECORD_ORACLE_KEY = "preserved_6lowpan_decoded_ipv6"
 IEEE802154_LIMITATIONS = [
     "aggregate over validated PacketEnvelopeV0.ieee802154 evidence; no raw DLT decoding",
     "complete_capture applies to normalization completeness, not continuous RF observation",
@@ -49,6 +54,7 @@ IEEE802154_FORBIDDEN_KEYS = {
     "source_pan_id",
 }
 MAX_MANIFEST_BYTES = MIB
+MAX_RECEIPT_BYTES = 64 * 1024
 MAX_CASES = 64
 MAX_MEMBER_BYTES = 16 * MIB
 MAX_TOTAL_MEMBER_BYTES = 64 * MIB
@@ -120,7 +126,10 @@ def is_sha256_digest(value: Any) -> bool:
 def validate_ieee802154_oracle(
     expectation: Any, packet_limit: Any, case_id: str
 ) -> None:
-    if not isinstance(expectation, dict) or set(expectation) != IEEE802154_ORACLE_KEYS:
+    if not isinstance(expectation, dict) or frozenset(expectation) not in {
+        frozenset(IEEE802154_BASE_ORACLE_KEYS),
+        frozenset(IEEE802154_BASE_ORACLE_KEYS | {IEEE802154_RECORD_ORACLE_KEY}),
+    }:
         raise EvaluationError("expectation", case_id)
     completeness = expectation["completeness"]
     counts = expectation["counts"]
@@ -249,6 +258,17 @@ def validate_ieee802154_oracle(
     ):
         raise EvaluationError("expectation", case_id)
 
+    record_expectation = expectation.get(IEEE802154_RECORD_ORACLE_KEY)
+    if record_expectation is not None and (
+        not isinstance(record_expectation, dict)
+        or set(record_expectation) != {"total_length_exceeds_frame"}
+        or type(record_expectation["total_length_exceeds_frame"]) is not int
+        or not 0
+        <= record_expectation["total_length_exceeds_frame"]
+        <= counts["packet_envelopes"]
+    ):
+        raise EvaluationError("expectation", case_id)
+
 
 def contains_forbidden_ieee802154_key(value: Any) -> bool:
     if isinstance(value, dict):
@@ -311,10 +331,14 @@ def validate_manifest(
         raise EvaluationError("manifest_shape")
     archives = manifest["archives"]
     for key, archive in archives.items():
+        archive_format = archive.get("format") if isinstance(archive, dict) else None
+        expected_keys = {"filename", "bytes", "md5"}
+        if archive_format == "file":
+            expected_keys |= {"format", "sha256", "receipt"}
         if (
             not isinstance(key, str)
             or not isinstance(archive, dict)
-            or set(archive) != {"filename", "bytes", "md5"}
+            or set(archive) != expected_keys
             or not isinstance(archive["filename"], str)
             or Path(archive["filename"]).name != archive["filename"]
             or not isinstance(archive["bytes"], int)
@@ -322,6 +346,20 @@ def validate_manifest(
             or not is_hex(archive["md5"], MD5)
         ):
             raise EvaluationError("archive_manifest")
+        if archive_format == "file":
+            receipt = archive["receipt"]
+            if (
+                not is_hex(archive["sha256"], SHA256)
+                or not isinstance(receipt, dict)
+                or set(receipt) != {"filename", "bytes", "sha256"}
+                or not isinstance(receipt["filename"], str)
+                or Path(receipt["filename"]).name != receipt["filename"]
+                or receipt["filename"] != f"{archive['filename']}.json"
+                or type(receipt["bytes"]) is not int
+                or not 0 < receipt["bytes"] <= MAX_RECEIPT_BYTES
+                or not is_hex(receipt["sha256"], SHA256)
+            ):
+                raise EvaluationError("archive_manifest")
     total_bytes = 0
     case_ids: set[str] = set()
     for case in manifest["cases"]:
@@ -356,6 +394,13 @@ def validate_manifest(
             or not is_hex(member["sha256"], SHA256)
             or not isinstance(case["expect"], dict)
         ):
+            raise EvaluationError("member_manifest", case_id)
+        archive = archives[case["archive"]]
+        if archive.get("format") == "file" and member != {
+            "name": archive["filename"],
+            "bytes": archive["bytes"],
+            "sha256": archive["sha256"],
+        }:
             raise EvaluationError("member_manifest", case_id)
         total_bytes += member["bytes"]
         reference = case.get("reference")
@@ -407,6 +452,35 @@ def validate_manifest(
     return archives, manifest["cases"], hashlib.sha256(manifest_bytes).hexdigest()
 
 
+def validate_external_file_receipt(path: Path, expected: dict[str, Any]) -> None:
+    receipt_spec = expected["receipt"]
+    receipt_path = path.parent / receipt_spec["filename"]
+    receipt_bytes = read_bounded(
+        receipt_path, MAX_RECEIPT_BYTES, "archive_receipt_verification"
+    )
+    if (
+        len(receipt_bytes) != receipt_spec["bytes"]
+        or hashlib.sha256(receipt_bytes).hexdigest() != receipt_spec["sha256"]
+    ):
+        raise EvaluationError("archive_receipt_verification")
+    receipt = strict_json(receipt_bytes, "archive_receipt_verification")
+    if (
+        not isinstance(receipt, dict)
+        or set(receipt) != {"archive", "bytes", "md5", "schema", "sha256", "source"}
+        or receipt["schema"] != PUBLIC_ARCHIVE_RECEIPT_SCHEMA
+        or receipt["archive"] != expected["filename"]
+        or receipt["bytes"] != expected["bytes"]
+        or receipt["md5"] != expected["md5"]
+        or receipt["sha256"] != expected["sha256"]
+        or not isinstance(receipt["source"], dict)
+        or receipt["source"].get("filename") != expected["filename"]
+        or receipt["source"].get("format") != "file"
+        or receipt["source"].get("bytes") != expected["bytes"]
+        or receipt["source"].get("md5") != expected["md5"]
+    ):
+        raise EvaluationError("archive_receipt_verification")
+
+
 def digest_archive(path: Path, expected: dict[str, Any]) -> None:
     try:
         if (
@@ -425,6 +499,14 @@ def digest_archive(path: Path, expected: dict[str, Any]) -> None:
         raise EvaluationError("archive_verification") from None
     if size != expected["bytes"] or digest.hexdigest() != expected["md5"]:
         raise EvaluationError("archive_verification")
+    if expected.get("format") == "file":
+        digest = hashlib.sha256()
+        with path.open("rb") as source:
+            while chunk := source.read(MIB):
+                digest.update(chunk)
+        if digest.hexdigest() != expected["sha256"]:
+            raise EvaluationError("archive_verification")
+        validate_external_file_receipt(path, expected)
 
 
 def extract_member(
@@ -457,6 +539,23 @@ def extract_member(
     if size != member_spec["bytes"] or digest.hexdigest() != member_spec["sha256"]:
         raise EvaluationError("member_verification", case_id)
     return destination.read_bytes()
+
+
+def extract_external_file(
+    source: Path, member_spec: dict[str, Any], destination: Path, case_id: str
+) -> bytes:
+    data = read_bounded(source, MAX_MEMBER_BYTES, "member_verification")
+    if (
+        len(data) != member_spec["bytes"]
+        or hashlib.sha256(data).hexdigest() != member_spec["sha256"]
+    ):
+        raise EvaluationError("member_verification", case_id)
+    try:
+        with destination.open("xb") as output:
+            output.write(data)
+    except OSError:
+        raise EvaluationError("member_verification", case_id) from None
+    return data
 
 
 def batch_requests_jsonl(
@@ -553,6 +652,36 @@ def run_ieee802154_driver(binary: Path, extracted: ExtractedCase) -> bytes:
     return completed.stdout
 
 
+def run_ieee802154_records_driver(binary: Path, extracted: ExtractedCase) -> bytes:
+    case = extracted.case
+    case_id = case["id"]
+    argv = [
+        os.fspath(binary),
+        "pcap",
+        os.fspath(extracted.capture_path),
+        "--packet-limit",
+        str(case["packet_limit"]),
+        "--records-jsonl",
+    ]
+    try:
+        completed = subprocess.run(
+            argv,
+            check=False,
+            capture_output=True,
+            timeout=TOOL_TIMEOUT_S,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise EvaluationError("ieee802154_records_execution", case_id) from None
+    if (
+        completed.returncode != 0
+        or completed.stderr
+        or not completed.stdout
+        or len(completed.stdout) > MAX_TOOL_OUTPUT_BYTES
+    ):
+        raise EvaluationError("ieee802154_records_execution", case_id)
+    return completed.stdout
+
+
 def parse_ieee802154_output(data: bytes, extracted: ExtractedCase) -> dict[str, Any]:
     case = extracted.case
     case_id = case["id"]
@@ -614,6 +743,89 @@ def parse_ieee802154_output(data: bytes, extracted: ExtractedCase) -> dict[str, 
     if data != canonical:
         raise EvaluationError("ieee802154_output_canonical", case_id)
     return document
+
+
+def parse_ieee802154_records_output(
+    data: bytes, extracted: ExtractedCase
+) -> dict[str, Any]:
+    case = extracted.case
+    case_id = case["id"]
+    if not data.endswith(b"\n"):
+        raise EvaluationError("ieee802154_records_shape", case_id)
+    lines = data.splitlines()
+    if len(lines) < 2:
+        raise EvaluationError("ieee802154_records_shape", case_id)
+    documents = [
+        strict_json(line, "ieee802154_records_json", case_id) for line in lines
+    ]
+    canonical = b"".join(
+        json.dumps(document, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        + b"\n"
+        for document in documents
+    )
+    if data != canonical:
+        raise EvaluationError("ieee802154_records_canonical", case_id)
+
+    manifest = documents[0]
+    expected_capture_id = f"sha256:{case['member']['sha256']}"
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema") != CAPTURE_MANIFEST_SCHEMA
+        or manifest.get("capture_id") != expected_capture_id
+        or manifest.get("artifact")
+        != {
+            "content_sha256": expected_capture_id,
+            "size_bytes": case["member"]["bytes"],
+        }
+    ):
+        raise EvaluationError("ieee802154_records_source", case_id)
+
+    packet_envelopes = 0
+    packet_quarantines = 0
+    length_exceeds_frame = 0
+    for document in documents[1:]:
+        if not isinstance(document, dict):
+            raise EvaluationError("ieee802154_records_shape", case_id)
+        schema = document.get("schema")
+        if schema == PACKET_QUARANTINE_SCHEMA:
+            if document.get("capture_id") != expected_capture_id:
+                raise EvaluationError("ieee802154_records_source", case_id)
+            packet_quarantines += 1
+            continue
+        if schema != PACKET_ENVELOPE_SCHEMA:
+            raise EvaluationError("ieee802154_records_shape", case_id)
+        if document.get("capture_id") != expected_capture_id:
+            raise EvaluationError("ieee802154_records_source", case_id)
+        packet_envelopes += 1
+        frame = document.get("frame")
+        if not isinstance(frame, dict):
+            raise EvaluationError("ieee802154_records_shape", case_id)
+        protocols = frame.get("protocols", [])
+        original_length = frame.get("original_len")
+        if (
+            not isinstance(protocols, list)
+            or any(not isinstance(protocol, str) for protocol in protocols)
+            or type(original_length) is not int
+            or original_length < 0
+        ):
+            raise EvaluationError("ieee802154_records_shape", case_id)
+        sixlowpan_decoded_ipv6 = any(
+            left == "6lowpan" and right == "ipv6"
+            for left, right in zip(protocols, protocols[1:])
+        )
+        ipv6 = document.get("ipv6")
+        if sixlowpan_decoded_ipv6 and isinstance(ipv6, dict):
+            total_length = ipv6.get("total_length_octets")
+            if type(total_length) is int and total_length > original_length:
+                length_exceeds_frame += 1
+
+    return {
+        "packet_envelopes": packet_envelopes,
+        "packet_quarantines": packet_quarantines,
+        IEEE802154_RECORD_ORACLE_KEY: {
+            "total_length_exceeds_frame": length_exceeds_frame
+        },
+    }
 
 
 def require_preserved_inputs(cases: list[ExtractedCase]) -> None:
@@ -863,11 +1075,21 @@ def reconcile_sorbonne_rssi_tsv(
 
 
 def extract_case(
-    case: dict[str, Any], archive_path: Path, temporary: Path
+    case: dict[str, Any],
+    archive: dict[str, Any],
+    archive_path: Path,
+    temporary: Path,
 ) -> ExtractedCase:
     case_id = case["id"]
     capture_path = temporary / "capture"
-    capture_bytes = extract_member(archive_path, case["member"], capture_path, case_id)
+    if archive.get("format") == "file":
+        capture_bytes = extract_external_file(
+            archive_path, case["member"], capture_path, case_id
+        )
+    else:
+        capture_bytes = extract_member(
+            archive_path, case["member"], capture_path, case_id
+        )
     reference_bytes = None
     if "reference" in case:
         reference_bytes = extract_member(
@@ -947,14 +1169,26 @@ def evaluate_packet_case(
 
 
 def evaluate_ieee802154_case(
-    extracted: ExtractedCase, document: dict[str, Any]
+    extracted: ExtractedCase,
+    document: dict[str, Any],
+    records: dict[str, Any] | None,
 ) -> tuple[bool, dict[str, Any]]:
     case = extracted.case
     case_id = case["id"]
-    observed = {key: document[key] for key in IEEE802154_ORACLE_KEYS}
+    observed = {key: document[key] for key in IEEE802154_BASE_ORACLE_KEYS}
+    if IEEE802154_RECORD_ORACLE_KEY in case["expect"]:
+        if records is None:
+            raise EvaluationError("ieee802154_records_missing", case_id)
+        counts = document["counts"]
+        if (
+            records["packet_envelopes"] != counts["packet_envelopes"]
+            or records["packet_quarantines"] != counts["packet_quarantines"]
+        ):
+            raise EvaluationError("ieee802154_records_consistency", case_id)
+        observed[IEEE802154_RECORD_ORACLE_KEY] = records[IEEE802154_RECORD_ORACLE_KEY]
     passed = observed == case["expect"]
     counts = document["counts"]
-    return passed, {
+    result = {
         "case": case_id,
         "input_bytes": len(extracted.capture_bytes),
         "mode": case["mode"],
@@ -966,6 +1200,9 @@ def evaluate_ieee802154_case(
         "ieee802154_frames": counts["ieee802154_frames"],
         "identity_inference": "not_performed",
     }
+    if records is not None:
+        result[IEEE802154_RECORD_ORACLE_KEY] = records[IEEE802154_RECORD_ORACLE_KEY]
+    return passed, result
 
 
 def evaluate(
@@ -999,6 +1236,7 @@ def evaluate(
                 executor.submit(
                     extract_case,
                     case,
+                    archives[case["archive"]],
                     archive_paths[case["archive"]],
                     case_directory,
                 )
@@ -1033,6 +1271,7 @@ def evaluate(
             if extracted.case["mode"] == "netbraid-ieee802154"
         ]
         ieee802154_by_case = {}
+        ieee802154_records_by_case = {}
         if ieee802154_cases:
             with ThreadPoolExecutor(
                 max_workers=min(case_workers, len(ieee802154_cases) * 2)
@@ -1055,6 +1294,36 @@ def evaluate(
                     ieee802154_by_case[extracted.case["id"]] = parse_ieee802154_output(
                         first, extracted
                     )
+            record_cases = [
+                extracted
+                for extracted in ieee802154_cases
+                if IEEE802154_RECORD_ORACLE_KEY in extracted.case["expect"]
+            ]
+            with ThreadPoolExecutor(
+                max_workers=min(case_workers, max(1, len(record_cases) * 2))
+            ) as executor:
+                record_executions = [
+                    (
+                        extracted,
+                        executor.submit(
+                            run_ieee802154_records_driver, binary, extracted
+                        ),
+                        executor.submit(
+                            run_ieee802154_records_driver, binary, extracted
+                        ),
+                    )
+                    for extracted in record_cases
+                ]
+                for extracted, first_execution, second_execution in record_executions:
+                    first = first_execution.result()
+                    second = second_execution.result()
+                    if first != second:
+                        raise EvaluationError(
+                            "ieee802154_records_determinism", extracted.case["id"]
+                        )
+                    ieee802154_records_by_case[extracted.case["id"]] = (
+                        parse_ieee802154_records_output(first, extracted)
+                    )
         require_preserved_inputs(extracted_cases)
 
         for extracted in extracted_cases:
@@ -1066,7 +1335,9 @@ def evaluate(
                 )
             else:
                 passed, result = evaluate_ieee802154_case(
-                    extracted, ieee802154_by_case[extracted.case["id"]]
+                    extracted,
+                    ieee802154_by_case[extracted.case["id"]],
+                    ieee802154_records_by_case.get(extracted.case["id"]),
                 )
             failures += not passed
             results.append(result)

@@ -184,6 +184,7 @@ cross-layer alignment profiles, IoT-23 flow lineage, and counter-capture
 campaign output. Dataset-derived metrics are not part of the default test gate.
 
 ```sh
+just public-corpus-eval-check
 just public-corpus-eval
 just sorbonne-same-event-audit
 just sorbonne-structural-reducer-eval
