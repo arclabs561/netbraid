@@ -260,6 +260,20 @@
       "retention": "reproducibility_output",
       "producer": "eval/profile-xrf55-layout.py",
       "recipe": "xrf55-layout-profile"
+    },
+    {
+      "path": "data/derived/eval/xrf55-npy-shape-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-xrf55-npy-shapes.py",
+      "recipe": "xrf55-npy-shape-profile"
+    },
+    {
+      "path": "data/derived/eval/xrf55-npy-shape-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-xrf55-npy-shapes.py",
+      "recipe": "xrf55-npy-shape-profile"
     }
   ]
 }

@@ -229,6 +229,15 @@ xrf55-layout-profile:
     {{ python }} eval/profile-xrf55-layout.py --report {{ eval_output }}/xrf55-layout-profile-repeat.json
     cmp {{ eval_output }}/xrf55-layout-profile.json {{ eval_output }}/xrf55-layout-profile-repeat.json
 
+xrf55-npy-shape-profile-check:
+    {{ python }} eval/test-profile-xrf55-npy-shapes.py
+
+# Read one bounded NPY header per distinct processed modality/size class.
+xrf55-npy-shape-profile:
+    {{ python }} eval/profile-xrf55-npy-shapes.py --report {{ eval_output }}/xrf55-npy-shape-profile.json
+    {{ python }} eval/profile-xrf55-npy-shapes.py --report {{ eval_output }}/xrf55-npy-shape-profile-repeat.json
+    cmp {{ eval_output }}/xrf55-npy-shape-profile.json {{ eval_output }}/xrf55-npy-shape-profile-repeat.json
+
 xrf55-hypothesis-frames-check:
     {{ python }} eval/test-compile-xrf55-hypothesis-frames.py
 

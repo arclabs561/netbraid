@@ -91,6 +91,14 @@ permit one event and performer to have different sensing devices and physical
 RF sources; intent, tamper, freshness, and unobserved infrastructure relations
 remain unknown rather than inferred from action labels.
 
+`profile-xrf55-npy-shapes.py` validates the processed layout and then opens one
+bounded NPY header per distinct archive/modality/member-size class. It rejects
+object or structured dtypes, malformed extents, oversized members, and more
+than 16 size classes per modality. Reports retain only aggregate shape, dtype,
+order, and byte evidence; no array element is deserialized and no member name,
+observation identifier, or path is retained. The measured complete-event byte
+cost bounds the later private feature-cache campaign before payload I/O begins.
+
 `evaluate-ujiindoorloc-split-capability.py` streams the pinned IPIN 2015 Track
 3 CSV members after verifying the archive and central receipt. It reports
 aggregate user, phone, building, floor, building/floor, and location-cell

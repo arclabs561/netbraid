@@ -118,6 +118,7 @@ class CentralDirectory:
 
 @dataclass(frozen=True)
 class ArchiveInspection:
+    identity: FileIdentity
     report: Mapping[str, Any]
     member_hashes: frozenset[bytes]
     stem_hashes: frozenset[bytes]
@@ -284,7 +285,7 @@ def _central_directory(source: BinaryIO, size: int) -> CentralDirectory:
     return location
 
 
-def _safe_name(name: str) -> tuple[tuple[str, ...], int]:
+def safe_member_name(name: str) -> tuple[tuple[str, ...], int]:
     try:
         encoded = name.encode("utf-8")
     except UnicodeEncodeError as error:
@@ -308,7 +309,7 @@ def _format_class(name: str) -> str:
     return FORMAT_CLASSES.get(PurePosixPath(name).suffix.casefold(), "other")
 
 
-def _processed_observation(
+def processed_observation(
     parts: tuple[str, ...], contract: Mapping[str, Any]
 ) -> tuple[int, int, int, int, str]:
     match = OBSERVATION_PATTERN.fullmatch(parts[-1])
@@ -375,7 +376,7 @@ def profile_archive(
             if len(members) != location.entries:
                 raise Xrf55ProfileError("central_directory_count_mismatch")
             for member in members:
-                parts, name_bytes = _safe_name(member.orig_filename)
+                parts, name_bytes = safe_member_name(member.orig_filename)
                 if member.orig_filename != member.filename:
                     raise Xrf55ProfileError("unsafe_member_name")
                 if (
@@ -423,7 +424,7 @@ def profile_archive(
                                 "unsupported_processed_member_format"
                             )
                         scene, subject, action, repetition, modality = (
-                            _processed_observation(parts, processed_contract)
+                            processed_observation(parts, processed_contract)
                         )
                         key = (scene, subject, action, repetition)
                         if modality in processed_modalities[key]:
@@ -506,6 +507,7 @@ def profile_archive(
             "train_events": len(subject_groups) * len(actions) * len(train_repetitions),
         }
     return ArchiveInspection(
+        identity=identity,
         report=report,
         member_hashes=frozenset(member_hashes),
         stem_hashes=frozenset(stem_hashes),
