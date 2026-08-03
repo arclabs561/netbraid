@@ -11,15 +11,17 @@ silently change what a record means.
                     ^           ^
                     |           |
           netbraid::replay   adapters::tshark
-                    ^           ^
-                    \           /
-                     netbraid CLI
+                 ^  ^           ^
+                 |   \         /
+     netbraid::infer  netbraid CLI
 ```
 
 `evidence` has no CLI, collection, controller, or process dependency. `replay`
 parses and reduces those types without contacting the network. The optional
 TShark adapter owns subprocess control and saved-capture normalization. The CLI
-selects a finite human or machine projection.
+selects a finite human or machine projection. `infer` exposes finite,
+versioned reducers over supplied evidence; it does not acquire observations or
+apply deployment policy.
 
 ## Evidence model
 
@@ -62,6 +64,21 @@ Replay returns only the finite prefix declared at a named checkpoint.
 
 Scenarios carry authored oracles. Validation proves their structural and
 evidence closure; it does not certify arbitrary prose as ground truth.
+
+## Inference path
+
+Inference is a collection of explicit reducers, not one open-ended engine. The
+packet same-event and counter/capture families each retain two substantive
+alternatives plus unknown, record their decision basis and limitations, and
+can recompute an assessment against the exact evidence it cites. Matching
+packet structure remains non-discriminating, so the packet reducer never
+supports same-event from structural agreement alone.
+
+The RSSI reference-frame reducer is one layer earlier: it reports bounded
+fixed-point link evidence, source-wide shift candidates, and observer-scoped
+shift candidates. Source-wide changes are removed before observer attribution.
+Those candidates are not location, movement, device-identity, intent, or attack
+conclusions; a consumer must supply any policy that interprets them.
 
 ## Compatibility snapshots
 
