@@ -176,6 +176,7 @@ uv run --script data/fetch/fetch-public-eval-corpus.py motivating
 uv run --script data/fetch/fetch-public-eval-corpus.py fusion
 uv run --script data/fetch/fetch-public-eval-corpus.py all
 just xrf55-fetch list
+just xrf55-status
 ```
 
 The on-demand evaluators cover bounded public-corpus slices, a cross-sniffer

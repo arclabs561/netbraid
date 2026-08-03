@@ -162,6 +162,75 @@ class FetchXrf55Tests(unittest.TestCase):
             )
             self.assertNotIn(str(output_dir), json.dumps(receipt, sort_keys=True))
 
+    def test_metadata_status_reports_legacy_migration_without_hashing_payload(self):
+        payload = b"legacy-pinned archive"
+        spec = synthetic_spec(payload)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            output_dir = base / "raw"
+            output_dir.mkdir()
+            receipt_dir = base / "receipts"
+            archive = output_dir / spec["filename"]
+            archive.write_bytes(payload)
+            legacy = MODULE.legacy_receipt_path(archive)
+            legacy.write_text(
+                json.dumps(
+                    MODULE.source_receipt(
+                        spec, len(payload), hashlib.sha256(payload).hexdigest()
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(
+                MODULE, "digest_file", side_effect=AssertionError("payload read")
+            ):
+                status = MODULE.local_status(
+                    {"synthetic": spec}, output_dir, receipt_dir
+                )
+
+            self.assertEqual(status["inspection"], "metadata_only")
+            observed = status["datasets"]["synthetic"]
+            self.assertEqual(observed["archive_state"], "present")
+            self.assertEqual(observed["central_receipt_state"], "absent")
+            self.assertEqual(observed["legacy_receipt_state"], "valid")
+            self.assertEqual(
+                observed["next_action"],
+                "run_full_verification_to_migrate_receipt",
+            )
+            self.assertFalse(observed["payload_integrity_verified"])
+            self.assertNotIn(str(base), json.dumps(status, sort_keys=True))
+
+    def test_metadata_status_distinguishes_absent_partial_and_mismatched_files(self):
+        payload = b"expected"
+        spec = synthetic_spec(payload)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            output_dir = base / "raw"
+            output_dir.mkdir()
+            receipt_dir = base / "receipts"
+
+            missing = MODULE.local_status({"synthetic": spec}, output_dir, receipt_dir)[
+                "datasets"
+            ]["synthetic"]
+            self.assertEqual(missing["next_action"], "download")
+
+            partial = output_dir / f".{spec['filename']}.part"
+            partial.write_bytes(payload[:3])
+            resumable = MODULE.local_status(
+                {"synthetic": spec}, output_dir, receipt_dir
+            )["datasets"]["synthetic"]
+            self.assertEqual(resumable["next_action"], "resume_download")
+            self.assertEqual(resumable["partial_bytes"], 3)
+
+            archive = output_dir / spec["filename"]
+            archive.write_bytes(payload + b"drift")
+            mismatch = MODULE.local_status(
+                {"synthetic": spec}, output_dir, receipt_dir
+            )["datasets"]["synthetic"]
+            self.assertEqual(mismatch["archive_state"], "size_mismatch")
+            self.assertEqual(mismatch["next_action"], "inspect_local_state")
+
     def test_complete_partial_is_verified_and_finalized_without_redownload(self):
         payload = b"already complete compressed archive"
         spec = synthetic_spec(payload)

@@ -216,6 +216,11 @@ xrf55-fetcher-check:
 xrf55-fetch dataset="list":
     {{ python }} data/fetch/fetch-xrf55.py {{ dataset }}
 
+# Report archive/receipt readiness without hashing the 196 GB payload corpus.
+# This is metadata-only and never claims that payload integrity was verified.
+xrf55-status:
+    {{ python }} data/fetch/fetch-xrf55.py status
+
 # Inventory or explicitly fetch one Oregon State LoRa RFFI setup. The fetcher
 # rejects redirects and traversal, and defaults to a 10 GiB aggregate cap.
 osu-lora-fetcher-check:
