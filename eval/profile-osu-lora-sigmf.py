@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -31,12 +32,12 @@ MAX_RELATIVE_PATH_BYTES = 1_024
 MAX_FILE_BYTES = 4 * GIB
 MAX_METADATA_FILE_BYTES = MIB
 MAX_TOTAL_METADATA_BYTES = 128 * MIB
-MAX_TOTAL_BYTES = 256 * GIB
+DEFAULT_MAX_TOTAL_TREE_BYTES = 320 * GIB
+HARD_MAX_TOTAL_TREE_BYTES = 512 * GIB
 MAX_ARRAY_ITEMS = 10_000
 MAX_TEXT_BYTES = 4 * KIB
 MAX_DISTINCT_LABELS = 50_000
 MAX_REPORT_BYTES = 256 * KIB
-MAX_TOTAL_SAMPLES = MAX_TOTAL_BYTES // 8
 
 SETUP_TOKENS = frozenset(
     {
@@ -129,6 +130,44 @@ class MetadataFacts:
     declaration_matches_stem: bool
 
 
+@dataclass(frozen=True)
+class SourceErratum:
+    source_bytes: int
+    source_sha256: str
+
+
+class RepairedMetadata(dict[str, Any]):
+    """Strictly parsed metadata carrying a source-erratum proof."""
+
+    def __init__(self, value: dict[str, Any], source_erratum: SourceErratum):
+        super().__init__(value)
+        self.source_erratum = source_erratum
+
+
+SOURCE_ERRATA = {
+    (
+        "receivers/Diff_Receivers_Setup_Indoor_SameTx/RX2/Device1_FFT.sigmf-meta"
+    ): SourceErratum(
+        source_bytes=4_057,
+        source_sha256="afaec1310788dc79cc84dff736e247fa92284e6b87cf60441e7726c5d84d9b2c",
+    ),
+    (
+        "receivers/Diff_Receivers_Setup_Outdoor_DiffTx/RX2/Device1_FFT.sigmf-meta"
+    ): SourceErratum(
+        source_bytes=4_065,
+        source_sha256="8f9ded39bc5374fb03d97cef42e3003fdf064194dc95b7af3fd9c8e97392b9be",
+    ),
+    (
+        "receivers/Diff_Receivers_Setup_Outdoor_SameTx/RX2/Device1_FFT.sigmf-meta"
+    ): SourceErratum(
+        source_bytes=4_059,
+        source_sha256="55a76bb1b15c50834619245ba739a930d07c14f80cfaf3ca47eb0803e03d7018",
+    ),
+}
+SOURCE_ERRATUM_RECEIPT_DOMAIN = "netbraid.osu_lora_sigmf.source_errata.v0"
+SOURCE_ERRATUM_REPAIR_OPERATION = "prepend_opening_object_brace"
+
+
 def file_identity(metadata: os.stat_result) -> FileIdentity:
     return FileIdentity(
         device=metadata.st_dev,
@@ -162,7 +201,28 @@ def _entry_stat(path: Path) -> os.stat_result:
         raise ProfileError("tree_entry_unavailable") from error
 
 
-def inventory_tree(root: Path) -> TreeInventory:
+def _bounded_total_tree_bytes(value: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ProfileError("invalid_total_tree_byte_limit")
+    if value > HARD_MAX_TOTAL_TREE_BYTES:
+        raise ProfileError("total_tree_byte_limit_exceeds_hard_ceiling")
+    return value
+
+
+def _parse_total_tree_bytes(value: str) -> int:
+    try:
+        parsed = int(value, 10)
+        return _bounded_total_tree_bytes(parsed)
+    except (ProfileError, ValueError) as error:
+        raise argparse.ArgumentTypeError(
+            f"must be an integer from 1 through {HARD_MAX_TOTAL_TREE_BYTES}"
+        ) from error
+
+
+def inventory_tree(
+    root: Path, *, max_total_bytes: int = DEFAULT_MAX_TOTAL_TREE_BYTES
+) -> TreeInventory:
+    max_total_bytes = _bounded_total_tree_bytes(max_total_bytes)
     root_metadata = _entry_stat(root)
     if stat.S_ISLNK(root_metadata.st_mode):
         raise ProfileError("symlink_rejected")
@@ -236,7 +296,7 @@ def inventory_tree(root: Path) -> TreeInventory:
                 if metadata_bytes > MAX_TOTAL_METADATA_BYTES:
                     raise ProfileError("metadata_total_byte_limit_exceeded")
             total_bytes += identity.size
-            if total_bytes > MAX_TOTAL_BYTES:
+            if total_bytes > max_total_bytes:
                 raise ProfileError("tree_total_byte_limit_exceeded")
             files.append(FileRecord(path, relative, identity, kind))
             if len(files) > MAX_FILES:
@@ -314,6 +374,26 @@ def _open_metadata(record: FileRecord) -> tuple[BinaryIO, FileIdentity]:
         raise
 
 
+def _source_errata_receipt(repairs: Sequence[SourceErratum]) -> str:
+    digest = hashlib.sha256()
+    digest.update(SOURCE_ERRATUM_RECEIPT_DOMAIN.encode("ascii") + b"\0")
+    for repair in sorted(
+        repairs, key=lambda item: (item.source_sha256, item.source_bytes)
+    ):
+        record = json.dumps(
+            {
+                "operation": SOURCE_ERRATUM_REPAIR_OPERATION,
+                "source_bytes": repair.source_bytes,
+                "source_sha256": repair.source_sha256,
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+        digest.update(len(record).to_bytes(8, "big"))
+        digest.update(record)
+    return digest.hexdigest()
+
+
 def _read_metadata(record: FileRecord) -> dict[str, Any]:
     source, expected = _open_metadata(record)
     with source:
@@ -329,7 +409,23 @@ def _read_metadata(record: FileRecord) -> dict[str, Any]:
             raise ProfileError("metadata_exceeded_byte_fence")
         if not _same_identity(os.fstat(source.fileno()), expected):
             raise ProfileError("metadata_changed_during_read")
-    return strict_json(b"".join(chunks))
+    data = b"".join(chunks)
+    source_erratum = SOURCE_ERRATA.get(record.relative.as_posix())
+    if source_erratum is None:
+        return strict_json(data)
+
+    source_sha256 = hashlib.sha256(data).hexdigest()
+    if (
+        len(data) == source_erratum.source_bytes
+        and source_sha256 == source_erratum.source_sha256
+    ):
+        document = strict_json(b"{" + data)
+        return RepairedMetadata(document, source_erratum)
+
+    try:
+        return strict_json(data)
+    except ProfileError as error:
+        raise ProfileError("source_erratum_pin_mismatch") from error
 
 
 def _exact_object(value: Any, keys: frozenset[str]) -> dict[str, Any]:
@@ -444,7 +540,13 @@ def _data_file_declaration(value: Any, local_stem: str) -> tuple[str, bool]:
     raise ProfileError("unsupported_data_file_declaration")
 
 
-def parse_metadata(value: dict[str, Any], local_stem: str) -> MetadataFacts:
+def parse_metadata(
+    value: dict[str, Any],
+    local_stem: str,
+    *,
+    max_total_bytes: int = DEFAULT_MAX_TOTAL_TREE_BYTES,
+) -> MetadataFacts:
+    max_total_samples = _bounded_total_tree_bytes(max_total_bytes) // 8
     wrapper = _exact_object(value, WRAPPER_KEYS)
     version = _bounded_string(wrapper["version"])
     if VERSION_PATTERN.fullmatch(version) is None:
@@ -490,7 +592,7 @@ def parse_metadata(value: dict[str, Any], local_stem: str) -> MetadataFacts:
         _nonnegative_integer(annotation["core:sample_start"])
         count = _nonnegative_integer(annotation["core:sample_count"])
         sample_count += count
-        if sample_count > MAX_TOTAL_SAMPLES:
+        if sample_count > max_total_samples:
             raise ProfileError("sample_count_limit_exceeded")
         receiver_labels.append(
             _validate_label(annotation["wines:reciever"], transmitter=False)
@@ -541,8 +643,12 @@ def _setup_token(record: FileRecord) -> str:
     return record.relative.parts[0]
 
 
-def profile_tree(root: Path) -> dict[str, Any]:
-    inventory = inventory_tree(root)
+def profile_tree(
+    root: Path, *, max_total_bytes: int = DEFAULT_MAX_TOTAL_TREE_BYTES
+) -> dict[str, Any]:
+    max_total_bytes = _bounded_total_tree_bytes(max_total_bytes)
+    max_total_samples = max_total_bytes // 8
+    inventory = inventory_tree(root, max_total_bytes=max_total_bytes)
     metadata_records = tuple(
         record for record in inventory.files if record.kind == "metadata"
     )
@@ -568,6 +674,7 @@ def profile_tree(root: Path) -> dict[str, Any]:
     cf32_checked = 0
     cf32_matched = 0
     extent_skipped = 0
+    source_erratum_repairs: list[SourceErratum] = []
     failures: Counter[str] = Counter()
 
     for record in metadata_records:
@@ -582,14 +689,21 @@ def profile_tree(root: Path) -> dict[str, Any]:
             distance_tokens.add(distance)
 
         local_stem = record.path.name.removesuffix(".sigmf-meta")
-        facts = parse_metadata(_read_metadata(record), local_stem)
+        document = _read_metadata(record)
+        if isinstance(document, RepairedMetadata):
+            source_erratum_repairs.append(document.source_erratum)
+        facts = parse_metadata(
+            document,
+            local_stem,
+            max_total_bytes=max_total_bytes,
+        )
         versions.add(facts.version)
         datatypes.add(facts.datatype)
         sample_rates.add(facts.sample_rate)
         captures += facts.captures
         annotations += facts.annotations
         aggregate_sample_count += facts.sample_count
-        if aggregate_sample_count > MAX_TOTAL_SAMPLES:
+        if aggregate_sample_count > max_total_samples:
             raise ProfileError("sample_count_limit_exceeded")
         receiver_labels.update(facts.receiver_labels)
         transmitter_labels.update(facts.transmitter_labels)
@@ -688,6 +802,15 @@ def profile_tree(root: Path) -> dict[str, Any]:
             "skipped_non_cf32": extent_skipped,
             "iq_payload_bytes_read": 0,
         },
+        "source_errata": {
+            "normalized_metadata_files": len(source_erratum_repairs),
+            "repair_receipt": {
+                "algorithm": "sha256",
+                "domain": SOURCE_ERRATUM_RECEIPT_DOMAIN,
+                "digest": _source_errata_receipt(source_erratum_repairs),
+            },
+            "repository_relative_paths_retained": 0,
+        },
         "validation": {
             "failures": failure_counts,
             "total_failures": total_failures,
@@ -714,7 +837,8 @@ def profile_tree(root: Path) -> dict[str, Any]:
             "bytes_per_file": MAX_FILE_BYTES,
             "bytes_per_metadata_file": MAX_METADATA_FILE_BYTES,
             "total_metadata_bytes": MAX_TOTAL_METADATA_BYTES,
-            "total_tree_bytes": MAX_TOTAL_BYTES,
+            "total_tree_bytes": max_total_bytes,
+            "total_tree_bytes_hard_ceiling": HARD_MAX_TOTAL_TREE_BYTES,
             "array_items_per_metadata_field": MAX_ARRAY_ITEMS,
             "distinct_labels_per_role": MAX_DISTINCT_LABELS,
             "report_bytes": MAX_REPORT_BYTES,
@@ -773,6 +897,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="downloaded OSU LoRa setup tree",
     )
     parser.add_argument(
+        "--max-total-bytes",
+        type=_parse_total_tree_bytes,
+        default=DEFAULT_MAX_TOTAL_TREE_BYTES,
+        help=(
+            "selected total-tree byte bound "
+            f"(default: {DEFAULT_MAX_TOTAL_TREE_BYTES}; "
+            f"hard ceiling: {HARD_MAX_TOTAL_TREE_BYTES})"
+        ),
+    )
+    parser.add_argument(
         "--report",
         type=Path,
         default=ROOT / "data" / "derived" / "eval" / "osu-lora-sigmf-profile.json",
@@ -783,7 +917,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_args(argv)
-    report = profile_tree(arguments.root.expanduser().absolute())
+    report = profile_tree(
+        arguments.root.expanduser().absolute(),
+        max_total_bytes=arguments.max_total_bytes,
+    )
     rendered = render_report(report)
     write_report(arguments.report.expanduser().absolute(), rendered)
     sys.stdout.buffer.write(rendered)
