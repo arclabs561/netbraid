@@ -43,6 +43,13 @@ GitHub native binary releases remain available independently.
   the public-corpus evaluator co-schedules its deterministic replicas through
   the evaluated Netbraid binary.
 
+### Fixed
+
+- Count only schema-validated HDF5 windows toward controlled-cause payload
+  receipts, including when a reader returns a malformed summary.
+- Reconnected the saved-capture parser fuzz target to the unified `netbraid`
+  package so its nightly smoke recipe builds and runs again.
+
 ## [0.3.1] - 2026-07-28
 
 ### Changed
