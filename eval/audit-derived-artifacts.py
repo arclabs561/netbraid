@@ -390,6 +390,8 @@ def audit_repository(
             tracked_paths = set()
     if justfile_path.as_posix() not in tracked_paths:
         errors["untracked_justfile"] += 1
+    if contract_path.as_posix() not in tracked_paths:
+        errors["untracked_contract"] += 1
 
     producer_texts: dict[str, str | None] = {}
     for producer in sorted({artifact.producer for artifact in contract.artifacts}):

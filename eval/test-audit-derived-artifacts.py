@@ -71,7 +71,7 @@ class DerivedArtifactAuditTests(unittest.TestCase):
             ],
         }
         self.contract_path = self.root / "eval/contract.json"
-        self.tracked = {"eval/produce.py", "justfile"}
+        self.tracked = {"eval/contract.json", "eval/produce.py", "justfile"}
         self._write_contract()
 
     def _write_contract(self) -> None:
@@ -153,7 +153,7 @@ class DerivedArtifactAuditTests(unittest.TestCase):
                 report = MODULE.audit_repository(
                     self.root,
                     PurePosixPath("eval/contract.json"),
-                    tracked_paths=tracked,
+                    tracked_paths={"eval/contract.json", *tracked},
                 )
                 self.assertIn(expected, report["error_counts"])
                 self.contract["artifacts"][0]["producer"] = "eval/produce.py"
@@ -163,6 +163,17 @@ class DerivedArtifactAuditTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.assertIn("producer_not_invoked_by_recipe", self._audit()["error_counts"])
+
+    def test_rejects_untracked_contract(self) -> None:
+        tracked = self.tracked - {"eval/contract.json"}
+
+        report = MODULE.audit_repository(
+            self.root,
+            PurePosixPath("eval/contract.json"),
+            tracked_paths=tracked,
+        )
+
+        self.assertEqual(report["error_counts"]["untracked_contract"], 1)
 
     def test_rejects_missing_recipe_definition_and_undeclared_output(self) -> None:
         self.contract["artifacts"][0]["recipe"] = "absent"
