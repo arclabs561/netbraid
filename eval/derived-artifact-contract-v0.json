@@ -220,6 +220,13 @@
       "recipe": "ruff-uwb-heldout-location-real"
     },
     {
+      "path": "data/derived/eval/ruff-uwb-cross-distance-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ruff-uwb-cross-distance.py",
+      "recipe": "ruff-uwb-cross-campaign-transfer"
+    },
+    {
       "path": "data/derived/eval/ruff-uwb-observation-oracles.json",
       "format": "json",
       "retention": "reproducibility_output",

@@ -374,6 +374,16 @@ ruff-uwb-heldout-location:
 ruff-uwb-heldout-location-real: ruff-uwb-row-adapter
     uv run --script eval/evaluate-ruff-uwb-heldout-location.py --row-adapter {{ eval_output }}/ruff-uwb-one-meter-row-adapter.json --waveforms {{ eval_output }}/ruff-uwb-one-meter-waveforms.npy --report {{ eval_output }}/ruff-uwb-heldout-location-report.json
 
+# Prove cross-campaign role isolation, collection-scoped row identity, common
+# representation projection, exact metrics, and read-only mmap hermetically.
+ruff-uwb-cross-campaign-check:
+    uv run --script eval/test-evaluate-ruff-uwb-cross-distance.py
+
+# Fit/select only on the one-meter train/validation roles, quarantine its prior
+# test role, then evaluate once on the complete two-meter campaign.
+ruff-uwb-cross-campaign-transfer: ruff-uwb-row-adapter ruff-uwb-two-meter-row-adapter
+    uv run --script eval/evaluate-ruff-uwb-cross-distance.py --report {{ eval_output }}/ruff-uwb-cross-distance-report.json
+
 gnss-rff-layout-profile-check:
     {{ python }} eval/test-profile-gnss-rff-layout.py
 
