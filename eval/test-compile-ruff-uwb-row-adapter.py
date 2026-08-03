@@ -515,10 +515,28 @@ class RuffUwbRowAdapterCompilerTests(unittest.TestCase):
         self.assertFalse(fixture.waveform_path.exists())
         self.assertFalse(fixture.adapter_path.exists())
 
-    def test_source_never_uses_bulk_archive_extraction(self):
-        source = (HERE / "compile-ruff-uwb-row-adapter.py").read_text(encoding="utf-8")
-        forbidden = "extract" + "all"
-        self.assertNotIn(forbidden, source)
+    def test_compilation_never_uses_zip_extraction_apis(self):
+        fixture = Fixture(self)
+
+        with (
+            mock.patch.object(
+                MODULE.zipfile.ZipFile,
+                "extract",
+                side_effect=AssertionError("bulk member extraction used"),
+            ) as extract,
+            mock.patch.object(
+                MODULE.zipfile.ZipFile,
+                "extractall",
+                side_effect=AssertionError("bulk archive extraction used"),
+            ) as extract_all,
+        ):
+            adapter, reused = fixture.compile()
+
+        self.assertFalse(reused)
+        self.assertEqual(adapter["counts"]["rows"], len(fixture.rows))
+        self.assertEqual(fixture.waveform_path.read_bytes(), fixture.waveforms)
+        extract.assert_not_called()
+        extract_all.assert_not_called()
 
 
 if __name__ == "__main__":
