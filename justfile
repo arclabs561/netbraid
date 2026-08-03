@@ -91,6 +91,9 @@ controlled-jamming-status record="all":
 controlled-jamming-fetch record max_total_bytes="137438953472" max_file_bytes="8589934592" workers="2":
     uv run --script data/fetch/fetch-controlled-jamming.py fetch {{ record }} --max-total-bytes {{ max_total_bytes }} --max-file-bytes {{ max_file_bytes }} --workers {{ workers }}
 
+hdf5-window-check:
+    uv run --script eval/test_hdf5_window.py
+
 catalog-check:
     {{ python }} data/tests/test-catalogs.py
 

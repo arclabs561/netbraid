@@ -101,6 +101,12 @@ power, and distance split groups. Receipt-only mode reports that it did not
 rehash payload bytes; `--integrity full-digest` rehashes all artifacts. The
 compiler assigns no identity, intent, tamper, or train/test labels.
 
+`hdf5_window.py` is the bounded payload seam for that corpus. It accepts only a
+direct, singly linked, rank-two float64 dataset with two rows, gzip-only chunked
+storage, an 8 GiB source ceiling, a 64 MiB chunk ceiling, and a 64 MiB absolute
+hyperslab ceiling. It reads only the selected column interval and returns
+path-free per-row aggregates; it does not assign condition or identity labels.
+
 Manifest schema v1 is the frozen 24-run compatibility profile. Schema v2 adds
 an explicit policy for opaque regime tokens, per-regime split sizes, candidate
 count, truth position, and an engineering acceptance threshold. V2 also
