@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -108,6 +109,55 @@ class FetchOsuLoraTests(unittest.TestCase):
             self.assertRaisesRegex(MODULE.FetchError, "response_url_mismatch"),
         ):
             MODULE._read_index(root, root)
+
+    def test_index_and_head_retry_only_transient_request_failures(self):
+        root = MODULE.SETUPS["distances"]["root"]
+        index_response = Response(
+            b"<html></html>",
+            url=root,
+            headers={"Content-Type": "text/html"},
+        )
+        head_url = f"{root}sample.dat"
+        head_response = Response(
+            url=head_url,
+            headers={"Content-Length": "7", "ETag": '"v1"'},
+        )
+        with (
+            mock.patch.object(
+                MODULE,
+                "_open",
+                side_effect=[urllib.error.URLError("transient"), index_response],
+            ) as index_open,
+            mock.patch.object(MODULE.time, "sleep") as index_sleep,
+        ):
+            self.assertEqual(MODULE._read_index(root, root), [])
+        self.assertEqual(index_open.call_count, 2)
+        index_sleep.assert_called_once_with(MODULE.REQUEST_RETRY_DELAYS_SECONDS[0])
+
+        with (
+            mock.patch.object(
+                MODULE,
+                "_open",
+                side_effect=[urllib.error.URLError("transient"), head_response],
+            ) as head_open,
+            mock.patch.object(MODULE.time, "sleep") as head_sleep,
+        ):
+            remote = MODULE.head_remote("distances", "sample.dat", head_url)
+        self.assertEqual(remote.bytes, 7)
+        self.assertEqual(head_open.call_count, 2)
+        head_sleep.assert_called_once_with(MODULE.REQUEST_RETRY_DELAYS_SECONDS[0])
+
+        wrong_url = Response(
+            url=f"{root}elsewhere.dat", headers={"Content-Length": "7"}
+        )
+        with (
+            mock.patch.object(MODULE, "_open", return_value=wrong_url) as opener,
+            mock.patch.object(MODULE.time, "sleep") as sleeper,
+            self.assertRaisesRegex(MODULE.FetchError, "response_url_mismatch"),
+        ):
+            MODULE.head_remote("distances", "sample.dat", head_url)
+        opener.assert_called_once()
+        sleeper.assert_not_called()
 
     def test_resume_requires_exact_206_content_range(self):
         payload = b"0123456789"

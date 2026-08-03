@@ -20,6 +20,7 @@ import re
 import stat
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Mapping, Sequence
@@ -78,6 +79,8 @@ DEFAULT_MAX_ENTRIES = 25_000
 MAX_MAX_ENTRIES = 50_000
 DEFAULT_WORKERS = min(4, os.cpu_count() or 1)
 MAX_WORKERS = 8
+REQUEST_ATTEMPTS = 3
+REQUEST_RETRY_DELAYS_SECONDS = (0.25, 1.0)
 DEFAULT_MAX_TOTAL_BYTES = 10 * 1024**3
 DEFAULT_MAX_FILE_BYTES = 2 * 1024**3
 CONTENT_RANGE = re.compile(
@@ -312,22 +315,26 @@ def _validated_index_entry(
 
 
 def _read_index(index_url: str, root_url: str) -> list[tuple[str, str]]:
-    try:
-        with _open(_request(index_url, method="GET"), timeout=30) as response:
-            _require_exact_response_url(response, index_url)
-            if _response_status(response) != 200:
-                raise FetchError("index_requires_http_200")
-            content_type = (_header(response, "Content-Type") or "").lower()
-            if (
-                "text/html" not in content_type
-                and "application/xhtml+xml" not in content_type
-            ):
-                raise FetchError("index_not_html")
-            payload = response.read(INDEX_BYTE_LIMIT + 1)
-    except FetchError:
-        raise
-    except (OSError, urllib.error.URLError) as error:
-        raise FetchError("index_request_failed") from error
+    for attempt in range(REQUEST_ATTEMPTS):
+        try:
+            with _open(_request(index_url, method="GET"), timeout=30) as response:
+                _require_exact_response_url(response, index_url)
+                if _response_status(response) != 200:
+                    raise FetchError("index_requires_http_200")
+                content_type = (_header(response, "Content-Type") or "").lower()
+                if (
+                    "text/html" not in content_type
+                    and "application/xhtml+xml" not in content_type
+                ):
+                    raise FetchError("index_not_html")
+                payload = response.read(INDEX_BYTE_LIMIT + 1)
+            break
+        except FetchError:
+            raise
+        except (OSError, urllib.error.URLError) as error:
+            if attempt + 1 == REQUEST_ATTEMPTS:
+                raise FetchError("index_request_failed") from error
+            time.sleep(REQUEST_RETRY_DELAYS_SECONDS[attempt])
     if len(payload) > INDEX_BYTE_LIMIT:
         raise FetchError("index_response_too_large")
     try:
@@ -407,23 +414,27 @@ def _parse_content_length(response: Any) -> int | None:
 
 
 def head_remote(setup: str, path: str, url: str) -> RemoteFile:
-    try:
-        with _open(_request(url, method="HEAD"), timeout=30) as response:
-            _require_exact_response_url(response, url)
-            if _response_status(response) != 200:
-                raise FetchError("head_requires_http_200")
-            return RemoteFile(
-                setup=setup,
-                path=path,
-                url=url,
-                bytes=_parse_content_length(response),
-                etag=_header(response, "ETag"),
-                last_modified=_header(response, "Last-Modified"),
-            )
-    except FetchError:
-        raise
-    except (OSError, urllib.error.URLError) as error:
-        raise FetchError("head_request_failed") from error
+    for attempt in range(REQUEST_ATTEMPTS):
+        try:
+            with _open(_request(url, method="HEAD"), timeout=30) as response:
+                _require_exact_response_url(response, url)
+                if _response_status(response) != 200:
+                    raise FetchError("head_requires_http_200")
+                return RemoteFile(
+                    setup=setup,
+                    path=path,
+                    url=url,
+                    bytes=_parse_content_length(response),
+                    etag=_header(response, "ETag"),
+                    last_modified=_header(response, "Last-Modified"),
+                )
+        except FetchError:
+            raise
+        except (OSError, urllib.error.URLError) as error:
+            if attempt + 1 == REQUEST_ATTEMPTS:
+                raise FetchError("head_request_failed") from error
+            time.sleep(REQUEST_RETRY_DELAYS_SECONDS[attempt])
+    raise AssertionError("bounded request loop must return or raise")
 
 
 def _selected_setups(names: Sequence[str]) -> list[str]:
