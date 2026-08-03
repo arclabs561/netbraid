@@ -336,7 +336,143 @@ impl RssiReferenceFrameAssessmentV0 {
     pub fn source_wide_shift_candidates(&self) -> &[RssiSourceWideShiftCandidateV0] {
         &self.source_wide_shift_candidates
     }
+
+    /// Validate the serialized assessment's internal shape and canonical order.
+    ///
+    /// This does not recompute the assessment because the links and profile are
+    /// not embedded in the wire value.
+    pub fn validate_structure(&self) -> Result<(), RssiReferenceFrameAssessmentValidationErrorV0> {
+        if self.schema != RSSI_REFERENCE_FRAME_ASSESSMENT_SCHEMA_V0 {
+            return Err(RssiReferenceFrameAssessmentValidationErrorV0::UnsupportedSchema);
+        }
+        if self.reducer != RSSI_REFERENCE_FRAME_REDUCER_V0 {
+            return Err(RssiReferenceFrameAssessmentValidationErrorV0::UnsupportedReducer);
+        }
+        if self.profile_id.is_empty() {
+            return Err(RssiReferenceFrameAssessmentValidationErrorV0::EmptyProfileId);
+        }
+
+        if self
+            .observer_evidence
+            .windows(2)
+            .any(|pair| pair[0].observer_id >= pair[1].observer_id)
+        {
+            return Err(RssiReferenceFrameAssessmentValidationErrorV0::NonCanonicalOrder);
+        }
+        let observer_ids = self
+            .observer_evidence
+            .iter()
+            .map(|evidence| evidence.observer_id.as_str())
+            .collect::<BTreeSet<_>>();
+
+        if self
+            .source_wide_shift_candidates
+            .windows(2)
+            .any(|pair| pair[0].source_id >= pair[1].source_id)
+        {
+            return Err(RssiReferenceFrameAssessmentValidationErrorV0::NonCanonicalOrder);
+        }
+        let source_wide_ids = self
+            .source_wide_shift_candidates
+            .iter()
+            .map(|candidate| candidate.source_id.as_str())
+            .collect::<BTreeSet<_>>();
+        for candidate in &self.source_wide_shift_candidates {
+            if candidate.source_id.is_empty()
+                || candidate.observer_ids.len() < 2
+                || candidate.observer_ids.iter().any(|observer_id| {
+                    observer_id.is_empty() || !observer_ids.contains(observer_id.as_str())
+                })
+            {
+                return Err(
+                    RssiReferenceFrameAssessmentValidationErrorV0::InvalidSourceWideCandidate,
+                );
+            }
+            if candidate
+                .observer_ids
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
+            {
+                return Err(RssiReferenceFrameAssessmentValidationErrorV0::NonCanonicalOrder);
+            }
+        }
+
+        for evidence in &self.observer_evidence {
+            let retained_evidence_count = usize::try_from(evidence.shifted_link_count)
+                .unwrap_or(usize::MAX)
+                .min(RSSI_REFERENCE_FRAME_MAX_LINK_EVIDENCE_V0);
+            let link_source_ids = evidence
+                .link_evidence
+                .iter()
+                .map(|link| link.source_id.as_str())
+                .collect::<BTreeSet<_>>();
+            let has_numeric_shift = evidence
+                .link_evidence
+                .iter()
+                .any(|link| matches!(link.kind, RssiLinkShiftKindV0::Shifted { .. }));
+            if evidence.observer_id.is_empty()
+                || evidence.shifted_link_count > evidence.steady_link_count
+                || evidence.link_evidence.len() != retained_evidence_count
+                || evidence
+                    .link_evidence
+                    .iter()
+                    .any(|link| link.source_id.is_empty())
+                || link_source_ids.len() != evidence.link_evidence.len()
+                || evidence.observer_shift_candidate && evidence.shifted_link_count == 0
+                || evidence.median_shift_milli_db.is_some() != has_numeric_shift
+            {
+                return Err(RssiReferenceFrameAssessmentValidationErrorV0::InvalidObserverEvidence);
+            }
+            if evidence
+                .link_evidence
+                .windows(2)
+                .any(|pair| compare_link_evidence(&pair[0], &pair[1]) != Ordering::Less)
+            {
+                return Err(RssiReferenceFrameAssessmentValidationErrorV0::NonCanonicalOrder);
+            }
+            if evidence
+                .link_evidence
+                .iter()
+                .any(|link| source_wide_ids.contains(link.source_id.as_str()))
+            {
+                return Err(
+                    RssiReferenceFrameAssessmentValidationErrorV0::OverlappingSourceAttribution,
+                );
+            }
+        }
+        Ok(())
+    }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RssiReferenceFrameAssessmentValidationErrorV0 {
+    UnsupportedSchema,
+    UnsupportedReducer,
+    EmptyProfileId,
+    InvalidObserverEvidence,
+    InvalidSourceWideCandidate,
+    NonCanonicalOrder,
+    OverlappingSourceAttribution,
+}
+
+impl std::fmt::Display for RssiReferenceFrameAssessmentValidationErrorV0 {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::UnsupportedSchema => "unsupported RSSI reference-frame assessment schema",
+            Self::UnsupportedReducer => "unsupported RSSI reference-frame reducer",
+            Self::EmptyProfileId => "RSSI reference-frame assessment profile id is empty",
+            Self::InvalidObserverEvidence => "RSSI observer evidence is incoherent",
+            Self::InvalidSourceWideCandidate => "RSSI source-wide candidate is incoherent",
+            Self::NonCanonicalOrder => "RSSI reference-frame assessment order is noncanonical",
+            Self::OverlappingSourceAttribution => {
+                "RSSI source is attributed to both source-wide and observer evidence"
+            }
+        })
+    }
+}
+
+impl std::error::Error for RssiReferenceFrameAssessmentValidationErrorV0 {}
 
 #[derive(Debug)]
 #[non_exhaustive]
