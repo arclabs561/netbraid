@@ -229,6 +229,15 @@ xrf55-layout-profile:
     {{ python }} eval/profile-xrf55-layout.py --report {{ eval_output }}/xrf55-layout-profile-repeat.json
     cmp {{ eval_output }}/xrf55-layout-profile.json {{ eval_output }}/xrf55-layout-profile-repeat.json
 
+xrf55-hypothesis-frames-check:
+    {{ python }} eval/test-compile-xrf55-hypothesis-frames.py
+
+# Compile a bounded opaque frame sample from the complete processed event grid.
+xrf55-hypothesis-frames:
+    {{ python }} eval/compile-xrf55-hypothesis-frames.py --manifest {{ eval_output }}/xrf55-hypothesis-frames.json
+    {{ python }} eval/compile-xrf55-hypothesis-frames.py --manifest {{ eval_output }}/xrf55-hypothesis-frames-repeat.json
+    cmp {{ eval_output }}/xrf55-hypothesis-frames.json {{ eval_output }}/xrf55-hypothesis-frames-repeat.json
+
 # Inventory or explicitly fetch one Oregon State LoRa RFFI setup. The fetcher
 # rejects redirects and traversal, and defaults to a 10 GiB aggregate cap.
 osu-lora-fetcher-check:

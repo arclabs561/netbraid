@@ -116,6 +116,15 @@ class CentralDirectory:
     zip64: bool
 
 
+@dataclass(frozen=True)
+class ArchiveInspection:
+    report: Mapping[str, Any]
+    member_hashes: frozenset[bytes]
+    stem_hashes: frozenset[bytes]
+    subject_groups: frozenset[tuple[int, int]]
+    observations: frozenset[tuple[int, int, int, int]]
+
+
 def _load_fetcher() -> ModuleType:
     path = ROOT / "data" / "fetch" / "fetch-xrf55.py"
     spec = importlib.util.spec_from_file_location("_xrf55_fetcher", path)
@@ -328,17 +337,11 @@ def _processed_observation(
     return scene, subject, action, repetition, candidates.pop()
 
 
-def _profile_archive(
+def profile_archive(
     path: Path,
     expected_bytes: int,
     processed_contract: Mapping[str, Any] | None = None,
-) -> tuple[
-    dict[str, Any],
-    set[bytes],
-    set[bytes],
-    set[tuple[int, int]],
-    set[tuple[int, int, int, int]],
-]:
+) -> ArchiveInspection:
     source, identity = _open_regular(path, expected_bytes)
     with source:
         location = _central_directory(source, identity.size)
@@ -502,12 +505,12 @@ def _profile_archive(
             "test_events": len(subject_groups) * len(actions) * len(test_repetitions),
             "train_events": len(subject_groups) * len(actions) * len(train_repetitions),
         }
-    return (
-        report,
-        member_hashes,
-        stem_hashes,
-        subject_groups,
-        set(processed_modalities),
+    return ArchiveInspection(
+        report=report,
+        member_hashes=frozenset(member_hashes),
+        stem_hashes=frozenset(stem_hashes),
+        subject_groups=frozenset(subject_groups),
+        observations=frozenset(processed_modalities),
     )
 
 
@@ -535,7 +538,7 @@ def profile_corpus(
         )
         if observed["archive_state"] != "present" or not valid_receipt:
             raise Xrf55ProfileError("archive_or_receipt_metadata_unready")
-        report, member_hashes, stem_hashes, subjects, observations = _profile_archive(
+        inspection = profile_archive(
             raw_dir / str(spec["filename"]),
             int(spec["archive_bytes"]),
             processed_contracts.get(name),
@@ -543,11 +546,11 @@ def profile_corpus(
         receipt_location = (
             "central" if observed["central_receipt_state"] == "valid" else "legacy"
         )
-        archives[name] = {**report, "receipt_location": receipt_location}
-        path_sets[name] = member_hashes
-        stem_sets[name] = stem_hashes
-        subjects_by_archive[name] = subjects
-        observations_by_archive[name] = observations
+        archives[name] = {**inspection.report, "receipt_location": receipt_location}
+        path_sets[name] = set(inspection.member_hashes)
+        stem_sets[name] = set(inspection.stem_hashes)
+        subjects_by_archive[name] = set(inspection.subject_groups)
+        observations_by_archive[name] = set(inspection.observations)
 
     processed_names = sorted(processed_contracts)
     if any(name not in subjects_by_archive for name in processed_names):

@@ -234,6 +234,20 @@
       "recipe": "wlan-rff-layout-profile"
     },
     {
+      "path": "data/derived/eval/xrf55-hypothesis-frames-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-hypothesis-frames.py",
+      "recipe": "xrf55-hypothesis-frames"
+    },
+    {
+      "path": "data/derived/eval/xrf55-hypothesis-frames.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-hypothesis-frames.py",
+      "recipe": "xrf55-hypothesis-frames"
+    },
+    {
       "path": "data/derived/eval/xrf55-layout-profile-repeat.json",
       "format": "json",
       "retention": "reproducibility_output",

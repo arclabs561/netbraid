@@ -83,6 +83,14 @@ member names or identifier values. Receipt validation is reported separately
 from the intentionally deferred full archive rehash; performer groups are not
 promoted to RF-device or physical-source identity.
 
+`compile-xrf55-hypothesis-frames.py` converts the complete processed event grid
+into a bounded deterministic v2 frame sample. It covers synchronized
+cross-modal events, same-performer different-event controls, and
+different-performer controls with opaque IDs. Cross-modal frames deliberately
+permit one event and performer to have different sensing devices and physical
+RF sources; intent, tamper, freshness, and unobserved infrastructure relations
+remain unknown rather than inferred from action labels.
+
 `evaluate-ujiindoorloc-split-capability.py` streams the pinned IPIN 2015 Track
 3 CSV members after verifying the archive and central receipt. It reports
 aggregate user, phone, building, floor, building/floor, and location-cell
