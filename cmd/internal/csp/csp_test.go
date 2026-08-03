@@ -98,7 +98,7 @@ func TestSolveSingleAtMost(t *testing.T) {
 }
 
 func TestSolveMulti(t *testing.T) {
-	// ^wl:h=static,b=2.4+h=uniform,n=1 -i ^wlan-test1:h=uniform,b=5,n=3
+	// ^wl:h=static,b=2.4+h=uniform,n=1 -i ^wlan-test0:h=uniform,b=5,n=3
 	regions := []csp.Region{
 		{
 			Index:      [2]int{0, 0},
