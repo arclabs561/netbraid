@@ -338,6 +338,7 @@ fn opaque_quarantine_rows_are_not_distributable_v1_evidence() {
     let bytes = fs::read_to_string(&path).unwrap();
     let mut lines = bytes.lines();
     let mut manifest: CaptureManifestV0 = serde_json::from_str(lines.next().unwrap()).unwrap();
+    manifest.normalization.packet_limit = 7;
     manifest.normalization.packet_rows_quarantined = 1;
     let mut rewritten = vec![serde_json::to_string(&manifest).unwrap()];
     rewritten.extend(lines.map(str::to_owned));

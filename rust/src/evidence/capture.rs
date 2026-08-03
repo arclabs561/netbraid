@@ -289,6 +289,10 @@ pub enum CaptureValidationError {
     InconsistentCaptureFileTimes,
     PassivePolicyHasActiveActions,
     InconsistentNormalization,
+    NormalizedRowsExceedPacketLimit {
+        normalized_rows: u128,
+        packet_limit: u64,
+    },
     ZeroFrameNumber,
     UnexpectedRecordId,
     CapturedLengthExceedsOriginal,
@@ -367,6 +371,13 @@ impl std::fmt::Display for CaptureValidationError {
             }
             Self::InconsistentNormalization => formatter.write_str(
                 "complete normalization cannot have quarantines or a reached packet limit",
+            ),
+            Self::NormalizedRowsExceedPacketLimit {
+                normalized_rows,
+                packet_limit,
+            } => write!(
+                formatter,
+                "normalization declares {normalized_rows} rows above packet limit {packet_limit}"
             ),
             Self::ZeroFrameNumber => formatter.write_str("frame number must be greater than zero"),
             Self::UnexpectedRecordId => {
@@ -480,6 +491,14 @@ impl CaptureManifestV0 {
                 || self.normalization.packet_rows_quarantined != 0)
         {
             return Err(CaptureValidationError::InconsistentNormalization);
+        }
+        let normalized_rows = u128::from(self.normalization.packet_rows_emitted)
+            + u128::from(self.normalization.packet_rows_quarantined);
+        if normalized_rows > u128::from(self.normalization.packet_limit) {
+            return Err(CaptureValidationError::NormalizedRowsExceedPacketLimit {
+                normalized_rows,
+                packet_limit: self.normalization.packet_limit,
+            });
         }
         Ok(())
     }
@@ -1047,6 +1066,20 @@ mod tests {
         assert_eq!(
             value.validate(),
             Err(CaptureValidationError::InconsistentNormalization)
+        );
+    }
+
+    #[test]
+    fn manifest_rejects_normalized_rows_above_packet_limit() {
+        let mut value = manifest();
+        value.normalization.packet_limit = 1;
+
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::NormalizedRowsExceedPacketLimit {
+                normalized_rows: 2,
+                packet_limit: 1,
+            })
         );
     }
 

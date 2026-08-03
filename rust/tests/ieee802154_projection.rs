@@ -121,7 +121,7 @@ fn projection_has_exact_aggregate_contract_without_identifiers() {
 #[test]
 fn partial_scope_and_quarantine_counts_remain_explicit() {
     let records = validated_stream(
-        manifest(NormalizationStateV0::Partial, 1, true, 1, 1),
+        manifest(NormalizationStateV0::Partial, 2, true, 1, 1),
         vec![ieee802154_packet(
             1,
             (1, 0),
@@ -148,7 +148,7 @@ fn partial_scope_and_quarantine_counts_remain_explicit() {
         SavedPcapClaimScopeV0::NormalizedPacketSubset
     );
     assert_eq!(projection.completeness.state, NormalizationStateV0::Partial);
-    assert_eq!(projection.completeness.packet_limit, 1);
+    assert_eq!(projection.completeness.packet_limit, 2);
     assert!(projection.completeness.packet_limit_reached);
     assert_eq!(projection.counts.packet_envelopes, 1);
     assert_eq!(projection.counts.packet_quarantines, 1);
