@@ -377,10 +377,33 @@ class FetcherMetadataTests(unittest.TestCase):
         self.assertIn("rf-fingerprinting", MODULE.GROUPS)
         self.assertIn("rfid-exsim", MODULE.GROUPS)
         self.assertIn("matter-traces", MODULE.GROUPS)
+        self.assertIn("indoor-positioning", MODULE.GROUPS)
         ignores = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
         self.assertTrue(
             {"/data/raw/", "/data/derived/", "/data/receipts/"}.issubset(ignores)
         )
+
+    def test_ipin_2015_ujiindoorloc_pin(self):
+        source = MODULE.SOURCES["ipin-2015-ujiindoorloc"]
+        self.assertEqual(
+            source["url"],
+            "https://archive.ics.uci.edu/static/public/310/ujiindoorloc.zip",
+        )
+        self.assertEqual(
+            (source["filename"], source["bytes"]),
+            ("UJIIndoorLoc.zip", 1_463_759),
+        )
+        self.assertEqual(source["md5"], "1699ee0071fa0ac43f5e59dde511f48a")
+        self.assertEqual(
+            source["sha256"],
+            "893512b82dfd7a7c345d84195b1c8019fbca0fa0d7820ce491ce5aa45ec3782f",
+        )
+        self.assertEqual(
+            source["sha256_provenance"], "computed_from_uci_static_artifact"
+        )
+        self.assertEqual(source["license"], "CC BY 4.0")
+        self.assertEqual(source["doi"], "10.24432/C5MS59")
+        self.assertEqual(source["group"], "indoor-positioning")
 
     def test_rfid_exsim_zenodo_pin(self):
         source = MODULE.SOURCES["rfid-exsim-v1"]

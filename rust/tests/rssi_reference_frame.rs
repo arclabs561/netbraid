@@ -1,5 +1,6 @@
 use netbraid::infer::{
     assess_rssi_reference_frame_v0, RssiLinkShiftKindV0, RssiMilliDbV0, RssiObserverEvidenceV0,
+    RssiReferenceFrameAssessmentV0, RssiReferenceFrameAssessmentValidationErrorV0,
     RssiReferenceFrameErrorV0, RssiReferenceFrameLinkV0, RssiReferenceFrameProfileV0,
     RssiReferenceFrameProfileValidationErrorV0, RSSI_REFERENCE_FRAME_PPB_V0,
 };
@@ -88,6 +89,67 @@ fn stable_reference_frame_retains_evidence_without_candidates() {
         assert_eq!(evidence.median_shift_milli_db(), None);
         assert!(evidence.link_evidence().is_empty());
     }
+}
+
+#[test]
+fn deserialized_assessment_rejects_impossible_observer_state() {
+    let assessment = assess_rssi_reference_frame_v0(&stable_links(), &profile()).unwrap();
+    let mut wire = serde_json::to_value(assessment).unwrap();
+    wire["observer_evidence"][0]["shifted_link_count"] = serde_json::json!(1);
+
+    let decoded: RssiReferenceFrameAssessmentV0 = serde_json::from_value(wire).unwrap();
+
+    assert_eq!(
+        decoded.validate_structure(),
+        Err(RssiReferenceFrameAssessmentValidationErrorV0::InvalidObserverEvidence)
+    );
+}
+
+#[test]
+fn deserialized_assessment_rejects_overlapping_source_attribution() {
+    let links = frame_links(4, |observer_id, source_id, baseline| {
+        Some(
+            if source_id == "screen" || observer_id == "observer-a" && source_id == "speaker" {
+                baseline - 20_000
+            } else {
+                baseline
+            },
+        )
+    });
+    let assessment = assess_rssi_reference_frame_v0(&links, &profile()).unwrap();
+    let mut wire = serde_json::to_value(assessment).unwrap();
+    wire["observer_evidence"][0]["link_evidence"][0]["source_id"] = serde_json::json!("screen");
+
+    let decoded: RssiReferenceFrameAssessmentV0 = serde_json::from_value(wire).unwrap();
+
+    assert_eq!(
+        decoded.validate_structure(),
+        Err(RssiReferenceFrameAssessmentValidationErrorV0::OverlappingSourceAttribution)
+    );
+}
+
+#[test]
+fn deserialized_assessment_rejects_noncanonical_candidate_order() {
+    let links = frame_links(4, |_, source_id, baseline| {
+        Some(if source_id == "screen" || source_id == "speaker" {
+            baseline - 20_000
+        } else {
+            baseline
+        })
+    });
+    let assessment = assess_rssi_reference_frame_v0(&links, &profile()).unwrap();
+    let mut wire = serde_json::to_value(assessment).unwrap();
+    wire["source_wide_shift_candidates"]
+        .as_array_mut()
+        .unwrap()
+        .reverse();
+
+    let decoded: RssiReferenceFrameAssessmentV0 = serde_json::from_value(wire).unwrap();
+
+    assert_eq!(
+        decoded.validate_structure(),
+        Err(RssiReferenceFrameAssessmentValidationErrorV0::NonCanonicalOrder)
+    );
 }
 
 #[test]
@@ -324,9 +386,11 @@ proptest! {
             })
         });
         let assessment = assess_rssi_reference_frame_v0(&links, &profile()).unwrap();
+        prop_assert_eq!(assessment.validate_structure(), Ok(()));
         let first = serde_json::to_string(&assessment).unwrap();
         let decoded: netbraid::infer::RssiReferenceFrameAssessmentV0 =
             serde_json::from_str(&first).unwrap();
+        prop_assert_eq!(decoded.validate_structure(), Ok(()));
         let second = serde_json::to_string(&decoded).unwrap();
 
         prop_assert_eq!(first, second);

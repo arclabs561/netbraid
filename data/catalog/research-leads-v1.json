@@ -484,7 +484,7 @@
       "modalities": ["mmwave", "radar_iq", "controlled_jamming_observation"],
       "roles": ["jamming_cause_eval", "receiver_shift_eval", "target_count_confounder_eval"],
       "disposition": "candidate",
-      "fetch": "investigate_before_pinning",
+      "fetch": "existing_fetcher",
       "priority": "P0",
       "note": "The exact fetch manifest pins 80 MAT artifacts spanning four receiver elements, two radar regimes, with/without-jammer conditions, and one-to-five-target scenes. These are controlled scenario labels, not malicious-intent or tamper labels; receiver, regime, and target count must remain explicit confounders."
     },
@@ -580,6 +580,39 @@
       "fetch": "existing_fetcher",
       "priority": "P0",
       "note": "The fetcher pins the sole Zenodo ZIP. The record describes JSONL RFID read events, but the ZIP contains only README.md, LICENSE, and rfid_dataset.png; its README links the complete dataset externally. Zenodo declares no record-level license, so dataset redistribution terms remain unverified. Scenario labels are controlled evaluation oracles and do not establish production intent."
+    },
+    {
+      "id": "ipin-2015-ujiindoorloc",
+      "title": "IPIN 2015 Track 3 UJIIndoorLoc Wi-Fi fingerprint dataset",
+      "source_type": "dataset",
+      "canonical_url": "https://archive.ics.uci.edu/dataset/310/ujiindoorloc",
+      "related_urls": [
+        "https://doi.org/10.24432/C5MS59",
+        "https://ipin-conference.org/resources.html"
+      ],
+      "access": "direct_download",
+      "license": "cc_by_4_0",
+      "modalities": ["wlan_rssi_fingerprint", "location_observation", "user_device_observation"],
+      "roles": ["building_floor_eval", "location_shift_eval", "user_device_shift_eval"],
+      "disposition": "candidate",
+      "fetch": "existing_fetcher",
+      "priority": "P0",
+      "note": "The fetcher pins the 2015 Track 3 archive from UCI. Evaluation must keep anonymized user, phone, timestamp, building, and floor axes explicit rather than treating the publisher train/validation files as a leakage-safe split."
+    },
+    {
+      "id": "ton-iot-unsw",
+      "title": "UNSW TON_IoT heterogeneous cybersecurity dataset",
+      "source_type": "dataset",
+      "canonical_url": "https://research.unsw.edu.au/projects/toniot-datasets",
+      "related_urls": ["https://doi.org/10.26190/5d7ac9bfe8487"],
+      "access": "gated",
+      "license": "research_terms",
+      "modalities": ["packet_capture", "network_flow", "host_telemetry", "iot_sensor_telemetry", "security_event_ground_truth"],
+      "roles": ["cross_layer_alignment_eval", "attack_cause_eval", "domain_shift_eval"],
+      "disposition": "manual_only",
+      "fetch": "manual_access",
+      "priority": "P0",
+      "note": "UNSW grants academic research use but requires author permission for commercial use. Its official download is a mutable SharePoint folder without one publisher-pinned artifact inventory, size, or digest, so automated acquisition remains disabled until those terms and files are admitted explicitly."
     }
   ]
 }

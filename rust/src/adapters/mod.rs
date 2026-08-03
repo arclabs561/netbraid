@@ -8,3 +8,5 @@ pub mod npy;
 pub mod sigmf;
 #[cfg(feature = "adapter-tshark")]
 pub mod tshark;
+#[cfg(feature = "adapter-zeek")]
+pub mod zeek;

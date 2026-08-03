@@ -1,26 +1,13 @@
-image := "arclabs561/netbraid"
 python := env_var_or_default("PYTHON", "python3")
 raw_data := "data/raw"
 eval_output := "data/derived/eval"
 
-docker: lint test docker-bare
+check: rust-check scenario-check python-check
 
-docker-bare:
-    docker build -t {{ image }} .
+test: check
 
-docker-push: lint test
-    docker buildx build --platform linux/amd64,linux/arm64 -t {{ image }} --push .
-
-upgrade:
-    go get -u ./...
-    go install -v ./...
-    go mod tidy
-
-lint:
-    golangci-lint run
-
-test: lint
-    go test ./...
+python-check:
+    {{ python }} eval/run-python-tests.py
 
 rust-check:
     cargo fmt --manifest-path rust/Cargo.toml --all -- --check
@@ -61,6 +48,9 @@ hypothesis-frame-check:
 
 hypothesis-metrics-check:
     {{ python }} eval/test-hypothesis-metrics.py
+
+calibrated-event-relation-check:
+    {{ python }} eval/test-calibrated-event-relation.py
 
 relation-split-audit-check:
     {{ python }} eval/test-relation-split-audit.py
@@ -132,6 +122,22 @@ public-corpus-fetch dataset="all" verify_workers="4":
 public-corpus-inventory dataset="all" verify_workers="4":
     uv run --script data/fetch/fetch-public-eval-corpus.py {{ dataset }} --verify-workers {{ verify_workers }} --inspect --inspect-output {{ eval_output }}/public-corpus-inventory.json
 
+ujiindoorloc-split-capability-check:
+    {{ python }} eval/test-evaluate-ujiindoorloc-split-capability.py
+
+# Verify the pinned IPIN 2015 archive and report aggregate publisher-split
+# intersections without retaining fingerprints, coordinates, or identifiers.
+ujiindoorloc-split-capability:
+    {{ python }} eval/evaluate-ujiindoorloc-split-capability.py
+
+# Reassign the verified corpus in memory by acquisition phone, prove a
+# four-role full-building/floor-coverage witness, and report the stricter
+# user-plus-phone boundary separately. No group assignments are retained.
+ujiindoorloc-phone-holdout-feasibility:
+    {{ python }} eval/evaluate-ujiindoorloc-split-capability.py --phone-holdout-report {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility.json
+    {{ python }} eval/evaluate-ujiindoorloc-split-capability.py --phone-holdout-report {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility-repeat.json
+    cmp {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility.json {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility-repeat.json
+
 # Evaluate the complete admitted capture-fixture manifest through the current
 # production binary and retain only the ignored metadata report.
 admitted-corpus-eval:
@@ -193,12 +199,14 @@ netslab-alignment-profile:
 iot23-flow-lineage-check:
     {{ python }} eval/test-evaluate-iot23-flow-lineage.py
     {{ python }} eval/test-run-iot23-flow-lineage-campaign.py
+    cargo test --locked --manifest-path rust/Cargo.toml --example zeek_conn_profile --features adapter-zeek
 
 # Reproduce packet-flow derivation and oracle evaluation twice from the pinned
 # ignored IoT-23 pair, then write a path-free deterministic campaign receipt.
 iot23-flow-lineage:
     cargo build --locked --manifest-path rust/Cargo.toml --bin netbraid
-    {{ python }} eval/run-iot23-flow-lineage-campaign.py --capture {{ raw_data }}/iot23v2-hakai-capture-8-1.pcap --zeek-log {{ raw_data }}/iot23v2-hakai-capture-8-1-zeek.log.labeled --netbraid-bin rust/target/debug/netbraid --output-dir {{ eval_output }}/iot23-flow-lineage-v0
+    cargo build --locked --manifest-path rust/Cargo.toml --example zeek_conn_profile --features adapter-zeek
+    {{ python }} eval/run-iot23-flow-lineage-campaign.py --capture {{ raw_data }}/iot23v2-hakai-capture-8-1.pcap --zeek-log {{ raw_data }}/iot23v2-hakai-capture-8-1-zeek.log.labeled --netbraid-bin rust/target/debug/netbraid --zeek-profile-bin rust/target/debug/examples/zeek_conn_profile --output-dir {{ eval_output }}/iot23-flow-lineage-v1
 
 # Fetch pinned XRF55 bundles into the ignored corpus directory. Archives are
 # never extracted; a local SHA-256 receipt protects reuse after acquisition.
@@ -207,6 +215,70 @@ xrf55-fetcher-check:
 
 xrf55-fetch dataset="list":
     {{ python }} data/fetch/fetch-xrf55.py {{ dataset }}
+
+# Report archive/receipt readiness without hashing the 196 GB payload corpus.
+# This is metadata-only and never claims that payload integrity was verified.
+xrf55-status:
+    {{ python }} data/fetch/fetch-xrf55.py status
+
+# Inspect only bounded ZIP metadata. The report records receipt validation but
+# explicitly does not claim a fresh archive-payload digest verification.
+xrf55-layout-profile:
+    {{ python }} eval/test-profile-xrf55-layout.py
+    {{ python }} eval/profile-xrf55-layout.py --report {{ eval_output }}/xrf55-layout-profile.json
+    {{ python }} eval/profile-xrf55-layout.py --report {{ eval_output }}/xrf55-layout-profile-repeat.json
+    cmp {{ eval_output }}/xrf55-layout-profile.json {{ eval_output }}/xrf55-layout-profile-repeat.json
+
+xrf55-npy-shape-profile-check:
+    {{ python }} eval/test-profile-xrf55-npy-shapes.py
+
+# Read one bounded NPY header per distinct processed modality/size class.
+xrf55-npy-shape-profile:
+    {{ python }} eval/profile-xrf55-npy-shapes.py --report {{ eval_output }}/xrf55-npy-shape-profile.json
+    {{ python }} eval/profile-xrf55-npy-shapes.py --report {{ eval_output }}/xrf55-npy-shape-profile-repeat.json
+    cmp {{ eval_output }}/xrf55-npy-shape-profile.json {{ eval_output }}/xrf55-npy-shape-profile-repeat.json
+
+xrf55-feature-cache-check:
+    uv run --script eval/test-compile-xrf55-feature-cache.py
+
+# Stream only the fixed 160-event campaign into private 0600 feature matrices.
+# The second run proves byte-level determinism without retaining source labels.
+xrf55-feature-cache:
+    uv run --script eval/compile-xrf55-feature-cache.py
+    uv run --script eval/compile-xrf55-feature-cache.py --adapter {{ eval_output }}/xrf55-feature-cache-adapter-repeat.json --wifi-matrix {{ eval_output }}/xrf55-feature-cache-wifi-repeat.npy --rfid-matrix {{ eval_output }}/xrf55-feature-cache-rfid-repeat.npy --mmwave-matrix {{ eval_output }}/xrf55-feature-cache-mmwave-repeat.npy
+    cmp {{ eval_output }}/xrf55-feature-cache-adapter.json {{ eval_output }}/xrf55-feature-cache-adapter-repeat.json
+    cmp {{ eval_output }}/xrf55-feature-cache-wifi.npy {{ eval_output }}/xrf55-feature-cache-wifi-repeat.npy
+    cmp {{ eval_output }}/xrf55-feature-cache-rfid.npy {{ eval_output }}/xrf55-feature-cache-rfid-repeat.npy
+    cmp {{ eval_output }}/xrf55-feature-cache-mmwave.npy {{ eval_output }}/xrf55-feature-cache-mmwave-repeat.npy
+
+xrf55-cross-modal-retrieval-check:
+    uv run --script eval/test-evaluate-xrf55-cross-modal-retrieval.py
+
+# Fit only on repetitions 1-14 and retrieve exact held-out events among the
+# six same-performer/action candidates from repetitions 15-20.
+xrf55-cross-modal-retrieval: xrf55-feature-cache
+    uv run --script eval/evaluate-xrf55-cross-modal-retrieval.py
+    uv run --script eval/evaluate-xrf55-cross-modal-retrieval.py --report {{ eval_output }}/xrf55-cross-modal-retrieval-report-repeat.json
+    cmp {{ eval_output }}/xrf55-cross-modal-retrieval-report.json {{ eval_output }}/xrf55-cross-modal-retrieval-report-repeat.json
+
+xrf55-calibrated-event-relation-check: calibrated-event-relation-check
+    uv run --script eval/test-evaluate-xrf55-calibrated-event-relation.py
+
+# Fit on repetitions 1-8, calibrate on 9-11, gate on 12-14, and score
+# repetitions 15-20 only when the preregistered validation gate passes.
+xrf55-calibrated-event-relation: xrf55-feature-cache
+    uv run --script eval/evaluate-xrf55-calibrated-event-relation.py
+    uv run --script eval/evaluate-xrf55-calibrated-event-relation.py --report {{ eval_output }}/xrf55-calibrated-event-relation-report-repeat.json
+    cmp {{ eval_output }}/xrf55-calibrated-event-relation-report.json {{ eval_output }}/xrf55-calibrated-event-relation-report-repeat.json
+
+xrf55-hypothesis-frames-check:
+    {{ python }} eval/test-compile-xrf55-hypothesis-frames.py
+
+# Compile a bounded opaque frame sample from the complete processed event grid.
+xrf55-hypothesis-frames:
+    {{ python }} eval/compile-xrf55-hypothesis-frames.py --manifest {{ eval_output }}/xrf55-hypothesis-frames.json
+    {{ python }} eval/compile-xrf55-hypothesis-frames.py --manifest {{ eval_output }}/xrf55-hypothesis-frames-repeat.json
+    cmp {{ eval_output }}/xrf55-hypothesis-frames.json {{ eval_output }}/xrf55-hypothesis-frames-repeat.json
 
 # Inventory or explicitly fetch one Oregon State LoRa RFFI setup. The fetcher
 # rejects redirects and traversal, and defaults to a 10 GiB aggregate cap.
@@ -250,6 +322,14 @@ osu-lora-oracles-check:
 osu-lora-oracles:
     {{ python }} eval/compile-osu-lora-oracles.py
 
+# Prove the four-role assignment contract hermetically. The real OSU oracle
+# currently fails closed because publisher metadata does not expose sessions.
+osu-lora-relation-split-check:
+    {{ python }} eval/test-build-osu-lora-relation-split.py
+
+osu-lora-relation-split:
+    {{ python }} eval/build-osu-lora-relation-split.py
+
 ruff-uwb-oracles-check:
     {{ python }} eval/test-compile-ruff-uwb-oracles.py
 
@@ -262,7 +342,12 @@ ruff-uwb-row-adapter-check:
 # Verify the pinned one-meter archive and central fetch receipt, then stream its
 # waveform member to a private standalone NPY suitable for read-only mmap.
 ruff-uwb-row-adapter:
-    {{ python }} eval/compile-ruff-uwb-row-adapter.py
+    {{ python }} eval/compile-ruff-uwb-row-adapter.py --waveforms-output data/derived/eval/ruff-uwb-one-meter-waveforms.npy --adapter-output data/derived/eval/ruff-uwb-one-meter-row-adapter.json
+
+# Apply the same fail-closed adapter contract to the pinned two-meter collection.
+# This is intentionally separate because extraction reads and writes several GiB.
+ruff-uwb-two-meter-row-adapter:
+    {{ python }} eval/compile-ruff-uwb-row-adapter.py --collection distance-2 --waveforms-output data/derived/eval/ruff-uwb-two-meter-waveforms.npy --adapter-output data/derived/eval/ruff-uwb-two-meter-row-adapter.json
 
 # Record the current leakage-safe RUFF-UWB baseline boundary. The aggregate
 # oracle cannot yet bind waveform rows, so this succeeds only for that exact
@@ -275,6 +360,16 @@ ruff-uwb-heldout-location:
 
 ruff-uwb-heldout-location-real: ruff-uwb-row-adapter
     uv run --script eval/evaluate-ruff-uwb-heldout-location.py --row-adapter {{ eval_output }}/ruff-uwb-one-meter-row-adapter.json --waveforms {{ eval_output }}/ruff-uwb-one-meter-waveforms.npy --report {{ eval_output }}/ruff-uwb-heldout-location-report.json
+
+# Prove cross-campaign role isolation, collection-scoped row identity, common
+# representation projection, exact metrics, and read-only mmap hermetically.
+ruff-uwb-cross-campaign-check:
+    uv run --script eval/test-evaluate-ruff-uwb-cross-distance.py
+
+# Fit/select only on the one-meter train/validation roles, quarantine its prior
+# test role, then evaluate once on the complete two-meter campaign.
+ruff-uwb-cross-campaign-transfer: ruff-uwb-row-adapter ruff-uwb-two-meter-row-adapter
+    uv run --script eval/evaluate-ruff-uwb-cross-distance.py --report {{ eval_output }}/ruff-uwb-cross-distance-report.json
 
 gnss-rff-layout-profile-check:
     {{ python }} eval/test-profile-gnss-rff-layout.py

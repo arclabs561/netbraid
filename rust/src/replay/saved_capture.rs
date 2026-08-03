@@ -992,6 +992,24 @@ mod tests {
     }
 
     #[test]
+    fn receipt_free_stream_rejects_normalized_rows_above_packet_limit() {
+        let mut manifest = manifest();
+        manifest.normalization.packet_limit = 1;
+
+        assert!(matches!(
+            parse_saved_capture_jsonl(&jsonl![manifest, packet(), quarantine()]),
+            Err(SavedCaptureReadError::InvalidRecord {
+                line: 1,
+                family: SavedCaptureRecordFamilyV0::Manifest,
+                source: CaptureValidationError::NormalizedRowsExceedPacketLimit {
+                    normalized_rows: 2,
+                    packet_limit: 1,
+                },
+            })
+        ));
+    }
+
+    #[test]
     fn requires_exactly_one_leading_manifest() {
         assert!(matches!(
             parse_saved_capture_jsonl(b""),

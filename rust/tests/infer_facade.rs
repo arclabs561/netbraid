@@ -3,11 +3,12 @@ use netbraid::infer::{
     assess_counter_capture_v0, assess_packet_same_event_v0, assess_saved_pcap_fingerprint_v0,
     CounterCaptureDispositionV0, CounterCaptureProfileV0, CounterCaptureReferenceV0,
     CounterCaptureScaleVectorPpbV0, CounterCaptureUnknownReasonV0, PacketSameEventDispositionV0,
-    PacketSameEventReferenceV0, PacketSameEventUnknownReasonV0, SavedPcapFingerprintCandidateRefV0,
-    SavedPcapFingerprintCandidateV0, SavedPcapFingerprintComparisonV0,
-    SavedPcapFingerprintDispositionV0, SavedPcapFingerprintErrorV0,
-    SavedPcapFingerprintHypothesisSetV0, SavedPcapFingerprintReferenceV0,
-    SavedPcapFingerprintValidationErrorV0, TrafficWindowEvidenceV0, TrafficWindowV0,
+    PacketSameEventReferenceV0, PacketSameEventUnknownReasonV0, ProjectFiniteHypothesesV0,
+    SavedPcapFingerprintCandidateRefV0, SavedPcapFingerprintCandidateV0,
+    SavedPcapFingerprintComparisonV0, SavedPcapFingerprintDispositionV0,
+    SavedPcapFingerprintErrorV0, SavedPcapFingerprintHypothesisSetV0,
+    SavedPcapFingerprintReferenceV0, SavedPcapFingerprintValidationErrorV0,
+    TrafficWindowEvidenceV0, TrafficWindowV0, FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0,
     SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_REDUCER_V0,
 };
 
@@ -71,12 +72,26 @@ fn public_same_event_family_obeys_finite_hypothesis_law() {
     right.record_id = format!("{}:frame:1", right.capture_id);
 
     let result = assess_packet_same_event_v0(&left, &right).expect("valid assessment");
+    let projection = result
+        .project_finite_hypotheses_v0()
+        .expect("valid finite projection");
 
     assert_eq!(
         result.reference,
         PacketSameEventReferenceV0::Unknown {
             reason: PacketSameEventUnknownReasonV0::MissingIeee80211Evidence,
         }
+    );
+    assert_eq!(projection.schema(), FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0);
+    assert_eq!(projection.family_schema(), result.schema);
+    assert_eq!(projection.reducer(), result.reducer);
+    assert_eq!(
+        projection
+            .alternatives()
+            .iter()
+            .map(|alternative| alternative.role())
+            .collect::<Vec<_>>(),
+        ["same_event", "different_event", "unknown"]
     );
     assert_finite_hypothesis_law(
         "same-event unknown",

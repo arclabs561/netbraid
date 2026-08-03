@@ -101,6 +101,55 @@
       "recipe": "iot23-flow-lineage"
     },
     {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/campaign-receipt.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/packet-flows-repeat.tsv",
+      "format": "tsv",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/packet-flows.tsv",
+      "format": "tsv",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/zeek-adapter-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
+      "path": "data/derived/eval/iot23-flow-lineage-v1/zeek-adapter-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/run-iot23-flow-lineage-campaign.py",
+      "recipe": "iot23-flow-lineage"
+    },
+    {
       "path": "data/derived/eval/mmwave-jamming-observation-oracles.json",
       "format": "json",
       "retention": "reproducibility_output",
@@ -136,6 +185,13 @@
       "recipe": "osu-lora-oracles"
     },
     {
+      "path": "data/derived/eval/osu-lora-relation-split-manifest.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/build-osu-lora-relation-split.py",
+      "recipe": "osu-lora-relation-split"
+    },
+    {
       "path": "data/derived/eval/osu-lora-sigmf-profile.json",
       "format": "json",
       "retention": "reproducibility_output",
@@ -164,6 +220,13 @@
       "recipe": "ruff-uwb-heldout-location-real"
     },
     {
+      "path": "data/derived/eval/ruff-uwb-cross-distance-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ruff-uwb-cross-distance.py",
+      "recipe": "ruff-uwb-cross-campaign-transfer"
+    },
+    {
       "path": "data/derived/eval/ruff-uwb-observation-oracles.json",
       "format": "json",
       "retention": "reproducibility_output",
@@ -183,6 +246,20 @@
       "retention": "reproducibility_output",
       "producer": "eval/compile-ruff-uwb-row-adapter.py",
       "recipe": "ruff-uwb-row-adapter"
+    },
+    {
+      "path": "data/derived/eval/ruff-uwb-two-meter-row-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-ruff-uwb-row-adapter.py",
+      "recipe": "ruff-uwb-two-meter-row-adapter"
+    },
+    {
+      "path": "data/derived/eval/ruff-uwb-two-meter-waveforms.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-ruff-uwb-row-adapter.py",
+      "recipe": "ruff-uwb-two-meter-row-adapter"
     },
     {
       "path": "data/derived/eval/sorbonne-same-event-report.json",
@@ -213,11 +290,158 @@
       "recipe": "sorbonne-structural-reducer-eval"
     },
     {
+      "path": "data/derived/eval/ujiindoorloc-phone-holdout-feasibility-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ujiindoorloc-split-capability.py",
+      "recipe": "ujiindoorloc-phone-holdout-feasibility"
+    },
+    {
+      "path": "data/derived/eval/ujiindoorloc-phone-holdout-feasibility.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ujiindoorloc-split-capability.py",
+      "recipe": "ujiindoorloc-phone-holdout-feasibility"
+    },
+    {
+      "path": "data/derived/eval/ujiindoorloc-split-capability.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ujiindoorloc-split-capability.py",
+      "recipe": "ujiindoorloc-split-capability"
+    },
+    {
       "path": "data/derived/eval/wlan-rff-layout-profile.json",
       "format": "json",
       "retention": "reproducibility_output",
       "producer": "eval/profile-wlan-rff-layout.py",
       "recipe": "wlan-rff-layout-profile"
+    },
+    {
+      "path": "data/derived/eval/xrf55-calibrated-event-relation-report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-calibrated-event-relation.py",
+      "recipe": "xrf55-calibrated-event-relation"
+    },
+    {
+      "path": "data/derived/eval/xrf55-calibrated-event-relation-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-calibrated-event-relation.py",
+      "recipe": "xrf55-calibrated-event-relation"
+    },
+    {
+      "path": "data/derived/eval/xrf55-cross-modal-retrieval-report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-cross-modal-retrieval.py",
+      "recipe": "xrf55-cross-modal-retrieval"
+    },
+    {
+      "path": "data/derived/eval/xrf55-cross-modal-retrieval-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-cross-modal-retrieval.py",
+      "recipe": "xrf55-cross-modal-retrieval"
+    },
+    {
+      "path": "data/derived/eval/xrf55-feature-cache-adapter-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-feature-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-feature-cache-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-feature-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-feature-cache-mmwave-repeat.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-feature-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-feature-cache-mmwave.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-feature-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-feature-cache-rfid-repeat.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-feature-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-feature-cache-rfid.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-feature-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-feature-cache-wifi-repeat.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-feature-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-feature-cache-wifi.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-feature-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-hypothesis-frames-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-hypothesis-frames.py",
+      "recipe": "xrf55-hypothesis-frames"
+    },
+    {
+      "path": "data/derived/eval/xrf55-hypothesis-frames.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-hypothesis-frames.py",
+      "recipe": "xrf55-hypothesis-frames"
+    },
+    {
+      "path": "data/derived/eval/xrf55-layout-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-xrf55-layout.py",
+      "recipe": "xrf55-layout-profile"
+    },
+    {
+      "path": "data/derived/eval/xrf55-layout-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-xrf55-layout.py",
+      "recipe": "xrf55-layout-profile"
+    },
+    {
+      "path": "data/derived/eval/xrf55-npy-shape-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-xrf55-npy-shapes.py",
+      "recipe": "xrf55-npy-shape-profile"
+    },
+    {
+      "path": "data/derived/eval/xrf55-npy-shape-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-xrf55-npy-shapes.py",
+      "recipe": "xrf55-npy-shape-profile"
     }
   ]
 }

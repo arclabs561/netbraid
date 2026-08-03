@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile the pinned RUFF-UWB one-meter row adapter and standalone NPY.
+"""Compile a pinned RUFF-UWB row adapter and standalone NPY.
 
 The compiler verifies the fetch receipt and complete archive identity, parses the
 label member in publisher order, emits contiguous half-open metadata spans, and
@@ -173,6 +173,66 @@ PRODUCTION_CONTRACT = ArchiveContract(
         shape=(771_232, 250),
     ),
 )
+
+PRODUCTION_TWO_METER_RECEIPT_SOURCE: Mapping[str, Any] = {
+    "bytes": 1_724_857_002,
+    "doi": "10.5281/zenodo.11083153",
+    "filename": "RUFF-UWB_mesures2meters.npy_format.zip",
+    "group": "rf-fingerprinting",
+    "license": "CC BY 4.0",
+    "md5": "cf0a3274285bb6fc58fecfb4cb252d7d",
+    "record": "ruff-uwb-rff",
+    "record_bytes": 3_835_056_792,
+    "representation": "npy",
+    "url": (
+        "https://zenodo.org/api/records/11083153/files/"
+        "UWB_mesures2meters.npy_format.zip/content"
+    ),
+}
+
+PRODUCTION_TWO_METER_CONTRACT = ArchiveContract(
+    filename="RUFF-UWB_mesures2meters.npy_format.zip",
+    archive_bytes=1_724_857_002,
+    archive_md5="cf0a3274285bb6fc58fecfb4cb252d7d",
+    archive_sha256=("73582fd27abfe8ff746c3a2148ce6b43a2f5f350c175c0aa58654ba23c1a6cc0"),
+    receipt_source=PRODUCTION_TWO_METER_RECEIPT_SOURCE,
+    collection_token="distance-2",
+    source_count=13,
+    location_count=100,
+    label=ZipMemberContract(
+        name="UWB_mesures2meter.labels.npy",
+        file_bytes=18_439_984,
+        compressed_bytes=38_767,
+        crc32=0x570AD590,
+        compression=zipfile.ZIP_DEFLATED,
+        flags=0x8,
+        header_offset=1_724_817_897,
+        dtype="<i8",
+        shape=(1_152_491, 2),
+        sha256="c9af712b3b9440834383e0b75852026848d0cc2faffd84707af8d44e86321c31",
+    ),
+    waveform=ZipMemberContract(
+        name="UWB_mesures2meter.data.npy",
+        file_bytes=1_843_985_728,
+        compressed_bytes=1_724_817_793,
+        crc32=0x18D05C24,
+        compression=zipfile.ZIP_DEFLATED,
+        flags=0x8,
+        header_offset=0,
+        dtype="<f8",
+        shape=(1_152_491, 200),
+    ),
+)
+
+PRODUCTION_CONTRACTS: Mapping[str, ArchiveContract] = {
+    PRODUCTION_CONTRACT.collection_token: PRODUCTION_CONTRACT,
+    PRODUCTION_TWO_METER_CONTRACT.collection_token: PRODUCTION_TWO_METER_CONTRACT,
+}
+
+PRODUCTION_OUTPUT_STEMS: Mapping[str, str] = {
+    "distance-1": "ruff-uwb-one-meter",
+    "distance-2": "ruff-uwb-two-meter",
+}
 
 
 def _strict_object(pairs: Iterable[Tuple[str, Any]]) -> Dict[str, Any]:
@@ -992,50 +1052,65 @@ def compile_row_adapter(
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--collection",
+        choices=tuple(PRODUCTION_CONTRACTS),
+        default=PRODUCTION_CONTRACT.collection_token,
+        help="pinned distance collection to compile",
+    )
+    parser.add_argument(
         "--archive",
         type=Path,
-        default=ROOT / "data" / "raw" / PRODUCTION_CONTRACT.filename,
-        help="receipt-paired pinned one-meter archive",
+        help="receipt-paired pinned archive (default: selected collection)",
     )
     parser.add_argument(
         "--receipt",
         type=Path,
-        default=(
-            ROOT
-            / "data"
-            / "receipts"
-            / "public-eval-corpus"
-            / f"{PRODUCTION_CONTRACT.filename}.json"
-        ),
-        help="central ignored fetch receipt for the pinned archive",
+        help="central ignored fetch receipt (default: selected collection)",
     )
     parser.add_argument(
         "--waveforms-output",
         type=Path,
-        default=(
-            ROOT / "data" / "derived" / "eval" / "ruff-uwb-one-meter-waveforms.npy"
-        ),
-        help="ignored standalone mmap-able waveform NPY",
+        help="ignored standalone mmap-able waveform NPY (default: selected collection)",
     )
     parser.add_argument(
         "--adapter-output",
         type=Path,
-        default=(
-            ROOT / "data" / "derived" / "eval" / "ruff-uwb-one-meter-row-adapter.json"
-        ),
-        help="ignored path-free row adapter manifest",
+        help="ignored path-free row adapter manifest (default: selected collection)",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    contract = PRODUCTION_CONTRACTS[args.collection]
+    output_stem = PRODUCTION_OUTPUT_STEMS[args.collection]
+    if args.archive is None:
+        args.archive = ROOT / "data" / "raw" / contract.filename
+    if args.receipt is None:
+        args.receipt = (
+            ROOT
+            / "data"
+            / "receipts"
+            / "public-eval-corpus"
+            / f"{contract.filename}.json"
+        )
+    if args.waveforms_output is None:
+        args.waveforms_output = (
+            ROOT / "data" / "derived" / "eval" / f"{output_stem}-waveforms.npy"
+        )
+    if args.adapter_output is None:
+        args.adapter_output = (
+            ROOT / "data" / "derived" / "eval" / f"{output_stem}-row-adapter.json"
+        )
+    return args
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
+    contract = PRODUCTION_CONTRACTS[args.collection]
     try:
         adapter, reused = compile_row_adapter(
             args.archive,
             args.receipt,
             args.waveforms_output,
             args.adapter_output,
+            contract,
         )
     except AdapterCompileError as error:
         print(str(error), file=sys.stderr)

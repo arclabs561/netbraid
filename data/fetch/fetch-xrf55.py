@@ -35,6 +35,7 @@ CHUNK_BYTES = 8 * 1024 * 1024
 CONTENT_RANGE = re.compile(
     r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)\Z"
 )
+SHA256_HEX = re.compile(r"[0-9a-f]{64}\Z")
 SOURCES: dict[str, dict[str, Any]] = {
     "part1": {
         "kaggle_ref": "xrfdataset/xrf55",
@@ -248,6 +249,80 @@ def verify_existing(archive: Path, spec: Mapping[str, Any], receipt_dir: Path) -
         write_receipt(archive, receipt_dir, expected)
 
 
+def _local_file_size(path: Path) -> tuple[str, int | None]:
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return "absent", None
+    except OSError:
+        return "unsafe", None
+    if not stat.S_ISREG(metadata.st_mode):
+        return "unsafe", None
+    return "present", metadata.st_size
+
+
+def _receipt_metadata_state(path: Path, spec: Mapping[str, Any]) -> str:
+    state, _ = _local_file_size(path)
+    if state != "present":
+        return state
+    try:
+        value = _read_receipt(path)
+    except FetchError:
+        return "invalid_or_unsafe"
+    sha256 = value.get("sha256")
+    if not isinstance(sha256, str) or SHA256_HEX.fullmatch(sha256) is None:
+        return "metadata_mismatch"
+    expected = source_receipt(spec, spec["archive_bytes"], sha256)
+    return "valid" if value == expected else "metadata_mismatch"
+
+
+def local_status(
+    specs: Mapping[str, Mapping[str, Any]], output_dir: Path, receipt_dir: Path
+) -> dict[str, Any]:
+    """Inspect path-safe metadata without reading archive payload bytes."""
+    datasets: dict[str, Any] = {}
+    for name, spec in specs.items():
+        archive = output_dir / spec["filename"]
+        partial = output_dir / f".{spec['filename']}.part"
+        archive_state, observed_bytes = _local_file_size(archive)
+        partial_state, partial_bytes = _local_file_size(partial)
+        central_state = _receipt_metadata_state(
+            receipt_path(archive, receipt_dir), spec
+        )
+        legacy_state = _receipt_metadata_state(legacy_receipt_path(archive), spec)
+
+        if archive_state == "present" and observed_bytes != spec["archive_bytes"]:
+            archive_state = "size_mismatch"
+        if archive_state == "present" and central_state == "valid":
+            next_action = "run_full_verification"
+        elif archive_state == "present" and legacy_state == "valid":
+            next_action = "run_full_verification_to_migrate_receipt"
+        elif archive_state == "absent" and partial_state == "present":
+            next_action = "resume_download"
+        elif archive_state == "absent" and central_state == legacy_state == "absent":
+            next_action = "download"
+        else:
+            next_action = "inspect_local_state"
+
+        datasets[name] = {
+            "archive": spec["filename"],
+            "archive_state": archive_state,
+            "central_receipt_state": central_state,
+            "expected_bytes": spec["archive_bytes"],
+            "legacy_receipt_state": legacy_state,
+            "next_action": next_action,
+            "observed_bytes": observed_bytes,
+            "partial_bytes": partial_bytes,
+            "partial_state": partial_state,
+            "payload_integrity_verified": False,
+        }
+    return {
+        "schema": "local.xrf55_status.v1",
+        "inspection": "metadata_only",
+        "datasets": datasets,
+    }
+
+
 def _resume_state(partial: Path, expected_bytes: int) -> tuple[int, Any, Any]:
     if partial.is_symlink():
         raise FetchError("unsafe_partial_path")
@@ -385,7 +460,7 @@ def _catalog() -> dict[str, Any]:
 
 def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("dataset", choices=["list", "all", *SOURCES])
+    parser.add_argument("dataset", choices=["list", "status", "all", *SOURCES])
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -405,6 +480,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     if arguments.dataset == "list":
         print(json.dumps(_catalog(), indent=2, sort_keys=True))
+        return 0
+    if arguments.dataset == "status":
+        print(
+            json.dumps(
+                local_status(SOURCES, arguments.output_dir, arguments.receipt_dir),
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
     selected = (
         SOURCES

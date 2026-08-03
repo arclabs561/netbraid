@@ -14,12 +14,14 @@ identifier-free traffic windows. Collection paths, addresses, interfaces, and
 deployment-selected runs remain outside this repository.
 
 `hypothesis_frame.py` validates evaluation-only pair labels for artifact,
-content, event, claimed-identifier, cryptographic-principal, physical-device,
-physical-source, software, configuration, variant, and lineage relations. It
-keeps integrity, admissibility, freshness, continuity, transmission, scenario
-cause, authorization, intent, and tamper evidence separate. The strict schema
-rejects bare identity or attack labels and contains no raw observations or
-deployment identifiers.
+content, event, event-performer, claimed-identifier, cryptographic-principal,
+physical-device, physical-source, software, configuration, variant, and
+lineage relations. An event performer is the entity performing the activity
+that defines the event; it is not a generic actor, RF source, device, principal,
+or intent label. The frame keeps integrity, admissibility, freshness,
+continuity, transmission, scenario cause, authorization, intent, and tamper
+evidence separate. The strict schema rejects bare identity or attack labels and
+contains no raw observations or deployment identifiers.
 
 `hypothesis_metrics.py` evaluates those qualified relation axes without
 collapsing them into one identity or attack score. Its strict manifest accepts
@@ -31,6 +33,16 @@ bijection, and derives references from the frames. Bounded qualified cells keep
 physical-device, physical-source, variant, integrity, cause, authorization,
 intent, provenance, and tamper evidence together without permitting a generic
 identity, malicious, or tampered prediction.
+
+`calibrated_event_relation.py` is the strict evaluation-only boundary between
+bidirectional model distances and one event-relation decision. A content-bound
+profile fixes model, feature, input, fit, calibration, threshold, and quantile
+provenance. Both directions must agree outside a deliberate score gap to emit
+`same` or `different`; every other result abstains. Scores are canonical
+nonnegative binary64 values, not probabilities. The schema has no generic
+relation map or actor, performer, identifier, principal, device, source,
+ownership, intent, or tamper field, and it does not alter the Rust inference
+API.
 
 `relation_split_audit.py` checks opaque observation-group manifests across
 train, calibration, validation, and test roles. Policies declare forbidden
@@ -63,6 +75,81 @@ ignored observation inventory with opaque group identifiers. Physical-device
 and physical-source groups are fenced by publisher setup family; the compiler
 does not assume cross-scenario identity continuity, assign train/test roles, or
 open IQ/FFT payload streams.
+
+`build-osu-lora-relation-split.py` tests whether that v0 oracle can support a
+leakage-safe train/calibration/validation/test assignment. It co-locates all
+observations connected by known event or session groups, validates the result
+with the canonical relation-split auditor, and never substitutes setup, day,
+domain, receiver, location, path, or input order for missing session evidence.
+The current oracle therefore returns `unbounded_session_axis` and publishes no
+manifest; the hermetic check covers the successful known-session boundary.
+
+`profile-xrf55-layout.py` validates the three local XRF55 archive and receipt
+metadata contracts, bounds their ZIP central directories, and reports aggregate
+format, path-depth, and cross-archive path-overlap evidence. The publisher's
+scene-scoped subject/action/repetition grammar must form complete synchronized
+Wi-Fi/RFID/mmWave event triples. It never opens member payloads or retains
+member names or identifier values. Receipt validation is reported separately
+from the intentionally deferred full archive rehash; performer groups are not
+promoted to RF-device or physical-source identity.
+
+`compile-xrf55-hypothesis-frames.py` converts the complete processed event grid
+into a bounded deterministic v2 frame sample. It covers synchronized
+cross-modal events, same-performer different-event controls, and
+different-performer controls with opaque IDs. Cross-modal frames deliberately
+permit one event and performer to have different sensing devices and physical
+RF sources; intent, tamper, freshness, and unobserved infrastructure relations
+remain unknown rather than inferred from action labels.
+
+`profile-xrf55-npy-shapes.py` validates the processed layout and then opens one
+bounded NPY header per distinct archive/modality/member-size class. It rejects
+object or structured dtypes, malformed extents, oversized members, and more
+than 16 size classes per modality. Reports retain only aggregate shape, dtype,
+order, and byte evidence; no array element is deserialized and no member name,
+observation identifier, or path is retained. The measured complete-event byte
+cost bounds the later private feature-cache campaign before payload I/O begins.
+
+`compile-xrf55-feature-cache.py` hash-selects eight complete performer/action
+groups and streams their 160 tri-modal events without extracting the archives.
+The feature policy follows the publisher model geometry: Wi-Fi and RFID are
+summarized across sequence and channel bins, while mmWave is summarized across
+its two-dimensional grid and channel bins. Each region contributes four fixed
+moments, producing one 96-value vector per event and modality. Only opaque
+group/event IDs and repetition roles enter the path-free adapter; raw scene,
+performer, action, archive, member, and local-path values are omitted. Matrices
+and adapters are written atomically with mode 0600 and are ignored by Git.
+
+`evaluate-xrf55-cross-modal-retrieval.py` verifies the adapter and matrix
+digests before reopening all three matrices as read-only NumPy memmaps. For
+each ordered modality pair it standardizes on publisher-train repetitions
+1–14, fits one fixed-alpha ridge map, and retrieves each held-out repetition
+15–20 only among the six events with the same opaque performer/action group.
+It reports exact-event top-1 and mean reciprocal rank for every direction and
+group, alongside a direct unaligned-feature control and the theoretical
+six-candidate chance reference. No real-data hyperparameter tuning or
+cross-direction aggregate hides a weak modality pair.
+
+`evaluate-xrf55-calibrated-event-relation.py` fixes Wi-Fi/RFID as one
+unordered modality pair, fits reciprocal ridge maps on repetitions 1 through
+8, selects directional same/different thresholds from repetitions 9 through
+11, and gates the one-shot repetitions 15 through 20 score on repetitions 12
+through 14. Pair candidates stay inside one opaque performer/action group.
+The report uses exact dependent-pair confusion, coverage, selective-risk,
+false-link, false-nonmatch, and reciprocal-disagreement counts; it emits no
+row-level probability or confidence interval. Its qualified projection can
+change only `event_relation`; all identity-bearing axes abstain.
+
+`evaluate-ujiindoorloc-split-capability.py` streams the pinned IPIN 2015 Track
+3 CSV members after verifying the archive and central receipt. It reports
+aggregate user, phone, building, floor, building/floor, and location-cell
+intersections across the publisher files. Identity/domain holdout capability is
+kept separate from target-space coverage; no fingerprint rows, coordinates,
+timestamps, identifier values, member paths, source URLs, or local paths enter
+the report. Its separate phone-holdout mode tests whether the combined corpus
+admits four phone-disjoint roles with complete building/floor coverage. It also
+co-locates every user/phone connected component to expose the stricter joint
+holdout boundary. The aggregate witness is a feasibility result, not a chosen
+benchmark split, and retains neither identifiers nor group assignments.
 
 `compile-ruff-uwb-oracles.py` verifies the two pinned RUFF-UWB archives and
 reads only their bounded label arrays. It aggregates observed
@@ -145,10 +232,12 @@ count. This is a prospective static wiring guarantee, not proof that retained
 bytes came from that producer or recipe.
 
 The IoT-23 lineage campaign is the reference pattern. Running
-`just iot23-flow-lineage` derives flows and evaluates them twice, rejects byte
-drift, and writes a path-free receipt beside the ignored outputs. Its hermetic
-producer/evaluator boundary is covered by `just iot23-flow-lineage-check`
-without requiring corpus bytes. The Sorbonne same-event recipe likewise writes
+`just iot23-flow-lineage` derives flows, evaluates them, and profiles the same
+publisher log through the Rust Zeek adapter twice. It rejects byte drift and
+requires the independent parser paths to agree on row and duration coverage
+before writing a path-free receipt beside the ignored outputs. Its hermetic
+producer/evaluator/adapter boundary is covered by
+`just iot23-flow-lineage-check` without requiring corpus bytes. The Sorbonne same-event recipe likewise writes
 two reports and rejects byte drift. Older local reports whose producer context
 predates this rule are not active derived outputs: `just
 legacy-derived-migration` preserves only their fixed allowlist under

@@ -893,8 +893,8 @@ fn summarize(bytes: &[u8], dtype: NpyDtypeV0) -> (NpyValueCountsV0, NpyDetermini
     let mut counts = NpyValueCountsV0::default();
     let mut primary = ComponentAccumulator::default();
     let mut secondary = ComponentAccumulator::default();
-    for (index, encoded) in bytes.chunks_exact(8).enumerate() {
-        let value = f64::from_le_bytes(encoded.try_into().expect("chunk is exactly binary64"));
+    for (index, encoded) in bytes.as_chunks::<8>().0.iter().enumerate() {
+        let value = f64::from_le_bytes(*encoded);
         if value.is_finite() {
             counts.finite_components += 1;
             if value == 0.0 {

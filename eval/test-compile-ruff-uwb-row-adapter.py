@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hermetic tests for the RUFF-UWB one-meter row adapter compiler."""
+"""Hermetic tests for the RUFF-UWB row adapter compiler."""
 
 from __future__ import annotations
 
@@ -167,6 +167,129 @@ class Fixture:
 
 
 class RuffUwbRowAdapterCompilerTests(unittest.TestCase):
+    def test_production_registry_pins_both_distance_collections(self):
+        self.assertEqual(
+            tuple(MODULE.PRODUCTION_CONTRACTS), ("distance-1", "distance-2")
+        )
+        one_meter = MODULE.PRODUCTION_CONTRACTS["distance-1"]
+        two_meter = MODULE.PRODUCTION_CONTRACTS["distance-2"]
+        self.assertEqual(one_meter.label.shape, (771_232, 2))
+        self.assertEqual(one_meter.waveform.shape, (771_232, 250))
+        self.assertEqual(
+            (
+                two_meter.filename,
+                two_meter.archive_bytes,
+                two_meter.archive_sha256,
+                two_meter.source_count,
+                two_meter.location_count,
+            ),
+            (
+                "RUFF-UWB_mesures2meters.npy_format.zip",
+                1_724_857_002,
+                "73582fd27abfe8ff746c3a2148ce6b43a2f5f350c175c0aa58654ba23c1a6cc0",
+                13,
+                100,
+            ),
+        )
+        self.assertEqual(
+            (
+                two_meter.label.name,
+                two_meter.label.file_bytes,
+                two_meter.label.compressed_bytes,
+                two_meter.label.crc32,
+                two_meter.label.header_offset,
+                two_meter.label.dtype,
+                two_meter.label.shape,
+                two_meter.label.sha256,
+            ),
+            (
+                "UWB_mesures2meter.labels.npy",
+                18_439_984,
+                38_767,
+                0x570AD590,
+                1_724_817_897,
+                "<i8",
+                (1_152_491, 2),
+                "c9af712b3b9440834383e0b75852026848d0cc2faffd84707af8d44e86321c31",
+            ),
+        )
+        self.assertEqual(
+            (
+                two_meter.waveform.name,
+                two_meter.waveform.file_bytes,
+                two_meter.waveform.compressed_bytes,
+                two_meter.waveform.crc32,
+                two_meter.waveform.header_offset,
+                two_meter.waveform.dtype,
+                two_meter.waveform.shape,
+            ),
+            (
+                "UWB_mesures2meter.data.npy",
+                1_843_985_728,
+                1_724_817_793,
+                0x18D05C24,
+                0,
+                "<f8",
+                (1_152_491, 200),
+            ),
+        )
+        MODULE._validate_contract(one_meter)
+        MODULE._validate_contract(two_meter)
+
+    def test_collection_selects_matching_default_inputs_and_outputs(self):
+        one_meter = MODULE.parse_args([])
+        two_meter = MODULE.parse_args(["--collection", "distance-2"])
+
+        self.assertEqual(one_meter.collection, "distance-1")
+        self.assertEqual(
+            one_meter.archive.name, "RUFF-UWB_mesures1meter.npy_format.zip"
+        )
+        self.assertEqual(one_meter.receipt.name, f"{one_meter.archive.name}.json")
+        self.assertEqual(
+            one_meter.waveforms_output.name, "ruff-uwb-one-meter-waveforms.npy"
+        )
+        self.assertEqual(
+            one_meter.adapter_output.name, "ruff-uwb-one-meter-row-adapter.json"
+        )
+        self.assertEqual(two_meter.collection, "distance-2")
+        self.assertEqual(
+            two_meter.archive.name, "RUFF-UWB_mesures2meters.npy_format.zip"
+        )
+        self.assertEqual(two_meter.receipt.name, f"{two_meter.archive.name}.json")
+        self.assertEqual(
+            two_meter.waveforms_output.name, "ruff-uwb-two-meter-waveforms.npy"
+        )
+        self.assertEqual(
+            two_meter.adapter_output.name, "ruff-uwb-two-meter-row-adapter.json"
+        )
+
+    def test_source_aliases_cross_collections_but_locations_do_not(self):
+        fixture = Fixture(self)
+        with zipfile.ZipFile(fixture.archive_path) as archive:
+            member = archive.getinfo(fixture.contract.label.name)
+            first = MODULE._read_labels(archive, member, fixture.contract)
+        with zipfile.ZipFile(fixture.archive_path) as archive:
+            member = archive.getinfo(fixture.contract.label.name)
+            second = MODULE._read_labels(
+                archive,
+                member,
+                replace(fixture.contract, collection_token="PRIVATE_DISTANCE_TWO"),
+            )
+
+        first_sources = {span["physical_source"] for span in first.spans}
+        second_sources = {span["physical_source"] for span in second.spans}
+        first_devices = {span["physical_device"] for span in first.spans}
+        second_devices = {span["physical_device"] for span in second.spans}
+        first_locations = {span["location"] for span in first.spans}
+        second_locations = {span["location"] for span in second.spans}
+        self.assertEqual(first_sources, second_sources)
+        self.assertEqual(first_devices, second_devices)
+        self.assertFalse(first_locations & second_locations)
+        self.assertNotEqual(
+            first.spans[0]["distance_collection"],
+            second.spans[0]["distance_collection"],
+        )
+
     def test_ordered_labels_become_gap_free_opaque_spans_and_private_npy(self):
         fixture = Fixture(self)
         archive_before = fixture.archive_path.read_bytes()
@@ -392,10 +515,28 @@ class RuffUwbRowAdapterCompilerTests(unittest.TestCase):
         self.assertFalse(fixture.waveform_path.exists())
         self.assertFalse(fixture.adapter_path.exists())
 
-    def test_source_never_uses_bulk_archive_extraction(self):
-        source = (HERE / "compile-ruff-uwb-row-adapter.py").read_text(encoding="utf-8")
-        forbidden = "extract" + "all"
-        self.assertNotIn(forbidden, source)
+    def test_compilation_never_uses_zip_extraction_apis(self):
+        fixture = Fixture(self)
+
+        with (
+            mock.patch.object(
+                MODULE.zipfile.ZipFile,
+                "extract",
+                side_effect=AssertionError("bulk member extraction used"),
+            ) as extract,
+            mock.patch.object(
+                MODULE.zipfile.ZipFile,
+                "extractall",
+                side_effect=AssertionError("bulk archive extraction used"),
+            ) as extract_all,
+        ):
+            adapter, reused = fixture.compile()
+
+        self.assertFalse(reused)
+        self.assertEqual(adapter["counts"]["rows"], len(fixture.rows))
+        self.assertEqual(fixture.waveform_path.read_bytes(), fixture.waveforms)
+        extract.assert_not_called()
+        extract_all.assert_not_called()
 
 
 if __name__ == "__main__":

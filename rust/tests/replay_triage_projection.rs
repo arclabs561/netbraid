@@ -1278,7 +1278,9 @@ fn manifest(
         acquisition_policy: None,
         normalization: CaptureNormalizationV0 {
             state,
-            packet_limit: 10,
+            packet_limit: packet_rows_emitted
+                .saturating_add(packet_rows_quarantined)
+                .max(10),
             packet_limit_reached: state == NormalizationStateV0::Partial,
             packet_rows_emitted,
             packet_rows_quarantined,

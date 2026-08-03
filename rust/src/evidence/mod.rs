@@ -165,6 +165,8 @@ pub enum ValidationError {
     ObservedNetworkNameMissing,
     HiddenNetworkNameHasValue,
     CoverageContradiction(String),
+    CompleteCoverageHasMissingSources,
+    UnavailableCoverageHasObservedSources,
 }
 
 impl std::fmt::Display for ValidationError {
@@ -186,6 +188,12 @@ impl std::fmt::Display for ValidationError {
             }
             Self::CoverageContradiction(source) => {
                 write!(formatter, "source {source:?} is both observed and missing")
+            }
+            Self::CompleteCoverageHasMissingSources => {
+                formatter.write_str("complete coverage cannot name missing sources")
+            }
+            Self::UnavailableCoverageHasObservedSources => {
+                formatter.write_str("unavailable coverage cannot name observed sources")
             }
         }
     }
@@ -242,6 +250,16 @@ impl HostPathObservationV0 {
             .find(|source| observed.contains(source))
         {
             return Err(ValidationError::CoverageContradiction(source.clone()));
+        }
+        match self.coverage.state {
+            CoverageStateV0::Complete if !self.coverage.missing_sources.is_empty() => {
+                return Err(ValidationError::CompleteCoverageHasMissingSources);
+            }
+            CoverageStateV0::Unavailable if !self.coverage.observed_sources.is_empty() => {
+                return Err(ValidationError::UnavailableCoverageHasObservedSources);
+            }
+            CoverageStateV0::Complete | CoverageStateV0::Partial | CoverageStateV0::Unavailable => {
+            }
         }
         Ok(())
     }
@@ -405,6 +423,28 @@ mod tests {
         assert_eq!(
             record.validate(),
             Err(ValidationError::PassivePolicyHasActiveActions)
+        );
+    }
+
+    #[test]
+    fn complete_coverage_rejects_missing_sources() {
+        let mut record = observation();
+        record.coverage.missing_sources.push("wireless".into());
+
+        assert_eq!(
+            record.validate(),
+            Err(ValidationError::CompleteCoverageHasMissingSources)
+        );
+    }
+
+    #[test]
+    fn unavailable_coverage_rejects_observed_sources() {
+        let mut record = observation();
+        record.coverage.state = CoverageStateV0::Unavailable;
+
+        assert_eq!(
+            record.validate(),
+            Err(ValidationError::UnavailableCoverageHasObservedSources)
         );
     }
 }

@@ -22,10 +22,11 @@ categories = ["command-line-utilities", "network-programming"]
 [features]
 default = ["cli"]
 adapter-tshark = ["dep:csv", "dep:tempfile"]
-adapter-kismetdb = ["dep:rusqlite"]
+adapter-kismetdb = ["dep:rusqlite", "dep:tempfile"]
 adapter-kismetdb-bundled = ["adapter-kismetdb", "rusqlite/bundled"]
 adapter-npy = []
 adapter-sigmf = []
+adapter-zeek = ["dep:csv"]
 cli = ["adapter-tshark", "dep:anyhow", "dep:clap"]
 scenario-fixtures = []
 scenario-fixtures-capture-derived = []
@@ -34,6 +35,17 @@ scenario-fixtures-capture-derived = []
 name = "netbraid"
 path = "src/main.rs"
 required-features = ["cli"]
+
+[[example]]
+name = "packet_same_event_jsonl"
+path = "examples/packet_same_event_jsonl.rs"
+test = true
+
+[[example]]
+name = "zeek_conn_profile"
+path = "examples/zeek_conn_profile.rs"
+required-features = ["adapter-zeek"]
+test = true
 
 [[test]]
 name = "adapter_curated_corpus"
@@ -59,6 +71,11 @@ required-features = ["adapter-npy"]
 name = "adapter_sigmf"
 path = "tests/adapter_sigmf.rs"
 required-features = ["adapter-sigmf"]
+
+[[test]]
+name = "adapter_zeek"
+path = "tests/adapter_zeek.rs"
+required-features = ["adapter-zeek"]
 
 [[test]]
 name = "cli_identity"

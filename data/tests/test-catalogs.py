@@ -13,6 +13,9 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "data" / "catalog" / "research-leads-v1.json"
+CONTROLLED_JAMMING_CATALOG = (
+    ROOT / "data" / "catalog" / "controlled-jamming-artifacts-v1.json"
+)
 
 SOURCE_TYPES = {
     "adapter_source",
@@ -131,6 +134,15 @@ class CatalogTests(unittest.TestCase):
     def test_catalog_contains_no_local_or_secret_bearing_values(self):
         payload = CATALOG.read_text(encoding="utf-8")
         self.assertIsNone(PRIVATE_TOKEN.search(payload))
+
+    def test_exact_controlled_jamming_records_are_marked_fetchable(self):
+        leads = {entry["canonical_url"]: entry for entry in load_catalog()["entries"]}
+        manifest = json.loads(CONTROLLED_JAMMING_CATALOG.read_text(encoding="utf-8"))
+
+        for record in manifest["records"]:
+            canonical_url = f"https://zenodo.org/records/{record['record_id']}"
+            self.assertIn(canonical_url, leads)
+            self.assertEqual(leads[canonical_url]["fetch"], "existing_fetcher")
 
 
 if __name__ == "__main__":
