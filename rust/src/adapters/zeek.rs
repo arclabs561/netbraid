@@ -838,7 +838,7 @@ fn parse_seconds_ns(value: &[u8]) -> Option<u64> {
     seconds.checked_mul(1_000_000_000)?.checked_add(fraction)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use std::io::{Seek, SeekFrom, Write};
 
