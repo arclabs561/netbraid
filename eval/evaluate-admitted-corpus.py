@@ -19,9 +19,7 @@ from typing import Any
 
 SCRIPT_SCHEMA = "local.netbraid_capture_corpus_eval.v0"
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT_CORPUS = (
-    REPO / "rust/crates/netbraid-adapter-tshark/tests/fixtures/upstream/corpus-v0.json"
-)
+DEFAULT_CORPUS = REPO / "rust/tests/fixtures/adapter/upstream/corpus-v0.json"
 
 
 def parse_args() -> argparse.Namespace:

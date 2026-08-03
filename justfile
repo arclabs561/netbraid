@@ -103,6 +103,21 @@ public-corpus-eval:
     cargo build --locked --manifest-path rust/Cargo.toml --bin netbraid
     {{ python }} eval/evaluate-public-corpus-slices.py --report {{ eval_output }}/public-corpus-eval-report.json
 
+# Verify or fetch the exact public allowlist. Existing artifacts are fully
+# rehashed; absent artifacts are downloaded through the bounded fetcher.
+public-corpus-fetch dataset="all" verify_workers="4":
+    uv run --script data/fetch/fetch-public-eval-corpus.py {{ dataset }} --verify-workers {{ verify_workers }}
+
+# Write a path-free central-directory inventory for the selected allowlist.
+public-corpus-inventory dataset="all" verify_workers="4":
+    uv run --script data/fetch/fetch-public-eval-corpus.py {{ dataset }} --verify-workers {{ verify_workers }} --inspect --inspect-output {{ eval_output }}/public-corpus-inventory.json
+
+# Evaluate the complete admitted capture-fixture manifest through the current
+# production binary and retain only the ignored metadata report.
+admitted-corpus-eval:
+    cargo build --locked --manifest-path rust/Cargo.toml --bin netbraid
+    uv run --script eval/evaluate-admitted-corpus.py --out {{ eval_output }}/admitted-corpus-report.json
+
 # Audit the complete Sorbonne 1 m cross-sniffer event oracle. This reports the
 # synchronized-time leakage boundary; it does not run a predictive classifier.
 sorbonne-same-event-audit:
@@ -176,11 +191,11 @@ xrf55-fetch dataset="list":
 osu-lora-fetcher-check:
     {{ python }} data/tests/test-fetch-osu-lora.py
 
-osu-lora-discover setup:
-    {{ python }} data/fetch/fetch-osu-lora.py discover {{ setup }}
+osu-lora-discover setup workers="4":
+    {{ python }} data/fetch/fetch-osu-lora.py discover {{ setup }} --workers {{ workers }}
 
-osu-lora-fetch setup max_total_bytes="10737418240":
-    {{ python }} data/fetch/fetch-osu-lora.py fetch {{ setup }} --max-total-bytes {{ max_total_bytes }}
+osu-lora-fetch setup max_total_bytes="10737418240" max_file_bytes="4294967296" workers="2":
+    {{ python }} data/fetch/fetch-osu-lora.py fetch {{ setup }} --max-total-bytes {{ max_total_bytes }} --max-file-bytes {{ max_file_bytes }} --workers {{ workers }}
 
 # Validate the bounded metadata-only profiler without requiring corpus bytes.
 osu-lora-profile-check:
