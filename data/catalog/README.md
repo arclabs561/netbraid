@@ -26,6 +26,13 @@ tamper truth. `fetch-controlled-jamming.py` downloads complete selected records
 with strict byte caps, resumable ranges, local SHA-256 receipts, and no payload
 extraction.
 
+The public-eval fetcher also pins the small UJIIndoorLoc archive used by IPIN
+2015 Track 3. Its Wi-Fi fingerprints carry anonymized user, phone, timestamp,
+building, floor, and location axes; publisher files are acquisition structure,
+not a leakage-safe evaluation split. TON_IoT remains catalog-only because its
+official source is a mutable folder with academic-use terms and no single
+publisher-pinned artifact inventory, size, or digest.
+
 The corresponding eval compilers keep the two formats separate. The 80-file
 record is an exact filename-grid compiler that hashes but never parses MAT
 payloads. The 31-file record uses its publisher workbook and HDF5 metadata to
