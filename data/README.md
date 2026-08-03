@@ -11,3 +11,8 @@ This directory separates tracked source descriptions from local corpus bytes.
 
 Raw, derived, and receipt content is never committed. Reviewed public-safe test
 fixtures belong under `eval/fixtures/` or `rust/tests/fixtures/`, not here.
+
+Every retained file under `derived/` is declared in
+`eval/derived-artifact-contract-v0.json` with its checked-in producer and
+canonical `just` recipe. `just derived-artifact-audit` verifies that contract
+from bounded filesystem metadata without reading corpus or artifact contents.

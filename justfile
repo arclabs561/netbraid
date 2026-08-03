@@ -102,6 +102,14 @@ legacy-derived-migration-check:
 legacy-derived-migration:
     {{ python }} data/migrate/migrate-legacy-derived.py
 
+derived-artifact-audit-check:
+    {{ python }} eval/test-audit-derived-artifacts.py
+
+# Fail if an ignored derived artifact lacks an exact checked-in producer and
+# canonical recipe. The audit reads filesystem metadata, not artifact bytes.
+derived-artifact-audit:
+    {{ python }} eval/audit-derived-artifacts.py
+
 # Evaluate checked, bounded slices from the ignored public archives. Fetch the
 # archives first; this target never admits or writes corpus bytes into Git.
 public-corpus-eval-check:

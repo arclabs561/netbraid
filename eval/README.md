@@ -109,3 +109,7 @@ Older local reports whose producer context predates this rule are not treated
 as evaluation evidence. `just legacy-derived-migration` moves only their fixed
 allowlist from `data/raw/` to `data/derived/archive/legacy-unscripted/`, marks
 their provenance `legacy/unknown`, and verifies the path-free receipt on rerun.
+`just derived-artifact-audit` then fails closed on unclassified outputs,
+untracked producers, missing recipes, unsafe filesystem entries, and private or
+absolute paths. It inventories metadata only and emits bounded aggregate counts;
+it never opens retained artifact contents.
