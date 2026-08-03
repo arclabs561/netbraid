@@ -1347,7 +1347,9 @@ fn write_omitted_count(output: &mut String, total: usize, limit: usize, noun: &s
 fn decode_ssid_hex(value: &str) -> Option<Vec<u8>> {
     value
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             std::str::from_utf8(pair)
                 .ok()
