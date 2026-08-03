@@ -94,6 +94,14 @@ controlled-jamming-fetch record max_total_bytes="137438953472" max_file_bytes="8
 catalog-check:
     {{ python }} data/tests/test-catalogs.py
 
+legacy-derived-migration-check:
+    {{ python }} data/tests/test-migrate-legacy-derived.py
+
+# Move only the fixed legacy-output allowlist out of data/raw, then verify its
+# path-free legacy/unknown receipt on every later run.
+legacy-derived-migration:
+    {{ python }} data/migrate/migrate-legacy-derived.py
+
 # Evaluate checked, bounded slices from the ignored public archives. Fetch the
 # archives first; this target never admits or writes corpus bytes into Git.
 public-corpus-eval-check:

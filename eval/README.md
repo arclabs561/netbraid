@@ -105,3 +105,7 @@ lineage campaign is the reference pattern: `just iot23-flow-lineage` derives
 flows and evaluates them twice, rejects byte drift, and writes a path-free
 receipt beside the ignored outputs. Its hermetic producer/evaluator boundary is
 covered by `just iot23-flow-lineage-check` without requiring corpus bytes.
+Older local reports whose producer context predates this rule are not treated
+as evaluation evidence. `just legacy-derived-migration` moves only their fixed
+allowlist from `data/raw/` to `data/derived/archive/legacy-unscripted/`, marks
+their provenance `legacy/unknown`, and verifies the path-free receipt on rerun.
