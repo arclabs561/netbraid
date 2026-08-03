@@ -20,6 +20,7 @@ assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
+FRAME_MODULE = sys.modules["hypothesis_frame"]
 
 
 REFERENCE = {
@@ -54,6 +55,59 @@ def manifest(rows):
     return {"schema": MODULE.SCHEMA, "rows": rows}
 
 
+def qualified_frame(frame_id):
+    return {
+        "frame_id": frame_id,
+        "artifact_object_relation": "different_object",
+        "content_relation": "different",
+        "event_relation": "different",
+        "claimed_identifier_relation": "different",
+        "cryptographic_principal_relation": "not_observed",
+        "physical_device_relation": "different",
+        "physical_source_relation": "different",
+        "software_relation": "same",
+        "configuration_relation": "same",
+        "variant_relation": "same",
+        "lineage_relation": "common_ancestor",
+        "integrity": "verified_unchanged",
+        "admissibility": "in_domain",
+        "freshness": "fresh",
+        "continuity": "complete",
+        "transmission": "direct",
+        "scenario": {
+            "cause": "benign_confounder",
+            "mechanisms": ["none"],
+            "modification_loci": ["none"],
+            "authorization": "authorized",
+            "intent": "benign",
+            "provenance": "explicit_fixture",
+            "tamper_hypothesis": {
+                "disposition": "contradicted",
+                "basis": [
+                    "applicable_authorization_policy",
+                    "no_change_or_interference",
+                ],
+            },
+        },
+    }
+
+
+def prediction_row(frame, strata=None):
+    return {
+        "frame_id": frame["frame_id"],
+        "predictions": {axis: frame[axis] for axis in MODULE.RELATION_AXES},
+        "strata": {} if strata is None else dict(strata),
+    }
+
+
+def qualified_manifest(frames, rows):
+    return {
+        "schema": MODULE.QUALIFIED_SCHEMA,
+        "frames": {"schema": FRAME_MODULE.SCHEMA, "frames": frames},
+        "rows": rows,
+    }
+
+
 def confusion(axis_report):
     return {
         (item["reference"], item["prediction"]): item["count"]
@@ -68,6 +122,12 @@ def support(axis_report):
 def assert_manifest_error(test, value, code):
     with test.assertRaises(MODULE.HypothesisMetricsError) as raised:
         MODULE.parse_manifest(value)
+    test.assertEqual(raised.exception.code, code)
+
+
+def assert_qualified_error(test, value, code):
+    with test.assertRaises(MODULE.HypothesisMetricsError) as raised:
+        MODULE.parse_qualified_manifest(value)
     test.assertEqual(raised.exception.code, code)
 
 
@@ -371,6 +431,173 @@ class HypothesisMetricsTests(unittest.TestCase):
         support_order = [item["reference"] for item in content["support"]]
         self.assertEqual(support_order, sorted(support_order))
         self.assertTrue(all(item["count"] > 0 for item in content["confusion"]))
+
+    def test_qualified_join_preserves_identity_variant_intent_and_tamper_axes(self):
+        compromised = qualified_frame("compromised-enrolled-source")
+        compromised.update(
+            {
+                "content_relation": "equal",
+                "physical_device_relation": "same",
+                "physical_source_relation": "same",
+                "variant_relation": "same",
+            }
+        )
+        compromised["scenario"] = {
+            "cause": "compromise",
+            "mechanisms": ["credential_theft"],
+            "modification_loci": ["firmware"],
+            "authorization": "unauthorized",
+            "intent": "malicious",
+            "provenance": "publisher_adjudicated_scenario",
+            "tamper_hypothesis": {
+                "disposition": "supported",
+                "basis": [
+                    "applicable_authorization_policy",
+                    "unauthorized_change_or_interference",
+                ],
+            },
+        }
+
+        sibling = qualified_frame("same-variant-different-source")
+        changed = qualified_frame("changed-bytes-unknown-policy")
+        changed["integrity"] = "verified_changed"
+        changed["scenario"] = {
+            "cause": "ambiguous",
+            "mechanisms": ["unknown"],
+            "modification_loci": ["stored_artifact"],
+            "authorization": "unknown",
+            "intent": "unknown",
+            "provenance": "insufficient_evidence",
+            "tamper_hypothesis": {
+                "disposition": "underdetermined",
+                "basis": ["insufficient_policy_evidence"],
+            },
+        }
+
+        rows = [prediction_row(item) for item in (compromised, sibling, changed)]
+        rows[1]["predictions"]["physical_source_relation"] = "same"
+        rows[2]["predictions"]["physical_source_relation"] = "abstain"
+        value = qualified_manifest([compromised, sibling, changed], rows)
+        report = MODULE.evaluate_manifest(value)
+
+        self.assertEqual(report["schema"], MODULE.QUALIFIED_REPORT_SCHEMA)
+        self.assertEqual(report["input_schema"], MODULE.QUALIFIED_SCHEMA)
+        self.assertEqual(report["row_count"], 3)
+        self.assertEqual(len(report["qualified_reference_cells"]), 3)
+        by_intent = {
+            cell["qualifiers"]["scenario"]["intent"]: cell
+            for cell in report["qualified_reference_cells"]
+        }
+        malicious = by_intent["malicious"]
+        self.assertEqual(malicious["qualifiers"]["physical_device_relation"], "same")
+        self.assertEqual(malicious["qualifiers"]["physical_source_relation"], "same")
+        self.assertEqual(malicious["qualifiers"]["variant_relation"], "same")
+        self.assertEqual(
+            malicious["qualifiers"]["scenario"]["tamper_hypothesis"]["disposition"],
+            "supported",
+        )
+        self.assertEqual(
+            confusion(malicious["axes"]["physical_source_relation"]),
+            {("same", "same"): 1},
+        )
+        benign = by_intent["benign"]
+        self.assertEqual(
+            benign["axes"]["physical_source_relation"]["physical_source_counts"][
+                "false_match"
+            ],
+            1,
+        )
+        unknown = by_intent["unknown"]
+        self.assertEqual(unknown["qualifiers"]["integrity"], "verified_changed")
+        self.assertEqual(
+            unknown["qualifiers"]["scenario"]["tamper_hypothesis"]["disposition"],
+            "underdetermined",
+        )
+        encoded = json.dumps(report, sort_keys=True)
+        self.assertNotIn("frame_id", encoded)
+        self.assertNotIn("compromised-enrolled-source", encoded)
+
+    def test_qualified_join_requires_bijection_and_relation_only_predictions(self):
+        first = qualified_frame("first")
+        second = qualified_frame("second")
+        first_row = prediction_row(first)
+
+        assert_qualified_error(
+            self,
+            qualified_manifest([first, second], [first_row]),
+            "frame_prediction_id_mismatch",
+        )
+        extra = prediction_row(second)
+        extra["frame_id"] = "unexpected"
+        assert_qualified_error(
+            self,
+            qualified_manifest([first], [first_row, extra]),
+            "frame_prediction_id_mismatch",
+        )
+        forbidden = prediction_row(first)
+        forbidden["intent"] = "malicious"
+        assert_qualified_error(
+            self,
+            qualified_manifest([first], [forbidden]),
+            "invalid_prediction_row_schema",
+        )
+
+        malformed_frame = copy.deepcopy(first)
+        malformed_frame["identity"] = "same"
+        assert_qualified_error(
+            self,
+            qualified_manifest([malformed_frame], [first_row]),
+            "frame_invalid_frame_schema",
+        )
+
+    def test_qualified_cli_is_order_independent_and_legacy_output_is_unchanged(self):
+        first = qualified_frame("first")
+        second = qualified_frame("second")
+        second["physical_source_relation"] = "same"
+        second["physical_device_relation"] = "same"
+        rows = [prediction_row(first), prediction_row(second)]
+        values = (
+            qualified_manifest([first, second], rows),
+            qualified_manifest([second, first], list(reversed(rows))),
+        )
+        outputs = []
+        for value in values:
+            process = subprocess.run(
+                [sys.executable, str(HERE / "hypothesis_metrics.py")],
+                input=json.dumps(value),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(process.returncode, 0, process.stderr)
+            outputs.append(process.stdout)
+        self.assertEqual(outputs[0], outputs[1])
+        self.assertEqual(
+            json.loads(outputs[0])["schema"], MODULE.QUALIFIED_REPORT_SCHEMA
+        )
+
+        legacy = manifest(self.metric_rows())
+        self.assertEqual(
+            MODULE.evaluate_manifest(legacy),
+            MODULE.evaluate(MODULE.parse_manifest(legacy)),
+        )
+
+    def test_qualified_reference_cell_count_is_bounded(self):
+        first = qualified_frame("first")
+        second = qualified_frame("second")
+        second["integrity"] = "verified_changed"
+        rows = [prediction_row(first), prediction_row(second)]
+        parsed_rows, frames = MODULE.parse_qualified_manifest(
+            qualified_manifest([first, second], rows)
+        )
+        with mock.patch.object(MODULE, "MAX_QUALIFIED_REFERENCE_CELLS", 1):
+            with self.assertRaises(MODULE.HypothesisMetricsError) as raised:
+                MODULE.evaluate_qualified(parsed_rows, frames)
+        self.assertEqual(raised.exception.code, "too_many_qualified_reference_cells")
+
+        with self.assertRaises(MODULE.HypothesisMetricsError) as raised:
+            MODULE.evaluate_qualified(parsed_rows, [frames[0], frames[0]])
+        self.assertEqual(raised.exception.code, "duplicate_frame_id")
 
 
 if __name__ == "__main__":

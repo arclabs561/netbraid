@@ -211,6 +211,15 @@ not become errors or negatives merely because the evaluator lacks an oracle.
 Optional strata are bounded opaque tokens so reports can expose domain skew
 without carrying corpus labels or deployment identifiers.
 
+The joined evaluation schema removes a duplicated-reference failure mode. It
+accepts one validated hypothesis-frame manifest and a relation-only prediction
+row for every frame, requires an exact ID bijection, and derives all relation
+references from the validated frames. Its bounded qualified cells preserve the
+physical-device, physical-source, variant, integrity, cause, mechanism,
+modification-locus, authorization, intent, provenance, and tamper combination
+under which each device/source/variant confusion count was observed. Prediction
+rows cannot carry intent, tamper, or a bare identity field.
+
 Threshold selection, calibration, and test groups must be disjoint. Correlated
 features are not summed as independent evidence unless the calibration model
 explicitly represents their dependence. Confidence intervals are reported
@@ -306,9 +315,12 @@ distinct device-shaped filename tokens, all five tokens occur in both
 environments, and no session token occurs in both. This establishes a candidate
 cross-environment grouping key, not physical-device or physical-source truth.
 
-The hypothesis-metrics checkpoint passed seven hermetic tests and the existing
-twelve hypothesis-frame tests. These are contract checks over synthetic opaque
-identifiers; they are not classifier-performance results.
+The hypothesis-metrics checkpoint passed eleven hermetic tests and the existing
+twelve hypothesis-frame tests. The joined cases cover a compromised enrolled
+source, same-variant different-source hardware, changed bytes under unknown
+policy, exact frame/prediction bijection, bounded qualified cells, canonical
+ordering, and unchanged legacy output. These are contract checks over synthetic
+opaque identifiers; they are not classifier-performance results.
 
 The relation-split checkpoint passed thirteen hermetic tests over all eleven
 group axes and all six role pairs. Reports retain only opaque partition IDs and

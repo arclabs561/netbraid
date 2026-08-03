@@ -25,7 +25,12 @@ deployment identifiers.
 collapsing them into one identity or attack score. Its strict manifest accepts
 only opaque frame and stratum identifiers, reports raw confusion/support and
 abstention counts, and keeps unknown references separate from predictions that
-decline to decide.
+decline to decide. Its joined evaluation schema takes a validated hypothesis
+frame manifest plus relation-only prediction rows, requires an exact frame-ID
+bijection, and derives references from the frames. Bounded qualified cells keep
+physical-device, physical-source, variant, integrity, cause, authorization,
+intent, provenance, and tamper evidence together without permitting a generic
+identity, malicious, or tampered prediction.
 
 `relation_split_audit.py` checks opaque observation-group manifests across
 train, calibration, validation, and test roles. Policies declare forbidden
