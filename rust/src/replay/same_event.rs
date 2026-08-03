@@ -118,6 +118,7 @@ pub enum PacketSameEventValidationErrorV0 {
     InvalidBasis,
     IncoherentDisposition,
     UnexpectedLimitations,
+    ResolvedContentMismatch,
 }
 
 impl std::fmt::Display for PacketSameEventValidationErrorV0 {
@@ -136,6 +137,9 @@ impl std::fmt::Display for PacketSameEventValidationErrorV0 {
             Self::UnexpectedLimitations => {
                 "packet same-event limitations differ from the v0 contract"
             }
+            Self::ResolvedContentMismatch => {
+                "packet same-event assessment differs from the resolved packet evidence"
+            }
         })
     }
 }
@@ -143,7 +147,10 @@ impl std::fmt::Display for PacketSameEventValidationErrorV0 {
 impl std::error::Error for PacketSameEventValidationErrorV0 {}
 
 impl PacketSameEventHypothesisSetV0 {
-    /// Validate the semantic invariants that serde shape checks cannot express.
+    /// Validate the serialized assessment's semantic invariants.
+    ///
+    /// This cannot bind content references to evidence that is not supplied.
+    /// Use [`Self::validate_against`] when the cited packets are available.
     pub fn validate(&self) -> Result<(), PacketSameEventValidationErrorV0> {
         if self.schema != PACKET_SAME_EVENT_HYPOTHESIS_SET_SCHEMA_V0 {
             return Err(PacketSameEventValidationErrorV0::UnsupportedSchema);
@@ -207,6 +214,23 @@ impl PacketSameEventHypothesisSetV0 {
         };
         if !dispositions_valid {
             return Err(PacketSameEventValidationErrorV0::IncoherentDisposition);
+        }
+        Ok(())
+    }
+
+    /// Resolve content references and recompute the complete assessment.
+    pub fn validate_against(
+        &self,
+        left: &PacketEnvelopeV0,
+        right: &PacketEnvelopeV0,
+    ) -> Result<(), PacketSameEventErrorV0> {
+        self.validate()
+            .map_err(PacketSameEventErrorV0::InternalInvariant)?;
+        let expected = assess_packet_same_event_v0(left, right)?;
+        if self != &expected {
+            return Err(PacketSameEventErrorV0::InternalInvariant(
+                PacketSameEventValidationErrorV0::ResolvedContentMismatch,
+            ));
         }
         Ok(())
     }
@@ -635,6 +659,64 @@ mod tests {
             serde_json::to_vec(&forward).unwrap(),
             serde_json::to_vec(&reverse).unwrap()
         );
+    }
+
+    #[test]
+    fn resolved_validation_accepts_original_and_swapped_inputs() {
+        let left = packet(CAPTURE_A, 1);
+        let right = packet(CAPTURE_B, 1);
+        let assessment = assess_packet_same_event_v0(&left, &right).unwrap();
+
+        assessment.validate_against(&left, &right).unwrap();
+        assessment.validate_against(&right, &left).unwrap();
+    }
+
+    #[test]
+    fn resolved_validation_rejects_substituted_reference_and_packet_content() {
+        let left = packet(CAPTURE_A, 1);
+        let right = packet(CAPTURE_B, 1);
+        let assessment = assess_packet_same_event_v0(&left, &right).unwrap();
+
+        let replacement = assess_packet_same_event_v0(&packet(CAPTURE_A, 2), &right).unwrap();
+        let mut substituted_reference = assessment.clone();
+        substituted_reference.left = replacement.left;
+        substituted_reference.validate().unwrap();
+        assert!(matches!(
+            substituted_reference.validate_against(&left, &right),
+            Err(PacketSameEventErrorV0::InternalInvariant(
+                PacketSameEventValidationErrorV0::ResolvedContentMismatch
+            ))
+        ));
+
+        let mut mutated_right = right.clone();
+        mutated_right.wlan_radio.as_mut().unwrap().channel = Some(6);
+        assert!(matches!(
+            assessment.validate_against(&left, &mutated_right),
+            Err(PacketSameEventErrorV0::InternalInvariant(
+                PacketSameEventValidationErrorV0::ResolvedContentMismatch
+            ))
+        ));
+    }
+
+    #[test]
+    fn resolved_validation_preserves_positional_input_errors() {
+        let left = packet(CAPTURE_A, 1);
+        let right = packet(CAPTURE_B, 1);
+        let assessment = assess_packet_same_event_v0(&left, &right).unwrap();
+
+        let mut malformed_left = left.clone();
+        malformed_left.frame.number = 0;
+        assert!(matches!(
+            assessment.validate_against(&malformed_left, &right),
+            Err(PacketSameEventErrorV0::LeftInvalid(_))
+        ));
+
+        let mut malformed_right = right.clone();
+        malformed_right.frame.number = 0;
+        assert!(matches!(
+            assessment.validate_against(&left, &malformed_right),
+            Err(PacketSameEventErrorV0::RightInvalid(_))
+        ));
     }
 
     #[test]
