@@ -31,9 +31,10 @@ pub use counter_capture::{
 };
 
 pub use hypothesis::{
-    FiniteHypothesisAlternativeV0, FiniteHypothesisDispositionV0,
-    FiniteHypothesisProjectionErrorV0, FiniteHypothesisProjectionV0, ProjectFiniteHypothesesV0,
-    FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0,
+    FiniteHypothesisAlternativeV0, FiniteHypothesisClaimErrorV0, FiniteHypothesisClaimV0,
+    FiniteHypothesisDispositionV0, FiniteHypothesisInputRefV0, FiniteHypothesisProjectionErrorV0,
+    FiniteHypothesisProjectionV0, ProjectFiniteHypothesesV0, ProjectFiniteHypothesisClaimV0,
+    FINITE_HYPOTHESIS_CLAIM_SCHEMA_V0, FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0,
 };
 
 pub use rssi_reference_frame::{

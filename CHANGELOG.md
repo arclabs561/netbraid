@@ -11,6 +11,10 @@ GitHub native binary releases remain available independently.
 
 ### Added
 
+- Evidence-linked finite claim envelopes for the packet same-event,
+  saved-PCAP packet-shape, and counter/capture hypothesis families. Claims bind
+  canonical input references while preserving the existing identifier-free
+  projection as a separate view.
 - An optional bounded Unix adapter for canonical full-metadata Zeek `conn.log`
   files that projects typed session evidence without retaining source-local
   identifiers or unselected columns.

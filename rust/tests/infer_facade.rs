@@ -4,11 +4,12 @@ use netbraid::infer::{
     CounterCaptureDispositionV0, CounterCaptureProfileV0, CounterCaptureReferenceV0,
     CounterCaptureScaleVectorPpbV0, CounterCaptureUnknownReasonV0, PacketSameEventDispositionV0,
     PacketSameEventReferenceV0, PacketSameEventUnknownReasonV0, ProjectFiniteHypothesesV0,
-    SavedPcapFingerprintCandidateRefV0, SavedPcapFingerprintCandidateV0,
-    SavedPcapFingerprintComparisonV0, SavedPcapFingerprintDispositionV0,
-    SavedPcapFingerprintErrorV0, SavedPcapFingerprintHypothesisSetV0,
-    SavedPcapFingerprintReferenceV0, SavedPcapFingerprintValidationErrorV0,
-    TrafficWindowEvidenceV0, TrafficWindowV0, FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0,
+    ProjectFiniteHypothesisClaimV0, SavedPcapFingerprintCandidateRefV0,
+    SavedPcapFingerprintCandidateV0, SavedPcapFingerprintComparisonV0,
+    SavedPcapFingerprintDispositionV0, SavedPcapFingerprintErrorV0,
+    SavedPcapFingerprintHypothesisSetV0, SavedPcapFingerprintReferenceV0,
+    SavedPcapFingerprintValidationErrorV0, TrafficWindowEvidenceV0, TrafficWindowV0,
+    FINITE_HYPOTHESIS_CLAIM_SCHEMA_V0, FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0,
     SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_REDUCER_V0,
 };
 
@@ -75,6 +76,9 @@ fn public_same_event_family_obeys_finite_hypothesis_law() {
     let projection = result
         .project_finite_hypotheses_v0()
         .expect("valid finite projection");
+    let claim = result
+        .project_finite_hypothesis_claim_v0()
+        .expect("valid finite claim");
 
     assert_eq!(
         result.reference,
@@ -83,6 +87,10 @@ fn public_same_event_family_obeys_finite_hypothesis_law() {
         }
     );
     assert_eq!(projection.schema(), FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0);
+    assert_eq!(claim.schema(), FINITE_HYPOTHESIS_CLAIM_SCHEMA_V0);
+    assert_eq!(claim.projection(), &projection);
+    assert_eq!(claim.inputs()[0].role(), "left_packet");
+    assert_eq!(claim.inputs()[1].role(), "right_packet");
     assert_eq!(projection.family_schema(), result.schema);
     assert_eq!(projection.reducer(), result.reducer);
     assert_eq!(
@@ -151,6 +159,7 @@ fn public_counter_capture_family_obeys_finite_hypothesis_law() {
     .unwrap();
 
     let result = assess_counter_capture_v0(&counter, &capture, &profile).unwrap();
+    let claim = result.project_finite_hypothesis_claim_v0().unwrap();
 
     assert_eq!(
         result.reference,
@@ -175,6 +184,14 @@ fn public_counter_capture_family_obeys_finite_hypothesis_law() {
         CounterCaptureDispositionV0::Underdetermined,
     );
     assert_eq!(result.basis.scaled_residual_sum_ppb, Some(0));
+    assert_eq!(
+        claim
+            .inputs()
+            .iter()
+            .map(|reference| reference.role())
+            .collect::<Vec<_>>(),
+        ["calibration_profile", "capture_window", "counter_window"]
+    );
 
     let counter = TrafficWindowEvidenceV0::incomplete("counter:facade:unknown");
     let result = assess_counter_capture_v0(&counter, &capture, &profile).unwrap();
@@ -215,6 +232,9 @@ fn public_saved_pcap_fingerprint_family_is_available_through_infer() {
         -> Result<SavedPcapFingerprintHypothesisSetV0, SavedPcapFingerprintErrorV0> =
         assess_saved_pcap_fingerprint_v0;
     let _public_types = (
+        std::mem::size_of::<netbraid::infer::FiniteHypothesisClaimErrorV0>(),
+        std::mem::size_of::<netbraid::infer::FiniteHypothesisClaimV0>(),
+        std::mem::size_of::<netbraid::infer::FiniteHypothesisInputRefV0>(),
         std::mem::size_of::<SavedPcapFingerprintCandidateRefV0>(),
         std::mem::size_of::<SavedPcapFingerprintComparisonV0>(),
         std::mem::size_of::<SavedPcapFingerprintDispositionV0>(),
