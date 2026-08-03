@@ -49,6 +49,8 @@ GitHub native binary releases remain available independently.
   receipts, including when a reader returns a malformed summary.
 - Reconnected the saved-capture parser fuzz target to the unified `netbraid`
   package so its nightly smoke recipe builds and runs again.
+- Kept the optional KismetDB adapter on the declared Rust 1.88 floor by using
+  the preceding compatible rusqlite/libsqlite release line.
 
 ## [0.3.1] - 2026-07-28
 
