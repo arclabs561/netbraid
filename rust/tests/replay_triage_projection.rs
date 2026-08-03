@@ -7,11 +7,12 @@ use netbraid::evidence::{
     PACKET_QUARANTINE_SCHEMA_V0,
 };
 use netbraid::replay::{
-    compare_saved_pcap_fingerprints_v0, parse_saved_capture_jsonl,
-    project_saved_pcap_fingerprint_v0, project_saved_pcap_triage, project_saved_pcap_triage_v1,
-    project_saved_pcap_wlan_fingerprint_v0, SavedPcapClaimScopeV0,
+    assess_saved_pcap_fingerprint_v0, compare_saved_pcap_fingerprints_v0,
+    parse_saved_capture_jsonl, project_saved_pcap_fingerprint_v0, project_saved_pcap_triage,
+    project_saved_pcap_triage_v1, project_saved_pcap_wlan_fingerprint_v0, SavedPcapClaimScopeV0,
     SavedPcapConversationAggregationV0, SavedPcapConversationTriageV0,
     SavedPcapFingerprintComparisonReasonV0, SavedPcapFingerprintComparisonV0,
+    SavedPcapFingerprintDispositionV0, SavedPcapFingerprintReferenceV0,
     SavedPcapFingerprintStatusV0, SavedPcapNegativeClaimAbstentionReasonV1,
     SavedPcapNegativeClaimQualificationV1, SavedPcapTrailingConversationAggregationV1,
     SavedPcapTrailingConversationTriageV1, SavedPcapTrailingIntervalAnchorV1,
@@ -212,6 +213,100 @@ fn fingerprint_candidate_preserves_partial_and_unsupported_abstentions() {
         SavedPcapFingerprintComparisonV0::NotComparable {
             reason: SavedPcapFingerprintComparisonReasonV0::LeftNotObserved,
         }
+    );
+}
+
+#[test]
+fn fingerprint_hypothesis_maps_lower_reducer_and_is_swap_invariant() {
+    let records = validated_stream(
+        manifest(NormalizationStateV0::Complete, 2, 0),
+        vec![
+            tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+            tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+        ],
+        vec![],
+    );
+    let triage = project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1::default())
+        .expect("eligible records project");
+    let baseline = project_saved_pcap_fingerprint_v0(&triage);
+    let mut same = baseline.clone();
+    same.source.capture_id = format!("sha256:{}", "1".repeat(64));
+    let mut different_triage = triage;
+    let SavedPcapConversationTriageV0::Observed { conversation, .. } =
+        &mut different_triage.top_capture_conversation
+    else {
+        panic!("eligible records have a conversation");
+    };
+    conversation.total_frames += 1;
+    different_triage.source.manifest.capture_id = format!("sha256:{}", "2".repeat(64));
+    let different = project_saved_pcap_fingerprint_v0(&different_triage);
+    let mut unknown = same.clone();
+    let SavedPcapFingerprintStatusV0::Observed { digest, .. } = &mut unknown.status else {
+        panic!("eligible records have an observed fingerprint");
+    };
+    *digest = "sha256:invalid".into();
+
+    for (right, comparison, reference, dispositions) in [
+        (
+            &same,
+            SavedPcapFingerprintComparisonV0::Corroborated,
+            SavedPcapFingerprintReferenceV0::SamePacketShape,
+            (
+                SavedPcapFingerprintDispositionV0::Supported,
+                SavedPcapFingerprintDispositionV0::Contradicted,
+                SavedPcapFingerprintDispositionV0::Contradicted,
+            ),
+        ),
+        (
+            &different,
+            SavedPcapFingerprintComparisonV0::Conflicting,
+            SavedPcapFingerprintReferenceV0::DifferentPacketShape,
+            (
+                SavedPcapFingerprintDispositionV0::Contradicted,
+                SavedPcapFingerprintDispositionV0::Supported,
+                SavedPcapFingerprintDispositionV0::Contradicted,
+            ),
+        ),
+    ] {
+        let result = assess_saved_pcap_fingerprint_v0(&baseline, right).unwrap();
+        assert_eq!(result.basis, comparison);
+        assert_eq!(result.reference, reference);
+        assert_eq!(
+            (
+                result.same_packet_shape,
+                result.different_packet_shape,
+                result.unknown
+            ),
+            dispositions
+        );
+        assert_eq!(
+            result,
+            assess_saved_pcap_fingerprint_v0(right, &baseline).unwrap()
+        );
+        result.validate_against(right, &baseline).unwrap();
+    }
+
+    let result = assess_saved_pcap_fingerprint_v0(&baseline, &unknown).unwrap();
+    assert_eq!(
+        result.basis,
+        compare_saved_pcap_fingerprints_v0(&baseline, &unknown)
+    );
+    assert!(matches!(
+        result.reference,
+        SavedPcapFingerprintReferenceV0::Unknown { .. }
+    ));
+    assert_eq!(
+        result.same_packet_shape,
+        SavedPcapFingerprintDispositionV0::Underdetermined
+    );
+    assert_eq!(
+        result.different_packet_shape,
+        SavedPcapFingerprintDispositionV0::Underdetermined
+    );
+    assert_eq!(result.unknown, SavedPcapFingerprintDispositionV0::Supported);
+    assert_eq!(
+        result,
+        assess_saved_pcap_fingerprint_v0(&unknown, &baseline).unwrap()
     );
 }
 

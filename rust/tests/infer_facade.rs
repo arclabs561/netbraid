@@ -1,9 +1,14 @@
 use netbraid::evidence::PacketEnvelopeV0;
 use netbraid::infer::{
-    assess_counter_capture_v0, assess_packet_same_event_v0, CounterCaptureDispositionV0,
-    CounterCaptureProfileV0, CounterCaptureReferenceV0, CounterCaptureScaleVectorPpbV0,
-    CounterCaptureUnknownReasonV0, PacketSameEventDispositionV0, PacketSameEventReferenceV0,
-    PacketSameEventUnknownReasonV0, TrafficWindowEvidenceV0, TrafficWindowV0,
+    assess_counter_capture_v0, assess_packet_same_event_v0, assess_saved_pcap_fingerprint_v0,
+    CounterCaptureDispositionV0, CounterCaptureProfileV0, CounterCaptureReferenceV0,
+    CounterCaptureScaleVectorPpbV0, CounterCaptureUnknownReasonV0, PacketSameEventDispositionV0,
+    PacketSameEventReferenceV0, PacketSameEventUnknownReasonV0, SavedPcapFingerprintCandidateRefV0,
+    SavedPcapFingerprintCandidateV0, SavedPcapFingerprintComparisonV0,
+    SavedPcapFingerprintDispositionV0, SavedPcapFingerprintErrorV0,
+    SavedPcapFingerprintHypothesisSetV0, SavedPcapFingerprintReferenceV0,
+    SavedPcapFingerprintValidationErrorV0, TrafficWindowEvidenceV0, TrafficWindowV0,
+    SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_REDUCER_V0,
 };
 
 fn packet() -> PacketEnvelopeV0 {
@@ -184,4 +189,30 @@ fn public_counter_capture_family_obeys_finite_hypothesis_law() {
         CounterCaptureDispositionV0::Underdetermined,
     );
     assert!(result.basis.counter_features_ppb.is_none());
+}
+
+#[test]
+fn public_saved_pcap_fingerprint_family_is_available_through_infer() {
+    let _reducer: fn(
+        &SavedPcapFingerprintCandidateV0,
+        &SavedPcapFingerprintCandidateV0,
+    )
+        -> Result<SavedPcapFingerprintHypothesisSetV0, SavedPcapFingerprintErrorV0> =
+        assess_saved_pcap_fingerprint_v0;
+    let _public_types = (
+        std::mem::size_of::<SavedPcapFingerprintCandidateRefV0>(),
+        std::mem::size_of::<SavedPcapFingerprintComparisonV0>(),
+        std::mem::size_of::<SavedPcapFingerprintDispositionV0>(),
+        std::mem::size_of::<SavedPcapFingerprintReferenceV0>(),
+        std::mem::size_of::<SavedPcapFingerprintValidationErrorV0>(),
+    );
+
+    assert_eq!(
+        SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0,
+        "netmon.saved_pcap_fingerprint_hypothesis_set.v0"
+    );
+    assert_eq!(
+        SAVED_PCAP_FINGERPRINT_REDUCER_V0,
+        "netbraid.saved_pcap_fingerprint.packet_shape.v0"
+    );
 }

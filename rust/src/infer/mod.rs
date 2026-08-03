@@ -2,11 +2,17 @@ mod counter_capture;
 mod rssi_reference_frame;
 
 pub use crate::replay::{
-    assess_packet_same_event_v0, PacketSameEventBasisV0, PacketSameEventDifferenceV0,
-    PacketSameEventDimensionV0, PacketSameEventDispositionV0, PacketSameEventErrorV0,
-    PacketSameEventEvidenceRefV0, PacketSameEventHypothesisSetV0, PacketSameEventReferenceV0,
-    PacketSameEventUnknownReasonV0, PacketSameEventValidationErrorV0,
-    PACKET_SAME_EVENT_HYPOTHESIS_SET_SCHEMA_V0, PACKET_SAME_EVENT_REDUCER_V0,
+    assess_packet_same_event_v0, assess_saved_pcap_fingerprint_v0, PacketSameEventBasisV0,
+    PacketSameEventDifferenceV0, PacketSameEventDimensionV0, PacketSameEventDispositionV0,
+    PacketSameEventErrorV0, PacketSameEventEvidenceRefV0, PacketSameEventHypothesisSetV0,
+    PacketSameEventReferenceV0, PacketSameEventUnknownReasonV0, PacketSameEventValidationErrorV0,
+    SavedPcapFingerprintCandidateRefV0, SavedPcapFingerprintCandidateV0,
+    SavedPcapFingerprintComparisonReasonV0, SavedPcapFingerprintComparisonV0,
+    SavedPcapFingerprintDispositionV0, SavedPcapFingerprintErrorV0,
+    SavedPcapFingerprintHypothesisSetV0, SavedPcapFingerprintReferenceV0,
+    SavedPcapFingerprintValidationErrorV0, PACKET_SAME_EVENT_HYPOTHESIS_SET_SCHEMA_V0,
+    PACKET_SAME_EVENT_REDUCER_V0, SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0,
+    SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_REDUCER_V0,
 };
 
 pub use counter_capture::{

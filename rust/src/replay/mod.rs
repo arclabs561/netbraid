@@ -27,12 +27,17 @@ pub use conversation::{
     TransportProtocolV0,
 };
 pub use fingerprint::{
-    compare_saved_pcap_fingerprints_v0, project_saved_pcap_fingerprint_v0,
-    SavedPcapFingerprintBasisV0, SavedPcapFingerprintCandidateV0,
+    assess_saved_pcap_fingerprint_v0, compare_saved_pcap_fingerprints_v0,
+    project_saved_pcap_fingerprint_v0, SavedPcapFingerprintBasisV0,
+    SavedPcapFingerprintCandidateRefV0, SavedPcapFingerprintCandidateV0,
     SavedPcapFingerprintComparisonReasonV0, SavedPcapFingerprintComparisonV0,
-    SavedPcapFingerprintConversationV0, SavedPcapFingerprintInsufficientReasonV0,
+    SavedPcapFingerprintConversationV0, SavedPcapFingerprintDispositionV0,
+    SavedPcapFingerprintErrorV0, SavedPcapFingerprintHypothesisSetV0,
+    SavedPcapFingerprintInsufficientReasonV0, SavedPcapFingerprintReferenceV0,
     SavedPcapFingerprintSourceV0, SavedPcapFingerprintStatusV0,
-    SavedPcapFingerprintUnsupportedReasonV0, SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0,
+    SavedPcapFingerprintUnsupportedReasonV0, SavedPcapFingerprintValidationErrorV0,
+    SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0,
+    SAVED_PCAP_FINGERPRINT_REDUCER_V0,
 };
 pub use flow::{
     project_saved_capture_flows_v0, PacketFlowEndBasisV0, PacketFlowExclusionReasonV0,

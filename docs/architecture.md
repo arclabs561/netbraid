@@ -80,11 +80,16 @@ evidence closure; it does not certify arbitrary prose as ground truth.
 ## Inference path
 
 Inference is a collection of explicit reducers, not one open-ended engine. The
-packet same-event and counter/capture families each retain two substantive
-alternatives plus unknown, record their decision basis and limitations, and
-can recompute an assessment against the exact evidence it cites. Matching
-packet structure remains non-discriminating, so the packet reducer never
-supports same-event from structural agreement alone.
+packet same-event, saved-PCAP packet-shape, and counter/capture families each
+retain two substantive alternatives plus unknown, record their decision basis
+and limitations, and can recompute an assessment against the exact evidence it
+cites. The saved-PCAP family content-binds complete fingerprint candidates and
+lifts corroborated, conflicting, and not-comparable lower comparisons to same
+packet shape, different packet shape, and unknown respectively. Those shape
+alternatives do not imply event, capture, device, source, variant, identity,
+intent, or integrity. Matching packet structure also remains non-discriminating
+for the separate packet same-event family, so that reducer never supports
+same-event from structural agreement alone.
 
 The RSSI reference-frame reducer is one layer earlier: it reports bounded
 fixed-point link evidence, source-wide shift candidates, and observer-scoped
