@@ -26,18 +26,18 @@ Status: experimental.
 The Rust package requires Rust 1.88 or newer:
 
 ```sh
-cargo install netbraid --version 0.3.1 --locked
+cargo install netbraid --version 0.3.2 --locked
 ```
 
 Checksummed native archives for x86-64 Linux, Intel macOS, and Apple silicon
 macOS are attached to the
-[`netbraid-v0.3.1` release](https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.3.1):
+[`netbraid-v0.3.2` release](https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.3.2):
 
 ```sh
-gh release download netbraid-v0.3.1 \
+gh release download netbraid-v0.3.2 \
   --repo arclabs561/netbraid \
-  --dir netbraid-v0.3.1
-(cd netbraid-v0.3.1 && shasum -a 256 --check SHA256SUMS)
+  --dir netbraid-v0.3.2
+(cd netbraid-v0.3.2 && shasum -a 256 --check SHA256SUMS)
 ```
 
 The macOS archives are not code-signed or notarized. Cargo installation is the

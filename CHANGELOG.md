@@ -9,6 +9,8 @@ GitHub native binary releases remain available independently.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-02
+
 ### Added
 
 - Identifier-free packet-shape and WLAN fingerprint candidates, conservative
@@ -187,7 +189,8 @@ GitHub native binary releases remain available independently.
 - Raw PCAP, PCAPNG, and CAP artifacts are ignored recursively; reviewed
   synthetic fixtures remain readable source encodings.
 
-[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.1...HEAD
+[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.2...HEAD
+[0.3.2]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.1...netbraid-v0.3.2
 [0.3.1]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.0...netbraid-v0.3.1
 [0.3.0]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.2.0...netbraid-v0.3.0
 [0.2.0]: https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.2.0
