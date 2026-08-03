@@ -6,9 +6,10 @@
 
 """Fetch and inspect allowlisted public network evaluation artifacts.
 
-Archives are stored outside Git under ``data/raw/`` by default. The source
-allowlist, byte count, and pinned digests are kept here so a local fetch is
-repeatable and fails closed on a changed download.
+Archives are stored outside Git under ``data/raw/`` by default, with local
+verification receipts under ignored ``data/receipts/public-eval-corpus/``.
+The source allowlist, byte count, and pinned digests are kept here so a local
+fetch is repeatable and fails closed on a changed download.
 """
 
 from __future__ import annotations
@@ -26,11 +27,17 @@ import urllib.error
 import urllib.request
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 import truststore
 
+REPOSITORY = Path(__file__).resolve().parents[2]
+DEFAULT_RAW_DIR = REPOSITORY / "data" / "raw"
+DEFAULT_RECEIPT_DIR = REPOSITORY / "data" / "receipts" / "public-eval-corpus"
+RECEIPT_BYTE_LIMIT = 2 * 1024 * 1024
+CHUNK_BYTES = 1024 * 1024
 
 SOURCES: dict[str, dict[str, Any]] = {
     "v2i-80211ad": {
@@ -595,7 +602,7 @@ for key, file_id, source_filename, size, md5 in MATTER_TRACE_FILES:
 GROUPS = frozenset(spec["group"] for spec in SOURCES.values())
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "dataset",
@@ -604,8 +611,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(__file__).resolve().parents[2] / "data" / "raw",
-        help="ignored local archive directory",
+        default=DEFAULT_RAW_DIR,
+        help="ignored local archive directory (default: data/raw)",
+    )
+    parser.add_argument(
+        "--receipt-dir",
+        type=Path,
+        default=DEFAULT_RECEIPT_DIR,
+        help=(
+            "ignored verification receipt directory "
+            "(default: data/receipts/public-eval-corpus)"
+        ),
     )
     parser.add_argument(
         "--inspect",
@@ -641,7 +657,7 @@ def parse_args() -> argparse.Namespace:
         default=min(4, os.cpu_count() or 1),
         help="parallel workers for an existing artifact group (default: up to 4)",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def print_catalog() -> None:
@@ -652,11 +668,27 @@ def digest_file(path: Path) -> tuple[int, str, str]:
     size = 0
     md5 = hashlib.md5(usedforsecurity=False)
     sha256 = hashlib.sha256()
-    with path.open("rb") as source:
-        while chunk := source.read(1024 * 1024):
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise RuntimeError(f"refusing unsafe archive path: {path}") from error
+    with os.fdopen(descriptor, "rb") as source:
+        before = os.fstat(source.fileno())
+        if not stat.S_ISREG(before.st_mode):
+            raise RuntimeError(f"refusing unsafe archive path: {path}")
+        while chunk := source.read(CHUNK_BYTES):
             size += len(chunk)
             md5.update(chunk)
             sha256.update(chunk)
+        after = os.fstat(source.fileno())
+    if size != before.st_size or (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+    ) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
+        raise RuntimeError(f"archive changed during verification: {path}")
     return size, md5.hexdigest(), sha256.hexdigest()
 
 
@@ -664,33 +696,73 @@ def archive_path(spec: dict[str, Any], output_dir: Path) -> Path:
     return output_dir / spec["filename"]
 
 
-def write_archive_receipt(
-    archive: Path,
-    spec: dict[str, Any],
-    size: int,
-    md5: str,
-    sha256: str,
-) -> None:
-    metadata = {
+def receipt_path(archive: Path, receipt_dir: Path) -> Path:
+    return receipt_dir / f"{archive.name}.json"
+
+
+def legacy_receipt_path(archive: Path) -> Path:
+    return archive.with_suffix(archive.suffix + ".json")
+
+
+def archive_receipt(
+    spec: Mapping[str, Any], size: int, md5: str, sha256: str
+) -> dict[str, Any]:
+    return {
         "schema": "local.public_wireless_archive.v1",
         "source": spec,
         "bytes": size,
         "md5": md5,
         "sha256": sha256,
-        "archive": archive.name,
+        "archive": spec["filename"],
     }
-    receipt = archive.with_suffix(archive.suffix + ".json")
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=f".{receipt.name}.", dir=receipt.parent
-    )
+
+
+def _ensure_safe_directory(path: Path, error_message: str) -> None:
+    try:
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        metadata = path.lstat()
+    except OSError as error:
+        raise RuntimeError(error_message) from error
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise RuntimeError(error_message)
+
+
+def _read_json_regular(path: Path, error_message: str) -> Mapping[str, Any]:
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise RuntimeError(error_message) from error
+    with os.fdopen(descriptor, "rb") as source:
+        metadata = os.fstat(source.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > RECEIPT_BYTE_LIMIT:
+            raise RuntimeError(error_message)
+        payload = source.read(RECEIPT_BYTE_LIMIT + 1)
+    try:
+        value = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimeError(error_message) from error
+    if not isinstance(value, Mapping):
+        raise RuntimeError(error_message)
+    return value
+
+
+def _write_json_new(path: Path, value: Mapping[str, Any]) -> None:
+    _ensure_safe_directory(path.parent, "refusing unsafe receipt directory")
+    if os.path.lexists(path):
+        raise RuntimeError(f"refusing unsafe receipt path: {path}")
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as output:
-            json.dump(metadata, output, indent=2, sort_keys=True)
+            json.dump(value, output, indent=2, sort_keys=True)
             output.write("\n")
             output.flush()
             os.fsync(output.fileno())
-        os.replace(temporary, receipt)
+        try:
+            os.link(temporary, path, follow_symlinks=False)
+        except FileExistsError as error:
+            raise RuntimeError(f"refusing unsafe receipt path: {path}") from error
     finally:
         try:
             os.unlink(temporary)
@@ -698,18 +770,71 @@ def write_archive_receipt(
             pass
 
 
-def download(spec: dict[str, Any], output_dir: Path) -> Path:
-    output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+def write_json_atomic(path: Path, value: Mapping[str, Any]) -> None:
+    _ensure_safe_directory(path.parent, "refusing unsafe JSON output directory")
+    if os.path.lexists(path):
+        metadata = path.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise RuntimeError(f"refusing unsafe JSON output path: {path}")
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(value, output, indent=2, sort_keys=True)
+            output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+
+
+def _validate_or_create_receipt(
+    archive: Path,
+    receipt_dir: Path,
+    expected: Mapping[str, Any],
+) -> None:
+    target = receipt_path(archive, receipt_dir)
+    legacy = legacy_receipt_path(archive)
+    if os.path.lexists(target):
+        if (
+            _read_json_regular(target, f"refusing unsafe receipt path: {target}")
+            != expected
+        ):
+            raise RuntimeError(f"existing receipt failed verification: {target}")
+        return
+    if legacy != target and os.path.lexists(legacy):
+        if (
+            _read_json_regular(legacy, f"refusing unsafe receipt path: {legacy}")
+            != expected
+        ):
+            raise RuntimeError(f"legacy receipt failed verification: {legacy}")
+    _write_json_new(target, expected)
+
+
+def download(spec: dict[str, Any], output_dir: Path, receipt_dir: Path) -> Path:
+    _ensure_safe_directory(output_dir, "refusing unsafe archive directory")
+    _ensure_safe_directory(receipt_dir, "refusing unsafe receipt directory")
     archive = archive_path(spec, output_dir)
     if archive.is_symlink():
         raise RuntimeError(f"refusing symlink archive path: {archive}")
     if archive.exists():
-        verify_existing_archive(archive, spec)
+        verify_existing_archive(archive, spec, receipt_dir)
         print(f"reusing verified archive: {archive}")
         return archive
 
+    target_receipt = receipt_path(archive, receipt_dir)
+    legacy_receipt = legacy_receipt_path(archive)
+    if os.path.lexists(target_receipt) or (
+        legacy_receipt != target_receipt and os.path.lexists(legacy_receipt)
+    ):
+        raise RuntimeError("refusing orphan archive receipt")
+
     partial = archive.with_name(f".{archive.name}.part")
-    if partial.exists():
+    if os.path.lexists(partial):
         raise RuntimeError(f"refusing to overwrite partial download: {partial}")
 
     request = urllib.request.Request(
@@ -756,12 +881,28 @@ def download(spec: dict[str, Any], output_dir: Path) -> Path:
         received,
         md5.hexdigest(),
         sha256.hexdigest(),
+        receipt_dir,
     )
     print(f"downloaded and verified: {archive}")
     return archive
 
 
-def verify_existing_archive(archive: Path, spec: dict[str, Any]) -> None:
+def write_archive_receipt(
+    archive: Path,
+    spec: Mapping[str, Any],
+    size: int,
+    md5: str,
+    sha256: str,
+    receipt_dir: Path,
+) -> None:
+    _validate_or_create_receipt(
+        archive, receipt_dir, archive_receipt(spec, size, md5, sha256)
+    )
+
+
+def verify_existing_archive(
+    archive: Path, spec: Mapping[str, Any], receipt_dir: Path
+) -> None:
     if archive.is_symlink() or not archive.is_file():
         raise RuntimeError(f"refusing unsafe archive path: {archive}")
     size, md5, sha256 = digest_file(archive)
@@ -772,15 +913,19 @@ def verify_existing_archive(archive: Path, spec: dict[str, Any]) -> None:
         and sha256 != spec["sha256"]
     ):
         raise RuntimeError(f"existing archive failed verification: {archive}")
-    write_archive_receipt(archive, spec, size, md5, sha256)
+    write_archive_receipt(archive, spec, size, md5, sha256, receipt_dir)
 
 
 def fetch_selected(
-    selected: dict[str, dict[str, Any]], output_dir: Path, verify_workers: int
+    selected: dict[str, dict[str, Any]],
+    output_dir: Path,
+    receipt_dir: Path,
+    verify_workers: int,
 ) -> dict[str, Path]:
     if verify_workers <= 0:
         raise RuntimeError("--verify-workers must be positive")
-    output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    _ensure_safe_directory(output_dir, "refusing unsafe archive directory")
+    _ensure_safe_directory(receipt_dir, "refusing unsafe receipt directory")
     items = list(selected.items())
     paths = [archive_path(spec, output_dir) for _, spec in items]
     can_verify_in_parallel = (
@@ -790,13 +935,14 @@ def fetch_selected(
     )
     if not can_verify_in_parallel:
         return {
-            dataset: download(spec, output_dir) for dataset, spec in selected.items()
+            dataset: download(spec, output_dir, receipt_dir)
+            for dataset, spec in selected.items()
         }
 
     worker_count = min(verify_workers, len(items))
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         futures = [
-            executor.submit(verify_existing_archive, path, spec)
+            executor.submit(verify_existing_archive, path, spec, receipt_dir)
             for (_, spec), path in zip(items, paths, strict=True)
         ]
         archives: dict[str, Path] = {}
@@ -809,16 +955,41 @@ def fetch_selected(
     return archives
 
 
-def inspect_archive(archive: Path, spec: dict[str, Any]) -> dict[str, Any]:
+def inspect_archive(
+    archive: Path, spec: dict[str, Any], receipt_dir: Path
+) -> dict[str, Any]:
+    receipt = _read_json_regular(
+        receipt_path(archive, receipt_dir), "refusing unsafe archive receipt"
+    )
+    expected_fields = {
+        "schema": "local.public_wireless_archive.v1",
+        "source": spec,
+        "archive": archive.name,
+    }
+    if any(receipt.get(key) != value for key, value in expected_fields.items()):
+        raise RuntimeError("archive receipt failed verification")
+    integrity = {
+        "archive": archive.name,
+        "bytes": receipt.get("bytes"),
+        "md5": receipt.get("md5"),
+        "sha256": receipt.get("sha256"),
+    }
+    if (
+        integrity["bytes"] != spec["bytes"]
+        or integrity["md5"] != spec["md5"]
+        or "sha256" in spec
+        and integrity["sha256"] != spec["sha256"]
+    ):
+        raise RuntimeError("archive receipt failed verification")
     artifact_format = spec.get("format", "zip")
     if artifact_format == "file":
         return {
-            "archive": str(archive),
+            **integrity,
             "members": [
                 {
                     "name": archive.name,
-                    "bytes": archive.stat().st_size,
-                    "compressed_bytes": archive.stat().st_size,
+                    "bytes": integrity["bytes"],
+                    "compressed_bytes": integrity["bytes"],
                     "directory": False,
                 }
             ],
@@ -844,7 +1015,7 @@ def inspect_archive(archive: Path, spec: dict[str, Any]) -> dict[str, Any]:
                         "directory": member.isdir(),
                     }
                 )
-            return {"archive": str(archive), "members": members}
+            return {**integrity, "members": members}
     if artifact_format != "zip":
         raise RuntimeError(f"unsupported artifact format: {artifact_format}")
     with zipfile.ZipFile(archive) as source:
@@ -862,7 +1033,7 @@ def inspect_archive(archive: Path, spec: dict[str, Any]) -> dict[str, Any]:
                     "directory": member.is_dir(),
                 }
             )
-        return {"archive": str(archive), "members": members}
+        return {**integrity, "members": members}
 
 
 def extract_members(
@@ -932,14 +1103,12 @@ def extract_members(
         "members": extracted,
         "total_bytes": total_bytes,
     }
-    (output_dir / "extraction.json").write_text(
-        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    write_json_atomic(output_dir / "extraction.json", receipt)
     print(f"extracted {len(extracted)} member(s) to {output_dir}")
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     if args.dataset == "list":
         print_catalog()
         return 0
@@ -954,12 +1123,17 @@ def main() -> int:
         }
     else:
         selected = {args.dataset: SOURCES[args.dataset]}
-    archives = fetch_selected(selected, args.output_dir.resolve(), args.verify_workers)
+    archives = fetch_selected(
+        selected,
+        args.output_dir,
+        args.receipt_dir,
+        args.verify_workers,
+    )
     inventories: dict[str, dict[str, Any]] = {}
     for dataset, spec in selected.items():
         archive = archives[dataset]
         if args.inspect:
-            inventories[dataset] = inspect_archive(archive, spec)
+            inventories[dataset] = inspect_archive(archive, spec, args.receipt_dir)
         if args.extract_member:
             extract_members(
                 archive,
@@ -980,12 +1154,10 @@ def main() -> int:
             }
         else:
             inventory = inventories[args.dataset]
-        rendered = json.dumps(inventory, indent=2, sort_keys=True) + "\n"
         if args.inspect_output is None:
-            print(rendered, end="")
+            print(json.dumps(inventory, indent=2, sort_keys=True))
         else:
-            args.inspect_output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            args.inspect_output.write_text(rendered, encoding="utf-8")
+            write_json_atomic(args.inspect_output, inventory)
             print(f"wrote member inventory: {args.inspect_output}")
     return 0
 

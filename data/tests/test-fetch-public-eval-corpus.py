@@ -12,6 +12,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -140,7 +141,198 @@ TOTALS = {
 }
 
 
+def synthetic_source(payload: bytes) -> dict[str, object]:
+    return {
+        "url": "https://example.test/public-eval.bin",
+        "filename": "public-eval.bin",
+        "bytes": len(payload),
+        "md5": hashlib.md5(payload, usedforsecurity=False).hexdigest(),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "format": "file",
+        "license": "CC0",
+        "group": "baseline",
+    }
+
+
 class FetcherMetadataTests(unittest.TestCase):
+    def test_default_and_custom_receipt_placement(self):
+        payload = b"verified public artifact"
+        source = synthetic_source(payload)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            raw_dir = base / "raw"
+            raw_dir.mkdir()
+            archive = raw_dir / str(source["filename"])
+            archive.write_bytes(payload)
+
+            default_receipts = base / "default-receipts"
+            with (
+                mock.patch.object(MODULE, "DEFAULT_RECEIPT_DIR", default_receipts),
+                mock.patch.object(MODULE, "SOURCES", {"synthetic": source}),
+                mock.patch.object(MODULE, "GROUPS", frozenset({"baseline"})),
+                mock.patch.object(MODULE.urllib.request, "urlopen") as urlopen,
+                mock.patch("builtins.print"),
+            ):
+                arguments = MODULE.parse_args(["synthetic"])
+                exit_code = MODULE.main(["synthetic", "--output-dir", str(raw_dir)])
+            self.assertEqual(arguments.receipt_dir, default_receipts)
+            self.assertEqual(exit_code, 0)
+            urlopen.assert_not_called()
+            self.assertTrue(MODULE.receipt_path(archive, default_receipts).is_file())
+            self.assertIn(
+                "data/receipts/public-eval-corpus",
+                MODULE.parse_args(["v2i-80211ad"]).receipt_dir.as_posix(),
+            )
+
+            custom_receipts = base / "custom-receipts"
+            MODULE.verify_existing_archive(archive, source, custom_receipts)
+            receipt = MODULE.receipt_path(archive, custom_receipts)
+            self.assertTrue(receipt.is_file())
+            self.assertFalse(MODULE.legacy_receipt_path(archive).exists())
+            receipt_value = json.loads(receipt.read_text(encoding="utf-8"))
+            self.assertEqual(
+                receipt_value,
+                MODULE.archive_receipt(
+                    source,
+                    len(payload),
+                    str(source["md5"]),
+                    str(source["sha256"]),
+                ),
+            )
+            self.assertNotIn(str(raw_dir), json.dumps(receipt_value, sort_keys=True))
+
+    def test_adjacent_legacy_receipt_is_reused_without_refetch(self):
+        payload = b"already downloaded public artifact"
+        source = synthetic_source(payload)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            raw_dir = base / "raw"
+            raw_dir.mkdir()
+            archive = raw_dir / str(source["filename"])
+            archive.write_bytes(payload)
+            size, md5, sha256 = MODULE.digest_file(archive)
+            legacy = MODULE.legacy_receipt_path(archive)
+            legacy.write_text(
+                json.dumps(MODULE.archive_receipt(source, size, md5, sha256)),
+                encoding="utf-8",
+            )
+            receipt_dir = base / "receipts"
+
+            with mock.patch.object(MODULE.urllib.request, "urlopen") as urlopen:
+                reused = MODULE.download(source, raw_dir, receipt_dir)
+
+            self.assertEqual(reused, archive)
+            urlopen.assert_not_called()
+            self.assertTrue(MODULE.receipt_path(archive, receipt_dir).is_file())
+            self.assertTrue(legacy.read_text(encoding="utf-8").startswith("{"))
+
+    def test_inventory_is_path_free_and_contains_verified_integrity(self):
+        payload = b"inventory payload"
+        source = synthetic_source(payload)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            archive = base / str(source["filename"])
+            archive.write_bytes(payload)
+            receipt_dir = base / "receipts"
+            MODULE.verify_existing_archive(archive, source, receipt_dir)
+
+            inventory = MODULE.inspect_archive(archive, source, receipt_dir)
+            rendered = json.dumps(inventory, sort_keys=True)
+
+            self.assertEqual(inventory["archive"], archive.name)
+            self.assertEqual(inventory["bytes"], len(payload))
+            self.assertEqual(inventory["md5"], source["md5"])
+            self.assertEqual(inventory["sha256"], source["sha256"])
+            self.assertNotIn(str(base), rendered)
+            self.assertNotIn(str(source["url"]), rendered)
+            self.assertNotIn("source", inventory)
+
+    def test_inspect_cli_atomically_writes_path_free_inventory(self):
+        payload = b"cli inventory payload"
+        source = synthetic_source(payload)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            raw_dir = base / "raw"
+            raw_dir.mkdir()
+            archive = raw_dir / str(source["filename"])
+            archive.write_bytes(payload)
+            receipt_dir = base / "receipts"
+            inventory_path = base / "inventory.json"
+            inventory_path.write_text("old", encoding="utf-8")
+
+            with (
+                mock.patch.object(MODULE, "SOURCES", {"synthetic": source}),
+                mock.patch.object(MODULE, "GROUPS", frozenset({"baseline"})),
+                mock.patch.object(MODULE.urllib.request, "urlopen") as urlopen,
+                mock.patch.object(
+                    MODULE.os, "replace", wraps=MODULE.os.replace
+                ) as replace,
+                mock.patch("builtins.print"),
+            ):
+                exit_code = MODULE.main(
+                    [
+                        "synthetic",
+                        "--output-dir",
+                        str(raw_dir),
+                        "--receipt-dir",
+                        str(receipt_dir),
+                        "--inspect",
+                        "--inspect-output",
+                        str(inventory_path),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            urlopen.assert_not_called()
+            replace.assert_called_once()
+            inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+            self.assertEqual(inventory["archive"], archive.name)
+            self.assertEqual(inventory["bytes"], len(payload))
+            rendered = json.dumps(inventory, sort_keys=True)
+            self.assertNotIn(str(base), rendered)
+            self.assertNotIn(str(source["url"]), rendered)
+
+    def test_receipt_and_inventory_writes_reject_unsafe_paths(self):
+        payload = b"safe regular bytes"
+        source = synthetic_source(payload)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            archive = base / str(source["filename"])
+            archive.write_bytes(payload)
+            receipt_dir = base / "receipts"
+            receipt_dir.mkdir()
+            receipt = MODULE.receipt_path(archive, receipt_dir)
+            receipt_target = base / "receipt-target"
+            receipt_target.write_text("{}", encoding="utf-8")
+            receipt.symlink_to(receipt_target)
+            with self.assertRaisesRegex(RuntimeError, "unsafe receipt"):
+                MODULE.verify_existing_archive(archive, source, receipt_dir)
+
+            output_target = base / "inventory-target"
+            output_target.write_text("keep", encoding="utf-8")
+            inventory_output = base / "inventory.json"
+            inventory_output.symlink_to(output_target)
+            with self.assertRaisesRegex(RuntimeError, "unsafe JSON output"):
+                MODULE.write_json_atomic(inventory_output, {"archive": archive.name})
+            self.assertEqual(output_target.read_text(encoding="utf-8"), "keep")
+
+            regular_output = base / "regular-inventory.json"
+            regular_output.write_text("old", encoding="utf-8")
+            with mock.patch.object(
+                MODULE.os, "replace", wraps=MODULE.os.replace
+            ) as replace:
+                MODULE.write_json_atomic(regular_output, {"archive": archive.name})
+            replace.assert_called_once()
+            self.assertEqual(
+                json.loads(regular_output.read_text(encoding="utf-8")),
+                {"archive": archive.name},
+            )
+
+            archive.unlink()
+            archive.symlink_to(output_target)
+            with self.assertRaisesRegex(RuntimeError, "unsafe archive"):
+                MODULE.verify_existing_archive(archive, source, base / "other-receipts")
+
     def test_exact_zenodo_pins(self):
         selected = {
             name: source
@@ -260,7 +452,9 @@ class FetcherMetadataTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 RuntimeError, "existing archive failed verification"
             ):
-                MODULE.verify_existing_archive(archive, spec)
+                MODULE.verify_existing_archive(
+                    archive, spec, Path(directory) / "receipts"
+                )
 
     def test_catalog_axes_are_separate(self):
         entries = {
