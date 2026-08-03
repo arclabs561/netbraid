@@ -272,6 +272,49 @@ class FetchOsuLoraTests(unittest.TestCase):
         self.assertEqual(
             first["summary"], {"files": 3, "known_bytes": 6, "unknown_size_files": 0}
         )
+        summary = MODULE.summarize_inventory(first)
+        self.assertEqual(
+            summary["summary"],
+            {
+                "files": 3,
+                "known_bytes": 6,
+                "unknown_size_files": 0,
+                "max_file_bytes": 3,
+            },
+        )
+        self.assertEqual(
+            summary["setups"],
+            [
+                {
+                    "setup": "distances",
+                    "files": 3,
+                    "known_bytes": 6,
+                    "unknown_size_files": 0,
+                    "max_file_bytes": 3,
+                }
+            ],
+        )
+        rendered = json.dumps(summary, sort_keys=True)
+        for private_field in ("path", "url", "etag", "last_modified", "roots"):
+            self.assertNotIn(f'"{private_field}"', rendered)
+
+    def test_summary_rejects_inconsistent_inventory(self):
+        inventory = {
+            "publisher": "publisher",
+            "release_note": "https://example.invalid/release",
+            "limits": {},
+            "summary": {"files": 1, "known_bytes": 9, "unknown_size_files": 0},
+            "files": [
+                {
+                    "setup": "distances",
+                    "path": "private-path",
+                    "url": "https://example.invalid/private-path",
+                    "bytes": 8,
+                }
+            ],
+        }
+        with self.assertRaisesRegex(MODULE.FetchError, "inventory_summary_mismatch"):
+            MODULE.summarize_inventory(inventory)
 
     def test_entry_budget_is_global_across_selected_setups(self):
         with (

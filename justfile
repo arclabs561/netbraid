@@ -213,6 +213,11 @@ osu-lora-fetcher-check:
 osu-lora-discover setup workers="4":
     {{ python }} data/fetch/fetch-osu-lora.py discover {{ setup }} --workers {{ workers }}
 
+# Recompute path-free per-setup and corpus byte bounds from the publisher
+# inventory without retaining file paths, URLs, or transport validators.
+osu-lora-discover-summary setup="all" workers="4":
+    {{ python }} data/fetch/fetch-osu-lora.py summarize {{ setup }} --workers {{ workers }}
+
 osu-lora-fetch setup max_total_bytes="10737418240" max_file_bytes="4294967296" workers="2":
     {{ python }} data/fetch/fetch-osu-lora.py fetch {{ setup }} --max-total-bytes {{ max_total_bytes }} --max-file-bytes {{ max_file_bytes }} --workers {{ workers }}
 

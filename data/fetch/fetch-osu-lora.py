@@ -506,6 +506,66 @@ def discover(
     }
 
 
+def summarize_inventory(inventory: Mapping[str, Any]) -> dict[str, Any]:
+    """Project a path-free aggregate from one deterministic remote inventory."""
+    files = inventory.get("files")
+    if not isinstance(files, list):
+        raise FetchError("invalid_inventory_files")
+    aggregates: dict[str, dict[str, int]] = {}
+    maximum = 0
+    for item in files:
+        if not isinstance(item, Mapping):
+            raise FetchError("invalid_inventory_file")
+        setup = item.get("setup")
+        size = item.get("bytes")
+        if not isinstance(setup, str) or setup not in SETUPS:
+            raise FetchError("invalid_inventory_setup")
+        if size is not None and (
+            not isinstance(size, int) or isinstance(size, bool) or size < 0
+        ):
+            raise FetchError("invalid_inventory_size")
+        aggregate = aggregates.setdefault(
+            setup,
+            {
+                "files": 0,
+                "known_bytes": 0,
+                "unknown_size_files": 0,
+                "max_file_bytes": 0,
+            },
+        )
+        aggregate["files"] += 1
+        if size is None:
+            aggregate["unknown_size_files"] += 1
+        else:
+            aggregate["known_bytes"] += size
+            aggregate["max_file_bytes"] = max(aggregate["max_file_bytes"], size)
+            maximum = max(maximum, size)
+    summary = inventory.get("summary")
+    if not isinstance(summary, Mapping):
+        raise FetchError("invalid_inventory_summary")
+    expected = {
+        "files": len(files),
+        "known_bytes": sum(value["known_bytes"] for value in aggregates.values()),
+        "unknown_size_files": sum(
+            value["unknown_size_files"] for value in aggregates.values()
+        ),
+    }
+    if dict(summary) != expected:
+        raise FetchError("inventory_summary_mismatch")
+    return {
+        "schema": "netbraid.osu_lora_inventory_summary.v1",
+        "publisher": inventory.get("publisher"),
+        "release_note": inventory.get("release_note"),
+        "limits": inventory.get("limits"),
+        "summary": {**expected, "max_file_bytes": maximum},
+        "setups": [
+            {"setup": setup, **aggregates[setup]}
+            for setup in SETUPS
+            if setup in aggregates
+        ],
+    }
+
+
 def _ensure_safe_directory(path: Path) -> None:
     try:
         path.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -832,6 +892,10 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "discover", help="emit a deterministic remote inventory"
     )
     _add_discovery_arguments(discover_parser)
+    summarize_parser = subparsers.add_parser(
+        "summarize", help="emit path-free aggregate inventory metadata"
+    )
+    _add_discovery_arguments(summarize_parser)
     fetch_parser = subparsers.add_parser(
         "fetch", help="explicitly fetch all inventoried files in selected setups"
     )
@@ -865,8 +929,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_entries=arguments.max_entries,
             workers=arguments.workers,
         )
-        if arguments.action == "discover":
-            print(json.dumps(inventory, indent=2, sort_keys=True))
+        if arguments.action in {"discover", "summarize"}:
+            document = (
+                inventory
+                if arguments.action == "discover"
+                else summarize_inventory(inventory)
+            )
+            print(json.dumps(document, indent=2, sort_keys=True))
             return 0
         results = fetch_inventory(
             inventory,
