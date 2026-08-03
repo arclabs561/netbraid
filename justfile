@@ -62,6 +62,9 @@ hypothesis-frame-check:
 hypothesis-metrics-check:
     {{ python }} eval/test-hypothesis-metrics.py
 
+calibrated-event-relation-check:
+    {{ python }} eval/test-calibrated-event-relation.py
+
 relation-split-audit-check:
     {{ python }} eval/test-relation-split-audit.py
 

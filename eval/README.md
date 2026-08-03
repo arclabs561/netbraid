@@ -34,6 +34,16 @@ physical-device, physical-source, variant, integrity, cause, authorization,
 intent, provenance, and tamper evidence together without permitting a generic
 identity, malicious, or tampered prediction.
 
+`calibrated_event_relation.py` is the strict evaluation-only boundary between
+bidirectional model distances and one event-relation decision. A content-bound
+profile fixes model, feature, input, fit, calibration, threshold, and quantile
+provenance. Both directions must agree outside a deliberate score gap to emit
+`same` or `different`; every other result abstains. Scores are canonical
+nonnegative binary64 values, not probabilities. The schema has no generic
+relation map or actor, performer, identifier, principal, device, source,
+ownership, intent, or tamper field, and it does not alter the Rust inference
+API.
+
 `relation_split_audit.py` checks opaque observation-group manifests across
 train, calibration, validation, and test roles. Policies declare forbidden
 role-pair overlap separately for event, source, device, variant, session, and
