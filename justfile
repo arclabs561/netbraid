@@ -250,6 +250,14 @@ osu-lora-oracles-check:
 osu-lora-oracles:
     {{ python }} eval/compile-osu-lora-oracles.py
 
+# Prove the four-role assignment contract hermetically. The real OSU oracle
+# currently fails closed because publisher metadata does not expose sessions.
+osu-lora-relation-split-check:
+    {{ python }} eval/test-build-osu-lora-relation-split.py
+
+osu-lora-relation-split:
+    {{ python }} eval/build-osu-lora-relation-split.py
+
 ruff-uwb-oracles-check:
     {{ python }} eval/test-compile-ruff-uwb-oracles.py
 

@@ -136,6 +136,13 @@
       "recipe": "osu-lora-oracles"
     },
     {
+      "path": "data/derived/eval/osu-lora-relation-split-manifest.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/build-osu-lora-relation-split.py",
+      "recipe": "osu-lora-relation-split"
+    },
+    {
       "path": "data/derived/eval/osu-lora-sigmf-profile.json",
       "format": "json",
       "retention": "reproducibility_output",

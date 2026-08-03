@@ -64,6 +64,14 @@ and physical-source groups are fenced by publisher setup family; the compiler
 does not assume cross-scenario identity continuity, assign train/test roles, or
 open IQ/FFT payload streams.
 
+`build-osu-lora-relation-split.py` tests whether that v0 oracle can support a
+leakage-safe train/calibration/validation/test assignment. It co-locates all
+observations connected by known event or session groups, validates the result
+with the canonical relation-split auditor, and never substitutes setup, day,
+domain, receiver, location, path, or input order for missing session evidence.
+The current oracle therefore returns `unbounded_session_axis` and publishes no
+manifest; the hermetic check covers the successful known-session boundary.
+
 `compile-ruff-uwb-oracles.py` verifies the two pinned RUFF-UWB archives and
 reads only their bounded label arrays. It aggregates observed
 source/location/campaign cells, preserves cross-day source and device identity,
