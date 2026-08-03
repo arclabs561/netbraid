@@ -251,6 +251,16 @@ xrf55-feature-cache:
     cmp {{ eval_output }}/xrf55-feature-cache-rfid.npy {{ eval_output }}/xrf55-feature-cache-rfid-repeat.npy
     cmp {{ eval_output }}/xrf55-feature-cache-mmwave.npy {{ eval_output }}/xrf55-feature-cache-mmwave-repeat.npy
 
+xrf55-cross-modal-retrieval-check:
+    uv run --script eval/test-evaluate-xrf55-cross-modal-retrieval.py
+
+# Fit only on repetitions 1-14 and retrieve exact held-out events among the
+# six same-performer/action candidates from repetitions 15-20.
+xrf55-cross-modal-retrieval: xrf55-feature-cache
+    uv run --script eval/evaluate-xrf55-cross-modal-retrieval.py
+    uv run --script eval/evaluate-xrf55-cross-modal-retrieval.py --report {{ eval_output }}/xrf55-cross-modal-retrieval-report-repeat.json
+    cmp {{ eval_output }}/xrf55-cross-modal-retrieval-report.json {{ eval_output }}/xrf55-cross-modal-retrieval-report-repeat.json
+
 xrf55-hypothesis-frames-check:
     {{ python }} eval/test-compile-xrf55-hypothesis-frames.py
 

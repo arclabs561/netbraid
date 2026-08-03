@@ -109,6 +109,16 @@ group/event IDs and repetition roles enter the path-free adapter; raw scene,
 performer, action, archive, member, and local-path values are omitted. Matrices
 and adapters are written atomically with mode 0600 and are ignored by Git.
 
+`evaluate-xrf55-cross-modal-retrieval.py` verifies the adapter and matrix
+digests before reopening all three matrices as read-only NumPy memmaps. For
+each ordered modality pair it standardizes on publisher-train repetitions
+1–14, fits one fixed-alpha ridge map, and retrieves each held-out repetition
+15–20 only among the six events with the same opaque performer/action group.
+It reports exact-event top-1 and mean reciprocal rank for every direction and
+group, alongside a direct unaligned-feature control and the theoretical
+six-candidate chance reference. No real-data hyperparameter tuning or
+cross-direction aggregate hides a weak modality pair.
+
 `evaluate-ujiindoorloc-split-capability.py` streams the pinned IPIN 2015 Track
 3 CSV members after verifying the archive and central receipt. It reports
 aggregate user, phone, building, floor, building/floor, and location-cell

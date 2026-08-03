@@ -234,6 +234,20 @@
       "recipe": "wlan-rff-layout-profile"
     },
     {
+      "path": "data/derived/eval/xrf55-cross-modal-retrieval-report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-cross-modal-retrieval.py",
+      "recipe": "xrf55-cross-modal-retrieval"
+    },
+    {
+      "path": "data/derived/eval/xrf55-cross-modal-retrieval-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-cross-modal-retrieval.py",
+      "recipe": "xrf55-cross-modal-retrieval"
+    },
+    {
       "path": "data/derived/eval/xrf55-feature-cache-adapter-repeat.json",
       "format": "json",
       "retention": "reproducibility_output",
