@@ -9,11 +9,14 @@ GitHub native binary releases remain available independently.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-08-03
+
 ### Added
 
 - A source-preserving SHA-256 content-relation family with exact digest-match,
-  digest-mismatch, and unknown alternatives. It projects content-bound finite claims
-  without treating changed bytes as corruption, tampering, or malicious intent.
+  digest-mismatch, and unknown alternatives. It projects content-bound finite
+  claims without treating changed bytes as corruption, tampering, or malicious
+  intent.
 - Evidence-linked finite claim envelopes for the packet same-event,
   saved-PCAP packet-shape, and counter/capture hypothesis families. Claims bind
   canonical input references only after recomputing against resolved inputs,
@@ -219,7 +222,8 @@ GitHub native binary releases remain available independently.
 - Raw PCAP, PCAPNG, and CAP artifacts are ignored recursively; reviewed
   synthetic fixtures remain readable source encodings.
 
-[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.2...HEAD
+[Unreleased]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.3...HEAD
+[0.3.3]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.2...netbraid-v0.3.3
 [0.3.2]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.1...netbraid-v0.3.2
 [0.3.1]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.3.0...netbraid-v0.3.1
 [0.3.0]: https://github.com/arclabs561/netbraid/compare/netbraid-v0.2.0...netbraid-v0.3.0

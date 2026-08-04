@@ -34,11 +34,11 @@ Downloaded data stays outside Git. Status: experimental.
 The Rust package requires Rust 1.88 or newer:
 
 ```sh
-cargo install netbraid --version 0.3.2 --locked
+cargo install netbraid --version 0.3.3 --locked
 ```
 
 Prebuilt archives are available from the
-[`netbraid-v0.3.2` release](https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.3.2).
+[`netbraid-v0.3.3` release](https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.3.3).
 The macOS archives are not signed or notarized.
 
 Saved-PCAP commands also require compatible `tshark` and `capinfos` binaries.
@@ -106,10 +106,9 @@ The main modules are:
 - `infer`: finite hypothesis and counter-capture reducers; and
 - `adapters`: optional boundaries for TShark, KismetDB, NPY, SigMF, and Zeek.
 
-Default builds include the CLI and TShark adapter. The current checkout also
-has optional KismetDB, NPY, SigMF, and Zeek adapters and scenario fixtures.
-Published 0.3.2 predates the Zeek adapter; `cargo info netbraid@0.3.2` shows that
-release's exact features.
+Default builds include the CLI and TShark adapter. Optional KismetDB, NPY,
+SigMF, and Zeek adapters and scenario fixtures are feature-gated. Run
+`cargo info netbraid@0.3.3` for the released feature inventory.
 
 Some schema IDs retain the historical `netmon.*` namespace for wire
 compatibility. Product names and Rust paths use `netbraid`.
