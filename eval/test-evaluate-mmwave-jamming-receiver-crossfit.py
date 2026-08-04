@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import json
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 
 import numpy as np
@@ -142,10 +144,12 @@ class ReceiverCrossfitTests(unittest.TestCase):
             oracle, adapter, matrix, policy(), policy_sha256="0" * 64
         )
 
-        self.assertEqual(report["status"], "pass")
+        self.assertEqual(report["status"], "inference_blocked")
         self.assertEqual(report["heldout_metrics"]["observations"], 80)
         self.assertEqual(report["paired_ranking"]["wins"], 40)
         self.assertEqual(report["paired_ranking"]["ties"], 0)
+        self.assertTrue(report["paired_ranking"]["gate"]["mechanical_terms_passed"])
+        self.assertFalse(report["paired_ranking"]["gate"]["passed"])
         self.assertGreaterEqual(
             report["paired_ranking"]["both_members_correct_pairs"], 39
         )
@@ -158,7 +162,7 @@ class ReceiverCrossfitTests(unittest.TestCase):
             oracle, adapter, matrix, policy(), policy_sha256="0" * 64
         )
 
-        self.assertEqual(report["status"], "hypothesis_not_supported")
+        self.assertEqual(report["status"], "inference_blocked")
         self.assertEqual(report["paired_ranking"]["ties"], 40)
         self.assertEqual(report["paired_ranking"]["non_tied_pairs"], 0)
         self.assertFalse(report["paired_ranking"]["gate"]["passed"])
@@ -187,8 +191,78 @@ class ReceiverCrossfitTests(unittest.TestCase):
         value = policy()
         value["model"]["surprise"] = True
 
-        with self.assertRaisesRegex(MODULE.CrossfitError, "policy_contract_mismatch"):
+        with self.assertRaisesRegex(
+            MODULE.CrossfitError, "policy_semantic_digest_mismatch"
+        ):
             MODULE.validate_policy(value)
+
+    def test_model_rejects_a_receiver_seen_during_fit(self) -> None:
+        oracle, adapter, matrix = synthetic_corpus()
+        observations = MODULE.bind_observations(oracle, adapter, matrix)
+        receiver = observations[0].receiver_group
+        train = tuple(item for item in observations if item.receiver_group != receiver)
+        model = MODULE.fit_model(train)
+        heldout = next(item for item in observations if item.receiver_group == receiver)
+        MODULE.predict(heldout, model)
+
+        leaked = next(item for item in observations if item.receiver_group != receiver)
+        with self.assertRaisesRegex(
+            MODULE.CrossfitError, "test_receiver_present_in_training"
+        ):
+            MODULE.predict(leaked, model)
+
+    def test_output_may_not_alias_any_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inputs = []
+            for name in ("oracle.json", "adapter.json", "matrix.npy", "policy.json"):
+                path = root / name
+                path.write_bytes(b"input")
+                inputs.append(path)
+
+            for path in inputs:
+                with self.assertRaisesRegex(
+                    MODULE.CrossfitError, "output_aliases_input"
+                ):
+                    MODULE.validate_output_path(path, inputs)
+
+            alias = root / "alias.json"
+            alias.hardlink_to(inputs[0])
+            with self.assertRaisesRegex(MODULE.CrossfitError, "output_aliases_input"):
+                MODULE.validate_output_path(alias, inputs)
+
+    def test_cli_rejects_output_alias_before_replacing_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            policy_path = root / "policy.json"
+            original = b'{"sentinel":true}\n'
+            policy_path.write_bytes(original)
+
+            with redirect_stderr(io.StringIO()):
+                result = MODULE.main(
+                    [
+                        "--oracle",
+                        str(root / "missing-oracle.json"),
+                        "--adapter",
+                        str(root / "missing-adapter.json"),
+                        "--matrix",
+                        str(root / "missing-matrix.npy"),
+                        "--policy",
+                        str(policy_path),
+                        "--output",
+                        str(policy_path),
+                    ]
+                )
+
+            self.assertEqual(result, 2)
+            self.assertEqual(policy_path.read_bytes(), original)
+
+    def test_oracle_inventory_id_must_be_opaque_sha256(self) -> None:
+        oracle, adapter, matrix = synthetic_corpus()
+        oracle["inventory_id"] = "/sensitive/source.mat"
+        adapter["provenance"]["oracle_inventory_id"] = oracle["inventory_id"]
+        with self.assertRaisesRegex(MODULE.CrossfitError, "oracle_schema_mismatch"):
+            MODULE.bind_observations(oracle, adapter, matrix)
 
     def test_json_reader_rejects_symlinks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

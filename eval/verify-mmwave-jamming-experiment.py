@@ -42,7 +42,9 @@ def report_summary(report: Mapping[str, Any]) -> dict[str, Any]:
             "paired_ranking": {
                 "both_members_correct_pairs": paired["both_members_correct_pairs"],
                 "losses": paired["losses"],
-                "one_sided_exact_p_value": paired["one_sided_exact_p_value"],
+                "nominal_one_sided_exact_p_value": paired[
+                    "nominal_one_sided_exact_p_value"
+                ],
                 "ties": paired["ties"],
                 "wins": paired["wins"],
             },

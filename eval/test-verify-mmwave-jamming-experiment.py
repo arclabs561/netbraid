@@ -25,14 +25,14 @@ SPEC.loader.exec_module(MODULE)
 def summary() -> dict[str, object]:
     return {
         "schema": MODULE.SUMMARY_SCHEMA,
-        "status": "pass",
+        "status": "inference_blocked",
         "heldout_balanced_accuracy": 0.625,
         "heldout_macro_f1": 0.624765478424,
         "fold_balanced_accuracies": [0.5, 0.65, 0.65, 0.7],
         "paired_ranking": {
             "both_members_correct_pairs": 10,
             "losses": 12,
-            "one_sided_exact_p_value": 0.008294501687,
+            "nominal_one_sided_exact_p_value": 0.008294501687,
             "ties": 0,
             "wins": 28,
         },

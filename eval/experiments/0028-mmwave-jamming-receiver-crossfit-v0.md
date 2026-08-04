@@ -60,8 +60,12 @@ absent from the corresponding 60-row training fold.
 
 The primary pairwise result was 28 wins, 12 losses, and no ties across 40
 held-out pairs. The ranking rate was 0.70 and the preregistered one-sided exact
-binomial probability was `0.008294501687`; all three mechanical gate terms
-passed.
+binomial calculation was `0.008294501687`; all three mechanical terms passed.
+An adversarial post-run audit then showed that this calculation is
+anti-conservative for reciprocal cross-fit predictions: the four fitted models
+share training data, so the 40 signs are dependent. The canonical report now
+labels the value nominal, forces the inferential gate closed, and has status
+`inference_blocked`.
 
 The secondary zero-threshold row result was weaker. Balanced accuracy was
 `0.625`, macro-F1 was `0.624765478424`, and only 10 of 40 pairs had both
@@ -83,31 +87,32 @@ classified every row as jammer-absent.
   "paired_ranking": {
     "both_members_correct_pairs": 10,
     "losses": 12,
-    "one_sided_exact_p_value": 0.008294501687,
+    "nominal_one_sided_exact_p_value": 0.008294501687,
     "ties": 0,
     "wins": 28
   },
-  "status": "pass"
+  "status": "inference_blocked"
 }
 ```
 
 The report SHA-256 is
-`74cd462423999f915cb9b1085e69273362e30db48e4b687499412245d65aa326`.
+`c908a52b2d09fa2a2af1884c5585c0e5f8eeba699a12947c7639321c37e2aea8`.
 The canonical recipe verifies the tracked JSON summary against the ignored
 report before returning success.
 
 ## Conclusion
 
-The preregistered paired-ranking hypothesis held, but the result is narrower
-than the report's `pass` label may suggest. The five coarse content summaries
-contain a receiver-held-out ordering signal in this corpus; the fixed
-single-row threshold is not reliable enough to call this a detector.
+The preregistered inferential hypothesis is not established. The five coarse
+content summaries produced 28/40 receiver-held-out pair wins in this corpus,
+but the original significance gate was invalid for the dependent cross-fit
+predictions. The fixed single-row threshold is also not reliable enough to
+call this a detector.
 
-The exact binomial probability is conditional on treating pair signs as
-independent and exchangeable. Event and session relations are not observed, so
-that premise cannot be verified from this release. The raw 28/40 numerator is
-therefore the durable result; the probability is a model-based diagnostic, not
-population-level evidence.
+The nominal binomial probability assumes independent, exchangeable pair signs.
+Reciprocal cross-fit violates independence even before considering the
+unobserved event and session relations in this release. The raw 28/40
+numerator is therefore the durable descriptive result; the probability does
+not support a confirmatory or population-level claim.
 
 This is not external validation or a standalone or live detector: the grid
 coordinates are derived jointly within each matched pair. It does not support

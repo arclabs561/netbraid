@@ -281,9 +281,11 @@ detector or a train/test assignment.
 separate oracle and scores every matched pair once while its receiver group is
 held out. A fixed five-feature nearest-centroid baseline is fitted only on the
 other three receiver groups. The primary result is within-pair score ordering
-with an exact sign test; thresholded row metrics remain secondary. Because the
-cache coordinates are derived jointly within each matched pair, this measures
-paired corpus discrimination rather than standalone or live detection.
+with a nominal sign diagnostic; thresholded row metrics remain secondary. The
+inferential gate stays blocked because reciprocal cross-fit predictions are
+dependent and pair independence is not established. Because the cache
+coordinates are derived jointly within each matched pair, this measures paired
+corpus discrimination rather than standalone or live detection.
 `verify-mmwave-jamming-experiment.py` binds the tracked aggregate result in
 experiment 0028 to the ignored canonical report.
 

@@ -25,6 +25,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_SCHEMA = "netbraid.mmwave_jamming_receiver_crossfit_eval.v0"
 POLICY_SCHEMA = "netbraid.mmwave_jamming_receiver_crossfit_policy.v0"
+POLICY_DOCUMENT_SHA256 = (
+    "0d20ff263fad9d072b6166e3687dc71fbf41fbb79bea4e089dabea66c3f95f8e"
+)
 ORACLE_SCHEMA = "netbraid.mmwave_jamming_observation_oracles.v0"
 ADAPTER_SCHEMA = "netbraid.mmwave_jamming_paired_grid_cache.v0"
 CAUSES = ("controlled_jammer_absent", "controlled_jammer_present")
@@ -74,6 +77,7 @@ class FittedModel:
     means: tuple[float, ...]
     scales: tuple[float, ...]
     centroids: Mapping[str, tuple[float, ...]]
+    training_receiver_groups: frozenset[str]
 
 
 @dataclass(frozen=True)
@@ -186,10 +190,25 @@ def _known_group(value: Any, code: str) -> str:
         or set(value) != {"state", "group_id"}
         or value.get("state") != "known"
         or not isinstance(value.get("group_id"), str)
-        or len(value["group_id"]) != 64
+        or not _valid_sha256(value["group_id"])
     ):
         raise CrossfitError(code)
     return value["group_id"]
+
+
+def _valid_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _policy_document_sha256(policy: Mapping[str, Any]) -> str:
+    payload = json.dumps(
+        policy, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
+    return hashlib.sha256(payload).hexdigest()
 
 
 def validate_policy(policy: Mapping[str, Any]) -> None:
@@ -207,6 +226,8 @@ def validate_policy(policy: Mapping[str, Any]) -> None:
     }
     if set(policy) != expected_keys or policy.get("schema") != POLICY_SCHEMA:
         raise CrossfitError("policy_schema_mismatch")
+    if _policy_document_sha256(policy) != POLICY_DOCUMENT_SHA256:
+        raise CrossfitError("policy_semantic_digest_mismatch")
     feature = policy.get("feature_policy")
     split = policy.get("split_policy")
     target = policy.get("target")
@@ -359,7 +380,11 @@ def extract_features(grid: np.ndarray) -> tuple[float, ...]:
 def bind_observations(
     oracle: Mapping[str, Any], adapter: Mapping[str, Any], matrix: np.ndarray
 ) -> tuple[Observation, ...]:
-    if oracle.get("schema") != ORACLE_SCHEMA or oracle.get("status") != "pass":
+    if (
+        oracle.get("schema") != ORACLE_SCHEMA
+        or oracle.get("status") != "pass"
+        or not _valid_sha256(oracle.get("inventory_id"))
+    ):
         raise CrossfitError("oracle_schema_mismatch")
     provenance = adapter.get("provenance")
     if (
@@ -464,9 +489,13 @@ def validate_groups(observations: Sequence[Observation]) -> None:
 
 
 def fit_model(observations: Sequence[Observation]) -> FittedModel:
-    if len(observations) != 60 or Counter(item.cause for item in observations) != {
-        cause: 30 for cause in CAUSES
-    }:
+    training_receiver_groups = frozenset(item.receiver_group for item in observations)
+    if (
+        len(observations) != 60
+        or Counter(item.cause for item in observations)
+        != {cause: 30 for cause in CAUSES}
+        or len(training_receiver_groups) != 3
+    ):
         raise CrossfitError("train_fold_contract_mismatch")
     matrix = np.asarray([item.features for item in observations], dtype=np.float64)
     means = np.mean(matrix, axis=0, dtype=np.float64)
@@ -496,6 +525,7 @@ def fit_model(observations: Sequence[Observation]) -> FittedModel:
         tuple(means.tolist()),
         tuple(scales.tolist()),
         centroids,
+        training_receiver_groups,
     )
 
 
@@ -520,6 +550,8 @@ def score_observation(item: Observation, model: FittedModel) -> float:
 
 
 def predict(item: Observation, model: FittedModel) -> Prediction:
+    if item.receiver_group in model.training_receiver_groups:
+        raise CrossfitError("test_receiver_present_in_training")
     score = score_observation(item, model)
     predicted = CAUSES[1] if score > 0.0 else CAUSES[0] if score < 0.0 else "abstain"
     return Prediction(item, score, predicted)
@@ -626,17 +658,21 @@ def paired_report(
         "p_value_passed": p_value <= gate_policy["p_value_at_most"],
         "wins_exceed_losses": wins > losses,
     }
-    gate["passed"] = all(
+    gate["mechanical_terms_passed"] = all(
         gate[key]
         for key in ("non_tied_pairs_passed", "p_value_passed", "wins_exceed_losses")
     )
+    gate["inference_blocked_reason"] = (
+        "dependent_crossfit_and_unverified_pair_independence"
+    )
+    gate["passed"] = False
     return {
         "both_members_correct_pairs": both_correct,
         "both_members_correct_rate": round(both_correct / EXPECTED_PAIRS, 12),
         "gate": gate,
         "losses": losses,
         "non_tied_pairs": wins + losses,
-        "one_sided_exact_p_value": round(p_value, 12),
+        "nominal_one_sided_exact_p_value": round(p_value, 12),
         "pairs": EXPECTED_PAIRS,
         "ranking_rate_with_half_credit_for_ties": round(
             (wins + 0.5 * ties) / EXPECTED_PAIRS, 12
@@ -685,7 +721,7 @@ def evaluate(
     paired = paired_report(predictions, policy)
     report = {
         "schema": REPORT_SCHEMA,
-        "status": "pass" if paired["gate"]["passed"] else "hypothesis_not_supported",
+        "status": "inference_blocked",
         "provenance": {
             "adapter_schema": ADAPTER_SCHEMA,
             "oracle_inventory_id": oracle["inventory_id"],
@@ -754,6 +790,29 @@ def write_report(path: Path, report: Mapping[str, Any]) -> None:
             pass
 
 
+def validate_output_path(output: Path, inputs: Sequence[Path]) -> None:
+    normalized_output = output.resolve(strict=False)
+    normalized_inputs = {path.resolve(strict=False) for path in inputs}
+    if normalized_output in normalized_inputs:
+        raise CrossfitError("output_aliases_input")
+    try:
+        output_metadata = output.lstat()
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise CrossfitError("output_unavailable") from error
+    if not stat.S_ISREG(output_metadata.st_mode):
+        raise CrossfitError("output_missing_or_unsafe")
+    output_identity = (output_metadata.st_dev, output_metadata.st_ino)
+    for input_path in inputs:
+        try:
+            input_metadata = input_path.lstat()
+        except OSError as error:
+            raise CrossfitError("input_unavailable_for_output_check") from error
+        if output_identity == (input_metadata.st_dev, input_metadata.st_ino):
+            raise CrossfitError("output_aliases_input")
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -787,6 +846,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_args(argv)
     try:
+        validate_output_path(
+            arguments.output,
+            (
+                arguments.oracle,
+                arguments.adapter,
+                arguments.matrix,
+                arguments.policy,
+            ),
+        )
         policy, policy_bytes = read_json_payload(arguments.policy)
         oracle = read_json(arguments.oracle)
         adapter = read_json(arguments.adapter)
