@@ -9,8 +9,8 @@ matched cells.
 ## Method
 
 This hypothesis was written before adding the decomposed counters or rerunning
-the corpus. The Git basis is `52e175b`; the result update will record the exact
-producer commit.
+the corpus. The Git basis is `52e175b`; the exact decomposed producer commit is
+`e3e9dab`.
 
 The follow-up keeps the original combined signature and all storage-extent
 gates. It adds two pairwise diagnostics computed from the same already-admitted
@@ -38,8 +38,28 @@ DOI `10.5281/zenodo.6516954`. No split, detector, or identity oracle is added.
 
 ## Results
 
-Not recorded. The decomposed producer has not been run on the corpus.
+The canonical recipe completed twice with byte-identical 1,632-byte reports,
+both mode 0600. The decomposed pair counts were:
+
+| Pairwise diagnostic | Matching | Mismatching |
+|---|---:|---:|
+| combined named layout | 20 | 20 |
+| variable-name signature | 40 | 0 |
+| array shape/class multiset | 20 | 20 |
+| exact file extent | 0 | 40 |
+| one-MiB extent class | 16 | 24 |
+
+Every artifact contains one rank-three double array. No array values were
+materialized. The report remains path-free and label-free.
 
 ## Conclusion
 
-Pending the preregistered attribution run.
+The hypothesis did not hold. Variable names are invariant; array geometry is
+not. Half of the matched cells therefore require an explicit common-window or
+shape-normalization policy before payload features can be compared. File extent
+also remains disallowed in every later feature contract.
+
+The next useful step is not a classifier. It is a bounded, pair-aligned payload
+adapter that derives its window from train-independent shape policy, writes a
+content-bound feature cache, and proves that paths, names, storage encoding,
+and source byte counts cannot reach the model matrix.
