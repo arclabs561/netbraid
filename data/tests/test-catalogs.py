@@ -40,6 +40,7 @@ ACCESS = {
 }
 LICENSES = {
     "cc_by_4_0",
+    "cc_by_nc_sa_4_0",
     "manual_terms",
     "mit",
     "not_applicable",
@@ -143,6 +144,18 @@ class CatalogTests(unittest.TestCase):
             canonical_url = f"https://zenodo.org/records/{record['record_id']}"
             self.assertIn(canonical_url, leads)
             self.assertEqual(leads[canonical_url]["fetch"], "existing_fetcher")
+
+    def test_sub_ghz_candidate_keeps_protocols_and_admission_gap_explicit(self):
+        entries = {entry["id"]: entry for entry in load_catalog()["entries"]}
+        entry = entries["idlab-sub-ghz-iq"]
+
+        self.assertEqual(entry["license"], "cc_by_nc_sa_4_0")
+        self.assertEqual(entry["fetch"], "investigate_before_pinning")
+        self.assertEqual(entry["disposition"], "candidate")
+        self.assertEqual(
+            set(entry["modalities"]),
+            {"rf_iq", "sub_ghz", "lora", "sigfox", "ieee802154g", "ieee80211ah"},
+        )
 
 
 if __name__ == "__main__":

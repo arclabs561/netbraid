@@ -600,6 +600,21 @@
       "note": "The fetcher pins the 2015 Track 3 archive from UCI. Evaluation must keep anonymized user, phone, timestamp, building, and floor axes explicit rather than treating the publisher train/validation files as a leakage-safe split."
     },
     {
+      "id": "idlab-sub-ghz-iq",
+      "title": "IDLab multi-technology sub-GHz IQ dataset",
+      "source_type": "dataset",
+      "canonical_url": "https://idlab.ugent.be/resources/iq-samples-of-subghz-technologies",
+      "related_urls": ["https://github.com/JaronFontaine/Sub-GHz-IQ-signals-dataset"],
+      "access": "direct_download",
+      "license": "cc_by_nc_sa_4_0",
+      "modalities": ["rf_iq", "sub_ghz", "lora", "sigfox", "ieee802154g", "ieee80211ah"],
+      "roles": ["wireless_technology_recognition", "cross_protocol_eval", "halow_signal_eval"],
+      "disposition": "candidate",
+      "fetch": "investigate_before_pinning",
+      "priority": "P0",
+      "note": "The publisher describes RTL-SDR IQ at 2.048 MHz for LoRa, Sigfox, IEEE 802.15.4g/SUN-OFDM, IEEE 802.11ah, and noise at 864.0 and 867.4 MHz. The external share still needs a bounded artifact inventory, byte extents, format checks, and reviewed local digests before acquisition or evaluation. This can test signal-family recognition, not packet decoding or physical-device identity."
+    },
+    {
       "id": "ton-iot-unsw",
       "title": "UNSW TON_IoT heterogeneous cybersecurity dataset",
       "source_type": "dataset",
