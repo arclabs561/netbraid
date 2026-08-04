@@ -66,9 +66,33 @@ ignored.
 
 ## Results
 
-Not run. This preregistration was written before any real-corpus baseline run.
-Only hermetic synthetic and unit tests may be executed during implementation.
+Executed from implementation revision `f8af9da` with:
+
+```sh
+just ujiindoorloc-phone-holdout
+```
+
+Both runs produced byte-identical reports with SHA-256
+`feb5823bef9957b45b3dee799040b579b5a1984cea1f83bec11b9fdee2b94fef`.
+All 21,048 publisher rows were assigned exactly once across disjoint phone
+roles, and every role retained all 13 building/floor classes. The train role
+contained 5,106 rows and retained 418 variable RSSI features.
+
+Calibration selected margin threshold `0.040861239895` at 80.06% coverage,
+59.69% selective error, and 0.3242 macro recall. Validation reached 78.83%
+coverage, 59.52% selective error, 0.3826 macro recall, and 0.3765 macro F1.
+It therefore passed complete class support and macro recall but failed the
+preregistered coverage and selective-error gates.
+
+The report status was `validation_gate_failed`. The evaluator read zero of the
+5,473 test-role rows, emitted no test metrics, and retained no phone or user
+values, source rows, paths, coordinates, timestamps, or RSSI fingerprints.
 
 ## Conclusion
 
-Pending the preregistered real-corpus run.
+The hypothesis was not supported. A train-only standardized nearest-centroid
+model does not transfer adequately across this phone-disjoint split under the
+fixed acceptance gates. The failure is not grounds to relax those gates after
+the fact. The next model should be registered as a separate experiment and
+must continue to fit on train, select on calibration, and leave test sealed
+until validation passes.
