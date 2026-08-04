@@ -259,6 +259,13 @@ configuration, and target count remain explicit split groups. Jammer presence
 is a controlled cause, not malicious intent, tamper, event, device, variant, or
 physical-source truth.
 
+`profile-mmwave-jamming-mat-layout.py` fully re-admits those artifacts, then
+reads MAT v5 variable metadata without materializing array values. It compares
+variable layout, exact file extent, and one-MiB extent class only within the 40
+matched condition pairs. Paths, filenames, variable names, condition labels,
+and per-artifact rows are absent from the report. A mismatch blocks that
+metadata from later feature extraction; it is not evidence of a detector.
+
 `compile-indoor-jamming-oracles.py` binds the publisher workbook to the exact
 three HDF5 datasets in each of 31 MAT files. It reads dataset metadata but no
 dataset elements, producing 93 opaque condition segments with file, setup,

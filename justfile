@@ -455,6 +455,14 @@ mmwave-jamming-oracles-check:
 mmwave-jamming-oracles:
     {{ python }} eval/compile-mmwave-jamming-oracles.py
 
+mmwave-jamming-layout-profile-check:
+    uv run --script eval/test-profile-mmwave-jamming-mat-layout.py
+
+mmwave-jamming-layout-profile:
+    uv run --script eval/profile-mmwave-jamming-mat-layout.py
+    uv run --script eval/profile-mmwave-jamming-mat-layout.py --report {{ eval_output }}/mmwave-jamming-mat-layout-profile-repeat.json
+    cmp {{ eval_output }}/mmwave-jamming-mat-layout-profile.json {{ eval_output }}/mmwave-jamming-mat-layout-profile-repeat.json
+
 indoor-jamming-oracles-check:
     uv run --script eval/test-compile-indoor-jamming-oracles.py
 

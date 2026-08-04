@@ -150,11 +150,25 @@
       "recipe": "iot23-flow-lineage"
     },
     {
+      "path": "data/derived/eval/mmwave-jamming-mat-layout-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-mmwave-jamming-mat-layout.py",
+      "recipe": "mmwave-jamming-layout-profile"
+    },
+    {
       "path": "data/derived/eval/mmwave-jamming-observation-oracles.json",
       "format": "json",
       "retention": "reproducibility_output",
       "producer": "eval/compile-mmwave-jamming-oracles.py",
       "recipe": "mmwave-jamming-oracles"
+    },
+    {
+      "path": "data/derived/eval/mmwave-jamming-mat-layout-profile.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-mmwave-jamming-mat-layout.py",
+      "recipe": "mmwave-jamming-layout-profile"
     },
     {
       "path": "data/derived/eval/netslab-alignment-profile-repeat.json",
@@ -204,6 +218,13 @@
       "retention": "reproducibility_output",
       "producer": "eval/evaluate-public-corpus-slices.py",
       "recipe": "public-corpus-eval"
+    },
+    {
+      "path": "data/derived/eval/public-corpus-inventory.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "data/fetch/fetch-public-eval-corpus.py",
+      "recipe": "public-corpus-inventory"
     },
     {
       "path": "data/derived/eval/ruff-uwb-heldout-location-blocker.json",
@@ -295,6 +316,20 @@
       "retention": "reproducibility_output",
       "producer": "eval/compile-smorffi-csv-iq-adapter.py",
       "recipe": "smorffi-row-adapter"
+    },
+    {
+      "path": "data/derived/eval/sorbonne-rssi-explanation-report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-sorbonne-rssi-explanation.py",
+      "recipe": "sorbonne-rssi-explanation-eval"
+    },
+    {
+      "path": "data/derived/eval/sorbonne-rssi-explanation-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-sorbonne-rssi-explanation.py",
+      "recipe": "sorbonne-rssi-explanation-eval"
     },
     {
       "path": "data/derived/eval/sorbonne-same-event-report.json",
