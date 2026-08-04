@@ -67,6 +67,19 @@ graph. A future prior or likelihood must cite an immutable model-profile digest,
 while any empirical calibration claim additionally requires a separate
 held-out evaluation receipt.
 
+The first calibrated admission boundary is family-specific and three-way:
+same event, different event, or unknown. It binds both observations, the
+profile, prediction, and a receipt recording a passed frozen gate by content
+digest before constructing a finite claim. A domain-separated pair identifier
+also binds the prediction to those observations. Scores, thresholds, model
+details, and metrics do not enter that projection.
+
+This first family is specifically a bidirectional lower-distance reducer with
+a fixed quantile policy. The receipt records the caller's gate result; it does
+not resolve the cited evaluation artifacts or authenticate their producer.
+Consumers that require those guarantees provide that verification outside the
+reducer.
+
 This does not make the private graph a public relation vocabulary or storage
 model. Public records remain finite and family-specific. In-memory candidate
 indices are not durable evidence identities and cannot be promoted to a

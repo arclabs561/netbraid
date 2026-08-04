@@ -80,16 +80,32 @@ evidence closure; it does not certify arbitrary prose as ground truth.
 ## Inference path
 
 Inference is a collection of explicit reducers, not one open-ended engine. The
-content-relation, packet same-event, saved-PCAP packet-shape, and counter/capture
-families each retain two substantive alternatives plus unknown, record their
-decision basis and limitations, and can recompute an assessment against the
-exact evidence it cites. Each proven family can also project an evidence-linked
+content-relation, packet same-event, saved-PCAP packet-shape, counter/capture,
+and admitted calibrated event-relation families each retain two substantive
+alternatives plus unknown. Each proven family can project an evidence-linked
 finite claim after recomputing the assessment from the caller-supplied source
 values: a canonical list of source roles, source schemas, source identifiers,
 and content digests around the same finite projection. A mismatched reference
 fails before claim construction. The nested projection remains the
 identifier-free view; the claim retains references rather than raw evidence or
 the family-specific decision basis.
+
+The v0 calibrated event-relation family is one bidirectional lower-distance
+reducer with a fixed quantile policy, not a common model interface. It requires
+two distinct opaque observation references, a validated prediction, its
+calibration profile, and a separate held-out evaluation receipt whose frozen
+gate status records `passed`. Profile, prediction, and receipt digests are
+domain-separated. The prediction frame identifier is derived from the
+canonical pair of observation references, so a prediction for another pair is
+rejected. Scores, thresholds, model details, and evaluation metrics do not
+enter the finite projection.
+
+The receipt is evidence supplied by the caller. Content binding detects later
+changes, but Netbraid does not resolve the cited report, partition, protocol,
+or policy and does not authenticate the receipt producer. A consumer that
+requires those guarantees must verify them before accepting the claim. This
+admits one model result for replay and composition; it does not make an event
+relation into identity, source, device, intent, authorization, or tamper.
 
 Several finite claims can be placed in one bounded canonical composition.
 Exact duplicates collapse and divergent claims for the same family, reducer,

@@ -18,7 +18,10 @@ saved-PCAP shape, counter/capture correspondence, and RSSI-shift hypotheses.
 Each result is supported, contradicted, or underdetermined and remains linked
 to its inputs. A bounded composition can carry several such claims in canonical
 order, but does not merge their inputs or vote across claim families. Broader
-cross-modal claims remain evaluation work.
+cross-modal claims remain evaluation work. A v0 bidirectional lower-distance
+prediction can enter the same claim form only when its two observations,
+profile, prediction, and a receipt recording a passed held-out gate are
+content-bound.
 
 The library can also build an in-memory candidate graph between packet-derived
 flows and a narrow flow-record type. It keeps split and merge candidates, then

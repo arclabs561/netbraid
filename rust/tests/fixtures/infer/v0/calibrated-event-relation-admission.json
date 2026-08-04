@@ -1,0 +1,60 @@
+{
+  "expected": {
+    "heldout_evaluation_receipt_digest": "4a220b57d533c185e254ea2ea356fae2555cf7e3b8a118adde84e9a6192bc380",
+    "prediction_digest": "a9df6c4baf16fdfd2d0c275ffce11f168e19c1699d9b4c947a080e6d0635fde7",
+    "profile_digest": "099323302208ed407114702d164d512162c400ad93eaee0a9df5c84a13435a8e"
+  },
+  "heldout_evaluation_receipt": {
+    "evaluation_protocol_digest": "0000000000000000000000000000000000000000000000000000000000000006",
+    "evaluation_report_digest": "0000000000000000000000000000000000000000000000000000000000000008",
+    "gate": {
+      "policy_digest": "0000000000000000000000000000000000000000000000000000000000000009",
+      "status": "passed"
+    },
+    "heldout_partition_digest": "0000000000000000000000000000000000000000000000000000000000000007",
+    "profile_digest": "099323302208ed407114702d164d512162c400ad93eaee0a9df5c84a13435a8e",
+    "receipt_id": "synthetic-heldout-receipt-v0",
+    "schema": "netbraid.heldout_event_relation_evaluation_receipt.v0"
+  },
+  "observations": {
+    "left": {
+      "content_sha256": "000000000000000000000000000000000000000000000000000000000000000a",
+      "source_id": "synthetic-window-a",
+      "source_schema": "netbraid.synthetic_signal_window.v0"
+    },
+    "right": {
+      "content_sha256": "000000000000000000000000000000000000000000000000000000000000000b",
+      "source_id": "synthetic-stream-b",
+      "source_schema": "netbraid.synthetic_packet_stream.v0"
+    }
+  },
+  "prediction": {
+    "abstain_reason": null,
+    "decision": "same",
+    "forward_score": "0x1.0000000000000p-2",
+    "frame_id": "event-pair-42f4268c47ef9b832c36ee2f33078e284793508f5835650c8c64305b8a5b80ee",
+    "profile_digest": "099323302208ed407114702d164d512162c400ad93eaee0a9df5c84a13435a8e",
+    "reverse_score": "0x1.999999999999ap-3",
+    "schema": "netbraid.event_relation_prediction.v0"
+  },
+  "profile": {
+    "calibration_partition_digest": "0000000000000000000000000000000000000000000000000000000000000005",
+    "feature_policy_digest": "0000000000000000000000000000000000000000000000000000000000000001",
+    "fit_partition_digest": "0000000000000000000000000000000000000000000000000000000000000004",
+    "forward_different_threshold": "0x1.8000000000000p-1",
+    "forward_same_threshold": "0x1.0000000000000p-2",
+    "input_matrix_digest": "0000000000000000000000000000000000000000000000000000000000000002",
+    "model_digest": "0000000000000000000000000000000000000000000000000000000000000003",
+    "model_revision": "synthetic-model-v1",
+    "profile_id": "synthetic-event-relation-v0",
+    "quantile_policy": {
+      "different_quantile": "0x1.999999999999ap-4",
+      "interpolation": "linear",
+      "same_quantile": "0x1.ccccccccccccdp-1"
+    },
+    "reducer_revision": "synthetic-reducer-v1",
+    "reverse_different_threshold": "0x1.999999999999ap-1",
+    "reverse_same_threshold": "0x1.999999999999ap-3",
+    "schema": "netbraid.calibrated_event_relation_profile.v0"
+  }
+}

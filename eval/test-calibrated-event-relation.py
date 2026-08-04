@@ -54,6 +54,18 @@ def prediction_document(profile, forward, reverse, decision, reason):
     }
 
 
+def heldout_receipt_document(profile, status="passed"):
+    return {
+        "schema": MODULE.HELDOUT_RECEIPT_SCHEMA,
+        "receipt_id": "heldout-event-relation-v0",
+        "profile_digest": profile.content_digest(),
+        "evaluation_protocol_digest": digest(6),
+        "heldout_partition_digest": digest(7),
+        "evaluation_report_digest": digest(8),
+        "gate": {"policy_digest": digest(9), "status": status},
+    }
+
+
 def assert_error(test, function, code):
     with test.assertRaises(MODULE.EventRelationSchemaError) as raised:
         function()
@@ -82,6 +94,112 @@ class CalibratedEventRelationSchemaTests(unittest.TestCase):
         )
         self.assertRegex(self.profile.content_digest(), r"\A[a-f0-9]{64}\Z")
         self.assertRegex(prediction.content_digest(), r"\A[a-f0-9]{64}\Z")
+
+    def test_heldout_receipt_roundtrip_and_profile_binding(self):
+        value = heldout_receipt_document(self.profile)
+        receipt = MODULE.parse_heldout_receipt(value, self.profile)
+        encoded = receipt.canonical_json_bytes()
+
+        self.assertEqual(json.loads(encoded), value)
+        self.assertEqual(
+            MODULE.load_heldout_receipt_bytes(encoded, self.profile), receipt
+        )
+        self.assertRegex(receipt.content_digest(), r"\A[a-f0-9]{64}\Z")
+
+        failed = MODULE.parse_heldout_receipt(
+            heldout_receipt_document(self.profile, status="failed"), self.profile
+        )
+        self.assertEqual(failed.gate_status, "failed")
+
+        wrong_profile = MODULE.parse_profile(
+            dict(profile_document(), profile_id="different-profile-v0")
+        )
+        assert_error(
+            self,
+            lambda: MODULE.parse_heldout_receipt(value, wrong_profile),
+            "profile_digest_mismatch",
+        )
+
+    def test_heldout_receipt_rejects_unknown_fields_and_invalid_gate(self):
+        value = heldout_receipt_document(self.profile)
+        value["identity"] = "forbidden"
+        assert_error(
+            self,
+            lambda: MODULE.parse_heldout_receipt(value, self.profile),
+            "invalid_heldout_receipt_schema",
+        )
+
+        value = heldout_receipt_document(self.profile)
+        value["gate"]["metric"] = 1.0
+        assert_error(
+            self,
+            lambda: MODULE.parse_heldout_receipt(value, self.profile),
+            "invalid_heldout_gate_schema",
+        )
+
+        value = heldout_receipt_document(self.profile)
+        value["gate"]["status"] = "unknown"
+        assert_error(
+            self,
+            lambda: MODULE.parse_heldout_receipt(value, self.profile),
+            "invalid_gate_status",
+        )
+
+    def test_shared_rust_fixture_has_cross_language_canonical_digests(self):
+        fixture = json.loads(
+            (
+                HERE
+                / "../rust/tests/fixtures/infer/v0/calibrated-event-relation-admission.json"
+            ).read_text(encoding="utf-8")
+        )
+        profile = MODULE.parse_profile(fixture["profile"])
+        prediction = MODULE.parse_prediction(fixture["prediction"], profile)
+        receipt = MODULE.parse_heldout_receipt(
+            fixture["heldout_evaluation_receipt"], profile
+        )
+
+        self.assertEqual(
+            MODULE.observation_pair_id(
+                fixture["observations"]["left"], fixture["observations"]["right"]
+            ),
+            fixture["prediction"]["frame_id"],
+        )
+
+        self.assertEqual(
+            profile.content_digest(), fixture["expected"]["profile_digest"]
+        )
+        self.assertEqual(
+            prediction.content_digest(), fixture["expected"]["prediction_digest"]
+        )
+        self.assertEqual(
+            receipt.content_digest(),
+            fixture["expected"]["heldout_evaluation_receipt_digest"],
+        )
+
+    def test_observation_pair_id_is_canonical_and_fail_closed(self):
+        fixture = json.loads(
+            (
+                HERE
+                / "../rust/tests/fixtures/infer/v0/calibrated-event-relation-admission.json"
+            ).read_text(encoding="utf-8")
+        )
+        left = fixture["observations"]["left"]
+        right = fixture["observations"]["right"]
+
+        self.assertEqual(
+            MODULE.observation_pair_id(left, right),
+            MODULE.observation_pair_id(right, left),
+        )
+        changed = dict(right, source_id="another-observation")
+        self.assertNotEqual(
+            MODULE.observation_pair_id(left, right),
+            MODULE.observation_pair_id(left, changed),
+        )
+        assert_error(
+            self,
+            lambda: MODULE.observation_pair_id(left, dict(right, identity="forbidden")),
+            "invalid_observation_ref_schema",
+        )
 
     def test_exact_shape_rejects_unknown_and_sensitive_fields(self):
         forbidden = (

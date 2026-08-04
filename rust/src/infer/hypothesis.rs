@@ -2,10 +2,14 @@ use serde::Serialize;
 
 use crate::evidence::{PacketEnvelopeV0, PACKET_ENVELOPE_SCHEMA_V0};
 use crate::infer::{
+    CalibratedEventRelationAssessmentV0, CalibratedEventRelationAssessmentValidationErrorV0,
+    CalibratedEventRelationDispositionV0, CalibratedEventRelationErrorV0,
+    CalibratedEventRelationObservationRefV0, CalibratedEventRelationProfileV0,
     ContentDigestEvidenceV0, ContentRelationDispositionV0, ContentRelationErrorV0,
     ContentRelationHypothesisSetV0, ContentRelationValidationErrorV0, CounterCaptureDispositionV0,
     CounterCaptureErrorV0, CounterCaptureHypothesisSetV0, CounterCaptureProfileV0,
-    CounterCaptureValidationErrorV0, PacketSameEventDispositionV0, PacketSameEventErrorV0,
+    CounterCaptureValidationErrorV0, EventRelationPredictionV0,
+    HeldoutEventRelationEvaluationReceiptV0, PacketSameEventDispositionV0, PacketSameEventErrorV0,
     PacketSameEventHypothesisSetV0, PacketSameEventValidationErrorV0,
     SavedPcapFingerprintCandidateV0, SavedPcapFingerprintDispositionV0,
     SavedPcapFingerprintErrorV0, SavedPcapFingerprintHypothesisSetV0,
@@ -278,6 +282,7 @@ impl FiniteHypothesisClaimV0 {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum FiniteHypothesisClaimErrorV0 {
+    InvalidCalibratedEventRelationResolution(CalibratedEventRelationErrorV0),
     InvalidContentRelationResolution(ContentRelationErrorV0),
     InvalidProjection(FiniteHypothesisProjectionErrorV0),
     InvalidCounterCaptureResolution(CounterCaptureErrorV0),
@@ -295,6 +300,12 @@ pub enum FiniteHypothesisClaimErrorV0 {
 impl std::fmt::Display for FiniteHypothesisClaimErrorV0 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidCalibratedEventRelationResolution(source) => {
+                write!(
+                    formatter,
+                    "invalid resolved calibrated event-relation claim: {source}"
+                )
+            }
             Self::InvalidContentRelationResolution(source) => {
                 write!(
                     formatter,
@@ -343,6 +354,7 @@ impl std::fmt::Display for FiniteHypothesisClaimErrorV0 {
 impl std::error::Error for FiniteHypothesisClaimErrorV0 {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::InvalidCalibratedEventRelationResolution(source) => Some(source),
             Self::InvalidContentRelationResolution(source) => Some(source),
             Self::InvalidProjection(source) => Some(source),
             Self::InvalidCounterCaptureResolution(source) => Some(source),
@@ -357,6 +369,7 @@ impl std::error::Error for FiniteHypothesisClaimErrorV0 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FiniteHypothesisProjectionErrorV0 {
+    InvalidCalibratedEventRelationAssessment(CalibratedEventRelationAssessmentValidationErrorV0),
     InvalidContentRelationAssessment(ContentRelationValidationErrorV0),
     InvalidCounterCaptureAssessment(CounterCaptureValidationErrorV0),
     InvalidPacketSameEventAssessment(PacketSameEventValidationErrorV0),
@@ -373,6 +386,12 @@ pub enum FiniteHypothesisProjectionErrorV0 {
 impl std::fmt::Display for FiniteHypothesisProjectionErrorV0 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidCalibratedEventRelationAssessment(source) => {
+                write!(
+                    formatter,
+                    "invalid calibrated event-relation assessment: {source}"
+                )
+            }
             Self::InvalidContentRelationAssessment(source) => {
                 write!(formatter, "invalid content-relation assessment: {source}")
             }
@@ -414,6 +433,7 @@ impl std::fmt::Display for FiniteHypothesisProjectionErrorV0 {
 impl std::error::Error for FiniteHypothesisProjectionErrorV0 {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::InvalidCalibratedEventRelationAssessment(source) => Some(source),
             Self::InvalidContentRelationAssessment(source) => Some(source),
             Self::InvalidCounterCaptureAssessment(source) => Some(source),
             Self::InvalidPacketSameEventAssessment(source) => Some(source),
@@ -428,6 +448,7 @@ mod private {
 }
 
 impl private::Sealed for CounterCaptureHypothesisSetV0 {}
+impl private::Sealed for CalibratedEventRelationAssessmentV0 {}
 impl private::Sealed for ContentRelationHypothesisSetV0 {}
 impl private::Sealed for PacketSameEventHypothesisSetV0 {}
 impl private::Sealed for SavedPcapFingerprintHypothesisSetV0 {}
@@ -486,6 +507,16 @@ impl From<CounterCaptureDispositionV0> for FiniteHypothesisDispositionV0 {
     }
 }
 
+impl From<CalibratedEventRelationDispositionV0> for FiniteHypothesisDispositionV0 {
+    fn from(value: CalibratedEventRelationDispositionV0) -> Self {
+        match value {
+            CalibratedEventRelationDispositionV0::Supported => Self::Supported,
+            CalibratedEventRelationDispositionV0::Contradicted => Self::Contradicted,
+            CalibratedEventRelationDispositionV0::Underdetermined => Self::Underdetermined,
+        }
+    }
+}
+
 impl From<ContentRelationDispositionV0> for FiniteHypothesisDispositionV0 {
     fn from(value: ContentRelationDispositionV0) -> Self {
         match value {
@@ -535,6 +566,24 @@ impl ProjectFiniteHypothesesV0 for CounterCaptureHypothesisSetV0 {
                     self.capture_does_not_account_for_window.into(),
                 ),
                 (UNKNOWN_ROLE, self.unknown.into()),
+            ],
+        )
+    }
+}
+
+impl ProjectFiniteHypothesesV0 for CalibratedEventRelationAssessmentV0 {
+    fn project_finite_hypotheses_v0(
+        &self,
+    ) -> Result<FiniteHypothesisProjectionV0, FiniteHypothesisProjectionErrorV0> {
+        self.validate()
+            .map_err(FiniteHypothesisProjectionErrorV0::InvalidCalibratedEventRelationAssessment)?;
+        project_three(
+            self.schema(),
+            self.reducer(),
+            [
+                ("same_event", self.same_event().into()),
+                ("different_event", self.different_event().into()),
+                (UNKNOWN_ROLE, self.unknown().into()),
             ],
         )
     }
@@ -628,6 +677,60 @@ impl ProjectFiniteHypothesisClaimV0 for CounterCaptureHypothesisSetV0 {
                 &self.counter.source_schema,
                 &self.counter.record_id,
                 &self.counter.content_sha256,
+            )?,
+        ];
+        FiniteHypothesisClaimV0::try_new(projection, inputs)
+    }
+}
+
+impl ProjectFiniteHypothesisClaimV0 for CalibratedEventRelationAssessmentV0 {
+    type Inputs<'a> = (
+        &'a CalibratedEventRelationObservationRefV0,
+        &'a CalibratedEventRelationObservationRefV0,
+        &'a CalibratedEventRelationProfileV0,
+        &'a EventRelationPredictionV0,
+        &'a HeldoutEventRelationEvaluationReceiptV0,
+    );
+
+    fn project_finite_hypothesis_claim_v0(
+        &self,
+        (left, right, profile, prediction, receipt): Self::Inputs<'_>,
+    ) -> Result<FiniteHypothesisClaimV0, FiniteHypothesisClaimErrorV0> {
+        self.validate_against(left, right, profile, prediction, receipt)
+            .map_err(FiniteHypothesisClaimErrorV0::InvalidCalibratedEventRelationResolution)?;
+        let projection = self
+            .project_finite_hypotheses_v0()
+            .map_err(FiniteHypothesisClaimErrorV0::InvalidProjection)?;
+        let inputs = vec![
+            FiniteHypothesisInputRefV0::try_new(
+                "calibration_profile",
+                self.calibration_profile().source_schema(),
+                self.calibration_profile().source_id(),
+                self.calibration_profile().content_sha256(),
+            )?,
+            FiniteHypothesisInputRefV0::try_new(
+                "heldout_evaluation_receipt",
+                self.heldout_evaluation_receipt().source_schema(),
+                self.heldout_evaluation_receipt().source_id(),
+                self.heldout_evaluation_receipt().content_sha256(),
+            )?,
+            FiniteHypothesisInputRefV0::try_new(
+                "left_observation",
+                self.left_observation().source_schema(),
+                self.left_observation().source_id(),
+                self.left_observation().content_sha256(),
+            )?,
+            FiniteHypothesisInputRefV0::try_new(
+                "prediction",
+                self.prediction().source_schema(),
+                self.prediction().source_id(),
+                self.prediction().content_sha256(),
+            )?,
+            FiniteHypothesisInputRefV0::try_new(
+                "right_observation",
+                self.right_observation().source_schema(),
+                self.right_observation().source_id(),
+                self.right_observation().content_sha256(),
             )?,
         ];
         FiniteHypothesisClaimV0::try_new(projection, inputs)

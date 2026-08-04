@@ -1,3 +1,4 @@
+mod calibrated_event_relation;
 mod composition;
 mod content_relation;
 mod counter_capture;
@@ -33,6 +34,22 @@ pub use crate::replay::{
 pub use composition::{
     FiniteHypothesisCompositionErrorV0, FiniteHypothesisCompositionV0,
     FINITE_HYPOTHESIS_COMPOSITION_MAX_SUBMITTED_CLAIMS_V0, FINITE_HYPOTHESIS_COMPOSITION_SCHEMA_V0,
+};
+
+pub use calibrated_event_relation::{
+    assess_calibrated_event_relation_v0, calibrated_event_relation_pair_id_v0,
+    CalibratedEventRelationAssessmentV0, CalibratedEventRelationAssessmentValidationErrorV0,
+    CalibratedEventRelationDispositionV0, CalibratedEventRelationDocumentErrorV0,
+    CalibratedEventRelationErrorV0, CalibratedEventRelationObservationRefV0,
+    CalibratedEventRelationObservationRefValidationErrorV0, CalibratedEventRelationProfileV0,
+    CalibratedEventRelationProfileValidationErrorV0, CalibratedEventRelationReferenceV0,
+    EventRelationAbstainReasonV0, EventRelationDecisionV0, EventRelationPredictionV0,
+    EventRelationPredictionValidationErrorV0, HeldoutEvaluationGateStatusV0,
+    HeldoutEventRelationEvaluationReceiptV0,
+    HeldoutEventRelationEvaluationReceiptValidationErrorV0,
+    CALIBRATED_EVENT_RELATION_ASSESSMENT_SCHEMA_V0, CALIBRATED_EVENT_RELATION_PROFILE_SCHEMA_V0,
+    CALIBRATED_EVENT_RELATION_REDUCER_V0, EVENT_RELATION_PREDICTION_SCHEMA_V0,
+    HELDOUT_EVENT_RELATION_EVALUATION_RECEIPT_SCHEMA_V0,
 };
 
 pub use counter_capture::{

@@ -19,14 +19,18 @@ from typing import Any
 
 PROFILE_SCHEMA = "netbraid.calibrated_event_relation_profile.v0"
 PREDICTION_SCHEMA = "netbraid.event_relation_prediction.v0"
+HELDOUT_RECEIPT_SCHEMA = "netbraid.heldout_event_relation_evaluation_receipt.v0"
 
 MAX_DOCUMENT_BYTES = 16 * 1024
 MAX_IDENTIFIER_BYTES = 96
 MAX_REVISION_BYTES = 128
+MAX_SOURCE_SCHEMA_BYTES = 128
+MAX_SOURCE_ID_BYTES = 512
 
 IDENTIFIER_PATTERN = re.compile(r"[a-z0-9][a-z0-9._-]{0,95}\Z")
 REVISION_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}\Z")
 DIGEST_PATTERN = re.compile(r"[a-f0-9]{64}\Z")
+SOURCE_SCHEMA_PATTERN = re.compile(r"[a-z0-9][a-z0-9._-]{0,127}\Z")
 
 PROFILE_FIELDS = (
     "schema",
@@ -53,6 +57,17 @@ PREDICTION_FIELDS = (
     "decision",
     "abstain_reason",
 )
+HELDOUT_RECEIPT_FIELDS = (
+    "schema",
+    "receipt_id",
+    "profile_digest",
+    "evaluation_protocol_digest",
+    "heldout_partition_digest",
+    "evaluation_report_digest",
+    "gate",
+)
+HELDOUT_GATE_FIELDS = ("policy_digest", "status")
+OBSERVATION_REF_FIELDS = ("source_schema", "source_id", "content_sha256")
 QUANTILE_POLICY_FIELDS = (
     "same_quantile",
     "different_quantile",
@@ -69,9 +84,16 @@ FIXED_QUANTILE_POLICY = {
 
 DECISIONS = frozenset(("same", "different", "abstain"))
 ABSTAIN_REASONS = frozenset(("score_gap", "direction_disagreement"))
+HELDOUT_GATE_STATUSES = frozenset(("passed", "failed"))
 
 _PROFILE_DIGEST_DOMAIN = b"netbraid.calibrated-event-relation-profile.v0\x00"
 _PREDICTION_DIGEST_DOMAIN = b"netbraid.event-relation-prediction.v0\x00"
+_HELDOUT_RECEIPT_DIGEST_DOMAIN = (
+    b"netbraid.heldout-event-relation-evaluation-receipt.v0\x00"
+)
+_OBSERVATION_PAIR_DIGEST_DOMAIN = (
+    b"netbraid.calibrated-event-relation-observation-pair.v0\x00"
+)
 
 
 class EventRelationSchemaError(ValueError):
@@ -111,6 +133,46 @@ def _digest(value: Any, code: str) -> str:
     if not isinstance(value, str) or DIGEST_PATTERN.fullmatch(value) is None:
         raise EventRelationSchemaError(code)
     return value
+
+
+def _observation_ref(value: Any) -> tuple[str, str, str]:
+    if not isinstance(value, Mapping):
+        raise EventRelationSchemaError("invalid_observation_ref_schema")
+    _expect_fields(value, OBSERVATION_REF_FIELDS, "invalid_observation_ref_schema")
+    source_schema = value["source_schema"]
+    if (
+        not isinstance(source_schema, str)
+        or SOURCE_SCHEMA_PATTERN.fullmatch(source_schema) is None
+        or len(source_schema.encode("utf-8")) > MAX_SOURCE_SCHEMA_BYTES
+    ):
+        raise EventRelationSchemaError("invalid_observation_source_schema")
+    source_id = value["source_id"]
+    if (
+        not isinstance(source_id, str)
+        or not source_id
+        or len(source_id.encode("utf-8")) > MAX_SOURCE_ID_BYTES
+        or any(
+            ord(character) < 32 or 127 <= ord(character) <= 159
+            for character in source_id
+        )
+    ):
+        raise EventRelationSchemaError("invalid_observation_source_id")
+    return (
+        source_schema,
+        source_id,
+        _digest(value["content_sha256"], "invalid_observation_content_digest"),
+    )
+
+
+def observation_pair_id(left: Any, right: Any) -> str:
+    """Derive the prediction frame identifier for a canonical observation pair."""
+
+    digest = hashlib.sha256(_OBSERVATION_PAIR_DIGEST_DOMAIN)
+    for reference in sorted((_observation_ref(left), _observation_ref(right))):
+        for value in reference:
+            digest.update(value.encode("utf-8"))
+            digest.update(b"\x00")
+    return f"event-pair-{digest.hexdigest()}"
 
 
 def _canonical_finite_float(value: Any, code: str) -> float:
@@ -347,6 +409,69 @@ class EventRelationPredictionV0:
         return content_digest(self)
 
 
+@dataclass(frozen=True)
+class HeldoutEventRelationEvaluationReceiptV0:
+    """A profile-bound receipt for one frozen held-out admission gate."""
+
+    receipt_id: str
+    profile_digest: str
+    evaluation_protocol_digest: str
+    heldout_partition_digest: str
+    evaluation_report_digest: str
+    gate_policy_digest: str
+    gate_status: str
+    profile: InitVar[CalibratedEventRelationProfileV0]
+
+    def __post_init__(self, profile: CalibratedEventRelationProfileV0) -> None:
+        _identifier(self.receipt_id, "invalid_receipt_id")
+        for field in (
+            "profile_digest",
+            "evaluation_protocol_digest",
+            "heldout_partition_digest",
+            "evaluation_report_digest",
+            "gate_policy_digest",
+        ):
+            _digest(getattr(self, field), f"invalid_{field}")
+        if not isinstance(profile, CalibratedEventRelationProfileV0):
+            raise EventRelationSchemaError("profile_required")
+        if self.profile_digest != profile.content_digest():
+            raise EventRelationSchemaError("profile_digest_mismatch")
+        if self.gate_status not in HELDOUT_GATE_STATUSES:
+            raise EventRelationSchemaError("invalid_gate_status")
+
+    @classmethod
+    def from_document(
+        cls, value: Any, profile: CalibratedEventRelationProfileV0
+    ) -> HeldoutEventRelationEvaluationReceiptV0:
+        return parse_heldout_receipt(value, profile)
+
+    @classmethod
+    def from_json_bytes(
+        cls, data: bytes, profile: CalibratedEventRelationProfileV0
+    ) -> HeldoutEventRelationEvaluationReceiptV0:
+        return load_heldout_receipt_bytes(data, profile)
+
+    def document(self) -> dict[str, Any]:
+        return {
+            "schema": HELDOUT_RECEIPT_SCHEMA,
+            "receipt_id": self.receipt_id,
+            "profile_digest": self.profile_digest,
+            "evaluation_protocol_digest": self.evaluation_protocol_digest,
+            "heldout_partition_digest": self.heldout_partition_digest,
+            "evaluation_report_digest": self.evaluation_report_digest,
+            "gate": {
+                "policy_digest": self.gate_policy_digest,
+                "status": self.gate_status,
+            },
+        }
+
+    def canonical_json_bytes(self) -> bytes:
+        return canonical_json_bytes(self)
+
+    def content_digest(self) -> str:
+        return content_digest(self)
+
+
 def parse_prediction(
     value: Any, profile: CalibratedEventRelationProfileV0
 ) -> EventRelationPredictionV0:
@@ -368,13 +493,48 @@ def parse_prediction(
     )
 
 
+def parse_heldout_receipt(
+    value: Any, profile: CalibratedEventRelationProfileV0
+) -> HeldoutEventRelationEvaluationReceiptV0:
+    """Parse one exact-shape held-out evaluation receipt."""
+
+    if not isinstance(value, Mapping):
+        raise EventRelationSchemaError("invalid_heldout_receipt_schema")
+    _expect_fields(value, HELDOUT_RECEIPT_FIELDS, "invalid_heldout_receipt_schema")
+    if value["schema"] != HELDOUT_RECEIPT_SCHEMA:
+        raise EventRelationSchemaError("unsupported_heldout_receipt_schema")
+    gate = value["gate"]
+    if not isinstance(gate, Mapping):
+        raise EventRelationSchemaError("invalid_heldout_gate_schema")
+    _expect_fields(gate, HELDOUT_GATE_FIELDS, "invalid_heldout_gate_schema")
+    return HeldoutEventRelationEvaluationReceiptV0(
+        receipt_id=value["receipt_id"],
+        profile_digest=value["profile_digest"],
+        evaluation_protocol_digest=value["evaluation_protocol_digest"],
+        heldout_partition_digest=value["heldout_partition_digest"],
+        evaluation_report_digest=value["evaluation_report_digest"],
+        gate_policy_digest=gate["policy_digest"],
+        gate_status=gate["status"],
+        profile=profile,
+    )
+
+
 def canonical_json_bytes(
-    value: CalibratedEventRelationProfileV0 | EventRelationPredictionV0,
+    value: (
+        CalibratedEventRelationProfileV0
+        | EventRelationPredictionV0
+        | HeldoutEventRelationEvaluationReceiptV0
+    ),
 ) -> bytes:
     """Encode one schema object with a single deterministic JSON representation."""
 
     if not isinstance(
-        value, (CalibratedEventRelationProfileV0, EventRelationPredictionV0)
+        value,
+        (
+            CalibratedEventRelationProfileV0,
+            EventRelationPredictionV0,
+            HeldoutEventRelationEvaluationReceiptV0,
+        ),
     ):
         raise TypeError("unsupported event-relation document")
     return json.dumps(
@@ -387,7 +547,11 @@ def canonical_json_bytes(
 
 
 def content_digest(
-    value: CalibratedEventRelationProfileV0 | EventRelationPredictionV0,
+    value: (
+        CalibratedEventRelationProfileV0
+        | EventRelationPredictionV0
+        | HeldoutEventRelationEvaluationReceiptV0
+    ),
 ) -> str:
     """Return a domain-separated SHA-256 digest of canonical schema content."""
 
@@ -395,6 +559,8 @@ def content_digest(
         domain = _PROFILE_DIGEST_DOMAIN
     elif isinstance(value, EventRelationPredictionV0):
         domain = _PREDICTION_DIGEST_DOMAIN
+    elif isinstance(value, HeldoutEventRelationEvaluationReceiptV0):
+        domain = _HELDOUT_RECEIPT_DIGEST_DOMAIN
     else:
         raise TypeError("unsupported event-relation document")
     return hashlib.sha256(domain + canonical_json_bytes(value)).hexdigest()
@@ -438,3 +604,9 @@ def load_prediction_bytes(
     data: bytes, profile: CalibratedEventRelationProfileV0
 ) -> EventRelationPredictionV0:
     return parse_prediction(_load_document_bytes(data), profile)
+
+
+def load_heldout_receipt_bytes(
+    data: bytes, profile: CalibratedEventRelationProfileV0
+) -> HeldoutEventRelationEvaluationReceiptV0:
+    return parse_heldout_receipt(_load_document_bytes(data), profile)
