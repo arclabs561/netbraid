@@ -112,6 +112,87 @@
     {
       "archive": "sdr4iot-ble-zigbee",
       "expect": {
+        "address_fields": {
+          "advertising": 227,
+          "initiator": 0,
+          "scanning": 6,
+          "target": 0
+        },
+        "address_header_flags": {
+          "receiver_random": {
+            "false_frames": 0,
+            "true_frames": 6,
+            "unavailable_frames": 221
+          },
+          "transmitter_random": {
+            "false_frames": 0,
+            "true_frames": 227,
+            "unavailable_frames": 0
+          }
+        },
+        "completeness": {
+          "packet_limit": 1000,
+          "packet_limit_reached": false,
+          "scope": "complete_capture",
+          "state": "complete"
+        },
+        "counts": {
+          "bluetooth_le_frames": 227,
+          "other_packet_envelopes": 0,
+          "packet_envelopes": 227,
+          "packet_quarantines": 0,
+          "packet_rows_inspected": 227
+        },
+        "crc": {
+          "invalid_frames": 0,
+          "unavailable_frames": 0,
+          "valid_frames": 227
+        },
+        "pdu_types": {
+          "mix": [
+            {"frames": 183, "pdu_type": 0},
+            {"frames": 6, "pdu_type": 3},
+            {"frames": 38, "pdu_type": 6}
+          ],
+          "present_frames": 227,
+          "unavailable_frames": 0
+        },
+        "radio": {
+          "channels": {
+            "mix": [
+              {"channel": 0, "frames": 20},
+              {"channel": 12, "frames": 138},
+              {"channel": 39, "frames": 69}
+            ],
+            "present_frames": 227,
+            "unavailable_frames": 0
+          },
+          "noise_dbm": {
+            "maximum_dbm": -1,
+            "minimum_dbm": -1,
+            "samples": 227,
+            "sum_dbm": -227
+          },
+          "signal_dbm": {
+            "maximum_dbm": -1,
+            "minimum_dbm": -1,
+            "samples": 227,
+            "sum_dbm": -227
+          }
+        }
+      },
+      "id": "sdr4iot-ble-scene-1-server-9-mobile-5",
+      "member": {
+        "bytes": 12375,
+        "name": "ble/scenario1/scene1/20200316_1636/S1_s1_2020-03-16_16-36_server9_mobile5.cap",
+        "sha256": "f15482e4220f533578b0e78734056463f4ab08e256302645ba569213e12bc3ff"
+      },
+      "mode": "netbraid-bluetooth-le",
+      "packet_limit": 1000
+    },
+    {
+      "archive": "sdr4iot-ble-zigbee",
+      "expect": {
         "address_forms": {
           "destination": {"absent_frames": 20, "extended_frames": 0, "short_frames": 30},
           "source": {"absent_frames": 20, "extended_frames": 0, "short_frames": 30}

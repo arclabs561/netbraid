@@ -573,6 +573,7 @@ fn read_packets(
             ieee802154: None,
             ieee80211: None,
             wlan_radio: None,
+            bluetooth_le: None,
         };
         packet
             .validate()

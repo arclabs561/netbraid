@@ -65,7 +65,7 @@ MAX_REDUCER_STDOUT_BYTES = 4 * 1024 * 1024
 MAX_JSONL_LINE_BYTES = 256 * 1024
 NORMALIZER_TIMEOUT_SECONDS = 120
 REDUCER_TIMEOUT_SECONDS = 30
-EXPECTED_FIELD_REGISTRY = "netmon.tshark.packet_envelope.v4"
+EXPECTED_FIELD_REGISTRY = "netmon.tshark.packet_envelope.v5"
 
 
 def load_shared() -> Any:

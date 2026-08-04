@@ -533,6 +533,7 @@ mod tests {
                 center_frequency_mhz: Some(2_412),
                 signal_dbm: Some(-40),
             }),
+            bluetooth_le: None,
         }
     }
 

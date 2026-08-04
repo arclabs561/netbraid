@@ -555,6 +555,7 @@ mod tests {
             ieee802154: None,
             ieee80211: None,
             wlan_radio: None,
+            bluetooth_le: None,
         }
     }
 

@@ -410,7 +410,7 @@ pub fn parse_saved_capture_jsonl(
                         expected: phase.expected(),
                     });
                 }
-                manifest = Some((line, record));
+                manifest = Some((line, *record));
                 phase = StreamPhase::ReceiptOrPacket;
             }
             SavedCaptureRecord::Receipt(record) => {
@@ -450,7 +450,7 @@ pub fn parse_saved_capture_jsonl(
                         });
                     }
                 }
-                packets.push((line, record));
+                packets.push((line, *record));
                 phase = StreamPhase::Packet;
             }
             SavedCaptureRecord::Quarantine(record) => {
@@ -523,9 +523,9 @@ pub fn parse_saved_capture_jsonl(
 
 #[derive(Debug)]
 enum SavedCaptureRecord {
-    Manifest(CaptureManifestV0),
+    Manifest(Box<CaptureManifestV0>),
     Receipt(Box<CaptureRunReceiptV0>),
-    Packet(PacketEnvelopeV0),
+    Packet(Box<PacketEnvelopeV0>),
     Quarantine(PacketQuarantineV0),
 }
 
@@ -600,7 +600,7 @@ fn parse_record(
                     family,
                     source,
                 })?;
-            Ok(SavedCaptureRecord::Manifest(value))
+            Ok(SavedCaptureRecord::Manifest(Box::new(value)))
         }
         SavedCaptureRecordFamilyV0::Receipt => {
             let value: CaptureRunReceiptV0 = serde_json::from_value(value)
@@ -624,7 +624,7 @@ fn parse_record(
                     family,
                     source,
                 })?;
-            Ok(SavedCaptureRecord::Packet(value))
+            Ok(SavedCaptureRecord::Packet(Box::new(value)))
         }
         SavedCaptureRecordFamilyV0::Quarantine => {
             let value: PacketQuarantineV0 = serde_json::from_value(value)

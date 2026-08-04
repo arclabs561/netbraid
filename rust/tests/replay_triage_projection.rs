@@ -709,6 +709,7 @@ fn unsupported_triage_projection_matches_contract_golden() {
         ieee802154: None,
         ieee80211: None,
         wlan_radio: None,
+        bluetooth_le: None,
     }];
     let records = validated_stream(
         manifest(NormalizationStateV0::Complete, 1, 0),
@@ -1425,6 +1426,7 @@ fn tcp_packet(
         ieee802154: None,
         ieee80211: None,
         wlan_radio: None,
+        bluetooth_le: None,
     }
 }
 
@@ -1485,5 +1487,6 @@ fn wlan_packet(frame_number: u64, frame_subtype: u8) -> PacketEnvelopeV0 {
             ssid_hex: None,
         }),
         wlan_radio: None,
+        bluetooth_le: None,
     }
 }

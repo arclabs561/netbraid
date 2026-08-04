@@ -1,0 +1,31 @@
+{
+  "schema": "netmon.packet_envelope.v0",
+  "record_id": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef:frame:3",
+  "capture_id": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "frame": {
+    "number": 3,
+    "event_time_unix_ns": 1700000000323456789,
+    "original_len": 50,
+    "captured_len": 50,
+    "section_number": 0,
+    "interface_id": 0,
+    "encapsulation_type": 251,
+    "protocols": [
+      "btle_rf",
+      "btle"
+    ]
+  },
+  "bluetooth_le": {
+    "access_address": 2391391958,
+    "advertising_pdu_type": 0,
+    "payload_length_octets": 32,
+    "advertising_address": "02:00:00:00:00:03",
+    "transmitter_address_random": true,
+    "crc_status": "valid",
+    "radio": {
+      "channel": 39,
+      "signal_dbm": -51,
+      "noise_dbm": -91
+    }
+  }
+}

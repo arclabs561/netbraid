@@ -260,6 +260,7 @@ fn packet(frame_number: u64) -> PacketEnvelopeV0 {
         ieee802154: None,
         ieee80211: None,
         wlan_radio: None,
+        bluetooth_le: None,
     }
 }
 

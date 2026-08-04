@@ -4,6 +4,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::evidence::CollectionPolicyV0;
 
+mod bluetooth_le;
+mod ieee802;
+
+pub use bluetooth_le::{BluetoothLeCrcStatusV0, BluetoothLeFieldsV0, BluetoothLeRadioFieldsV0};
+pub use ieee802::{
+    Ieee80211FieldsV0, Ieee802154AddressV0, Ieee802154FcsStatusV0, Ieee802154FieldsV0,
+    WlanRadioFieldsV0,
+};
+
 pub const CAPTURE_MANIFEST_SCHEMA_V0: &str = "netmon.capture_manifest.v0";
 pub const CAPTURE_RUN_RECEIPT_SCHEMA_V0: &str = "netmon.capture_run_receipt.v0";
 pub const NORMALIZED_RECORDS_DIGEST_PROFILE_V0: &str = "netmon.normalized_records_digest.v0";
@@ -172,68 +181,6 @@ pub struct UdpFieldsV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "kind", content = "value")]
-pub enum Ieee802154AddressV0 {
-    Short(u16),
-    Extended(String),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Ieee802154FcsStatusV0 {
-    Valid,
-    Invalid,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Ieee802154FieldsV0 {
-    pub frame_type: u8,
-    pub frame_version: u8,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sequence_number: Option<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub destination_pan_id: Option<u16>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub destination: Option<Ieee802154AddressV0>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_pan_id: Option<u16>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<Ieee802154AddressV0>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub command: Option<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fcs_status: Option<Ieee802154FcsStatusV0>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Ieee80211FieldsV0 {
-    pub frame_type: u8,
-    pub frame_subtype: u8,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub transmitter: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub receiver: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub destination: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bssid: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ssid_hex: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WlanRadioFieldsV0 {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub channel: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub center_frequency_mhz: Option<u16>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub signal_dbm: Option<i8>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PacketEnvelopeV0 {
     pub schema: String,
     pub record_id: String,
@@ -255,6 +202,8 @@ pub struct PacketEnvelopeV0 {
     pub ieee80211: Option<Ieee80211FieldsV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wlan_radio: Option<WlanRadioFieldsV0>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bluetooth_le: Option<BluetoothLeFieldsV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -313,6 +262,11 @@ pub enum CaptureValidationError {
     EmptyWlanRadioFields,
     ZeroWlanChannel,
     ZeroWlanCenterFrequency,
+    InvalidBluetoothLeAdvertisingPduType(u8),
+    InvalidBluetoothLeLogicalLinkIdentifier(u8),
+    InvalidBluetoothLeAddress(String),
+    EmptyBluetoothLeRadioFields,
+    InvalidBluetoothLeChannel(u8),
     ZeroSourceLine,
     EmptyQuarantineReason,
 }
@@ -434,6 +388,27 @@ impl std::fmt::Display for CaptureValidationError {
             Self::ZeroWlanChannel => formatter.write_str("WLAN channel must be greater than zero"),
             Self::ZeroWlanCenterFrequency => {
                 formatter.write_str("WLAN center frequency must be greater than zero")
+            }
+            Self::InvalidBluetoothLeAdvertisingPduType(value) => {
+                write!(
+                    formatter,
+                    "invalid Bluetooth LE advertising PDU type {value}"
+                )
+            }
+            Self::InvalidBluetoothLeLogicalLinkIdentifier(value) => {
+                write!(
+                    formatter,
+                    "invalid Bluetooth LE logical link identifier {value}"
+                )
+            }
+            Self::InvalidBluetoothLeAddress(value) => {
+                write!(formatter, "invalid Bluetooth LE address {value:?}")
+            }
+            Self::EmptyBluetoothLeRadioFields => {
+                formatter.write_str("Bluetooth LE radio field group must not be empty")
+            }
+            Self::InvalidBluetoothLeChannel(value) => {
+                write!(formatter, "invalid Bluetooth LE channel {value}")
             }
             Self::ZeroSourceLine => {
                 formatter.write_str("quarantine source_line must be greater than zero")
@@ -679,6 +654,9 @@ impl PacketEnvelopeV0 {
             if radio.center_frequency_mhz == Some(0) {
                 return Err(CaptureValidationError::ZeroWlanCenterFrequency);
             }
+        }
+        if let Some(bluetooth_le) = &self.bluetooth_le {
+            bluetooth_le::validate(bluetooth_le)?;
         }
         Ok(())
     }
@@ -960,6 +938,7 @@ mod tests {
             ieee802154: None,
             ieee80211: None,
             wlan_radio: None,
+            bluetooth_le: None,
         }
     }
 
@@ -999,7 +978,46 @@ mod tests {
                 center_frequency_mhz: Some(2412),
                 signal_dbm: Some(-74),
             }),
+            bluetooth_le: None,
         }
+    }
+
+    fn bluetooth_le_packet() -> PacketEnvelopeV0 {
+        let mut value = packet();
+        value.record_id = format!("{DIGEST}:frame:3");
+        value.frame = PacketFrameV0 {
+            number: 3,
+            event_time_unix_ns: 1_700_000_000_323_456_789,
+            original_len: 50,
+            captured_len: 50,
+            section_number: Some(0),
+            interface_id: Some(0),
+            encapsulation_type: Some(251),
+            protocols: vec!["btle_rf".into(), "btle".into()],
+        };
+        value.ethernet = None;
+        value.ipv4 = None;
+        value.tcp = None;
+        value.bluetooth_le = Some(BluetoothLeFieldsV0 {
+            access_address: 0x8e89_bed6,
+            advertising_pdu_type: Some(0),
+            payload_length_octets: Some(32),
+            advertising_address: Some("02:00:00:00:00:03".into()),
+            scanning_address: None,
+            initiator_address: None,
+            target_address: None,
+            logical_link_identifier: None,
+            control_opcode: None,
+            transmitter_address_random: Some(true),
+            receiver_address_random: None,
+            crc_status: Some(BluetoothLeCrcStatusV0::Valid),
+            radio: Some(BluetoothLeRadioFieldsV0 {
+                channel: Some(39),
+                signal_dbm: Some(-51),
+                noise_dbm: Some(-91),
+            }),
+        });
+        value
     }
 
     fn quarantine() -> PacketQuarantineV0 {
@@ -1321,6 +1339,55 @@ mod tests {
     }
 
     #[test]
+    fn packet_rejects_invalid_bluetooth_le_typed_values() {
+        let mut value = bluetooth_le_packet();
+        value.bluetooth_le.as_mut().unwrap().advertising_pdu_type = Some(16);
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidBluetoothLeAdvertisingPduType(16))
+        );
+
+        let mut value = bluetooth_le_packet();
+        value.bluetooth_le.as_mut().unwrap().logical_link_identifier = Some(4);
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidBluetoothLeLogicalLinkIdentifier(4))
+        );
+
+        let mut value = bluetooth_le_packet();
+        value.bluetooth_le.as_mut().unwrap().advertising_address = Some("not-an-address".into());
+        assert!(matches!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidBluetoothLeAddress(_))
+        ));
+
+        let mut value = bluetooth_le_packet();
+        value.bluetooth_le.as_mut().unwrap().radio = Some(BluetoothLeRadioFieldsV0 {
+            channel: None,
+            signal_dbm: None,
+            noise_dbm: None,
+        });
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::EmptyBluetoothLeRadioFields)
+        );
+
+        let mut value = bluetooth_le_packet();
+        value
+            .bluetooth_le
+            .as_mut()
+            .unwrap()
+            .radio
+            .as_mut()
+            .unwrap()
+            .channel = Some(40);
+        assert_eq!(
+            value.validate(),
+            Err(CaptureValidationError::InvalidBluetoothLeChannel(40))
+        );
+    }
+
+    #[test]
     fn golden_packet_json_preserves_protocol_order_and_exact_time() {
         let value = packet();
         value.validate().unwrap();
@@ -1339,6 +1406,17 @@ mod tests {
         assert_eq!(
             format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
             include_str!("../../tests/fixtures/evidence/v0/packet_envelope_wlan_v0.json")
+        );
+    }
+
+    #[test]
+    fn golden_bluetooth_le_packet_json_separates_link_and_radio_evidence() {
+        let value = bluetooth_le_packet();
+        value.validate().unwrap();
+
+        assert_eq!(
+            format!("{}\n", serde_json::to_string_pretty(&value).unwrap()),
+            include_str!("../../tests/fixtures/evidence/v0/packet_envelope_bluetooth_le_v0.json")
         );
     }
 

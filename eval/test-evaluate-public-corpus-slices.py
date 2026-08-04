@@ -179,6 +179,128 @@ def records_for(case: dict) -> bytes:
     return b"".join(canonical_json(document) for document in documents)
 
 
+def bluetooth_le_expectation() -> dict:
+    return {
+        "address_fields": {
+            "advertising": 2,
+            "scanning": 1,
+            "initiator": 0,
+            "target": 0,
+        },
+        "address_header_flags": {
+            "transmitter_random": {
+                "true_frames": 2,
+                "false_frames": 0,
+                "unavailable_frames": 0,
+            },
+            "receiver_random": {
+                "true_frames": 1,
+                "false_frames": 0,
+                "unavailable_frames": 1,
+            },
+        },
+        "completeness": {
+            "state": "complete",
+            "scope": "complete_capture",
+            "packet_limit": 2,
+            "packet_limit_reached": False,
+        },
+        "counts": {
+            "packet_envelopes": 2,
+            "packet_quarantines": 0,
+            "packet_rows_inspected": 2,
+            "bluetooth_le_frames": 2,
+            "other_packet_envelopes": 0,
+        },
+        "crc": {"valid_frames": 1, "invalid_frames": 1, "unavailable_frames": 0},
+        "pdu_types": {
+            "present_frames": 2,
+            "unavailable_frames": 0,
+            "mix": [
+                {"pdu_type": 0, "frames": 1},
+                {"pdu_type": 3, "frames": 1},
+            ],
+        },
+        "radio": {
+            "channels": {
+                "present_frames": 2,
+                "unavailable_frames": 0,
+                "mix": [
+                    {"channel": 0, "frames": 1},
+                    {"channel": 39, "frames": 1},
+                ],
+            },
+            "signal_dbm": {
+                "samples": 2,
+                "sum_dbm": -103,
+                "minimum_dbm": -52,
+                "maximum_dbm": -51,
+            },
+            "noise_dbm": {
+                "samples": 2,
+                "sum_dbm": -183,
+                "minimum_dbm": -92,
+                "maximum_dbm": -91,
+            },
+        },
+    }
+
+
+def bluetooth_le_case_for(archive: dict) -> dict:
+    case = case_for(archive)
+    case["expect"] = bluetooth_le_expectation()
+    case["mode"] = "netbraid-bluetooth-le"
+    return case
+
+
+def bluetooth_le_records_for(case: dict) -> bytes:
+    capture_id = f"sha256:{case['member']['sha256']}"
+    documents = [
+        {
+            "schema": EVALUATOR.CAPTURE_MANIFEST_SCHEMA,
+            "capture_id": capture_id,
+            "artifact": {
+                "content_sha256": capture_id,
+                "size_bytes": case["member"]["bytes"],
+            },
+            "normalization": {
+                "state": "complete",
+                "packet_limit": 2,
+                "packet_limit_reached": False,
+                "packet_rows_emitted": 2,
+                "packet_rows_quarantined": 0,
+            },
+        },
+        {
+            "schema": EVALUATOR.PACKET_ENVELOPE_SCHEMA,
+            "capture_id": capture_id,
+            "bluetooth_le": {
+                "access_address": 0x8E89BED6,
+                "advertising_pdu_type": 0,
+                "advertising_address": "02:00:00:00:00:01",
+                "transmitter_address_random": True,
+                "crc_status": "valid",
+                "radio": {"channel": 0, "signal_dbm": -51, "noise_dbm": -91},
+            },
+        },
+        {
+            "schema": EVALUATOR.PACKET_ENVELOPE_SCHEMA,
+            "capture_id": capture_id,
+            "bluetooth_le": {
+                "access_address": 0x8E89BED6,
+                "advertising_pdu_type": 3,
+                "advertising_address": "02:00:00:00:00:02",
+                "scanning_address": "02:00:00:00:00:03",
+                "transmitter_address_random": True,
+                "receiver_address_random": True,
+                "crc_status": "invalid",
+                "radio": {"channel": 39, "signal_dbm": -52, "noise_dbm": -92},
+            },
+        },
+    ]
+    return b"".join(canonical_json(document) for document in documents)
+
+
 def write_fake_binary(path: Path, projection: bytes, records: bytes) -> None:
     script = (
         "#!/bin/sh\n"
@@ -211,6 +333,59 @@ class PublicCorpusEvaluatorTest(unittest.TestCase):
             ],
             2,
         )
+
+    def test_default_manifest_declares_complete_sdr4iot_bluetooth_le_case(self):
+        _, cases, _ = EVALUATOR.validate_manifest(EVALUATOR.DEFAULT_MANIFEST)
+
+        case = next(
+            item
+            for item in cases
+            if item["id"] == "sdr4iot-ble-scene-1-server-9-mobile-5"
+        )
+
+        self.assertEqual(case["mode"], "netbraid-bluetooth-le")
+        self.assertEqual(case["member"]["bytes"], 12_375)
+        self.assertEqual(case["expect"]["counts"]["bluetooth_le_frames"], 227)
+        self.assertEqual(case["expect"]["counts"]["packet_quarantines"], 0)
+        self.assertEqual(case["expect"]["radio"]["channels"]["present_frames"], 227)
+
+    def test_bluetooth_le_case_aggregates_without_address_values(self):
+        with tempfile.TemporaryDirectory() as directory_name:
+            directory = Path(directory_name)
+            archive, _ = write_external_source(directory, b"bounded bluetooth capture")
+            case = bluetooth_le_case_for(archive)
+            manifest = {
+                "schema": EVALUATOR.MANIFEST_SCHEMA,
+                "archives": {"external": archive},
+                "cases": [case],
+            }
+            manifest_path = directory / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            binary = directory / "fake-netbraid"
+            write_fake_binary(binary, b"{}\n", bluetooth_le_records_for(case))
+
+            with mock.patch.object(
+                EVALUATOR, "netbraid_git_revision", return_value="0" * 40
+            ):
+                code, report = EVALUATOR.evaluate(manifest_path, directory, binary, 2)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(report["status"], "pass")
+        result = report["results"][0]
+        self.assertEqual(result["bluetooth_le_frames"], 2)
+        self.assertEqual(result["identity_inference"], "not_performed")
+        rendered = json.dumps(report)
+        for excluded in (
+            "02:00:00:00:00:01",
+            "02:00:00:00:00:02",
+            "02:00:00:00:00:03",
+            "access_address",
+            "record_id",
+        ):
+            self.assertNotIn(excluded, rendered)
 
     def test_receipt_bound_external_case_runs_without_identifier_output(self):
         with tempfile.TemporaryDirectory() as directory_name:

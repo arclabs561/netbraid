@@ -1,12 +1,13 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use crate::evidence::{
-    EthernetFieldsV0, Ieee80211FieldsV0, Ipv4FieldsV0, Ipv6FieldsV0, PacketEnvelopeV0,
-    PacketFrameV0, PacketQuarantineV0, TcpFieldsV0, UdpFieldsV0, WlanRadioFieldsV0,
-    PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
+    BluetoothLeCrcStatusV0, BluetoothLeFieldsV0, BluetoothLeRadioFieldsV0, EthernetFieldsV0,
+    Ieee80211FieldsV0, Ipv4FieldsV0, Ipv6FieldsV0, PacketEnvelopeV0, PacketFrameV0,
+    PacketQuarantineV0, TcpFieldsV0, UdpFieldsV0, WlanRadioFieldsV0, PACKET_ENVELOPE_SCHEMA_V0,
+    PACKET_QUARANTINE_SCHEMA_V0,
 };
 
-pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v4";
+pub const FIELD_REGISTRY_ID: &str = "netmon.tshark.packet_envelope.v5";
 
 pub const FIELDS: &[&str] = &[
     "frame.number",
@@ -56,11 +57,47 @@ pub const FIELDS: &[&str] = &[
     "ip.len",
     "ipv6.plen",
     "tcp.stream",
+    "btle.access_address",
+    "btle.advertising_header.pdu_type",
+    "btle.length",
+    "btle.advertising_address",
+    "btle.scanning_address",
+    "btle.initiator_address",
+    "btle.target_address",
+    "btle.data_header.llid",
+    "btle.control_opcode",
+    "btle.advertising_header.randomized_tx",
+    "btle.advertising_header.randomized_rx",
+    "btle_rf.channel",
+    "btle_rf.flags.signal_dbm_valid",
+    "btle_rf.signal_dbm",
+    "btle_rf.flags.noise_dbm_valid",
+    "btle_rf.noise_dbm",
+    "btle_rf.flags.crc_checked",
+    "btle_rf.flags.crc_valid",
 ];
 
 const IP_LENGTH_INDEX: usize = 44;
 const IPV6_PAYLOAD_LENGTH_INDEX: usize = 45;
 const TCP_STREAM_INDEX: usize = 46;
+const BLUETOOTH_LE_ACCESS_ADDRESS_INDEX: usize = 47;
+const BLUETOOTH_LE_ADVERTISING_PDU_TYPE_INDEX: usize = 48;
+const BLUETOOTH_LE_LENGTH_INDEX: usize = 49;
+const BLUETOOTH_LE_ADVERTISING_ADDRESS_INDEX: usize = 50;
+const BLUETOOTH_LE_SCANNING_ADDRESS_INDEX: usize = 51;
+const BLUETOOTH_LE_INITIATOR_ADDRESS_INDEX: usize = 52;
+const BLUETOOTH_LE_TARGET_ADDRESS_INDEX: usize = 53;
+const BLUETOOTH_LE_LLID_INDEX: usize = 54;
+const BLUETOOTH_LE_CONTROL_OPCODE_INDEX: usize = 55;
+const BLUETOOTH_LE_RANDOM_TX_INDEX: usize = 56;
+const BLUETOOTH_LE_RANDOM_RX_INDEX: usize = 57;
+const BLUETOOTH_LE_CHANNEL_INDEX: usize = 58;
+const BLUETOOTH_LE_SIGNAL_VALID_INDEX: usize = 59;
+const BLUETOOTH_LE_SIGNAL_INDEX: usize = 60;
+const BLUETOOTH_LE_NOISE_VALID_INDEX: usize = 61;
+const BLUETOOTH_LE_NOISE_INDEX: usize = 62;
+const BLUETOOTH_LE_CRC_CHECKED_INDEX: usize = 63;
+const BLUETOOTH_LE_CRC_VALID_INDEX: usize = 64;
 const IPV6_HEADER_LENGTH_OCTETS: u32 = 40;
 
 struct ParsedIeee802154Fields {
@@ -154,6 +191,7 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
     let ieee80211 = parse_ieee80211(&fields)?;
     let wlan_radio = parse_wlan_radio(&fields)?;
     let ieee802154 = parse_ieee802154(&fields)?;
+    let bluetooth_le = parse_bluetooth_le(&fields)?;
     let mut packet = PacketEnvelopeV0 {
         schema: PACKET_ENVELOPE_SCHEMA_V0.into(),
         record_id: format!("{capture_id}:frame:{frame_number}"),
@@ -180,6 +218,7 @@ fn parse_row(raw_row: &str, capture_id: &str) -> Result<PacketEnvelopeV0, String
         ieee802154: None,
         ieee80211,
         wlan_radio,
+        bluetooth_le,
     };
     if let Some(fields) = ieee802154 {
         packet
@@ -354,6 +393,117 @@ fn parse_ieee802154(fields: &[&str]) -> Result<Option<ParsedIeee802154Fields>, S
     }))
 }
 
+fn parse_bluetooth_le(fields: &[&str]) -> Result<Option<BluetoothLeFieldsV0>, String> {
+    if fields[BLUETOOTH_LE_ACCESS_ADDRESS_INDEX..=BLUETOOTH_LE_CRC_VALID_INDEX]
+        .iter()
+        .all(|field| field.is_empty())
+    {
+        return Ok(None);
+    }
+    if fields[BLUETOOTH_LE_ACCESS_ADDRESS_INDEX].is_empty() {
+        return Err("Bluetooth LE attributes exist without an access address".into());
+    }
+
+    let channel = parse_optional::<u8>(
+        fields[BLUETOOTH_LE_CHANNEL_INDEX],
+        FIELDS[BLUETOOTH_LE_CHANNEL_INDEX],
+    )?;
+    let signal_dbm = parse_validated_i8(
+        fields[BLUETOOTH_LE_SIGNAL_INDEX],
+        fields[BLUETOOTH_LE_SIGNAL_VALID_INDEX],
+        FIELDS[BLUETOOTH_LE_SIGNAL_INDEX],
+        FIELDS[BLUETOOTH_LE_SIGNAL_VALID_INDEX],
+    )?;
+    let noise_dbm = parse_validated_i8(
+        fields[BLUETOOTH_LE_NOISE_INDEX],
+        fields[BLUETOOTH_LE_NOISE_VALID_INDEX],
+        FIELDS[BLUETOOTH_LE_NOISE_INDEX],
+        FIELDS[BLUETOOTH_LE_NOISE_VALID_INDEX],
+    )?;
+    let radio = if channel.is_none() && signal_dbm.is_none() && noise_dbm.is_none() {
+        None
+    } else {
+        Some(BluetoothLeRadioFieldsV0 {
+            channel,
+            signal_dbm,
+            noise_dbm,
+        })
+    };
+
+    Ok(Some(BluetoothLeFieldsV0 {
+        access_address: parse_u32_auto_radix(
+            fields[BLUETOOTH_LE_ACCESS_ADDRESS_INDEX],
+            FIELDS[BLUETOOTH_LE_ACCESS_ADDRESS_INDEX],
+        )?,
+        advertising_pdu_type: parse_optional_u8_auto_radix(
+            fields[BLUETOOTH_LE_ADVERTISING_PDU_TYPE_INDEX],
+            FIELDS[BLUETOOTH_LE_ADVERTISING_PDU_TYPE_INDEX],
+        )?,
+        payload_length_octets: parse_optional(
+            fields[BLUETOOTH_LE_LENGTH_INDEX],
+            FIELDS[BLUETOOTH_LE_LENGTH_INDEX],
+        )?,
+        advertising_address: canonical_ethernet(fields[BLUETOOTH_LE_ADVERTISING_ADDRESS_INDEX])?,
+        scanning_address: canonical_ethernet(fields[BLUETOOTH_LE_SCANNING_ADDRESS_INDEX])?,
+        initiator_address: canonical_ethernet(fields[BLUETOOTH_LE_INITIATOR_ADDRESS_INDEX])?,
+        target_address: canonical_ethernet(fields[BLUETOOTH_LE_TARGET_ADDRESS_INDEX])?,
+        logical_link_identifier: parse_optional_u8_auto_radix(
+            fields[BLUETOOTH_LE_LLID_INDEX],
+            FIELDS[BLUETOOTH_LE_LLID_INDEX],
+        )?,
+        control_opcode: parse_optional_u8_auto_radix(
+            fields[BLUETOOTH_LE_CONTROL_OPCODE_INDEX],
+            FIELDS[BLUETOOTH_LE_CONTROL_OPCODE_INDEX],
+        )?,
+        transmitter_address_random: parse_optional_tshark_bool(
+            fields[BLUETOOTH_LE_RANDOM_TX_INDEX],
+            FIELDS[BLUETOOTH_LE_RANDOM_TX_INDEX],
+        )?,
+        receiver_address_random: parse_optional_tshark_bool(
+            fields[BLUETOOTH_LE_RANDOM_RX_INDEX],
+            FIELDS[BLUETOOTH_LE_RANDOM_RX_INDEX],
+        )?,
+        crc_status: parse_bluetooth_le_crc_status(
+            fields[BLUETOOTH_LE_CRC_CHECKED_INDEX],
+            fields[BLUETOOTH_LE_CRC_VALID_INDEX],
+        )?,
+        radio,
+    }))
+}
+
+fn parse_validated_i8(
+    value: &str,
+    validity: &str,
+    value_field: &str,
+    validity_field: &str,
+) -> Result<Option<i8>, String> {
+    match (parse_optional_tshark_bool(validity, validity_field)?, value) {
+        (None, "") | (Some(false), _) => Ok(None),
+        (Some(true), "") => Err(format!(
+            "{validity_field} is true but {value_field} is missing"
+        )),
+        (Some(true), value) => parse_required(value, value_field).map(Some),
+        (None, _) => Err(format!("{value_field} exists without {validity_field}")),
+    }
+}
+
+fn parse_bluetooth_le_crc_status(
+    checked: &str,
+    valid: &str,
+) -> Result<Option<BluetoothLeCrcStatusV0>, String> {
+    let checked = parse_optional_tshark_bool(checked, FIELDS[BLUETOOTH_LE_CRC_CHECKED_INDEX])?;
+    let valid = parse_optional_tshark_bool(valid, FIELDS[BLUETOOTH_LE_CRC_VALID_INDEX])?;
+    match (checked, valid) {
+        (None, None) | (Some(false), None | Some(false)) => Ok(None),
+        (Some(true), Some(true)) => Ok(Some(BluetoothLeCrcStatusV0::Valid)),
+        (Some(true), Some(false)) => Ok(Some(BluetoothLeCrcStatusV0::Invalid)),
+        (Some(true), None) => Err("Bluetooth LE CRC is checked without a validity result".into()),
+        (None, Some(_)) | (Some(false), Some(true)) => {
+            Err("Bluetooth LE CRC validity exists without a checked CRC".into())
+        }
+    }
+}
+
 fn parse_required<T>(value: &str, field: &str) -> Result<T, String>
 where
     T: std::str::FromStr,
@@ -393,6 +543,10 @@ fn parse_ipv6_total_length(value: &str) -> Result<Option<u32>, String> {
 }
 
 fn parse_u16_auto_radix(value: &str, field: &str) -> Result<u16, String> {
+    parse_unsigned_auto_radix(value, field)
+}
+
+fn parse_u32_auto_radix(value: &str, field: &str) -> Result<u32, String> {
     parse_unsigned_auto_radix(value, field)
 }
 
@@ -605,6 +759,7 @@ mod tests {
         .map(str::to_owned)
         .to_vec();
         fields.insert(42, String::new());
+        fields.resize(FIELDS.len(), String::new());
         fields.join("\t")
     }
 
@@ -682,6 +837,7 @@ mod tests {
         .map(str::to_owned)
         .to_vec();
         fields.insert(42, String::new());
+        fields.resize(FIELDS.len(), String::new());
         fields.join("\t")
     }
 
@@ -737,6 +893,30 @@ mod tests {
         .map(str::to_owned)
         .to_vec();
         fields.insert(42, "0xabcd".into());
+        fields.resize(FIELDS.len(), String::new());
+        fields.join("\t")
+    }
+
+    fn bluetooth_le_row() -> String {
+        let mut fields = vec![String::new(); FIELDS.len()];
+        fields[0] = "4".into();
+        fields[1] = "1700000000.423456789".into();
+        fields[2] = "50".into();
+        fields[3] = "50".into();
+        fields[6] = "251".into();
+        fields[7] = "btle_rf:btle".into();
+        fields[BLUETOOTH_LE_ACCESS_ADDRESS_INDEX] = "0x8e89bed6".into();
+        fields[BLUETOOTH_LE_ADVERTISING_PDU_TYPE_INDEX] = "0x00".into();
+        fields[BLUETOOTH_LE_LENGTH_INDEX] = "32".into();
+        fields[BLUETOOTH_LE_ADVERTISING_ADDRESS_INDEX] = "02:00:00:00:00:04".into();
+        fields[BLUETOOTH_LE_RANDOM_TX_INDEX] = "True".into();
+        fields[BLUETOOTH_LE_CHANNEL_INDEX] = "39".into();
+        fields[BLUETOOTH_LE_SIGNAL_VALID_INDEX] = "True".into();
+        fields[BLUETOOTH_LE_SIGNAL_INDEX] = "-51".into();
+        fields[BLUETOOTH_LE_NOISE_VALID_INDEX] = "True".into();
+        fields[BLUETOOTH_LE_NOISE_INDEX] = "-91".into();
+        fields[BLUETOOTH_LE_CRC_CHECKED_INDEX] = "True".into();
+        fields[BLUETOOTH_LE_CRC_VALID_INDEX] = "True".into();
         fields.join("\t")
     }
 
@@ -932,10 +1112,94 @@ mod tests {
         assert_eq!(ieee802154["command"], 4);
         assert_eq!(ieee802154["fcs_status"], "valid");
         assert!(ieee802154.get("payload").is_none());
-        assert_eq!(FIELD_REGISTRY_ID, "netmon.tshark.packet_envelope.v4");
+        assert_eq!(FIELD_REGISTRY_ID, "netmon.tshark.packet_envelope.v5");
         assert!(FIELDS.iter().all(|field| !field.contains("payload")));
         assert!(!FIELDS.contains(&"tcp.seq"));
         assert!(!FIELDS.contains(&"tcp.ack"));
+    }
+
+    #[test]
+    fn parser_preserves_bluetooth_le_link_and_radio_evidence() {
+        let parsed = parse_rows(format!("{}\n", bluetooth_le_row()).as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.quarantines.is_empty());
+        assert_eq!(parsed.packets.len(), 1);
+        let bluetooth_le = parsed.packets[0].bluetooth_le.as_ref().unwrap();
+        assert_eq!(bluetooth_le.access_address, 0x8e89_bed6);
+        assert_eq!(bluetooth_le.advertising_pdu_type, Some(0));
+        assert_eq!(bluetooth_le.payload_length_octets, Some(32));
+        assert_eq!(
+            bluetooth_le.advertising_address.as_deref(),
+            Some("02:00:00:00:00:04")
+        );
+        assert_eq!(bluetooth_le.transmitter_address_random, Some(true));
+        assert_eq!(bluetooth_le.crc_status, Some(BluetoothLeCrcStatusV0::Valid));
+        let radio = bluetooth_le.radio.as_ref().unwrap();
+        assert_eq!(radio.channel, Some(39));
+        assert_eq!(radio.signal_dbm, Some(-51));
+        assert_eq!(radio.noise_dbm, Some(-91));
+    }
+
+    #[test]
+    fn parser_omits_bluetooth_le_measurements_marked_invalid() {
+        let mut fields = bluetooth_le_row()
+            .split('\t')
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        fields[BLUETOOTH_LE_SIGNAL_VALID_INDEX] = "False".into();
+        fields[BLUETOOTH_LE_NOISE_VALID_INDEX] = "False".into();
+
+        let parsed = parse_rows(format!("{}\n", fields.join("\t")).as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.quarantines.is_empty());
+        let radio = parsed.packets[0]
+            .bluetooth_le
+            .as_ref()
+            .unwrap()
+            .radio
+            .as_ref()
+            .unwrap();
+        assert_eq!(radio.channel, Some(39));
+        assert_eq!(radio.signal_dbm, None);
+        assert_eq!(radio.noise_dbm, None);
+    }
+
+    #[test]
+    fn inconsistent_bluetooth_le_validity_is_quarantined() {
+        let mutate = |index: usize, value: &str| {
+            let mut fields = bluetooth_le_row()
+                .split('\t')
+                .map(str::to_owned)
+                .collect::<Vec<_>>();
+            fields[index] = value.into();
+            fields.join("\t")
+        };
+        let rows = [
+            mutate(BLUETOOTH_LE_SIGNAL_VALID_INDEX, ""),
+            mutate(BLUETOOTH_LE_CRC_VALID_INDEX, ""),
+            {
+                let mut fields = bluetooth_le_row()
+                    .split('\t')
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>();
+                fields[BLUETOOTH_LE_CRC_CHECKED_INDEX] = "False".into();
+                fields.join("\t")
+            },
+        ];
+
+        let parsed = parse_rows(format!("{}\n", rows.join("\n")).as_bytes(), CAPTURE_ID);
+
+        assert!(parsed.packets.is_empty());
+        assert_eq!(parsed.quarantines.len(), 3);
+        assert!(parsed.quarantines[0]
+            .reason
+            .contains("exists without btle_rf.flags.signal_dbm_valid"));
+        assert!(parsed.quarantines[1]
+            .reason
+            .contains("checked without a validity result"));
+        assert!(parsed.quarantines[2]
+            .reason
+            .contains("validity exists without a checked CRC"));
     }
 
     #[test]

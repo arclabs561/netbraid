@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import public_corpus_bluetooth_le as bluetooth_le_eval
+
 MIB = 1024 * 1024
 MANIFEST_SCHEMA = "netbraid.public_corpus_slices.v0"
 REPORT_SCHEMA = "netbraid.public_corpus_eval.v1"
@@ -35,6 +37,7 @@ IEEE802154_BASE_ORACLE_KEYS = {
     "fcs",
 }
 IEEE802154_RECORD_ORACLE_KEY = "preserved_6lowpan_decoded_ipv6"
+
 IEEE802154_LIMITATIONS = [
     "aggregate over validated PacketEnvelopeV0.ieee802154 evidence; no raw DLT decoding",
     "complete_capture applies to normalization completeness, not continuous RF observation",
@@ -280,6 +283,17 @@ def contains_forbidden_ieee802154_key(value: Any) -> bool:
     return False
 
 
+def validate_bluetooth_le_oracle(
+    expectation: Any, packet_limit: Any, case_id: str
+) -> None:
+    try:
+        bluetooth_le_eval.validate_bluetooth_le_oracle(
+            expectation, packet_limit, case_id
+        )
+    except bluetooth_le_eval.BluetoothLeEvaluationError as error:
+        raise EvaluationError(error.stage, error.case) from None
+
+
 def read_bounded(path: Path, limit: int, stage: str) -> bytes:
     try:
         if path.is_symlink() or not path.is_file():
@@ -368,7 +382,7 @@ def validate_manifest(
         case_id = case.get("id")
         mode = case.get("mode")
         expected_keys = {"archive", "expect", "id", "member", "mode"}
-        if mode in {"netbraid-wlan", "netbraid-ieee802154"}:
+        if mode in {"netbraid-wlan", "netbraid-ieee802154", "netbraid-bluetooth-le"}:
             expected_keys.add("packet_limit")
             if mode == "netbraid-wlan" and "reference" in case:
                 expected_keys.add("reference")
@@ -378,7 +392,13 @@ def validate_manifest(
             or not case_id
             or case_id in case_ids
             or case.get("archive") not in archives
-            or mode not in {"netbraid-wlan", "netbraid-ieee802154", "structured-json"}
+            or mode
+            not in {
+                "netbraid-wlan",
+                "netbraid-ieee802154",
+                "netbraid-bluetooth-le",
+                "structured-json",
+            }
         ):
             raise EvaluationError("case_shape", case_id)
         case_ids.add(case_id)
@@ -427,7 +447,11 @@ def validate_manifest(
             total_bytes += reference_member["bytes"]
         if total_bytes > MAX_TOTAL_MEMBER_BYTES:
             raise EvaluationError("total_member_bytes")
-        if mode in {"netbraid-wlan", "netbraid-ieee802154"} and (
+        if mode in {
+            "netbraid-wlan",
+            "netbraid-ieee802154",
+            "netbraid-bluetooth-le",
+        } and (
             not isinstance(case["packet_limit"], int)
             or not 1 <= case["packet_limit"] <= 100_000
         ):
@@ -445,6 +469,8 @@ def validate_manifest(
                 raise EvaluationError("expectation", case_id)
         elif mode == "netbraid-ieee802154":
             validate_ieee802154_oracle(case["expect"], case["packet_limit"], case_id)
+        elif mode == "netbraid-bluetooth-le":
+            validate_bluetooth_le_oracle(case["expect"], case["packet_limit"], case_id)
         elif set(case["expect"]) != {"top_level_keys"} or not all(
             isinstance(key, str) for key in case["expect"]["top_level_keys"]
         ):
@@ -652,7 +678,9 @@ def run_ieee802154_driver(binary: Path, extracted: ExtractedCase) -> bytes:
     return completed.stdout
 
 
-def run_ieee802154_records_driver(binary: Path, extracted: ExtractedCase) -> bytes:
+def run_records_driver(
+    binary: Path, extracted: ExtractedCase, error_stage: str
+) -> bytes:
     case = extracted.case
     case_id = case["id"]
     argv = [
@@ -671,14 +699,14 @@ def run_ieee802154_records_driver(binary: Path, extracted: ExtractedCase) -> byt
             timeout=TOOL_TIMEOUT_S,
         )
     except (OSError, subprocess.TimeoutExpired):
-        raise EvaluationError("ieee802154_records_execution", case_id) from None
+        raise EvaluationError(error_stage, case_id) from None
     if (
         completed.returncode != 0
         or completed.stderr
         or not completed.stdout
         or len(completed.stdout) > MAX_TOOL_OUTPUT_BYTES
     ):
-        raise EvaluationError("ieee802154_records_execution", case_id)
+        raise EvaluationError(error_stage, case_id)
     return completed.stdout
 
 
@@ -745,26 +773,24 @@ def parse_ieee802154_output(data: bytes, extracted: ExtractedCase) -> dict[str, 
     return document
 
 
-def parse_ieee802154_records_output(
-    data: bytes, extracted: ExtractedCase
-) -> dict[str, Any]:
+def parse_records_documents(
+    data: bytes, extracted: ExtractedCase, mode: str
+) -> tuple[list[Any], dict[str, Any], str]:
     case = extracted.case
     case_id = case["id"]
     if not data.endswith(b"\n"):
-        raise EvaluationError("ieee802154_records_shape", case_id)
+        raise EvaluationError(f"{mode}_records_shape", case_id)
     lines = data.splitlines()
     if len(lines) < 2:
-        raise EvaluationError("ieee802154_records_shape", case_id)
-    documents = [
-        strict_json(line, "ieee802154_records_json", case_id) for line in lines
-    ]
+        raise EvaluationError(f"{mode}_records_shape", case_id)
+    documents = [strict_json(line, f"{mode}_records_json", case_id) for line in lines]
     canonical = b"".join(
         json.dumps(document, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         + b"\n"
         for document in documents
     )
     if data != canonical:
-        raise EvaluationError("ieee802154_records_canonical", case_id)
+        raise EvaluationError(f"{mode}_records_canonical", case_id)
 
     manifest = documents[0]
     expected_capture_id = f"sha256:{case['member']['sha256']}"
@@ -778,7 +804,17 @@ def parse_ieee802154_records_output(
             "size_bytes": case["member"]["bytes"],
         }
     ):
-        raise EvaluationError("ieee802154_records_source", case_id)
+        raise EvaluationError(f"{mode}_records_source", case_id)
+    return documents, manifest, expected_capture_id
+
+
+def parse_ieee802154_records_output(
+    data: bytes, extracted: ExtractedCase
+) -> dict[str, Any]:
+    case_id = extracted.case["id"]
+    documents, _, expected_capture_id = parse_records_documents(
+        data, extracted, "ieee802154"
+    )
 
     packet_envelopes = 0
     packet_quarantines = 0
@@ -826,6 +862,17 @@ def parse_ieee802154_records_output(
             "total_length_exceeds_frame": length_exceeds_frame
         },
     }
+
+
+def parse_bluetooth_le_records_output(
+    data: bytes, extracted: ExtractedCase
+) -> dict[str, Any]:
+    try:
+        return bluetooth_le_eval.parse_bluetooth_le_records_output(
+            data, extracted, parse_records_documents
+        )
+    except bluetooth_le_eval.BluetoothLeEvaluationError as error:
+        raise EvaluationError(error.stage, error.case) from None
 
 
 def require_preserved_inputs(cases: list[ExtractedCase]) -> None:
@@ -1306,10 +1353,16 @@ def evaluate(
                     (
                         extracted,
                         executor.submit(
-                            run_ieee802154_records_driver, binary, extracted
+                            run_records_driver,
+                            binary,
+                            extracted,
+                            "ieee802154_records_execution",
                         ),
                         executor.submit(
-                            run_ieee802154_records_driver, binary, extracted
+                            run_records_driver,
+                            binary,
+                            extracted,
+                            "ieee802154_records_execution",
                         ),
                     )
                     for extracted in record_cases
@@ -1324,6 +1377,44 @@ def evaluate(
                     ieee802154_records_by_case[extracted.case["id"]] = (
                         parse_ieee802154_records_output(first, extracted)
                     )
+        bluetooth_le_cases = [
+            extracted
+            for extracted in extracted_cases
+            if extracted.case["mode"] == "netbraid-bluetooth-le"
+        ]
+        bluetooth_le_by_case = {}
+        if bluetooth_le_cases:
+            with ThreadPoolExecutor(
+                max_workers=min(case_workers, len(bluetooth_le_cases) * 2)
+            ) as executor:
+                executions = [
+                    (
+                        extracted,
+                        executor.submit(
+                            run_records_driver,
+                            binary,
+                            extracted,
+                            "bluetooth_le_records_execution",
+                        ),
+                        executor.submit(
+                            run_records_driver,
+                            binary,
+                            extracted,
+                            "bluetooth_le_records_execution",
+                        ),
+                    )
+                    for extracted in bluetooth_le_cases
+                ]
+                for extracted, first_execution, second_execution in executions:
+                    first = first_execution.result()
+                    second = second_execution.result()
+                    if first != second:
+                        raise EvaluationError(
+                            "bluetooth_le_records_determinism", extracted.case["id"]
+                        )
+                    bluetooth_le_by_case[extracted.case["id"]] = (
+                        parse_bluetooth_le_records_output(first, extracted)
+                    )
         require_preserved_inputs(extracted_cases)
 
         for extracted in extracted_cases:
@@ -1332,6 +1423,10 @@ def evaluate(
             elif extracted.case["mode"] == "netbraid-wlan":
                 passed, result = evaluate_packet_case(
                     extracted, fingerprints_by_case[extracted.case["id"]]
+                )
+            elif extracted.case["mode"] == "netbraid-bluetooth-le":
+                passed, result = bluetooth_le_eval.evaluate_case(
+                    extracted, bluetooth_le_by_case[extracted.case["id"]]
                 )
             else:
                 passed, result = evaluate_ieee802154_case(

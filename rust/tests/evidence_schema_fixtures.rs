@@ -16,6 +16,7 @@ fn v0_fixture_inventory_is_exact_pretty_and_valid() {
         "capture_manifest_v0.json",
         "capture_run_receipt_v0.json",
         "host_path_observation_v0.json",
+        "packet_envelope_bluetooth_le_v0.json",
         "packet_envelope_v0.json",
         "packet_envelope_wlan_v0.json",
         "packet_quarantine_v0.json",
@@ -27,17 +28,20 @@ fn v0_fixture_inventory_is_exact_pretty_and_valid() {
     actual.sort();
     assert_eq!(actual, expected);
 
-    let host_path = read_fixture::<HostPathObservationV0>(expected[2]);
+    let host_path = read_fixture::<HostPathObservationV0>("host_path_observation_v0.json");
     host_path.validate().unwrap();
-    let manifest = read_fixture::<CaptureManifestV0>(expected[0]);
+    let manifest = read_fixture::<CaptureManifestV0>("capture_manifest_v0.json");
     manifest.validate().unwrap();
-    let receipt = read_fixture::<CaptureRunReceiptV0>(expected[1]);
+    let receipt = read_fixture::<CaptureRunReceiptV0>("capture_run_receipt_v0.json");
     receipt.validate().unwrap();
-    let packet = read_fixture::<PacketEnvelopeV0>(expected[3]);
+    let packet = read_fixture::<PacketEnvelopeV0>("packet_envelope_v0.json");
     packet.validate().unwrap();
-    let wireless_packet = read_fixture::<PacketEnvelopeV0>(expected[4]);
+    let bluetooth_le_packet =
+        read_fixture::<PacketEnvelopeV0>("packet_envelope_bluetooth_le_v0.json");
+    bluetooth_le_packet.validate().unwrap();
+    let wireless_packet = read_fixture::<PacketEnvelopeV0>("packet_envelope_wlan_v0.json");
     wireless_packet.validate().unwrap();
-    let quarantine = read_fixture::<PacketQuarantineV0>(expected[5]);
+    let quarantine = read_fixture::<PacketQuarantineV0>("packet_quarantine_v0.json");
     quarantine.validate().unwrap();
 }
 

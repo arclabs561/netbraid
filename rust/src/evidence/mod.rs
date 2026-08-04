@@ -14,13 +14,14 @@ pub(crate) mod digest;
 mod iq;
 
 pub use capture::{
-    CaptureArtifactRefV0, CaptureExtractorRefV0, CaptureFileMetadataV0, CaptureManifestV0,
-    CaptureNormalizationV0, CaptureRunReceiptV0, CaptureValidationError, EthernetFieldsV0,
-    Ieee80211FieldsV0, Ieee802154AddressV0, Ieee802154FcsStatusV0, Ieee802154FieldsV0,
-    Ipv4FieldsV0, Ipv6FieldsV0, NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0,
-    PacketQuarantineV0, TcpFieldsV0, ToolRunReceiptV0, UdpFieldsV0, WlanRadioFieldsV0,
-    CAPTURE_MANIFEST_SCHEMA_V0, CAPTURE_RUN_RECEIPT_SCHEMA_V0,
-    NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0, PACKET_QUARANTINE_SCHEMA_V0,
+    BluetoothLeCrcStatusV0, BluetoothLeFieldsV0, BluetoothLeRadioFieldsV0, CaptureArtifactRefV0,
+    CaptureExtractorRefV0, CaptureFileMetadataV0, CaptureManifestV0, CaptureNormalizationV0,
+    CaptureRunReceiptV0, CaptureValidationError, EthernetFieldsV0, Ieee80211FieldsV0,
+    Ieee802154AddressV0, Ieee802154FcsStatusV0, Ieee802154FieldsV0, Ipv4FieldsV0, Ipv6FieldsV0,
+    NormalizationStateV0, PacketEnvelopeV0, PacketFrameV0, PacketQuarantineV0, TcpFieldsV0,
+    ToolRunReceiptV0, UdpFieldsV0, WlanRadioFieldsV0, CAPTURE_MANIFEST_SCHEMA_V0,
+    CAPTURE_RUN_RECEIPT_SCHEMA_V0, NORMALIZED_RECORDS_DIGEST_PROFILE_V0, PACKET_ENVELOPE_SCHEMA_V0,
+    PACKET_QUARANTINE_SCHEMA_V0,
 };
 #[cfg(feature = "adapter-sigmf")]
 pub use iq::{
