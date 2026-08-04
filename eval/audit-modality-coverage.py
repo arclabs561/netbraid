@@ -190,6 +190,11 @@ def build_report(path: Path = DEFAULT_REGISTRY) -> dict[str, Any]:
             for surface in surfaces
             if surface["scope"] == "multimodal_fusion"
         ),
+        "cross_modality_surfaces": sorted(
+            surface["id"]
+            for surface in surfaces
+            if surface["scope"] == "cross_modality"
+        ),
         "alignment_surfaces": sorted(
             surface["id"]
             for surface in surfaces

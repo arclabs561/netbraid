@@ -31,7 +31,9 @@ class ModalityCoverageTests(unittest.TestCase):
         self.assertEqual(
             by_id["sub-ghz-technology-recognition"]["readiness"], "candidate"
         )
-        self.assertEqual(by_id["xrf55-event-fusion"]["scope"], "multimodal_fusion")
+        self.assertEqual(
+            by_id["xrf55-cross-modal-retrieval"]["scope"], "cross_modality"
+        )
         self.assertEqual(
             by_id["sdr4iot-layer-alignment"]["scope"],
             "cross_representation_alignment",
@@ -47,7 +49,11 @@ class ModalityCoverageTests(unittest.TestCase):
         self.assertEqual(report["readiness"]["candidate"], 2)
         self.assertIn("ieee80211ah", report["technologies"])
         self.assertIn("signal_iq", report["representations"])
-        self.assertEqual(report["fusion_surfaces"], ["xrf55-event-fusion"])
+        self.assertEqual(report["fusion_surfaces"], [])
+        self.assertEqual(
+            report["cross_modality_surfaces"],
+            ["sub-ghz-technology-recognition", "xrf55-cross-modal-retrieval"],
+        )
         self.assertEqual(report["alignment_surfaces"], ["sdr4iot-layer-alignment"])
 
     def test_duplicate_keys_and_unbound_candidate_fail_closed(self):

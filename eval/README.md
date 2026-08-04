@@ -13,7 +13,8 @@ This directory contains executable measurements of Netbraid behavior.
 registry keeps radio technology, carrier regime, representation, observation
 level, and evaluation readiness on separate axes. A downloaded or profiled
 corpus is not counted as an evaluated surface, and cross-technology
-classification is not counted as synchronized fusion. Cross-representation
+classification or directional cross-modal retrieval is not counted as
+synchronized fusion. Cross-representation
 alignment is also tracked separately: matching packet, table, and signal rows
 does not itself combine their evidence into a claim.
 
