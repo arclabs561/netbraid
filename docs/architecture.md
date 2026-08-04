@@ -83,11 +83,13 @@ Inference is a collection of explicit reducers, not one open-ended engine. The
 packet same-event, saved-PCAP packet-shape, and counter/capture families each
 retain two substantive alternatives plus unknown, record their decision basis
 and limitations, and can recompute an assessment against the exact evidence it
-cites. Each proven family can also project an evidence-linked finite claim: a
-canonical list of source roles, source schemas, source identifiers, and content
-digests around the same finite projection. The nested projection remains the
-identifier-free view; the claim retains references rather than raw evidence or
-the family-specific decision basis. The saved-PCAP family content-binds complete
+cites. Each proven family can also project an evidence-linked finite claim after
+recomputing the assessment from the caller-supplied source values: a canonical
+list of source roles, source schemas, source identifiers, and content digests
+around the same finite projection. A mismatched reference fails before claim
+construction. The nested projection remains the identifier-free view; the claim
+retains references rather than raw evidence or the family-specific decision
+basis. The saved-PCAP family content-binds complete
 fingerprint candidates and lifts corroborated, conflicting, and not-comparable
 lower comparisons to same packet shape, different packet shape, and unknown
 respectively. Those shape alternatives do not imply event, capture, device,

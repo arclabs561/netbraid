@@ -77,7 +77,7 @@ fn public_same_event_family_obeys_finite_hypothesis_law() {
         .project_finite_hypotheses_v0()
         .expect("valid finite projection");
     let claim = result
-        .project_finite_hypothesis_claim_v0()
+        .project_finite_hypothesis_claim_v0((&left, &right))
         .expect("valid finite claim");
 
     assert_eq!(
@@ -159,7 +159,9 @@ fn public_counter_capture_family_obeys_finite_hypothesis_law() {
     .unwrap();
 
     let result = assess_counter_capture_v0(&counter, &capture, &profile).unwrap();
-    let claim = result.project_finite_hypothesis_claim_v0().unwrap();
+    let claim = result
+        .project_finite_hypothesis_claim_v0((&counter, &capture, &profile))
+        .unwrap();
 
     assert_eq!(
         result.reference,

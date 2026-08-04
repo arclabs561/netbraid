@@ -1,11 +1,13 @@
 use serde::Serialize;
 
-use crate::evidence::PACKET_ENVELOPE_SCHEMA_V0;
+use crate::evidence::{PacketEnvelopeV0, PACKET_ENVELOPE_SCHEMA_V0};
 use crate::infer::{
-    CounterCaptureDispositionV0, CounterCaptureHypothesisSetV0, CounterCaptureValidationErrorV0,
-    PacketSameEventDispositionV0, PacketSameEventHypothesisSetV0, PacketSameEventValidationErrorV0,
-    SavedPcapFingerprintDispositionV0, SavedPcapFingerprintHypothesisSetV0,
-    SavedPcapFingerprintValidationErrorV0,
+    CounterCaptureDispositionV0, CounterCaptureErrorV0, CounterCaptureHypothesisSetV0,
+    CounterCaptureProfileV0, CounterCaptureValidationErrorV0, PacketSameEventDispositionV0,
+    PacketSameEventErrorV0, PacketSameEventHypothesisSetV0, PacketSameEventValidationErrorV0,
+    SavedPcapFingerprintCandidateV0, SavedPcapFingerprintDispositionV0,
+    SavedPcapFingerprintErrorV0, SavedPcapFingerprintHypothesisSetV0,
+    SavedPcapFingerprintValidationErrorV0, TrafficWindowEvidenceV0,
 };
 
 pub const FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0: &str = "netbraid.finite_hypothesis_projection.v0";
@@ -16,7 +18,6 @@ const MAX_ALTERNATIVES: usize = 64;
 const MAX_IDENTIFIER_LEN: usize = 128;
 const MAX_INPUTS: usize = 64;
 const MAX_ROLE_LEN: usize = 64;
-const MAX_SOURCE_ID_LEN: usize = 512;
 
 /// Source-neutral disposition of one retained finite alternative.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -190,10 +191,7 @@ impl FiniteHypothesisInputRefV0 {
             return Err(FiniteHypothesisClaimErrorV0::InvalidInputSourceSchema);
         }
         let source_id = source_id.into();
-        if source_id.is_empty()
-            || source_id.len() > MAX_SOURCE_ID_LEN
-            || source_id.chars().any(char::is_control)
-        {
+        if source_id.is_empty() {
             return Err(FiniteHypothesisClaimErrorV0::InvalidInputSourceId);
         }
         let content_sha256 = content_sha256.into();
@@ -274,10 +272,13 @@ impl FiniteHypothesisClaimV0 {
 }
 
 /// Failure to bind a finite projection to canonical content references.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum FiniteHypothesisClaimErrorV0 {
     InvalidProjection(FiniteHypothesisProjectionErrorV0),
+    InvalidCounterCaptureResolution(CounterCaptureErrorV0),
+    InvalidPacketSameEventResolution(PacketSameEventErrorV0),
+    InvalidSavedPcapFingerprintResolution(SavedPcapFingerprintErrorV0),
     InvalidInputRole,
     InvalidInputSourceSchema,
     InvalidInputSourceId,
@@ -292,6 +293,21 @@ impl std::fmt::Display for FiniteHypothesisClaimErrorV0 {
         match self {
             Self::InvalidProjection(source) => {
                 write!(formatter, "invalid finite projection: {source}")
+            }
+            Self::InvalidCounterCaptureResolution(source) => {
+                write!(
+                    formatter,
+                    "invalid resolved counter/capture claim: {source}"
+                )
+            }
+            Self::InvalidPacketSameEventResolution(source) => {
+                write!(
+                    formatter,
+                    "invalid resolved packet same-event claim: {source}"
+                )
+            }
+            Self::InvalidSavedPcapFingerprintResolution(source) => {
+                write!(formatter, "invalid resolved saved-PCAP claim: {source}")
             }
             Self::InvalidInputRole => formatter.write_str("invalid finite-hypothesis input role"),
             Self::InvalidInputSourceSchema => {
@@ -318,6 +334,9 @@ impl std::error::Error for FiniteHypothesisClaimErrorV0 {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::InvalidProjection(source) => Some(source),
+            Self::InvalidCounterCaptureResolution(source) => Some(source),
+            Self::InvalidPacketSameEventResolution(source) => Some(source),
+            Self::InvalidSavedPcapFingerprintResolution(source) => Some(source),
             _ => None,
         }
     }
@@ -432,8 +451,11 @@ pub trait ProjectFiniteHypothesesV0: private::Sealed {
 /// basis. Its nested projection is exactly the result of
 /// [`ProjectFiniteHypothesesV0::project_finite_hypotheses_v0`].
 pub trait ProjectFiniteHypothesisClaimV0: private::Sealed {
+    type Inputs<'a>;
+
     fn project_finite_hypothesis_claim_v0(
         &self,
+        inputs: Self::Inputs<'_>,
     ) -> Result<FiniteHypothesisClaimV0, FiniteHypothesisClaimErrorV0>;
 }
 
@@ -528,9 +550,18 @@ impl ProjectFiniteHypothesesV0 for SavedPcapFingerprintHypothesisSetV0 {
 }
 
 impl ProjectFiniteHypothesisClaimV0 for CounterCaptureHypothesisSetV0 {
+    type Inputs<'a> = (
+        &'a TrafficWindowEvidenceV0,
+        &'a TrafficWindowEvidenceV0,
+        &'a CounterCaptureProfileV0,
+    );
+
     fn project_finite_hypothesis_claim_v0(
         &self,
+        (counter, capture, profile): Self::Inputs<'_>,
     ) -> Result<FiniteHypothesisClaimV0, FiniteHypothesisClaimErrorV0> {
+        self.validate_against(counter, capture, profile)
+            .map_err(FiniteHypothesisClaimErrorV0::InvalidCounterCaptureResolution)?;
         let projection = self
             .project_finite_hypotheses_v0()
             .map_err(FiniteHypothesisClaimErrorV0::InvalidProjection)?;
@@ -559,9 +590,14 @@ impl ProjectFiniteHypothesisClaimV0 for CounterCaptureHypothesisSetV0 {
 }
 
 impl ProjectFiniteHypothesisClaimV0 for PacketSameEventHypothesisSetV0 {
+    type Inputs<'a> = (&'a PacketEnvelopeV0, &'a PacketEnvelopeV0);
+
     fn project_finite_hypothesis_claim_v0(
         &self,
+        (left, right): Self::Inputs<'_>,
     ) -> Result<FiniteHypothesisClaimV0, FiniteHypothesisClaimErrorV0> {
+        self.validate_against(left, right)
+            .map_err(FiniteHypothesisClaimErrorV0::InvalidPacketSameEventResolution)?;
         let projection = self
             .project_finite_hypotheses_v0()
             .map_err(FiniteHypothesisClaimErrorV0::InvalidProjection)?;
@@ -584,9 +620,17 @@ impl ProjectFiniteHypothesisClaimV0 for PacketSameEventHypothesisSetV0 {
 }
 
 impl ProjectFiniteHypothesisClaimV0 for SavedPcapFingerprintHypothesisSetV0 {
+    type Inputs<'a> = (
+        &'a SavedPcapFingerprintCandidateV0,
+        &'a SavedPcapFingerprintCandidateV0,
+    );
+
     fn project_finite_hypothesis_claim_v0(
         &self,
+        (left, right): Self::Inputs<'_>,
     ) -> Result<FiniteHypothesisClaimV0, FiniteHypothesisClaimErrorV0> {
+        self.validate_against(left, right)
+            .map_err(FiniteHypothesisClaimErrorV0::InvalidSavedPcapFingerprintResolution)?;
         let projection = self
             .project_finite_hypotheses_v0()
             .map_err(FiniteHypothesisClaimErrorV0::InvalidProjection)?;
@@ -810,7 +854,7 @@ mod tests {
 
     #[test]
     fn claim_inputs_fail_closed_when_malformed_or_noncanonical() {
-        assert_eq!(
+        assert!(matches!(
             FiniteHypothesisInputRefV0::try_new(
                 "left",
                 "netbraid.test_input.v0",
@@ -818,8 +862,8 @@ mod tests {
                 "A".repeat(64),
             ),
             Err(FiniteHypothesisClaimErrorV0::InvalidInputContentSha256)
-        );
-        assert_eq!(
+        ));
+        assert!(matches!(
             FiniteHypothesisInputRefV0::try_new(
                 "left",
                 "Invalid Schema",
@@ -827,25 +871,25 @@ mod tests {
                 "a".repeat(64),
             ),
             Err(FiniteHypothesisClaimErrorV0::InvalidInputSourceSchema)
-        );
-        assert_eq!(
+        ));
+        assert!(matches!(
             FiniteHypothesisClaimV0::try_new(
                 fixture_projection(),
                 vec![input("left"), input("left")],
             ),
             Err(FiniteHypothesisClaimErrorV0::DuplicateInputRole)
-        );
-        assert_eq!(
+        ));
+        assert!(matches!(
             FiniteHypothesisClaimV0::try_new(
                 fixture_projection(),
                 vec![input("right"), input("left")],
             ),
             Err(FiniteHypothesisClaimErrorV0::NonCanonicalInputOrder)
-        );
-        assert_eq!(
+        ));
+        assert!(matches!(
             FiniteHypothesisClaimV0::try_new(fixture_projection(), vec![input("left")]),
             Err(FiniteHypothesisClaimErrorV0::InvalidInputCount)
-        );
+        ));
     }
 
     #[test]
@@ -857,7 +901,7 @@ mod tests {
         right_packet.record_id = format!("{}:frame:1", right_packet.capture_id);
         let packet_assessment = assess_packet_same_event_v0(&left_packet, &right_packet).unwrap();
         let packet_claim = packet_assessment
-            .project_finite_hypothesis_claim_v0()
+            .project_finite_hypothesis_claim_v0((&left_packet, &right_packet))
             .unwrap();
         assert_eq!(
             packet_claim.projection(),
@@ -880,7 +924,7 @@ mod tests {
         right_packet.frame.original_len += 1;
         let changed_claim = assess_packet_same_event_v0(&left_packet, &right_packet)
             .unwrap()
-            .project_finite_hypothesis_claim_v0()
+            .project_finite_hypothesis_claim_v0((&left_packet, &right_packet))
             .unwrap();
         assert_ne!(
             changed_claim.inputs()[1].content_sha256(),
@@ -899,7 +943,7 @@ mod tests {
         .unwrap();
         let counter_assessment = assess_counter_capture_v0(&counter, &capture, &profile).unwrap();
         let counter_claim = counter_assessment
-            .project_finite_hypothesis_claim_v0()
+            .project_finite_hypothesis_claim_v0((&counter, &capture, &profile))
             .unwrap();
         assert_eq!(
             counter_claim
@@ -917,7 +961,7 @@ mod tests {
         let fingerprint_assessment =
             assess_saved_pcap_fingerprint_v0(&left_candidate, &right_candidate).unwrap();
         let fingerprint_claim = fingerprint_assessment
-            .project_finite_hypothesis_claim_v0()
+            .project_finite_hypothesis_claim_v0((&left_candidate, &right_candidate))
             .unwrap();
         assert_eq!(
             fingerprint_claim
@@ -956,6 +1000,45 @@ mod tests {
                 assert!(!encoded.contains(forbidden), "unexpected field {forbidden}");
             }
         }
+    }
+
+    #[test]
+    fn claim_projection_resolves_content_and_preserves_family_id_contracts() {
+        let left = packet();
+        let mut right = packet();
+        right.capture_id =
+            "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789".into();
+        right.record_id = format!("{}:frame:1", right.capture_id);
+        let mut forged = assess_packet_same_event_v0(&left, &right).unwrap();
+        forged.left.envelope_sha256 = "b".repeat(64);
+        assert!(forged.project_finite_hypotheses_v0().is_ok());
+        assert!(matches!(
+            forged.project_finite_hypothesis_claim_v0((&left, &right)),
+            Err(
+                FiniteHypothesisClaimErrorV0::InvalidPacketSameEventResolution(
+                    PacketSameEventErrorV0::InternalInvariant(
+                        PacketSameEventValidationErrorV0::ResolvedContentMismatch
+                    )
+                )
+            )
+        ));
+
+        let long_id = "counter:".to_owned() + &"x".repeat(600);
+        let window = TrafficWindowV0::new(1_000, 1_200, 400, 12, 4).unwrap();
+        let counter = TrafficWindowEvidenceV0::declared_complete(&long_id, window);
+        let capture = TrafficWindowEvidenceV0::declared_complete("capture:long-id", window);
+        let profile = CounterCaptureProfileV0::new(
+            "profile:long-id",
+            CounterCaptureScaleVectorPpbV0::from_values([50_000_000; 10]),
+            0,
+            1,
+        )
+        .unwrap();
+        let claim = assess_counter_capture_v0(&counter, &capture, &profile)
+            .unwrap()
+            .project_finite_hypothesis_claim_v0((&counter, &capture, &profile))
+            .unwrap();
+        assert_eq!(claim.inputs()[2].source_id(), long_id);
     }
 
     #[test]
@@ -1041,10 +1124,16 @@ mod tests {
                 .and_then(|source| source.downcast_ref::<PacketSameEventValidationErrorV0>()),
             Some(&PacketSameEventValidationErrorV0::UnexpectedLimitations)
         );
-        assert_eq!(
-            assessment.project_finite_hypothesis_claim_v0(),
-            Err(FiniteHypothesisClaimErrorV0::InvalidProjection(error))
-        );
+        assert!(matches!(
+            assessment.project_finite_hypothesis_claim_v0((&packet(), &right)),
+            Err(
+                FiniteHypothesisClaimErrorV0::InvalidPacketSameEventResolution(
+                    PacketSameEventErrorV0::InternalInvariant(
+                        PacketSameEventValidationErrorV0::UnexpectedLimitations
+                    )
+                )
+            )
+        ));
 
         let window = TrafficWindowV0::new(1_000, 1_200, 400, 12, 4).unwrap();
         let counter = TrafficWindowEvidenceV0::declared_complete("counter:projection:0", window);
