@@ -277,6 +277,14 @@ names, paths, storage details, byte counts, digests, pair IDs, and condition
 labels are absent. The cache is an input boundary for later evals, not a
 detector or a train/test assignment.
 
+`evaluate-mmwave-jamming-receiver-crossfit.py` joins that cache to the
+separate oracle and scores every matched pair once while its receiver group is
+held out. A fixed five-feature nearest-centroid baseline is fitted only on the
+other three receiver groups. The primary result is within-pair score ordering
+with an exact sign test; thresholded row metrics remain secondary. Because the
+cache coordinates are derived jointly within each matched pair, this measures
+paired corpus discrimination rather than standalone or live detection.
+
 `compile-indoor-jamming-oracles.py` binds the publisher workbook to the exact
 three HDF5 datasets in each of 31 MAT files. It reads dataset metadata but no
 dataset elements, producing 93 opaque condition segments with file, setup,

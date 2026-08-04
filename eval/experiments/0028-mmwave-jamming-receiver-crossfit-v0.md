@@ -60,5 +60,6 @@ Not executed.
 
 Pending. A passing result would support only coarse-grid discrimination across
 receiver elements in this campaign. It would not be external validation or a
-claim about live detection, independent hardware, sessions, sites, physical
-identity, tamper, or malicious intent.
+standalone or live detector: the grid coordinates are derived jointly within
+each matched pair. It would not support claims about independent hardware,
+sessions, sites, physical identity, tamper, or malicious intent.

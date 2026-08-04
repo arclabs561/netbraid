@@ -199,6 +199,20 @@
       "recipe": "mmwave-jamming-paired-grid"
     },
     {
+      "path": "data/derived/eval/mmwave-jamming-receiver-crossfit-report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-mmwave-jamming-receiver-crossfit.py",
+      "recipe": "mmwave-jamming-receiver-crossfit"
+    },
+    {
+      "path": "data/derived/eval/mmwave-jamming-receiver-crossfit-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-mmwave-jamming-receiver-crossfit.py",
+      "recipe": "mmwave-jamming-receiver-crossfit"
+    },
+    {
       "path": "data/derived/eval/netslab-alignment-profile-repeat.json",
       "format": "json",
       "retention": "reproducibility_output",
