@@ -51,6 +51,34 @@ links for reassembly, encapsulation, duplicate observations, and attribution.
 It rejects both a universal superclass hierarchy and an open-ended graph/RDF
 engine: reducers and relation vocabularies remain finite Rust contracts.
 
+## Keep probabilistic machinery private and claims family-specific
+
+Finite relation families may use a private typed factor graph when independent
+per-record decisions would lose split, merge, or shared-evidence structure.
+Candidate admission remains a deterministic family rule. Factors state whether
+they are heuristics, deterministic constraints, priors, or likelihoods, and
+carry their direct evidence and dependence declarations.
+
+The first solver enumerates bounded connected components. Exact, infeasible,
+and resource-abstained outcomes are separate; a resource refusal does not emit
+partial beliefs as exact output. Heuristic factors yield only model-relative
+normalized belief. They cannot be mixed with probabilistic factors in one
+graph. A future prior or likelihood must cite an immutable model-profile digest,
+while any empirical calibration claim additionally requires a separate
+held-out evaluation receipt.
+
+This does not make the private graph a public relation vocabulary or storage
+model. Public records remain finite and family-specific. In-memory candidate
+indices are not durable evidence identities and cannot be promoted to a
+replayable claim without content-bound source references.
+
+The graph also does not define a universal observation or flow superclass.
+Packet sessions, decoded logs, signal windows, transmissions, conversations,
+and identity candidates retain different admission, coverage, and provenance
+contracts. Each relation family maps only its own finite variables and factors
+into the private solver. Shared mechanics are reused without forcing unlike
+evidence into the packet/Zeek schema.
+
 ## Offline and passive Rust defaults
 
 The Rust CLI reads saved evidence or a regular saved capture. It does not open

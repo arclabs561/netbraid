@@ -18,7 +18,12 @@ saved-PCAP shape, counter/capture correspondence, and RSSI-shift hypotheses.
 Each result is supported, contradicted, or underdetermined and remains linked
 to its inputs. A bounded composition can carry several such claims in canonical
 order, but does not merge their inputs or vote across claim families. Broader
-cross-modal fusion is evaluation work, not a supported claim yet.
+cross-modal claims remain evaluation work.
+
+With the optional Zeek adapter, the library can also build an in-memory
+packet-flow/Zeek candidate graph. It keeps split and merge candidates, then
+reports normalized belief under an explicit heuristic profile. Those values
+are not calibrated probabilities, and the report is not a durable claim.
 
 The CLI reads saved artifacts. The record types can be used by live consumers,
 but Netbraid does not acquire observations or run a service.

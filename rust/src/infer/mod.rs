@@ -1,7 +1,18 @@
 mod composition;
 mod content_relation;
 mod counter_capture;
+#[cfg(any(feature = "adapter-zeek", test))]
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "the private kernel supports factor kinds beyond its first consumer"
+    )
+)]
+mod factor_graph;
 mod hypothesis;
+#[cfg(feature = "adapter-zeek")]
+mod packet_zeek;
 mod rssi_reference_frame;
 
 pub use crate::replay::{
@@ -52,6 +63,14 @@ pub use hypothesis::{
     FiniteHypothesisDispositionV0, FiniteHypothesisInputRefV0, FiniteHypothesisProjectionErrorV0,
     FiniteHypothesisProjectionV0, ProjectFiniteHypothesesV0, ProjectFiniteHypothesisClaimV0,
     FINITE_HYPOTHESIS_CLAIM_SCHEMA_V0, FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0,
+};
+
+#[cfg(feature = "adapter-zeek")]
+pub use packet_zeek::{
+    infer_packet_zeek_correspondence_v0, PacketZeekAbstentionReasonV0,
+    PacketZeekComponentOutcomeV0, PacketZeekComponentResultV0, PacketZeekCorrespondenceErrorV0,
+    PacketZeekCorrespondenceOptionsV0, PacketZeekCorrespondenceReportV0, PacketZeekEdgeBeliefV0,
+    PacketZeekHeuristicProfileV0, PacketZeekInferenceLimitsV0, PACKET_ZEEK_HEURISTIC_PROFILE_V0,
 };
 
 pub use rssi_reference_frame::{

@@ -98,6 +98,21 @@ independent: their co-presence does not establish a shared subject, identity,
 confidence, or cross-family decision. A family omitted from the composition is
 not assessed, which is distinct from that family's explicit unknown result.
 
+The optional packet/Zeek correspondence family is one step before a finite
+claim. It deterministically admits directional five-tuple candidates whose
+closed intervals overlap, preserves split and merge components, and uses a
+private bounded factor graph to combine timing and aggregate-counter
+heuristics. Exact enumeration is component-bounded. A component that exceeds
+its edge or assignment budget abstains without partial edge beliefs. Normalized
+heuristic belief is model-relative rather than calibrated, and the in-memory
+source indices are not replay identifiers.
+
+The factor kernel is source-agnostic, but its adapters are not. Packet/Zeek
+correspondence does not define a common flow interface for signal, packet,
+conversation, source, or identity evidence. A new family keeps its own source
+semantics and contributes only finite variables and factors to the private
+kernel.
+
 The content-relation family compares canonical SHA-256 declarations and keeps
 unavailable digests unknown. Matching declarations do not prove byte equality
 or establish the same object, event, source, device, variant, or identity;
