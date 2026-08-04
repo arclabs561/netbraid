@@ -98,23 +98,26 @@ independent: their co-presence does not establish a shared subject, identity,
 confidence, or cross-family decision. A family omitted from the composition is
 not assessed, which is distinct from that family's explicit unknown result.
 
-The optional packet/Zeek correspondence family is one step before a finite
-claim. It deterministically admits directional five-tuple candidates whose
-closed intervals overlap, preserves split and merge components, and uses a
-private bounded factor graph to combine timing and aggregate-counter
-heuristics. Exact enumeration is component-bounded. A component that exceeds
-its edge bound abstains without partial edge beliefs. If all otherwise eligible
+The packet/flow-record correspondence family is one step before a finite claim.
+It accepts a narrow directional flow-record projection rather than an adapter's
+native type. Candidate admission requires matching TCP/UDP endpoints and
+overlapping closed intervals. Split and merge components remain intact, and a
+private bounded factor graph combines timing and aggregate-counter heuristics.
+Exact enumeration is component-bounded. A component that exceeds its edge
+bound abstains without partial edge beliefs. If all otherwise eligible
 components do not fit the report assignment budget, all of them abstain rather
 than giving priority to identifier order. Packet flows with fallback-only
-orientation and Zeek connections without a duration are not admitted.
-Normalized heuristic belief is model-relative rather than calibrated, and the
-in-memory source indices are not replay identifiers.
+orientation and flow records without a duration are not admitted. Normalized
+heuristic belief is model-relative rather than calibrated, and the in-memory
+source indices are not replay identifiers.
 
-The factor kernel is source-agnostic, but its adapters are not. Packet/Zeek
-correspondence does not define a common flow interface for signal, packet,
-conversation, source, or identity evidence. A new family keeps its own source
-semantics and contributes only finite variables and factors to the private
-kernel.
+The optional Zeek entry point projects retained `conn.log` fields into the
+flow-record contract and preserves its earlier result names. Other adapters can
+project the same timestamp, endpoint, protocol, packet-count, and IP-octet
+semantics without depending on Zeek. This is not a common interface for signal,
+packet, conversation, source, or identity evidence. A new relation family keeps
+its own source semantics and contributes only finite variables and factors to
+the private kernel.
 
 The RSSI shift-explanation family is the second use of that kernel. Its
 variables represent observer-wide and source-wide explanations over the

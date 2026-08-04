@@ -20,10 +20,11 @@ to its inputs. A bounded composition can carry several such claims in canonical
 order, but does not merge their inputs or vote across claim families. Broader
 cross-modal claims remain evaluation work.
 
-With the optional Zeek adapter, the library can also build an in-memory
-packet-flow/Zeek candidate graph. It keeps split and merge candidates, then
-reports normalized belief under an explicit heuristic profile. Those values
-are not calibrated probabilities, and the report is not a durable claim.
+The library can also build an in-memory candidate graph between packet-derived
+flows and a narrow flow-record type. It keeps split and merge candidates, then
+reports normalized belief under an explicit heuristic profile. The optional
+Zeek adapter projects `conn.log` rows into that same input type. The values are
+not calibrated probabilities, and the report is not a durable claim.
 
 The same private inference machinery is used by a separate RSSI family. It
 compares baseline and recent observer/source links, keeps stable links as

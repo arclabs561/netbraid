@@ -10,6 +10,7 @@ mod counter_capture;
 )]
 mod factor_graph;
 mod hypothesis;
+mod packet_flow_correspondence;
 #[cfg(feature = "adapter-zeek")]
 mod packet_zeek;
 mod rssi_reference_frame;
@@ -63,6 +64,16 @@ pub use hypothesis::{
     FiniteHypothesisDispositionV0, FiniteHypothesisInputRefV0, FiniteHypothesisProjectionErrorV0,
     FiniteHypothesisProjectionV0, ProjectFiniteHypothesesV0, ProjectFiniteHypothesisClaimV0,
     FINITE_HYPOTHESIS_CLAIM_SCHEMA_V0, FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0,
+};
+
+pub use packet_flow_correspondence::{
+    infer_packet_flow_correspondence_v0, FlowRecordProtocolV0, FlowRecordV0,
+    PacketFlowCorrespondenceAbstentionReasonV0, PacketFlowCorrespondenceComponentOutcomeV0,
+    PacketFlowCorrespondenceComponentResultV0, PacketFlowCorrespondenceDispositionV0,
+    PacketFlowCorrespondenceEdgeBeliefV0, PacketFlowCorrespondenceErrorV0,
+    PacketFlowCorrespondenceHeuristicProfileV0, PacketFlowCorrespondenceLimitsV0,
+    PacketFlowCorrespondenceOptionsV0, PacketFlowCorrespondenceReportV0,
+    PACKET_FLOW_CORRESPONDENCE_HEURISTIC_PROFILE_V0,
 };
 
 #[cfg(feature = "adapter-zeek")]

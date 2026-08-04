@@ -77,7 +77,7 @@ Packet sessions, decoded logs, signal windows, transmissions, conversations,
 and identity candidates retain different admission, coverage, and provenance
 contracts. Each relation family maps only its own finite variables and factors
 into the private solver. Shared mechanics are reused without forcing unlike
-evidence into the packet/Zeek schema.
+evidence into the packet/flow-record schema.
 
 The second family is deliberately non-packet: RSSI reference-frame links map
 to observer- and source-shift variables plus a derived residual-link belief. It
