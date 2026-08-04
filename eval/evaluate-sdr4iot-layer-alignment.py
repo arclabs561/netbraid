@@ -103,6 +103,17 @@ SIGMF_ANNOTATION_KEYS = {
     "core:sample_start",
 }
 DATATYPE_BYTES = {"cf32": 8}
+STRUCTURAL_FAILURES = {
+    "capture_annotation_start_mismatch",
+    "csv_annotation_extent_mismatch",
+    "frequency_mismatch",
+    "layer_count_mismatch",
+    "noncontiguous_signal_extent",
+    "nonzero_count_required",
+    "sample_rate_mismatch",
+    "signal_data_extent_mismatch",
+    "signal_data_sha512_mismatch",
+}
 
 
 class AlignmentEvaluationError(RuntimeError):
@@ -745,6 +756,51 @@ def _group_payload_summary(
     )
 
 
+def _capability_flags(summary: GroupSummary) -> tuple[bool, bool, bool]:
+    counts = (
+        summary.packet_count,
+        summary.csv_record_count,
+        summary.capture_count,
+        summary.annotation_count,
+    )
+    populated_count_aligned = counts[0] > 0 and len(set(counts)) == 1
+    failures = set(summary.failure_reasons)
+    representation_structure_aligned = populated_count_aligned and not (
+        failures & STRUCTURAL_FAILURES
+    )
+    clock_within_2ms = (
+        populated_count_aligned
+        and summary.max_timing_residual_ns is not None
+        and summary.max_timing_residual_ns <= MAX_TIMING_RESIDUAL_NS
+    )
+    return (
+        populated_count_aligned,
+        representation_structure_aligned,
+        clock_within_2ms,
+    )
+
+
+def _modality_report(counters: Mapping[str, Counter[str]]) -> dict[str, Any]:
+    return {
+        modality: {
+            "evaluation_groups": counts["evaluation_groups"],
+            "groups_passed_all_checks": counts["groups_passed_all_checks"],
+            "groups_failed": counts["groups_failed"],
+            "groups_parsed": counts["groups_parsed"],
+            "groups_with_populated_equal_counts": counts[
+                "groups_with_populated_equal_counts"
+            ],
+            "groups_with_representation_structure_alignment": counts[
+                "groups_with_representation_structure_alignment"
+            ],
+            "groups_with_clock_residual_within_2ms": counts[
+                "groups_with_clock_residual_within_2ms"
+            ],
+        }
+        for modality, counts in sorted(counters.items())
+    }
+
+
 def evaluate_archive(
     path: Path, *, verify_publisher_digest: bool = True
 ) -> dict[str, Any]:
@@ -780,13 +836,18 @@ def evaluate_archive(
             annotation_count = 0
             signal_data_bytes = 0
             residuals: list[int] = []
+            modality_counts: dict[str, Counter[str]] = defaultdict(Counter)
             for group in evaluation_groups:
+                modality = group.key.modality
+                modality_counts[modality]["evaluation_groups"] += 1
                 try:
                     summary = _group_payload_summary(archive, group)
                 except GroupEvaluationError as error:
                     failed += 1
                     failures[error.code] += 1
+                    modality_counts[modality]["groups_failed"] += 1
                     continue
+                modality_counts[modality]["groups_parsed"] += 1
                 packet_count += summary.packet_count
                 csv_record_count += summary.csv_record_count
                 capture_count += summary.capture_count
@@ -794,11 +855,23 @@ def evaluate_archive(
                 signal_data_bytes += summary.signal_data_bytes
                 if summary.max_timing_residual_ns is not None:
                     residuals.append(summary.max_timing_residual_ns)
+                populated, structural, clock_aligned = _capability_flags(summary)
+                modality_counts[modality]["groups_with_populated_equal_counts"] += int(
+                    populated
+                )
+                modality_counts[modality][
+                    "groups_with_representation_structure_alignment"
+                ] += int(structural)
+                modality_counts[modality]["groups_with_clock_residual_within_2ms"] += (
+                    int(clock_aligned)
+                )
                 if summary.failure_reasons:
                     failed += 1
                     failures.update(summary.failure_reasons)
+                    modality_counts[modality]["groups_failed"] += 1
                 else:
                     passed += 1
+                    modality_counts[modality]["groups_passed_all_checks"] += 1
         LAYOUT._require_unchanged(source, identity)
     finally:
         source.close()
@@ -825,6 +898,7 @@ def evaluate_archive(
             "signal_data_bytes": signal_data_bytes,
         },
         "max_timing_residual_ns": max(residuals) if residuals else None,
+        "descriptive_capability_by_modality": _modality_report(modality_counts),
         "failure_reason_counts": dict(sorted(failures.items())),
     }
 

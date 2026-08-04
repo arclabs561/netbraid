@@ -227,6 +227,20 @@ class Sdr4iotLayerAlignmentTests(unittest.TestCase):
         self.assertEqual(report["counts"]["sigmf_annotations"], 2)
         self.assertEqual(report["max_timing_residual_ns"], 0)
         self.assertEqual(report["failure_reason_counts"], {})
+        self.assertEqual(
+            report["descriptive_capability_by_modality"],
+            {
+                "zigbee": {
+                    "evaluation_groups": 1,
+                    "groups_failed": 0,
+                    "groups_parsed": 1,
+                    "groups_passed_all_checks": 1,
+                    "groups_with_clock_residual_within_2ms": 1,
+                    "groups_with_populated_equal_counts": 1,
+                    "groups_with_representation_structure_alignment": 1,
+                }
+            },
+        )
 
     def test_frequency_mismatch_has_one_stable_failure_reason(self):
         root = self.temporary_directory()
@@ -238,6 +252,11 @@ class Sdr4iotLayerAlignmentTests(unittest.TestCase):
         self.assertEqual(report["status"], "fail")
         self.assertEqual(report["counts"]["evaluation_groups_failed"], 1)
         self.assertEqual(report["failure_reason_counts"], {"frequency_mismatch": 1})
+        capability = report["descriptive_capability_by_modality"]["zigbee"]
+        self.assertEqual(capability["groups_with_populated_equal_counts"], 1)
+        self.assertEqual(
+            capability["groups_with_representation_structure_alignment"], 0
+        )
 
     def test_group_clock_offset_does_not_change_timing_residual(self):
         root = self.temporary_directory()
