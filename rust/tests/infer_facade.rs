@@ -4,13 +4,14 @@ use netbraid::infer::{
     assess_saved_pcap_fingerprint_v0, ContentDigestEvidenceV0, ContentRelationDispositionV0,
     ContentRelationReferenceV0, ContentSha256V0, CounterCaptureDispositionV0,
     CounterCaptureProfileV0, CounterCaptureReferenceV0, CounterCaptureScaleVectorPpbV0,
-    CounterCaptureUnknownReasonV0, PacketSameEventDispositionV0, PacketSameEventReferenceV0,
-    PacketSameEventUnknownReasonV0, ProjectFiniteHypothesesV0, ProjectFiniteHypothesisClaimV0,
-    SavedPcapFingerprintCandidateRefV0, SavedPcapFingerprintCandidateV0,
-    SavedPcapFingerprintComparisonV0, SavedPcapFingerprintDispositionV0,
-    SavedPcapFingerprintErrorV0, SavedPcapFingerprintHypothesisSetV0,
-    SavedPcapFingerprintReferenceV0, SavedPcapFingerprintValidationErrorV0,
-    TrafficWindowEvidenceV0, TrafficWindowV0, FINITE_HYPOTHESIS_CLAIM_SCHEMA_V0,
+    CounterCaptureUnknownReasonV0, FiniteHypothesisCompositionV0, PacketSameEventDispositionV0,
+    PacketSameEventReferenceV0, PacketSameEventUnknownReasonV0, ProjectFiniteHypothesesV0,
+    ProjectFiniteHypothesisClaimV0, SavedPcapFingerprintCandidateRefV0,
+    SavedPcapFingerprintCandidateV0, SavedPcapFingerprintComparisonV0,
+    SavedPcapFingerprintDispositionV0, SavedPcapFingerprintErrorV0,
+    SavedPcapFingerprintHypothesisSetV0, SavedPcapFingerprintReferenceV0,
+    SavedPcapFingerprintValidationErrorV0, TrafficWindowEvidenceV0, TrafficWindowV0,
+    FINITE_HYPOTHESIS_CLAIM_SCHEMA_V0, FINITE_HYPOTHESIS_COMPOSITION_SCHEMA_V0,
     FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0,
     SAVED_PCAP_FINGERPRINT_REDUCER_V0,
 };
@@ -312,4 +313,16 @@ fn public_saved_pcap_fingerprint_family_is_available_through_infer() {
         SAVED_PCAP_FINGERPRINT_REDUCER_V0,
         "netbraid.saved_pcap_fingerprint.packet_shape.v0"
     );
+}
+
+#[test]
+fn public_finite_hypothesis_composition_is_available_through_infer() {
+    let composition = FiniteHypothesisCompositionV0::try_new(Vec::new()).unwrap();
+
+    assert_eq!(
+        composition.schema(),
+        FINITE_HYPOTHESIS_COMPOSITION_SCHEMA_V0
+    );
+    assert!(composition.claims().is_empty());
+    assert!(std::mem::size_of::<netbraid::infer::FiniteHypothesisCompositionErrorV0>() > 0);
 }

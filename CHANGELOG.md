@@ -21,6 +21,9 @@ GitHub native binary releases remain available independently.
   saved-PCAP packet-shape, and counter/capture hypothesis families. Claims bind
   canonical input references only after recomputing against resolved inputs,
   while preserving the existing identifier-free projection as a separate view.
+- A bounded canonical composition for evidence-linked finite claims. It
+  deduplicates exact claim slots and rejects conflicting contents without
+  inferring a shared subject or voting across families.
 - An optional bounded Unix adapter for canonical full-metadata Zeek `conn.log`
   files that projects typed session evidence without retaining source-local
   identifiers or unselected columns.

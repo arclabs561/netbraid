@@ -16,8 +16,9 @@ identity record.
 The Rust library currently tests SHA-256 digest agreement, packet same-event,
 saved-PCAP shape, counter/capture correspondence, and RSSI-shift hypotheses.
 Each result is supported, contradicted, or underdetermined and remains linked
-to its inputs. Broader cross-modal fusion is evaluation work, not a supported
-claim yet.
+to its inputs. A bounded composition can carry several such claims in canonical
+order, but does not merge their inputs or vote across claim families. Broader
+cross-modal fusion is evaluation work, not a supported claim yet.
 
 The CLI reads saved artifacts. The record types can be used by live consumers,
 but Netbraid does not acquire observations or run a service.

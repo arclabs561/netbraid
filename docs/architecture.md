@@ -91,6 +91,13 @@ fails before claim construction. The nested projection remains the
 identifier-free view; the claim retains references rather than raw evidence or
 the family-specific decision basis.
 
+Several finite claims can be placed in one bounded canonical composition.
+Exact duplicates collapse and divergent claims for the same family, reducer,
+and canonical inputs are rejected. Claims in different slots remain
+independent: their co-presence does not establish a shared subject, identity,
+confidence, or cross-family decision. A family omitted from the composition is
+not assessed, which is distinct from that family's explicit unknown result.
+
 The content-relation family compares canonical SHA-256 declarations and keeps
 unavailable digests unknown. Matching declarations do not prove byte equality
 or establish the same object, event, source, device, variant, or identity;

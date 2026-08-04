@@ -1,3 +1,4 @@
+mod composition;
 mod content_relation;
 mod counter_capture;
 mod hypothesis;
@@ -15,6 +16,11 @@ pub use crate::replay::{
     SavedPcapFingerprintValidationErrorV0, PACKET_SAME_EVENT_HYPOTHESIS_SET_SCHEMA_V0,
     PACKET_SAME_EVENT_REDUCER_V0, SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0,
     SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_REDUCER_V0,
+};
+
+pub use composition::{
+    FiniteHypothesisCompositionErrorV0, FiniteHypothesisCompositionV0,
+    FINITE_HYPOTHESIS_COMPOSITION_MAX_SUBMITTED_CLAIMS_V0, FINITE_HYPOTHESIS_COMPOSITION_SCHEMA_V0,
 };
 
 pub use counter_capture::{
