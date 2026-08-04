@@ -262,6 +262,34 @@
       "recipe": "ruff-uwb-two-meter-row-adapter"
     },
     {
+      "path": "data/derived/eval/smorffi-iq.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-smorffi-csv-iq-adapter.py",
+      "recipe": "smorffi-row-adapter"
+    },
+    {
+      "path": "data/derived/eval/smorffi-relation-split-capability.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-smorffi-relation-split-capability.py",
+      "recipe": "smorffi-split-capability"
+    },
+    {
+      "path": "data/derived/eval/smorffi-row-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-smorffi-csv-iq-adapter.py",
+      "recipe": "smorffi-row-adapter"
+    },
+    {
+      "path": "data/derived/eval/smorffi-row-offsets.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-smorffi-csv-iq-adapter.py",
+      "recipe": "smorffi-row-adapter"
+    },
+    {
       "path": "data/derived/eval/sorbonne-same-event-report.json",
       "format": "json",
       "retention": "reproducibility_output",

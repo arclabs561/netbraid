@@ -441,7 +441,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The fetcher pins Kaggle dataset version 3 and 123 same-model devices. Kaggle publishes no per-file checksums, so the ignored receipt records deterministic local SHA-256 values after download; version pinning is provenance, not publisher-backed artifact integrity."
+      "note": "The fetcher pins Kaggle dataset version 3 and 123 same-model devices. Kaggle publishes no per-file checksums, so the ignored receipt records deterministic local SHA-256 values after download; version pinning is provenance, not publisher-backed artifact integrity. The path-free IQ adapter supports mmap row access, but relation splits remain blocked because publisher metadata exposes no acquisition-session axis."
     },
     {
       "id": "networks-paper-s138912862600321x",

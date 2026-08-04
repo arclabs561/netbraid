@@ -24,6 +24,9 @@ GitHub native binary releases remain available independently.
 - An optional bounded Unix adapter for canonical full-metadata Zeek `conn.log`
   files that projects typed session evidence without retaining source-local
   identifiers or unselected columns.
+- A receipt-bound SMoRFFI CSV adapter that emits private mmap-ready IQ and row
+  offset arrays, plus a metadata-only capability audit that refuses to publish
+  a relation split when acquisition-session evidence is absent.
 
 ### Changed
 

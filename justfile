@@ -71,6 +71,22 @@ smorffi-status:
 smorffi-fetch:
     uv run --script data/fetch/fetch-smorffi.py fetch
 
+smorffi-row-adapter-check:
+    uv run --script eval/test-compile-smorffi-csv-iq-adapter.py
+
+# Verify the exact local inventory and stream every variable-length preamble
+# into private flat NPY arrays. The path-free adapter is replaced last.
+smorffi-row-adapter:
+    uv run --script eval/compile-smorffi-csv-iq-adapter.py
+
+smorffi-split-capability-check:
+    {{ python }} eval/test-evaluate-smorffi-relation-split-capability.py
+
+# Read adapter metadata only. The successful audit records that a leakage-safe
+# relation split is blocked because the publisher exposes no session axis.
+smorffi-split-capability: smorffi-row-adapter
+    {{ python }} eval/evaluate-smorffi-relation-split-capability.py
+
 controlled-jamming-fetcher-check:
     uv run --python 3.11 data/tests/test-fetch-controlled-jamming.py
 

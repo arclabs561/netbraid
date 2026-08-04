@@ -87,6 +87,23 @@ domain, receiver, location, path, or input order for missing session evidence.
 The current oracle therefore returns `unbounded_session_axis` and publishes no
 manifest; the hermetic check covers the successful known-session boundary.
 
+`compile-smorffi-csv-iq-adapter.py` verifies the pinned local SMoRFFI inventory
+while streaming its variable-length complex preambles into a flat complex NPY
+and a half-open row-offset NPY. Both arrays support read-only memory mapping.
+The adapter retains opaque contiguous source spans but no filename, address,
+publisher device value, or local path. One malformed header is repaired only
+for its exact receipt-bound SHA-256 and exact three-cell shape; every other
+header deviation fails closed. Publisher device labels remain claims rather
+than independently verified physical identity. The compiler also records the
+observed ragged sequence lengths instead of treating the publisher's nominal
+288-sample description as an established boundary.
+
+`evaluate-smorffi-relation-split-capability.py` reads only that adapter's
+metadata. The capability audit passes, but its nested relation split remains
+blocked with `unbounded_session_axis`: file boundaries, row order, row count,
+filenames, and filesystem times are not acquisition-session evidence. It
+publishes no split manifest and reads no IQ or row-offset payload bytes.
+
 `profile-xrf55-layout.py` validates the three local XRF55 archive and receipt
 metadata contracts, bounds their ZIP central directories, and reports aggregate
 format, path-depth, and cross-archive path-overlap evidence. The publisher's
