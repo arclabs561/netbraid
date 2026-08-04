@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Proper-score and diagnostic metrics for finite relation beliefs.
+"""Brier and diagnostic metrics for hypothesis-frame relation beliefs.
 
-The evaluator joins content-bound model profile metadata and relation-only
-predictions to validated hypothesis frames. Reports are aggregate and retain no
-frame identifiers or source observations.
+The evaluator is source-agnostic only over the fixed relation axes validated by
+``hypothesis_frame``. It joins a content-bound belief-evaluation profile and
+relation-only predictions to validated frames. Reports are aggregate and retain
+no frame identifiers, profile documents, or source observations.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -24,8 +26,10 @@ from hypothesis_frame import (
     parse_manifest as parse_frame_manifest,
 )
 
-SCHEMA = "netbraid.hypothesis_belief_metrics_manifest.v0"
-REPORT_SCHEMA = "netbraid.hypothesis_belief_metrics_report.v0"
+SCHEMA = "netbraid.hypothesis_belief_metrics_manifest.v1"
+REPORT_SCHEMA = "netbraid.hypothesis_belief_metrics_report.v1"
+PROFILE_SCHEMA = "netbraid.hypothesis_belief_profile.v1"
+PROFILE_DIGEST_DOMAIN = b"netbraid.hypothesis_belief_profile.v1\0"
 PPB = 1_000_000_000
 MAX_INPUT_BYTES = 16 * 1024 * 1024
 MAX_ROWS = 100_000
@@ -33,8 +37,11 @@ MAX_STRATA_PER_ROW = 8
 MAX_STRATUM_DIMENSIONS = 8
 MAX_STRATUM_VALUES_PER_DIMENSION = 32
 MAX_STRATUM_CELLS = 128
+MAX_PROFILE_CONFIGURATION_SLOTS = 128
 PROFILE_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9._:-]{0,127}\Z")
 DIGEST_PATTERN = re.compile(r"[a-f0-9]{64}\Z")
+PROFILE_SLOT_NAME_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
+PROFILE_SLOT_VALUE_PATTERN = re.compile(r"[A-Za-z0-9._:+-]{1,256}\Z")
 STRATUM_NAME_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,31}\Z")
 OPAQUE_STRATUM_VALUE_PATTERN = re.compile(r"[a-f0-9]{16,64}\Z")
 BELIEF_SEMANTICS = frozenset(("heuristic_relative", "model_posterior"))
@@ -58,7 +65,7 @@ class HypothesisBeliefMetricsError(ValueError):
 
 
 @dataclass(frozen=True)
-class ProfileRefV0:
+class ProfileRefV1:
     profile_id: str
     profile_sha256: str
     belief_semantics: str
@@ -86,25 +93,56 @@ def _expect_fields(value: Mapping[str, Any], fields: Sequence[str], code: str) -
         raise HypothesisBeliefMetricsError(code)
 
 
-def _parse_profile(value: Any) -> ProfileRefV0:
+def canonical_profile_bytes(value: Mapping[str, Any]) -> bytes:
+    """Encode one validated profile document canonically."""
+
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+
+
+def profile_sha256(value: Mapping[str, Any]) -> str:
+    """Return the domain-separated digest of one profile document."""
+
+    return hashlib.sha256(
+        PROFILE_DIGEST_DOMAIN + canonical_profile_bytes(value)
+    ).hexdigest()
+
+
+def _parse_profile(value: Any) -> ProfileRefV1:
     if not isinstance(value, Mapping):
         raise HypothesisBeliefMetricsError("invalid_profile_schema")
     _expect_fields(
         value,
-        ("profile_id", "profile_sha256", "belief_semantics"),
+        ("document", "sha256"),
         "invalid_profile_schema",
     )
-    profile_id = value["profile_id"]
-    profile_sha256 = value["profile_sha256"]
-    belief_semantics = value["belief_semantics"]
+    document = value["document"]
+    declared_sha256 = value["sha256"]
+    if not isinstance(document, Mapping):
+        raise HypothesisBeliefMetricsError("invalid_profile_document")
+    _expect_fields(
+        document,
+        ("schema", "profile_id", "belief_semantics", "configuration"),
+        "invalid_profile_document",
+    )
+    if document["schema"] != PROFILE_SCHEMA:
+        raise HypothesisBeliefMetricsError("unsupported_profile_schema")
+    profile_id = document["profile_id"]
+    belief_semantics = document["belief_semantics"]
+    configuration = document["configuration"]
     if (
         not isinstance(profile_id, str)
         or PROFILE_ID_PATTERN.fullmatch(profile_id) is None
     ):
         raise HypothesisBeliefMetricsError("invalid_profile_id")
     if (
-        not isinstance(profile_sha256, str)
-        or DIGEST_PATTERN.fullmatch(profile_sha256) is None
+        not isinstance(declared_sha256, str)
+        or DIGEST_PATTERN.fullmatch(declared_sha256) is None
     ):
         raise HypothesisBeliefMetricsError("invalid_profile_sha256")
     if (
@@ -112,7 +150,22 @@ def _parse_profile(value: Any) -> ProfileRefV0:
         or belief_semantics not in BELIEF_SEMANTICS
     ):
         raise HypothesisBeliefMetricsError("invalid_belief_semantics")
-    return ProfileRefV0(profile_id, profile_sha256, belief_semantics)
+    if (
+        not isinstance(configuration, Mapping)
+        or not 1 <= len(configuration) <= MAX_PROFILE_CONFIGURATION_SLOTS
+    ):
+        raise HypothesisBeliefMetricsError("invalid_profile_configuration")
+    for name, configured_value in configuration.items():
+        if (
+            not isinstance(name, str)
+            or PROFILE_SLOT_NAME_PATTERN.fullmatch(name) is None
+            or not isinstance(configured_value, str)
+            or PROFILE_SLOT_VALUE_PATTERN.fullmatch(configured_value) is None
+        ):
+            raise HypothesisBeliefMetricsError("invalid_profile_configuration")
+    if profile_sha256(document) != declared_sha256:
+        raise HypothesisBeliefMetricsError("profile_sha256_mismatch")
+    return ProfileRefV1(profile_id, declared_sha256, belief_semantics)
 
 
 def _parse_strata(value: Any) -> tuple[tuple[str, str], ...]:
@@ -216,7 +269,7 @@ def _check_strata_bounds(rows: Sequence[BeliefRowV0]) -> None:
 
 def parse_manifest(
     value: Any,
-) -> tuple[ProfileRefV0, tuple[HypothesisFrameV0, ...], tuple[BeliefRowV0, ...]]:
+) -> tuple[ProfileRefV1, tuple[HypothesisFrameV0, ...], tuple[BeliefRowV0, ...]]:
     if not isinstance(value, Mapping):
         raise HypothesisBeliefMetricsError("invalid_manifest_schema")
     _expect_fields(
@@ -330,7 +383,7 @@ def _axis_metrics(
             {"reference": state, "count": references[state]}
             for state in sorted(RELATION_STATES[axis])
         ],
-        "proper_score": {
+        "brier_score": {
             "name": "multiclass_brier",
             "scored_count": scored_count,
             "unknown_reference_exact_count": unknown_reference_exact,
@@ -352,7 +405,7 @@ def _axis_metrics(
 
 
 def evaluate(
-    profile: ProfileRefV0,
+    profile: ProfileRefV1,
     frames: Sequence[HypothesisFrameV0],
     rows: Sequence[BeliefRowV0],
 ) -> dict[str, Any]:
@@ -370,6 +423,15 @@ def evaluate(
         "schema": REPORT_SCHEMA,
         "input_schema": SCHEMA,
         "profile": profile.document(),
+        "score_interpretation": {
+            "brier": (
+                "heuristic_quadratic_diagnostic"
+                if profile.belief_semantics == "heuristic_relative"
+                else "probability_forecast_score"
+            ),
+            "selective_exact_known_reference_rows_only": True,
+            "compare_with_coverage_and_outcome_counts": True,
+        },
         "row_count": len(rows),
         "axes": {
             axis: _axis_metrics(rows_by_axis[axis], frames_by_id)

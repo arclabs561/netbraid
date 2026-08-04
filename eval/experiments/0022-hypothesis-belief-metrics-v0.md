@@ -1,5 +1,9 @@
 # Experiment 0022: finite hypothesis belief metrics v0
 
+Post-hoc correction: v0 overstated both profile binding and the proper-score
+interpretation of heuristic-relative Brier values. The original record is
+retained below; experiment 0023 replaces the contract.
+
 ## Hypothesis
 
 A strict source-agnostic evaluator can measure finite relation beliefs without

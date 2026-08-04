@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hermetic tests for source-agnostic finite-belief metrics."""
+"""Hermetic tests for source-agnostic hypothesis-frame relation metrics."""
 
 from __future__ import annotations
 
@@ -63,14 +63,25 @@ def exact_row(
 
 
 def manifest(
-    frames: list[dict[str, object]], rows: list[dict[str, object]]
+    frames: list[dict[str, object]],
+    rows: list[dict[str, object]],
+    *,
+    belief_semantics: str = "heuristic_relative",
 ) -> dict[str, object]:
+    profile_document = {
+        "schema": metrics.PROFILE_SCHEMA,
+        "profile_id": "fixture.profile:v1",
+        "belief_semantics": belief_semantics,
+        "configuration": {
+            "family": "fixture",
+            "same_weight_ppb": "800000000",
+        },
+    }
     return {
         "schema": metrics.SCHEMA,
         "profile": {
-            "profile_id": "fixture.profile:v0",
-            "profile_sha256": "a" * 64,
-            "belief_semantics": "heuristic_relative",
+            "document": profile_document,
+            "sha256": metrics.profile_sha256(profile_document),
         },
         "frame_manifest": {"schema": FRAME_SCHEMA, "frames": frames},
         "rows": rows,
@@ -100,7 +111,7 @@ class HypothesisBeliefMetricsTests(unittest.TestCase):
         axis = report["axes"]["event_relation"]
 
         self.assertEqual(
-            axis["proper_score"]["mean"],
+            axis["brier_score"]["mean"],
             {
                 "numerator": 400_000_000_000_000_000,
                 "denominator": 2_000_000_000_000_000_000,
@@ -147,10 +158,10 @@ class HypothesisBeliefMetricsTests(unittest.TestCase):
             axis["outcomes"],
             {"exact": 1, "abstained": 1, "no_feasible_assignment": 1},
         )
-        self.assertEqual(axis["proper_score"]["scored_count"], 0)
-        self.assertEqual(axis["proper_score"]["unknown_reference_exact_count"], 1)
+        self.assertEqual(axis["brier_score"]["scored_count"], 0)
+        self.assertEqual(axis["brier_score"]["unknown_reference_exact_count"], 1)
         self.assertEqual(
-            axis["proper_score"]["mean"], {"numerator": 0, "denominator": 0}
+            axis["brier_score"]["mean"], {"numerator": 0, "denominator": 0}
         )
         self.assertEqual(axis["maximum_state"]["tied_count"], 0)
 
@@ -175,7 +186,7 @@ class HypothesisBeliefMetricsTests(unittest.TestCase):
 
         axis = metrics.evaluate_manifest(document)["axes"]["variant_relation"]
 
-        self.assertEqual(axis["proper_score"]["scored_count"], 1)
+        self.assertEqual(axis["brier_score"]["scored_count"], 1)
         self.assertEqual(axis["maximum_state"]["unique_count"], 0)
         self.assertEqual(axis["maximum_state"]["tied_count"], 1)
         self.assertEqual(axis["maximum_state"]["tied_contains_reference_count"], 1)
@@ -261,9 +272,17 @@ class HypothesisBeliefMetricsTests(unittest.TestCase):
             ],
         )
         report = metrics.evaluate_manifest(base)
-        self.assertEqual(report["profile"], base["profile"])
+        self.assertEqual(
+            report["profile"],
+            {
+                "profile_id": base["profile"]["document"]["profile_id"],
+                "profile_sha256": base["profile"]["sha256"],
+                "belief_semantics": base["profile"]["document"]["belief_semantics"],
+            },
+        )
         self.assertEqual(report["strata"][0]["value"], stratum)
         self.assertNotIn("frame", json.dumps(report))
+        self.assertNotIn("document", report["profile"])
 
         duplicate = copy.deepcopy(base)
         duplicate["rows"].append(copy.deepcopy(duplicate["rows"][0]))
@@ -280,11 +299,104 @@ class HypothesisBeliefMetricsTests(unittest.TestCase):
             metrics.evaluate_manifest(leaking)
 
         invalid_semantics = copy.deepcopy(base)
-        invalid_semantics["profile"]["belief_semantics"] = ["heuristic_relative"]
+        invalid_semantics["profile"]["document"]["belief_semantics"] = [
+            "heuristic_relative"
+        ]
         with self.assertRaisesRegex(
             metrics.HypothesisBeliefMetricsError, "invalid_belief_semantics"
         ):
             metrics.evaluate_manifest(invalid_semantics)
+
+        for configuration in ({}, {"weight": 1}, {"invalid name": "value"}):
+            invalid_configuration = copy.deepcopy(base)
+            invalid_configuration["profile"]["document"]["configuration"] = (
+                configuration
+            )
+            with (
+                self.subTest(configuration=configuration),
+                self.assertRaisesRegex(
+                    metrics.HypothesisBeliefMetricsError,
+                    "invalid_profile_configuration",
+                ),
+            ):
+                metrics.evaluate_manifest(invalid_configuration)
+
+    def test_profile_digest_matches_fixed_canonical_vector_and_rejects_drift(
+        self,
+    ) -> None:
+        base = manifest(
+            [frame("frame", event_relation="same")],
+            [exact_row("frame", {"different": 0, "same": metrics.PPB})],
+        )
+        document = base["profile"]["document"]
+        self.assertEqual(
+            metrics.canonical_profile_bytes(document),
+            b'{"belief_semantics":"heuristic_relative","configuration":{"family":"fixture",'
+            b'"same_weight_ppb":"800000000"},"profile_id":"fixture.profile:v1",'
+            b'"schema":"netbraid.hypothesis_belief_profile.v1"}',
+        )
+        self.assertEqual(
+            base["profile"]["sha256"],
+            "bf19a72d845b62b1755870e4d410378ad53283ba9b2d9c99f7a714d0c64a7134",
+        )
+
+        for field_path, value in (
+            (("profile_id",), "fixture.profile:changed"),
+            (("belief_semantics",), "model_posterior"),
+            (("configuration", "same_weight_ppb"), "700000000"),
+        ):
+            changed = copy.deepcopy(base)
+            target = changed["profile"]["document"]
+            for field in field_path[:-1]:
+                target = target[field]
+            target[field_path[-1]] = value
+            with (
+                self.subTest(field_path=field_path),
+                self.assertRaisesRegex(
+                    metrics.HypothesisBeliefMetricsError,
+                    "profile_sha256_mismatch",
+                ),
+            ):
+                metrics.evaluate_manifest(changed)
+
+    def test_brier_interpretation_tracks_declared_semantics(self) -> None:
+        frames = [frame("frame", event_relation="same")]
+        rows = [exact_row("frame", {"different": 200_000_000, "same": 800_000_000})]
+        heuristic = metrics.evaluate_manifest(manifest(frames, rows))
+        posterior = metrics.evaluate_manifest(
+            manifest(frames, rows, belief_semantics="model_posterior")
+        )
+
+        self.assertEqual(
+            heuristic["axes"]["event_relation"]["brier_score"],
+            posterior["axes"]["event_relation"]["brier_score"],
+        )
+        self.assertEqual(
+            heuristic["score_interpretation"]["brier"],
+            "heuristic_quadratic_diagnostic",
+        )
+        self.assertEqual(
+            posterior["score_interpretation"]["brier"],
+            "probability_forecast_score",
+        )
+        self.assertNotIn("proper_score", json.dumps(heuristic))
+
+    def test_rejects_non_hypothesis_frame_axis(self) -> None:
+        document = manifest(
+            [frame("frame", event_relation="same")],
+            [
+                exact_row(
+                    "frame",
+                    {"stable": 500_000_000, "shifted": 500_000_000},
+                    axis="observer_shift",
+                )
+            ],
+        )
+
+        with self.assertRaisesRegex(
+            metrics.HypothesisBeliefMetricsError, "invalid_relation_axis"
+        ):
+            metrics.evaluate_manifest(document)
 
     def test_input_order_does_not_change_aggregate_report(self) -> None:
         frames = [
