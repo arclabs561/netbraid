@@ -95,6 +95,13 @@ across protocols. Filename co-grouping does not establish payload alignment,
 event identity, cross-protocol identity, physical device/source identity,
 location truth, or SigMF conformance.
 
+`evaluate-public-corpus-slices.py` includes one complete SDR4IoT Bluetooth LE
+capture. It runs the saved-capture normalizer twice and checks typed packet,
+PDU, address-field-presence, header-flag, checked-CRC, channel, and
+validity-gated signal/noise aggregates. Its report omits observed addresses,
+access addresses, record IDs, raw rows, paths, and capture bytes. Random-address
+flags remain packet evidence; the evaluator performs no identity inference.
+
 `profile-gnss-rff-layout.py` verifies the pinned GNSS RFF archive and profiles
 its encrypted ZIP central directory without accepting a password or opening a
 member payload. It reports controlled clean/spoof, day, and acquisition-category

@@ -12,7 +12,7 @@ successful fetching is not admission into Netbraid's committed fixture ledger.
 |---|---|---|---|---|
 | V2I 802.11ad | one uninterrupted vehicle trace, with colocated monitor capture | raw PCAP, extracted Wi-Fi CSV, GPS, throughput, trace metadata, and the publisher's tshark field configuration | deterministic PCAP normalization, 802.11ad coverage, frame-field checks, trace-level temporal robustness | host-path identity, cross-corpus identity, or a generic mobility label |
 | ZBDS2023 | one hour observed concurrently by four Raspberry Pis | 1,028 Zigbee PCAPs: 257 per observer from 2022-06-30 through 2022-07-11 | identifier-free IEEE 802.15.4 frame/address-form/command/FCS projections and bounded cross-observer consistency | device identity across observers without a protocol-derived or publisher-provided label |
-| SDR4IoT BLE/Zigbee | one scenario/scene/session observed by several servers | paired capture, CSV, and SigMF artifacts for BLE and Zigbee | exact IEEE 802.15.4 projection checks for the admitted Zigbee slice and future paired-waveform alignment | comparability between servers when capture clocks and labeling have not been validated |
+| SDR4IoT BLE/Zigbee | scenario/scene/session captures observed by several servers | paired capture, CSV, and SigMF artifacts for BLE and Zigbee | exact typed Bluetooth LE and IEEE 802.15.4 projection checks for the admitted packet slices; future capture/table/signal alignment | comparability between servers or modalities when capture clocks and labeling have not been validated |
 | Matter DATA1813 Thread N1 | one publisher PCAPNG acquired as a standalone file with an exact local fetch receipt | saved Thread/IEEE 802.15.4 packets with 6LoWPAN-decoded IPv6 evidence | bounded post-adapter-fix conformance for packet yield, quarantine absence, decoded-length preservation, and unavailable saved-capture FCS status | device identity, payload semantics, behavior, or capture-wide completeness from the 32-packet prefix |
 | Wi-Fi management frames | one anonymized station capture | two PCAP/CSV pairs with publisher frame counts and anonymization procedure | parser robustness, management-frame coverage, deterministic output, and count reconciliation | exact original frame bytes: anonymization deliberately removed elements and may leave inconsistent lengths |
 | Wi-Fi probe requests | one environment/scenario/device time block | processed JSON, measurement intervals, device/scenario spreadsheet, and collection description | structured-data profiling and future privacy/abstention cases | a raw-PCAP oracle or permission to treat MAC/IE similarity as durable identity |
@@ -34,38 +34,41 @@ For every selected PCAP or capture member:
 4. Record normalized, quarantined, and unsupported counts separately.
 5. Preserve capture completeness and extractor provenance in every projection.
 
-The initial campaign should include one V2I trace, both anonymized management
-captures, one four-observer ZBDS hour, one complete SDR4IoT session, and the
+The campaign includes one V2I trace, both anonymized management captures, one
+four-observer ZBDS hour, complete SDR4IoT BLE and Zigbee captures, and the
 receipt-bound 32-packet Matter Thread N1 prefix. Probe request JSON is a
 structured-data case, not input to the PCAP adapter.
 
-The bounded run covers 12 slices from all seven source units. With a
+The bounded run covers 13 slices from all seven source units. With a
 1,000-packet limit, the V2I case reports 1,000 observed WLAN frames. Both
 management-frame captures run to completion and reconcile all 36,306 and
 60,984 frames, respectively, with their publisher CSVs. Two Sorbonne captures
 from the same sniffer at 1 m and 50 m run to completion and exactly reconcile
 1,885 and 1,280 rows, respectively, including frame mix, channel mix, and RSSI
-summary. The complete
-50-packet SDR4IoT Zigbee case reports
-`unsupported`, while each limited ZBDS observer reports `insufficient` rather
-than converting partial non-WLAN coverage into a capture-wide unsupported
-claim. The Matter case verifies its standalone acquisition receipt before
+summary. The complete SDR4IoT cases emit 227 Bluetooth LE and 50 IEEE 802.15.4
+packet envelopes with zero quarantines. The BLE oracle checks PDU mix,
+address-field presence, random-address header flags, checked CRC, channels, and
+validity-gated signal/noise summaries without retaining identifier values. Each
+limited ZBDS observer emits 1,000 IEEE 802.15.4 envelopes and zero quarantines.
+The Matter case verifies its standalone acquisition receipt before
 normalization; its limited prefix emits 32 packet envelopes, zero quarantines,
 two preserved 6LoWPAN-decoded IPv6 total lengths greater than their saved frame
 lengths, and 32 unavailable IEEE 802.15.4 FCS statuses. The probe-request
-example passes only its checked structured-JSON shape. All eleven PCAP cases
-produce byte-identical projections on two runs. The v1 report
-also records the exact campaign-manifest SHA-256, clean Netbraid Git revision,
-and executable SHA-256 that produced it; evaluation fails closed when tracked
-repository changes make the revision ambiguous or when executable bytes change
-during the run.
+example passes only its checked structured-JSON shape. All twelve capture cases
+produce byte-identical projections on two runs. The v1 report also records the
+exact campaign-manifest SHA-256, clean Netbraid Git revision, and executable
+SHA-256 that produced it; evaluation fails closed when tracked repository
+changes make the revision ambiguous or when executable bytes change during the
+run.
 
 The identifier-free IEEE 802.15.4 projection schema does not expose decoded
 IPv6 length relationships. For the Matter conformance case only, the evaluator
 therefore runs the deterministic `--records-jsonl` surface twice, validates its
 artifact binding, derives the single decoded-length count, and discards the
-records. Packet addresses, PAN identifiers, sequence numbers, record IDs, raw
-rows, and local paths are not copied into the manifest or report.
+records. The BLE case uses the same bounded records surface to derive its
+aggregate oracle. Packet addresses, PAN identifiers, BLE addresses, access
+addresses, sequence numbers, record IDs, raw rows, and local paths are not
+copied into the manifest or report.
 
 ### Reference reconciliation
 

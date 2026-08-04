@@ -9,8 +9,8 @@ without quarantine or treating an observed address as physical-device identity.
 ## Method
 
 This hypothesis was written before the corpus evaluation. The implementation
-basis is Git commit `7cdaff2`; the producer commit will be recorded with the
-result.
+basis is Git commit `7cdaff2`; the producer is Git commit
+`6ba26f903a70336a8ac6bb7e74dcc40659790d11`.
 
 The evaluator must verify the 78,658,727-byte parent archive and selected
 12,375-byte member, run the normalizer twice with a 1,000-packet bound, require
@@ -43,3 +43,18 @@ Address recurrence, random-address header bits, access-address equality, signal
 strength, and channel overlap do not establish a durable device, radio source,
 person, place, event, intent, or cross-protocol relation. The matching
 publisher CSV and SigMF-named artifact remain outside this packet-only oracle.
+
+## Results
+
+`just public-corpus-eval` completed with 13 cases and zero expectation
+failures. The BLE case emitted 227 packet envelopes and zero quarantines; all
+227 carried typed Bluetooth LE evidence. Repeated normalization was
+byte-identical and the input digest remained unchanged. The result matched the
+registered PDU, address-field-presence, header-flag, CRC, channel, signal, and
+noise aggregates. All 227 CRC observations were checked and valid. Signal and
+noise each had 227 validity-gated samples.
+
+## Conclusion
+
+The hypothesis passed for this capture. This establishes the stated adapter
+boundary only; the interpretation limits above remain in force.
