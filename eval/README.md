@@ -267,6 +267,16 @@ pairs. Paths, filenames, variable names, condition labels, and per-artifact
 rows are absent from the report. A mismatch blocks that metadata from later
 feature extraction; it is not evidence of a detector.
 
+`compile-mmwave-jamming-paired-grid.py` re-admits each MAT artifact on the
+descriptor used for payload parsing. Within each opaque matched pair it takes
+the elementwise common ADC-sample, chirp, and frame extent, then applies the
+same fixed integer-stratified indices to both members. It writes an ignored
+16 by 16 by 8 real/imaginary float32 NPY cache directly through a temporary
+memmap and records only opaque row bindings in the adapter. Source geometry,
+names, paths, storage details, byte counts, digests, pair IDs, and condition
+labels are absent. The cache is an input boundary for later evals, not a
+detector or a train/test assignment.
+
 `compile-indoor-jamming-oracles.py` binds the publisher workbook to the exact
 three HDF5 datasets in each of 31 MAT files. It reads dataset metadata but no
 dataset elements, producing 93 opaque condition segments with file, setup,

@@ -463,6 +463,17 @@ mmwave-jamming-layout-profile:
     uv run --script eval/profile-mmwave-jamming-mat-layout.py --report {{ eval_output }}/mmwave-jamming-mat-layout-profile-repeat.json
     cmp {{ eval_output }}/mmwave-jamming-mat-layout-profile.json {{ eval_output }}/mmwave-jamming-mat-layout-profile-repeat.json
 
+mmwave-jamming-paired-grid-check:
+    uv run --script eval/test-compile-mmwave-jamming-paired-grid.py
+
+# Re-admit each source on the descriptor SciPy reads, apply one shared index
+# policy within each matched pair, and write a fixed private NPY content grid.
+mmwave-jamming-paired-grid:
+    uv run --script eval/compile-mmwave-jamming-paired-grid.py
+    uv run --script eval/compile-mmwave-jamming-paired-grid.py --adapter {{ eval_output }}/mmwave-jamming-paired-grid-adapter-repeat.json --matrix {{ eval_output }}/mmwave-jamming-paired-grid-repeat.npy
+    cmp {{ eval_output }}/mmwave-jamming-paired-grid-adapter.json {{ eval_output }}/mmwave-jamming-paired-grid-adapter-repeat.json
+    cmp {{ eval_output }}/mmwave-jamming-paired-grid.npy {{ eval_output }}/mmwave-jamming-paired-grid-repeat.npy
+
 indoor-jamming-oracles-check:
     uv run --script eval/test-compile-indoor-jamming-oracles.py
 

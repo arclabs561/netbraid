@@ -171,6 +171,34 @@
       "recipe": "mmwave-jamming-layout-profile"
     },
     {
+      "path": "data/derived/eval/mmwave-jamming-paired-grid-adapter-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-mmwave-jamming-paired-grid.py",
+      "recipe": "mmwave-jamming-paired-grid"
+    },
+    {
+      "path": "data/derived/eval/mmwave-jamming-paired-grid-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-mmwave-jamming-paired-grid.py",
+      "recipe": "mmwave-jamming-paired-grid"
+    },
+    {
+      "path": "data/derived/eval/mmwave-jamming-paired-grid-repeat.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-mmwave-jamming-paired-grid.py",
+      "recipe": "mmwave-jamming-paired-grid"
+    },
+    {
+      "path": "data/derived/eval/mmwave-jamming-paired-grid.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-mmwave-jamming-paired-grid.py",
+      "recipe": "mmwave-jamming-paired-grid"
+    },
+    {
       "path": "data/derived/eval/netslab-alignment-profile-repeat.json",
       "format": "json",
       "retention": "reproducibility_output",
