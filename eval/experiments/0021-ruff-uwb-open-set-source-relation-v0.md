@@ -10,8 +10,8 @@ gates pass.
 
 ## Method
 
-Status: preregistered and metadata-gated. Pre-implementation revision:
-`e508e11`.
+Status: blocked at the metadata gate. Pre-implementation revision: `e508e11`;
+preregistered split-compiler checkpoint: `c7fc357`.
 
 The 13 opaque publisher source/device pairs are ordered by a fixed hash before
 row sampling and assigned as four train, three calibration, three validation,
@@ -69,11 +69,26 @@ compiler can publish a manifest whose canonical audit status is `pass`.
 
 ## Results
 
-Not run. The hypothesis and gates were recorded before invoking the split
-compiler on the real oracle inventory.
+The real metadata-only command was invoked once after checkpoint `c7fc357`:
+
+```sh
+just ruff-uwb-open-set-source-split
+```
+
+It exited 2 with stable reason `unbounded_event_axis`. The input inventory has
+1,790 opaque source/location/campaign observations spanning the same 13 opaque
+source/device aliases in both campaigns, but all 1,790 event groups and all
+1,790 session groups are `not_observed`. The output manifest was absent before
+the command and remained absent afterward. The compiler has no waveform input
+argument and opened only the ignored oracle JSON; no waveform payload was read
+and no test role was formed.
 
 ## Conclusion
 
-Pending. A metadata-gate failure is a negative result and will not be repaired
-by inventing event or session labels from campaign, day, location, filename, or
-row order.
+The predictive hypothesis remains unevaluated. RUFF-UWB cannot currently
+support this leakage-safe open-set protocol because the acquisition event and
+session boundaries are not publisher-observed. This negative result is not
+grounds to invent those labels from campaign, day, location, filename, or row
+order. The predictive evaluator remains unimplemented and the mmap arrays
+remain sealed for this experiment; publisher-backed metadata or a different
+corpus is required.
