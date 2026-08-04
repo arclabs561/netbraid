@@ -327,6 +327,19 @@ def _temporary_output(path: Path, suffix: str) -> tuple[BinaryIO, Path]:
         raise AdapterCompileError("output_creation_failed") from error
 
 
+def _fsync_directory(path: Path) -> None:
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError as error:
+        raise AdapterCompileError("output_directory_sync_failed") from error
+    try:
+        os.fsync(descriptor)
+    except OSError as error:
+        raise AdapterCompileError("output_directory_sync_failed") from error
+    finally:
+        os.close(descriptor)
+
+
 def _digest_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -403,6 +416,8 @@ def _reject_input_aliases(
         output_resolved = tuple(path.resolve(strict=False) for path in outputs)
     except (OSError, RuntimeError) as error:
         raise AdapterCompileError("unsafe_input_or_output_path") from error
+    if len(set(output_resolved)) != len(output_resolved):
+        raise AdapterCompileError("output_paths_must_be_distinct")
     for output in output_resolved:
         if (
             output == receipt_resolved
@@ -644,9 +659,12 @@ def compile_adapter(
         os.fsync(adapter_file.fileno())
         adapter_file.close()
         os.replace(iq_temp, iq_path)
+        _fsync_directory(iq_path.parent)
         os.replace(offsets_temp, offsets_path)
+        _fsync_directory(offsets_path.parent)
         os.replace(adapter_temp, adapter_path)
         adapter_temp = None
+        _fsync_directory(adapter_path.parent)
         return adapter
     except OSError as error:
         raise AdapterCompileError("output_write_failed") from error

@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import copy
+import io
 import importlib.util
 import json
 import os
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 
 
@@ -235,6 +237,34 @@ class SmorffiRelationSplitCapabilityTests(unittest.TestCase):
             MODULE.write_report(fixture.report, report)
 
         self.assertEqual(fixture.report.read_bytes(), b"sentinel")
+
+    def test_report_cannot_alias_adapter_exactly_or_after_normalization(self):
+        for alias_kind in ("exact", "normalized"):
+            with self.subTest(alias_kind=alias_kind):
+                fixture = Fixture(self)
+                original = fixture.adapter.read_bytes()
+                alias_parent = fixture.root / "must-not-be-created"
+                report = (
+                    fixture.adapter
+                    if alias_kind == "exact"
+                    else alias_parent / ".." / fixture.adapter.name
+                )
+                stderr = io.StringIO()
+
+                with redirect_stderr(stderr):
+                    result = MODULE.main(
+                        [
+                            "--adapter",
+                            os.fspath(fixture.adapter),
+                            "--report",
+                            os.fspath(report),
+                        ]
+                    )
+
+                self.assertEqual(result, 2)
+                self.assertEqual(stderr.getvalue().strip(), "report_aliases_adapter")
+                self.assertEqual(fixture.adapter.read_bytes(), original)
+                self.assertFalse(alias_parent.exists())
 
 
 if __name__ == "__main__":

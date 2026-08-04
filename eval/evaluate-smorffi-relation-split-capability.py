@@ -319,6 +319,16 @@ def write_report(path: Path, report: Mapping[str, Any]) -> None:
         raise CapabilityError("report_write_failed") from error
 
 
+def _reject_report_alias(adapter_path: Path, report_path: Path) -> None:
+    try:
+        adapter_resolved = adapter_path.resolve(strict=False)
+        report_resolved = report_path.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise CapabilityError("unsafe_adapter_or_report_path") from error
+    if report_resolved == adapter_resolved:
+        raise CapabilityError("report_aliases_adapter")
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adapter", type=Path, default=DEFAULT_ADAPTER)
@@ -329,6 +339,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        _reject_report_alias(args.adapter, args.report)
         report = evaluate(args.adapter)
         write_report(args.report, report)
     except CapabilityError as error:

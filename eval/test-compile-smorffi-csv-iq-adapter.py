@@ -275,6 +275,69 @@ class SmorffiAdapterCompilerTests(unittest.TestCase):
                         fixture.contract,
                     )
 
+    def test_normalized_output_alias_is_rejected_before_temp_creation(self):
+        fixture = Fixture(self)
+        fixture.iq.parent.mkdir()
+        fixture.iq.write_bytes(b"old-iq")
+        fixture.adapter.write_bytes(b"old-adapter")
+        alias_parent = fixture.iq.parent / "must-not-be-created"
+        offsets_alias = alias_parent / ".." / fixture.iq.name
+
+        with self.assertRaisesRegex(
+            MODULE.AdapterCompileError, "output_paths_must_be_distinct"
+        ):
+            MODULE.compile_adapter(
+                fixture.raw,
+                fixture.receipt,
+                fixture.iq,
+                offsets_alias,
+                fixture.adapter,
+                fixture.contract,
+            )
+
+        self.assertEqual(fixture.iq.read_bytes(), b"old-iq")
+        self.assertEqual(fixture.adapter.read_bytes(), b"old-adapter")
+        self.assertFalse(alias_parent.exists())
+
+    def test_each_publication_replace_is_followed_by_parent_directory_fsync(self):
+        fixture = Fixture(self)
+        fixture.iq = fixture.root / "iq-parent" / fixture.iq.name
+        fixture.offsets = fixture.root / "offsets-parent" / fixture.offsets.name
+        fixture.adapter = fixture.root / "adapter-parent" / fixture.adapter.name
+        events = []
+        real_replace = MODULE.os.replace
+        real_fsync_directory = MODULE._fsync_directory
+
+        def recording_replace(source, destination):
+            events.append(("replace", Path(destination)))
+            return real_replace(source, destination)
+
+        def recording_fsync_directory(path):
+            events.append(("fsync", path))
+            return real_fsync_directory(path)
+
+        with (
+            mock.patch.object(MODULE.os, "replace", side_effect=recording_replace),
+            mock.patch.object(
+                MODULE,
+                "_fsync_directory",
+                side_effect=recording_fsync_directory,
+            ),
+        ):
+            fixture.compile()
+
+        self.assertEqual(
+            events,
+            [
+                ("replace", fixture.iq),
+                ("fsync", fixture.iq.parent),
+                ("replace", fixture.offsets),
+                ("fsync", fixture.offsets.parent),
+                ("replace", fixture.adapter),
+                ("fsync", fixture.adapter.parent),
+            ],
+        )
+
     def test_adapter_remains_commit_marker_when_publication_is_interrupted(self):
         fixture = Fixture(self)
         fixture.adapter.parent.mkdir()
