@@ -2,7 +2,7 @@
 # https://github.com/repository-settings/app
 
 repository:
-  description: "Netbraid normalizes network evidence and replays it deterministically"
+  description: "Netbraid tests how network observations relate while keeping their sources separate"
   private: false
   has_issues: true
   has_wiki: false
