@@ -63,14 +63,29 @@ read-only mmap loading, byte-deterministic private reports, matrix tamper
 rejection before mmap, split/candidate drift rejection, all-constant feature
 rejection, and deterministic opaque-ID tie breaking.
 
-Real XRF55 metrics are not recorded yet because the concurrent Oregon State
-LoRa fetch remains the sole heavy-I/O lane.
+The real campaign ran once and reproduced its report byte for byte. Each
+direction had 48 test queries and 112 fit pairs. Learned and unaligned results
+were:
+
+| Direction | Learned top-1 | Unaligned top-1 | Learned MRR | Unaligned MRR |
+|---|---:|---:|---:|---:|
+| Wi-Fi to RFID | 0.208333333333 | 0.187500000000 | 0.433333333333 | 0.429513888889 |
+| Wi-Fi to mmWave | 0.125000000000 | 0.166666666667 | 0.398958333333 | 0.407638888889 |
+| RFID to Wi-Fi | 0.145833333333 | 0.166666666667 | 0.409027777778 | 0.407638888889 |
+| RFID to mmWave | 0.166666666667 | 0.166666666667 | 0.430208333333 | 0.402083333333 |
+| mmWave to Wi-Fi | 0.125000000000 | 0.166666666667 | 0.372569444444 | 0.402083333333 |
+| mmWave to RFID | 0.166666666667 | 0.145833333333 | 0.410069444444 | 0.405902777778 |
+
+Only Wi-Fi to RFID beat both the `1/6` chance rate and its unaligned control on
+top-1. The report retained no local paths, archive or member names, or raw
+scene, performer, or action identifiers.
 
 ## Conclusion
 
-Pending the real campaign. The hypothesis is supported only if at least four
-ordered directions beat both controls on top-1. MRR and per-group results are
-diagnostics, not substitutes for that preregistered gate. A failure would
-motivate revisiting the feature representation or a nonlinear alignment only
-after inspecting which directions and groups fail; it would not justify tuning
-against repetitions 15–20.
+The hypothesis is not supported: one of six ordered directions passed the
+preregistered top-1 gate, not the required four. The fixed linear alignment is
+therefore not a general XRF55 cross-modal event retriever. Its test repetitions
+must not be reused for feature or model selection. A new representation or
+nonlinear alignment requires a separately preregistered experiment with a new
+untouched evaluation role; these results do not justify tuning against
+repetitions 15–20.
