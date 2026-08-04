@@ -4,8 +4,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use netbraid::adapters::npy::{
-    project_npy_row_window, NpyAdapterError, NpyComponentAggregateV0, NpyDtypeV0,
-    NpyRowWindowOptions, NpyWindowCompletenessV0, NPY_ROW_WINDOW_METADATA_SCHEMA_V0,
+    project_npy_row_window, project_npy_vector_window, NpyAdapterError, NpyComponentAggregateV0,
+    NpyDtypeV0, NpyRowWindowOptions, NpyVectorWindowOptions, NpyWindowCompletenessV0,
+    NPY_ROW_WINDOW_METADATA_SCHEMA_V0, NPY_VECTOR_WINDOW_METADATA_SCHEMA_V0,
 };
 use proptest::prelude::*;
 use tempfile::TempDir;
@@ -56,7 +57,21 @@ fn options(first_row: u64, row_count: u64) -> NpyRowWindowOptions {
     options
 }
 
+fn vector_options(first_index: u64, value_count: u64) -> NpyVectorWindowOptions {
+    let mut options = NpyVectorWindowOptions::default();
+    options.first_index = first_index;
+    options.value_count = value_count;
+    options
+}
+
 fn f64_payload(values: &[f64]) -> Vec<u8> {
+    values
+        .iter()
+        .flat_map(|value| value.to_le_bytes())
+        .collect()
+}
+
+fn u64_payload(values: &[u64]) -> Vec<u8> {
     values
         .iter()
         .flat_map(|value| value.to_le_bytes())
@@ -183,6 +198,89 @@ fn exact_c16_row_window_oracle_matches() {
     );
     assert_eq!(projection.read_audit().requested_bytes(), 2 * 2 * 16);
     assert_eq!(projection.read_audit().observed_bytes(), 2 * 2 * 16);
+}
+
+#[test]
+fn exact_c16_vector_window_preserves_rank_and_component_summary() {
+    let staged = stage_npy(
+        "{'descr': '<c16', 'fortran_order': False, 'shape': (4,), }",
+        &f64_payload(&[100.0, 100.0, 1.0, -1.0, 0.0, -0.0, 3.0, 4.0]),
+    );
+
+    let projection = project_npy_vector_window(&staged.path, &vector_options(1, 2)).unwrap();
+    let metadata = projection.metadata();
+    assert_eq!(metadata.schema(), NPY_VECTOR_WINDOW_METADATA_SCHEMA_V0);
+    assert_eq!(metadata.dtype(), NpyDtypeV0::ComplexFloat64);
+    assert_eq!(metadata.length(), 4);
+    assert_eq!(metadata.requested_values().first_index(), 1);
+    assert_eq!(metadata.requested_values().value_count(), 2);
+    assert_eq!(metadata.observed_values(), metadata.requested_values());
+    assert_eq!(metadata.completeness(), NpyWindowCompletenessV0::Complete);
+    assert_eq!(metadata.counts().finite_components(), 4);
+    assert_eq!(metadata.counts().nonfinite_components(), 0);
+    assert_eq!(metadata.counts().zero_components(), 2);
+    assert_component(
+        metadata.aggregates().real().unwrap(),
+        1,
+        0,
+        0,
+        Some(0.0f64.to_bits()),
+        Some(1.0f64.to_bits()),
+    );
+    assert_component(
+        metadata.aggregates().imaginary().unwrap(),
+        0,
+        1,
+        0,
+        Some((-1.0f64).to_bits()),
+        Some((-0.0f64).to_bits()),
+    );
+    assert_eq!(
+        projection.read_audit().requested_byte_offset(),
+        staged.data_offset + 16
+    );
+    assert_eq!(projection.read_audit().requested_bytes(), 32);
+    assert_eq!(projection.read_audit().observed_bytes(), 32);
+}
+
+#[test]
+fn exact_u8_vector_window_summarizes_half_open_offsets() {
+    let staged = stage_npy(
+        "{'descr': '<u8', 'fortran_order': False, 'shape': (4,), }",
+        &u64_payload(&[0, 2, 3, 6]),
+    );
+
+    let projection = project_npy_vector_window(&staged.path, &vector_options(1, 2)).unwrap();
+    let metadata = projection.metadata();
+    assert_eq!(metadata.dtype(), NpyDtypeV0::Unsigned64);
+    assert_eq!(metadata.length(), 4);
+    assert_eq!(metadata.counts().finite_components(), 2);
+    assert_eq!(metadata.counts().nonfinite_components(), 0);
+    assert_eq!(metadata.counts().zero_components(), 0);
+    assert_eq!(metadata.aggregates().unsigned_minimum(), Some(2));
+    assert_eq!(metadata.aggregates().unsigned_maximum(), Some(3));
+    assert_eq!(metadata.aggregates().unsigned_adjacent_equal(), Some(0));
+    assert_eq!(metadata.aggregates().unsigned_adjacent_decreases(), Some(0));
+    assert!(metadata.aggregates().values().is_none());
+    assert!(metadata.aggregates().real().is_none());
+    assert_eq!(
+        projection.read_audit().requested_byte_offset(),
+        staged.data_offset + 8
+    );
+    assert_eq!(projection.read_audit().requested_bytes(), 16);
+}
+
+#[test]
+fn vector_projection_rejects_matrix_rank_without_normalizing_it() {
+    let staged = stage_npy(
+        "{'descr': '<c16', 'fortran_order': False, 'shape': (2, 1), }",
+        &f64_payload(&[1.0, 2.0, 3.0, 4.0]),
+    );
+
+    assert!(matches!(
+        project_npy_vector_window(&staged.path, &NpyVectorWindowOptions::default()),
+        Err(NpyAdapterError::UnsupportedRank)
+    ));
 }
 
 #[test]
@@ -441,7 +539,91 @@ fn serialized_metadata_is_deterministic_and_policy_neutral() {
     assert!(!first.contains(staged.path.to_string_lossy().as_ref()));
 }
 
+#[test]
+fn serialized_vector_metadata_is_deterministic_and_path_free() {
+    let staged = stage_npy(
+        "{'descr': '<u8', 'fortran_order': False, 'shape': (3,), }",
+        &u64_payload(&[0, 2, 5]),
+    );
+    let projection = project_npy_vector_window(&staged.path, &vector_options(0, 3)).unwrap();
+
+    let first = serde_json::to_string(projection.metadata()).unwrap();
+    let second = serde_json::to_string(projection.metadata()).unwrap();
+    assert_eq!(first, second);
+    assert!(first.contains(NPY_VECTOR_WINDOW_METADATA_SCHEMA_V0));
+    assert!(first.contains("\"dtype\":\"unsigned64\""));
+    assert!(first.contains("\"adjacent_decreases\":0"));
+    assert!(!first.contains("path"));
+    assert!(!first.contains(staged.path.to_string_lossy().as_ref()));
+}
+
+#[test]
+#[ignore = "requires ignored SMoRFFI derived artifacts"]
+fn generated_smorffi_vectors_project_through_the_public_adapter() {
+    let iq_path = PathBuf::from(std::env::var_os("NETBRAID_SMORFFI_IQ").unwrap());
+    let offsets_path = PathBuf::from(std::env::var_os("NETBRAID_SMORFFI_ROW_OFFSETS").unwrap());
+
+    let iq = project_npy_vector_window(&iq_path, &vector_options(0, 2)).unwrap();
+    assert_eq!(iq.metadata().dtype(), NpyDtypeV0::ComplexFloat64);
+    assert_eq!(iq.metadata().length(), 38_561_309);
+    assert_eq!(iq.metadata().counts().finite_components(), 4);
+    assert_eq!(iq.metadata().counts().nonfinite_components(), 0);
+    assert_eq!(iq.read_audit().observed_bytes(), 32);
+
+    let offsets = project_npy_vector_window(&offsets_path, &vector_options(0, 122_512)).unwrap();
+    assert_eq!(offsets.metadata().dtype(), NpyDtypeV0::Unsigned64);
+    assert_eq!(offsets.metadata().length(), 122_512);
+    assert_eq!(offsets.metadata().aggregates().unsigned_minimum(), Some(0));
+    assert_eq!(
+        offsets.metadata().aggregates().unsigned_maximum(),
+        Some(38_561_309)
+    );
+    assert_eq!(
+        offsets.metadata().aggregates().unsigned_adjacent_equal(),
+        Some(0)
+    );
+    assert_eq!(
+        offsets
+            .metadata()
+            .aggregates()
+            .unsigned_adjacent_decreases(),
+        Some(0)
+    );
+    assert_eq!(offsets.read_audit().observed_bytes(), 122_512 * 8);
+}
+
 proptest! {
+    #[test]
+    fn u8_vector_aggregate_matches_naive_order_counts(
+        values in prop::collection::vec(any::<u64>(), 1..32),
+    ) {
+        let dictionary = format!(
+            "{{'descr': '<u8', 'fortran_order': False, 'shape': ({},), }}",
+            values.len()
+        );
+        let staged = stage_npy(&dictionary, &u64_payload(&values));
+        let projection = project_npy_vector_window(
+            &staged.path,
+            &vector_options(0, values.len() as u64),
+        ).unwrap();
+        let aggregates = projection.metadata().aggregates();
+
+        prop_assert_eq!(aggregates.unsigned_minimum(), values.iter().copied().min());
+        prop_assert_eq!(aggregates.unsigned_maximum(), values.iter().copied().max());
+        prop_assert_eq!(
+            aggregates.unsigned_adjacent_equal(),
+            Some(values.windows(2).filter(|pair| pair[0] == pair[1]).count() as u64)
+        );
+        prop_assert_eq!(
+            aggregates.unsigned_adjacent_decreases(),
+            Some(values.windows(2).filter(|pair| pair[1] < pair[0]).count() as u64)
+        );
+        prop_assert_eq!(
+            projection.metadata().counts().zero_components(),
+            values.iter().filter(|value| **value == 0).count() as u64
+        );
+    }
+
     #[test]
     fn f8_full_window_aggregate_matches_naive_total_order(
         bits in prop::collection::vec(any::<u64>(), 1..32),

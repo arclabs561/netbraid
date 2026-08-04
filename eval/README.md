@@ -103,6 +103,10 @@ metadata. The capability audit passes, but its nested relation split remains
 blocked with `unbounded_session_axis`: file boundaries, row order, row count,
 filenames, and filesystem times are not acquisition-session evidence. It
 publishes no split manifest and reads no IQ or row-offset payload bytes.
+`just smorffi-rust-vector-adapter` separately reopens both generated rank-one
+arrays through the public bounded NPY vector projection, checks the exact
+complex and unsigned dtypes and extents, and verifies that the complete offset
+vector is strictly increasing from zero to the IQ sample count.
 
 `profile-xrf55-layout.py` validates the three local XRF55 archive and receipt
 metadata contracts, bounds their ZIP central directories, and reports aggregate

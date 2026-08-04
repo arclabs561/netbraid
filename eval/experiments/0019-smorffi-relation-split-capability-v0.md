@@ -24,6 +24,12 @@ successful audit, zero payload bytes read, zero partitions assigned, and the
 stable `unbounded_session_axis` blocker. It must not publish a relation-split
 manifest.
 
+`just smorffi-rust-vector-adapter` recompiles the private artifacts and projects
+the rank-one complex IQ and unsigned offset arrays through Netbraid's public
+bounded NPY vector API. The integration requires exact extents, finite sampled
+IQ components, and a complete offset vector with no equal or decreasing
+adjacent values.
+
 The full ignored corpus was compiled with `just smorffi-row-adapter`; the
 metadata-only result was then produced with `just smorffi-split-capability`.
 
@@ -51,6 +57,11 @@ range from 288 through 579; only 37,288 records have the nominal 288 samples.
 The private NPY artifacts reopen as read-only memmaps, contain strictly
 increasing half-open row offsets, and occupy about 618 MB for IQ plus 1 MB for
 offsets.
+
+The Rust vector adapter integration also passed. It read a bounded two-value IQ
+window and the complete 122,512-value offset vector, confirmed the exact source
+extents, and found no equal or decreasing adjacent offsets. No source path was
+retained in projection metadata.
 
 The metadata-only capability audit passed without opening either payload. Its
 nested relation-split result is `blocked`, with zero partitions assigned and no

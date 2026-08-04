@@ -87,6 +87,11 @@ smorffi-split-capability-check:
 smorffi-split-capability: smorffi-row-adapter
     {{ python }} eval/evaluate-smorffi-relation-split-capability.py
 
+# Reopen the generated rank-one complex IQ and unsigned offset arrays through
+# Netbraid's public bounded vector projection. No source path enters metadata.
+smorffi-rust-vector-adapter: smorffi-row-adapter
+    NETBRAID_SMORFFI_IQ="$PWD/data/derived/eval/smorffi-iq.npy" NETBRAID_SMORFFI_ROW_OFFSETS="$PWD/data/derived/eval/smorffi-row-offsets.npy" cargo test --locked --manifest-path rust/Cargo.toml --features adapter-npy --test adapter_npy generated_smorffi_vectors_project_through_the_public_adapter -- --ignored
+
 controlled-jamming-fetcher-check:
     uv run --python 3.11 data/tests/test-fetch-controlled-jamming.py
 

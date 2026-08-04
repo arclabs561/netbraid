@@ -1,4 +1,4 @@
-//! Bounded positional projection of row windows from narrow NPY arrays.
+//! Bounded positional projection of row and vector windows from narrow NPY arrays.
 
 use std::fs::{self, File, Metadata, OpenOptions};
 use std::io;
@@ -7,6 +7,7 @@ use std::path::Path;
 use serde::Serialize;
 
 pub const NPY_ROW_WINDOW_METADATA_SCHEMA_V0: &str = "netbraid.npy_row_window_metadata.v0";
+pub const NPY_VECTOR_WINDOW_METADATA_SCHEMA_V0: &str = "netbraid.npy_vector_window_metadata.v0";
 
 const NPY_PREFIX_BYTES: u64 = 10;
 const DEFAULT_MAX_HEADER_BYTES: u64 = 4 * 1024;
@@ -20,6 +21,7 @@ const HARD_MAX_WINDOW_BYTES: u64 = 64 * 1024 * 1024;
 pub enum NpyDtypeV0 {
     Float64,
     ComplexFloat64,
+    Unsigned64,
 }
 
 impl NpyDtypeV0 {
@@ -27,6 +29,7 @@ impl NpyDtypeV0 {
         match self {
             Self::Float64 => 8,
             Self::ComplexFloat64 => 16,
+            Self::Unsigned64 => 8,
         }
     }
 }
@@ -142,27 +145,63 @@ pub enum NpyDeterministicAggregatesV0 {
         real: NpyComponentAggregateV0,
         imaginary: NpyComponentAggregateV0,
     },
+    Unsigned64 {
+        minimum: Option<u64>,
+        maximum: Option<u64>,
+        adjacent_equal: u64,
+        adjacent_decreases: u64,
+    },
 }
 
 impl NpyDeterministicAggregatesV0 {
     pub const fn values(&self) -> Option<NpyComponentAggregateV0> {
         match self {
             Self::Float64 { values } => Some(*values),
-            Self::ComplexFloat64 { .. } => None,
+            Self::ComplexFloat64 { .. } | Self::Unsigned64 { .. } => None,
         }
     }
 
     pub const fn real(&self) -> Option<NpyComponentAggregateV0> {
         match self {
-            Self::Float64 { .. } => None,
+            Self::Float64 { .. } | Self::Unsigned64 { .. } => None,
             Self::ComplexFloat64 { real, .. } => Some(*real),
         }
     }
 
     pub const fn imaginary(&self) -> Option<NpyComponentAggregateV0> {
         match self {
-            Self::Float64 { .. } => None,
+            Self::Float64 { .. } | Self::Unsigned64 { .. } => None,
             Self::ComplexFloat64 { imaginary, .. } => Some(*imaginary),
+        }
+    }
+
+    pub const fn unsigned_minimum(&self) -> Option<u64> {
+        match self {
+            Self::Unsigned64 { minimum, .. } => *minimum,
+            Self::Float64 { .. } | Self::ComplexFloat64 { .. } => None,
+        }
+    }
+
+    pub const fn unsigned_maximum(&self) -> Option<u64> {
+        match self {
+            Self::Unsigned64 { maximum, .. } => *maximum,
+            Self::Float64 { .. } | Self::ComplexFloat64 { .. } => None,
+        }
+    }
+
+    pub const fn unsigned_adjacent_equal(&self) -> Option<u64> {
+        match self {
+            Self::Unsigned64 { adjacent_equal, .. } => Some(*adjacent_equal),
+            Self::Float64 { .. } | Self::ComplexFloat64 { .. } => None,
+        }
+    }
+
+    pub const fn unsigned_adjacent_decreases(&self) -> Option<u64> {
+        match self {
+            Self::Unsigned64 {
+                adjacent_decreases, ..
+            } => Some(*adjacent_decreases),
+            Self::Float64 { .. } | Self::ComplexFloat64 { .. } => None,
         }
     }
 }
@@ -280,6 +319,111 @@ impl NpyRowWindowProjection {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct NpyVectorIntervalV0 {
+    first_index: u64,
+    value_count: u64,
+}
+
+impl NpyVectorIntervalV0 {
+    const fn new(first_index: u64, value_count: u64) -> Self {
+        Self {
+            first_index,
+            value_count,
+        }
+    }
+
+    pub const fn first_index(&self) -> u64 {
+        self.first_index
+    }
+
+    pub const fn value_count(&self) -> u64 {
+        self.value_count
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NpyVectorWindowMetadataV0 {
+    schema: &'static str,
+    dtype: NpyDtypeV0,
+    length: u64,
+    requested_values: NpyVectorIntervalV0,
+    observed_values: NpyVectorIntervalV0,
+    completeness: NpyWindowCompletenessV0,
+    counts: NpyValueCountsV0,
+    aggregates: NpyDeterministicAggregatesV0,
+}
+
+impl NpyVectorWindowMetadataV0 {
+    pub const fn schema(&self) -> &'static str {
+        self.schema
+    }
+
+    pub const fn dtype(&self) -> NpyDtypeV0 {
+        self.dtype
+    }
+
+    pub const fn length(&self) -> u64 {
+        self.length
+    }
+
+    pub const fn requested_values(&self) -> NpyVectorIntervalV0 {
+        self.requested_values
+    }
+
+    pub const fn observed_values(&self) -> NpyVectorIntervalV0 {
+        self.observed_values
+    }
+
+    pub const fn completeness(&self) -> NpyWindowCompletenessV0 {
+        self.completeness
+    }
+
+    pub const fn counts(&self) -> NpyValueCountsV0 {
+        self.counts
+    }
+
+    pub const fn aggregates(&self) -> NpyDeterministicAggregatesV0 {
+        self.aggregates
+    }
+}
+
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct NpyVectorWindowOptions {
+    pub first_index: u64,
+    pub value_count: u64,
+    pub max_header_bytes: u64,
+    pub max_window_bytes: u64,
+}
+
+impl Default for NpyVectorWindowOptions {
+    fn default() -> Self {
+        Self {
+            first_index: 0,
+            value_count: 1,
+            max_header_bytes: DEFAULT_MAX_HEADER_BYTES,
+            max_window_bytes: DEFAULT_MAX_WINDOW_BYTES,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NpyVectorWindowProjection {
+    metadata: NpyVectorWindowMetadataV0,
+    read_audit: NpyReadAudit,
+}
+
+impl NpyVectorWindowProjection {
+    pub const fn metadata(&self) -> &NpyVectorWindowMetadataV0 {
+        &self.metadata
+    }
+
+    pub const fn read_audit(&self) -> NpyReadAudit {
+        self.read_audit
+    }
+}
+
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum NpyAdapterError {
@@ -325,7 +469,9 @@ impl std::fmt::Display for NpyAdapterError {
             Self::InvalidHeader => formatter.write_str("NPY header is invalid"),
             Self::UnsupportedDtype => formatter.write_str("NPY dtype is not supported"),
             Self::UnsupportedOrder => formatter.write_str("Fortran-order NPY is not supported"),
-            Self::UnsupportedRank => formatter.write_str("NPY array must have rank 2"),
+            Self::UnsupportedRank => {
+                formatter.write_str("NPY array rank is not supported by this projection")
+            }
             Self::InvalidShape => formatter.write_str("NPY shape must contain positive extents"),
             Self::ShapeOverflow => formatter.write_str("NPY row shape byte length overflows"),
             Self::ExtentOverflow => formatter.write_str("NPY declared file extent overflows"),
@@ -365,14 +511,19 @@ fn project_npy_row_window_with_hook(
     validate_options(options)?;
     let (file, identity) = open_regular(path)?;
     let header = read_header(&file, identity.len, options.max_header_bytes)?;
+    if header.extents.len() != 2 {
+        return Err(NpyAdapterError::UnsupportedRank);
+    }
+    let shape = NpyShapeV0 {
+        rows: header.extents[0],
+        columns: header.extents[1],
+    };
 
-    let row_bytes = header
-        .shape
+    let row_bytes = shape
         .columns
         .checked_mul(header.dtype.element_bytes())
         .ok_or(NpyAdapterError::ShapeOverflow)?;
-    let payload_bytes = header
-        .shape
+    let payload_bytes = shape
         .rows
         .checked_mul(row_bytes)
         .ok_or(NpyAdapterError::ExtentOverflow)?;
@@ -403,8 +554,7 @@ fn project_npy_row_window_with_hook(
         return Err(NpyAdapterError::WindowTooLarge);
     }
 
-    let observed_row_count = header
-        .shape
+    let observed_row_count = shape
         .rows
         .saturating_sub(options.first_row)
         .min(options.row_count);
@@ -435,9 +585,92 @@ fn project_npy_row_window_with_hook(
         metadata: NpyRowWindowMetadataV0 {
             schema: NPY_ROW_WINDOW_METADATA_SCHEMA_V0,
             dtype: header.dtype,
-            shape: header.shape,
+            shape,
             requested_rows: NpyRowIntervalV0::new(options.first_row, options.row_count),
             observed_rows: NpyRowIntervalV0::new(options.first_row, observed_row_count),
+            completeness,
+            counts,
+            aggregates,
+        },
+        read_audit,
+    })
+}
+
+/// Project a bounded value window from a rank-one NPY array.
+pub fn project_npy_vector_window(
+    path: &Path,
+    options: &NpyVectorWindowOptions,
+) -> Result<NpyVectorWindowProjection, NpyAdapterError> {
+    validate_vector_options(options)?;
+    let (file, identity) = open_regular(path)?;
+    let header = read_header(&file, identity.len, options.max_header_bytes)?;
+    if header.extents.len() != 1 {
+        return Err(NpyAdapterError::UnsupportedRank);
+    }
+    let length = header.extents[0];
+    let element_bytes = header.dtype.element_bytes();
+    let payload_bytes = length
+        .checked_mul(element_bytes)
+        .ok_or(NpyAdapterError::ExtentOverflow)?;
+    let expected_bytes = header
+        .data_offset
+        .checked_add(payload_bytes)
+        .ok_or(NpyAdapterError::ExtentOverflow)?;
+    if expected_bytes != identity.len {
+        return Err(NpyAdapterError::ExtentMismatch {
+            expected_bytes,
+            actual_bytes: identity.len,
+        });
+    }
+
+    let requested_value_offset = options
+        .first_index
+        .checked_mul(element_bytes)
+        .ok_or(NpyAdapterError::WindowOffsetOverflow)?;
+    let requested_byte_offset = header
+        .data_offset
+        .checked_add(requested_value_offset)
+        .ok_or(NpyAdapterError::WindowOffsetOverflow)?;
+    let requested_bytes = options
+        .value_count
+        .checked_mul(element_bytes)
+        .ok_or(NpyAdapterError::WindowLengthOverflow)?;
+    if requested_bytes > options.max_window_bytes {
+        return Err(NpyAdapterError::WindowTooLarge);
+    }
+
+    let observed_value_count = length
+        .saturating_sub(options.first_index)
+        .min(options.value_count);
+    let observed_bytes = observed_value_count
+        .checked_mul(element_bytes)
+        .ok_or(NpyAdapterError::WindowLengthOverflow)?;
+    let mut read_audit = NpyReadAudit {
+        requested_byte_offset,
+        requested_bytes,
+        ..NpyReadAudit::default()
+    };
+    let bytes = read_exact_range(
+        &file,
+        requested_byte_offset,
+        observed_bytes,
+        Some(&mut read_audit),
+    )?;
+    fence_source(path, &file, &identity)?;
+
+    let completeness = if observed_value_count == options.value_count {
+        NpyWindowCompletenessV0::Complete
+    } else {
+        NpyWindowCompletenessV0::Truncated
+    };
+    let (counts, aggregates) = summarize(&bytes, header.dtype);
+    Ok(NpyVectorWindowProjection {
+        metadata: NpyVectorWindowMetadataV0 {
+            schema: NPY_VECTOR_WINDOW_METADATA_SCHEMA_V0,
+            dtype: header.dtype,
+            length,
+            requested_values: NpyVectorIntervalV0::new(options.first_index, options.value_count),
+            observed_values: NpyVectorIntervalV0::new(options.first_index, observed_value_count),
             completeness,
             counts,
             aggregates,
@@ -459,10 +692,23 @@ fn validate_options(options: &NpyRowWindowOptions) -> Result<(), NpyAdapterError
     Ok(())
 }
 
+fn validate_vector_options(options: &NpyVectorWindowOptions) -> Result<(), NpyAdapterError> {
+    if options.value_count == 0 {
+        return Err(NpyAdapterError::InvalidOption("value_count"));
+    }
+    if options.max_header_bytes == 0 || options.max_header_bytes > HARD_MAX_HEADER_BYTES {
+        return Err(NpyAdapterError::InvalidOption("max_header_bytes"));
+    }
+    if options.max_window_bytes == 0 || options.max_window_bytes > HARD_MAX_WINDOW_BYTES {
+        return Err(NpyAdapterError::InvalidOption("max_window_bytes"));
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 struct ParsedHeader {
     dtype: NpyDtypeV0,
-    shape: NpyShapeV0,
+    extents: Vec<u64>,
     data_offset: u64,
 }
 
@@ -501,14 +747,14 @@ fn read_header(
     let parsed = parse_header_dictionary(&bytes)?;
     Ok(ParsedHeader {
         dtype: parsed.dtype,
-        shape: parsed.shape,
+        extents: parsed.extents,
         data_offset,
     })
 }
 
 struct HeaderDictionary {
     dtype: NpyDtypeV0,
-    shape: NpyShapeV0,
+    extents: Vec<u64>,
 }
 
 fn parse_header_dictionary(bytes: &[u8]) -> Result<HeaderDictionary, NpyAdapterError> {
@@ -536,6 +782,7 @@ fn parse_header_dictionary(bytes: &[u8]) -> Result<HeaderDictionary, NpyAdapterE
                 dtype = Some(match parser.parse_string()?.as_str() {
                     "<f8" => NpyDtypeV0::Float64,
                     "<c16" => NpyDtypeV0::ComplexFloat64,
+                    "<u8" => NpyDtypeV0::Unsigned64,
                     _ => return Err(NpyAdapterError::UnsupportedDtype),
                 });
             }
@@ -548,16 +795,13 @@ fn parse_header_dictionary(bytes: &[u8]) -> Result<HeaderDictionary, NpyAdapterE
             }
             "shape" if shape.is_none() => {
                 let extents = parser.parse_shape()?;
-                if extents.len() != 2 {
+                if extents.is_empty() || extents.len() > 2 {
                     return Err(NpyAdapterError::UnsupportedRank);
                 }
-                if extents[0] == 0 || extents[1] == 0 {
+                if extents.contains(&0) {
                     return Err(NpyAdapterError::InvalidShape);
                 }
-                shape = Some(NpyShapeV0 {
-                    rows: extents[0],
-                    columns: extents[1],
-                });
+                shape = Some(extents);
             }
             _ => return Err(NpyAdapterError::InvalidHeader),
         }
@@ -575,7 +819,7 @@ fn parse_header_dictionary(bytes: &[u8]) -> Result<HeaderDictionary, NpyAdapterE
     fortran_order.ok_or(NpyAdapterError::InvalidHeader)?;
     Ok(HeaderDictionary {
         dtype: dtype.ok_or(NpyAdapterError::InvalidHeader)?,
-        shape: shape.ok_or(NpyAdapterError::InvalidHeader)?,
+        extents: shape.ok_or(NpyAdapterError::InvalidHeader)?,
     })
 }
 
@@ -890,6 +1134,35 @@ impl ComponentAccumulator {
 }
 
 fn summarize(bytes: &[u8], dtype: NpyDtypeV0) -> (NpyValueCountsV0, NpyDeterministicAggregatesV0) {
+    if dtype == NpyDtypeV0::Unsigned64 {
+        let mut counts = NpyValueCountsV0::default();
+        let mut minimum = None;
+        let mut maximum = None;
+        let mut previous = None;
+        let mut adjacent_equal = 0;
+        let mut adjacent_decreases = 0;
+        for encoded in bytes.as_chunks::<8>().0 {
+            let value = u64::from_le_bytes(*encoded);
+            counts.finite_components += 1;
+            counts.zero_components += u64::from(value == 0);
+            minimum = Some(minimum.map_or(value, |current: u64| current.min(value)));
+            maximum = Some(maximum.map_or(value, |current: u64| current.max(value)));
+            if let Some(previous) = previous {
+                adjacent_equal += u64::from(value == previous);
+                adjacent_decreases += u64::from(value < previous);
+            }
+            previous = Some(value);
+        }
+        return (
+            counts,
+            NpyDeterministicAggregatesV0::Unsigned64 {
+                minimum,
+                maximum,
+                adjacent_equal,
+                adjacent_decreases,
+            },
+        );
+    }
     let mut counts = NpyValueCountsV0::default();
     let mut primary = ComponentAccumulator::default();
     let mut secondary = ComponentAccumulator::default();
@@ -917,6 +1190,7 @@ fn summarize(bytes: &[u8], dtype: NpyDtypeV0) -> (NpyValueCountsV0, NpyDetermini
             real: primary.finish(),
             imaginary: secondary.finish(),
         },
+        NpyDtypeV0::Unsigned64 => unreachable!("unsigned values return before float decoding"),
     };
     (counts, aggregates)
 }

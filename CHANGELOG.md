@@ -27,6 +27,8 @@ GitHub native binary releases remain available independently.
 - A receipt-bound SMoRFFI CSV adapter that emits private mmap-ready IQ and row
   offset arrays, plus a metadata-only capability audit that refuses to publish
   a relation split when acquisition-session evidence is absent.
+- A bounded rank-one NPY vector projection for complex binary64 and unsigned
+  64-bit arrays, including exact unsigned range and adjacent-order summaries.
 
 ### Changed
 
