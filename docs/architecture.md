@@ -103,15 +103,31 @@ claim. It deterministically admits directional five-tuple candidates whose
 closed intervals overlap, preserves split and merge components, and uses a
 private bounded factor graph to combine timing and aggregate-counter
 heuristics. Exact enumeration is component-bounded. A component that exceeds
-its edge or assignment budget abstains without partial edge beliefs. Normalized
-heuristic belief is model-relative rather than calibrated, and the in-memory
-source indices are not replay identifiers.
+its edge bound abstains without partial edge beliefs. If all otherwise eligible
+components do not fit the report assignment budget, all of them abstain rather
+than giving priority to identifier order. Packet flows with fallback-only
+orientation and Zeek connections without a duration are not admitted.
+Normalized heuristic belief is model-relative rather than calibrated, and the
+in-memory source indices are not replay identifiers.
 
 The factor kernel is source-agnostic, but its adapters are not. Packet/Zeek
 correspondence does not define a common flow interface for signal, packet,
 conversation, source, or identity evidence. A new family keeps its own source
 semantics and contributes only finite variables and factors to the private
 kernel.
+
+The RSSI shift-explanation family is the second use of that kernel. Its
+variables represent observer-wide and source-wide explanations over the
+deterministic RSSI reference-frame classification. Stable links remain in each
+connected component as counter-evidence. For each shifted link, residual
+belief is the exact joint mass where neither endpoint-wide explanation is
+active; it does not require a redundant enumerated variable and does not erase
+or relabel the original link evidence. Exact enumeration is bounded over the
+free endpoint variables, and a refusal emits no partial beliefs. The output
+remains an in-memory heuristic assessment, not causal identification or a
+calibrated probability. Aggregate baseline samples are bounded before
+classification. Separate state-space and assignment-work budgets cover exact
+enumeration and the family-specific table and residual passes.
 
 The content-relation family compares canonical SHA-256 declarations and keeps
 unavailable digests unknown. Matching declarations do not prove byte equality
@@ -126,7 +142,7 @@ intent, or integrity. Matching packet structure also remains
 non-discriminating for the separate packet same-event family, so that reducer
 never supports same-event from structural agreement alone.
 
-The RSSI reference-frame reducer is one layer earlier: it reports bounded
+The deterministic RSSI reference-frame reducer is one layer earlier: it reports bounded
 fixed-point link evidence, source-wide shift candidates, and observer-scoped
 shift candidates. Source-wide changes are removed before observer attribution.
 Those candidates are not location, movement, device-identity, intent, or attack

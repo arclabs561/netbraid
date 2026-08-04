@@ -79,6 +79,14 @@ contracts. Each relation family maps only its own finite variables and factors
 into the private solver. Shared mechanics are reused without forcing unlike
 evidence into the packet/Zeek schema.
 
+The second family is deliberately non-packet: RSSI reference-frame links map
+to observer- and source-shift variables plus a derived residual-link belief. It
+reuses exact component inference without importing packet, flow, address, port,
+or Zeek semantics. This demonstrates the intended mechanical reuse; the RSSI
+family's single joint factor does not itself exercise cross-factor dependence
+validation, justify publishing the generic graph, or treat all observations as
+one schema.
+
 ## Offline and passive Rust defaults
 
 The Rust CLI reads saved evidence or a regular saved capture. It does not open

@@ -14,7 +14,7 @@ use crate::infer::factor_graph::{
     DiscreteVariable, EvidenceAtomId, ExactInferenceLimits, FactorDependence, FactorGraphLimits,
     FactorId, FactorProvenance, FactorSemantics, InferenceAbstentionReason, VariableId,
 };
-use crate::replay::{IpFamilyV0, PacketFlowV0, TransportProtocolV0};
+use crate::replay::{IpFamilyV0, PacketFlowOriginBasisV0, PacketFlowV0, TransportProtocolV0};
 
 const PPB: u64 = 1_000_000_000;
 const MAX_POTENTIAL_PPB: u64 = 1_000 * PPB;
@@ -111,13 +111,44 @@ impl Default for PacketZeekCorrespondenceOptionsV0 {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PacketZeekEdgeBeliefV0 {
     /// Index into the submitted packet-flow slice.
-    pub packet_flow_index: usize,
+    packet_flow_index: usize,
     /// Index into [`ZeekConnStreamV0::connections`].
-    pub zeek_connection_index: usize,
+    zeek_connection_index: usize,
     /// Normalized relative belief in parts per billion.
-    pub corresponds_relative_belief_ppb: u64,
-    /// Whether correspondence is the maximum-weight state for this edge.
-    pub map_corresponds: bool,
+    corresponds_relative_belief_ppb: u64,
+    /// Maximum marginal state for this edge, with ties retained.
+    marginal_disposition: PacketZeekMarginalDispositionV0,
+}
+
+impl PacketZeekEdgeBeliefV0 {
+    /// Index into the submitted packet-flow slice.
+    pub const fn packet_flow_index(&self) -> usize {
+        self.packet_flow_index
+    }
+
+    /// Index into the parsed Zeek connection stream.
+    pub const fn zeek_connection_index(&self) -> usize {
+        self.zeek_connection_index
+    }
+
+    /// Normalized relative belief in parts per billion.
+    pub const fn corresponds_relative_belief_ppb(&self) -> u64 {
+        self.corresponds_relative_belief_ppb
+    }
+
+    /// Maximum marginal state for this edge, with ties retained.
+    pub const fn marginal_disposition(&self) -> PacketZeekMarginalDispositionV0 {
+        self.marginal_disposition
+    }
+}
+
+/// Maximum state of one binary edge marginal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PacketZeekMarginalDispositionV0 {
+    Corresponds,
+    DoesNotCorrespond,
+    Tied,
 }
 
 /// Why one candidate component was not enumerated.
@@ -126,8 +157,8 @@ pub struct PacketZeekEdgeBeliefV0 {
 pub enum PacketZeekAbstentionReasonV0 {
     /// The component contains more admitted edges than allowed.
     ComponentEdgeLimitExceeded { edges: usize, limit: usize },
-    /// Complete enumeration would exceed the remaining report budget.
-    AssignmentBudgetExceeded { required: u64, remaining: u64 },
+    /// Enumerating every otherwise-admissible component would exceed the report budget.
+    ReportAssignmentBudgetExceeded { required: u64, limit: u64 },
 }
 
 /// Exact, infeasible, or resource-bounded result for one candidate component.
@@ -244,9 +275,12 @@ struct CandidateComponent {
 ///
 /// Admission requires the same directional TCP/UDP five-tuple and closed
 /// interval overlap after expanding the Zeek interval by the configured
-/// tolerance. All admitted edges remain available; there is no one-to-one
-/// assignment policy. Exact enumeration aggregates counters across split and
-/// merge candidates within each bounded connected component.
+/// tolerance. Packet flows oriented only by their lowest observed frame and
+/// Zeek connections without a duration are not admitted. Callers remain
+/// responsible for supplying timestamps in one comparable clock frame. All
+/// admitted edges remain available; there is no one-to-one assignment policy.
+/// Exact enumeration aggregates counters across split and merge candidates
+/// within each bounded connected component.
 pub fn infer_packet_zeek_correspondence_v0(
     packet_flows: &[PacketFlowV0],
     zeek_connections: &ZeekConnStreamV0,
@@ -336,6 +370,9 @@ fn candidate_edges(
 ) -> Result<Vec<CandidateEdge>, PacketZeekCorrespondenceErrorV0> {
     let mut zeek_by_key = BTreeMap::<DirectionalFlowKey, Vec<usize>>::new();
     for (index, connection) in zeek_connections.iter().enumerate() {
+        if connection.duration_ns().is_none() {
+            continue;
+        }
         if let Some(key) = zeek_key(connection) {
             zeek_by_key.entry(key).or_default().push(index);
         }
@@ -343,11 +380,19 @@ fn candidate_edges(
     let tolerance = i128::from(options.candidate_tolerance_ns);
     let mut candidates = Vec::new();
     for (packet_index, flow) in packet_flows.iter().enumerate() {
+        if flow.origin_basis == PacketFlowOriginBasisV0::LowestFrameSource {
+            continue;
+        }
         let key = packet_key(flow);
         for zeek_index in zeek_by_key.get(&key).into_iter().flatten() {
             let connection = &zeek_connections[*zeek_index];
             let zeek_start = i128::from(connection.start_time_unix_ns());
-            let zeek_end = zeek_start + i128::from(connection.duration_ns().unwrap_or(0));
+            let zeek_end = zeek_start
+                + i128::from(
+                    connection
+                        .duration_ns()
+                        .expect("candidate index retains known durations"),
+                );
             let packet_start = i128::from(flow.start_time_unix_ns);
             let packet_end = i128::from(flow.end_time_unix_ns);
             let direct_overlap =
@@ -462,8 +507,16 @@ fn infer_components(
     components: &[CandidateComponent],
     options: &PacketZeekCorrespondenceOptionsV0,
 ) -> Result<Vec<PacketZeekComponentResultV0>, PacketZeekCorrespondenceErrorV0> {
+    let report_assignments_required = components
+        .iter()
+        .filter(|component| component.edges.len() <= options.limits.max_component_edges)
+        .try_fold(0_u64, |total, component| {
+            total
+                .checked_add(1_u64 << component.edges.len())
+                .ok_or(PacketZeekCorrespondenceErrorV0::InvalidLimits)
+        })?;
+    let report_budget_exceeded = report_assignments_required > options.limits.max_assignments;
     let mut results = Vec::with_capacity(components.len());
-    let mut assignments_remaining = options.limits.max_assignments;
     for (component_index, component) in components.iter().enumerate() {
         if component.edges.len() > options.limits.max_component_edges {
             results.push(abstained_component(
@@ -476,12 +529,12 @@ fn infer_components(
             continue;
         }
         let assignments = 1_u64 << component.edges.len();
-        if assignments > assignments_remaining {
+        if report_budget_exceeded {
             results.push(abstained_component(
                 component,
-                PacketZeekAbstentionReasonV0::AssignmentBudgetExceeded {
-                    required: assignments,
-                    remaining: assignments_remaining,
+                PacketZeekAbstentionReasonV0::ReportAssignmentBudgetExceeded {
+                    required: report_assignments_required,
+                    limit: options.limits.max_assignments,
                 },
             ));
             continue;
@@ -548,7 +601,6 @@ fn infer_components(
             .into_iter()
             .next()
             .ok_or(PacketZeekCorrespondenceErrorV0::InternalModel)?;
-        assignments_remaining -= assignments;
         results.push(project_component_result(
             component,
             component_result.outcome,
@@ -582,7 +634,6 @@ fn project_component_result(
         ComponentInferenceOutcome::Exact {
             assignments_evaluated,
             beliefs,
-            map_states,
         } => {
             let edges = component
                 .edges
@@ -601,7 +652,15 @@ fn project_component_result(
                         packet_flow_index: edge.packet,
                         zeek_connection_index: edge.zeek,
                         corresponds_relative_belief_ppb: true_belief.probability_ppb,
-                        map_corresponds: map_states.get(&id).is_some_and(|state| state == "true"),
+                        marginal_disposition: match true_belief.probability_ppb.cmp(&(PPB / 2)) {
+                            std::cmp::Ordering::Greater => {
+                                PacketZeekMarginalDispositionV0::Corresponds
+                            }
+                            std::cmp::Ordering::Less => {
+                                PacketZeekMarginalDispositionV0::DoesNotCorrespond
+                            }
+                            std::cmp::Ordering::Equal => PacketZeekMarginalDispositionV0::Tied,
+                        },
                     })
                 })
                 .collect::<Result<Vec<_>, PacketZeekCorrespondenceErrorV0>>()?
@@ -629,13 +688,9 @@ fn project_component_result(
                         limit,
                     }
                 }
-                InferenceAbstentionReason::AssignmentBudgetExceeded {
-                    required,
-                    remaining,
-                } => PacketZeekAbstentionReasonV0::AssignmentBudgetExceeded {
-                    required,
-                    remaining,
-                },
+                InferenceAbstentionReason::ReportAssignmentBudgetExceeded { required, limit } => {
+                    PacketZeekAbstentionReasonV0::ReportAssignmentBudgetExceeded { required, limit }
+                }
             };
             (
                 Vec::new().into_boxed_slice(),
@@ -906,8 +961,8 @@ mod tests {
 
     #[test]
     fn one_to_one_exact_counters_match_hand_derived_relative_belief() {
-        let row = row("1.000000000", 1234, "0.100000000", [3, 300, 2, 200]);
-        let zeek = zeek_stream(&[&row]);
+        let known_duration_row = row("1.000000000", 1234, "0.100000000", [3, 300, 2, 200]);
+        let zeek = zeek_stream(&[&known_duration_row]);
         let packet = packet_flow(1234, 1_000_000_000, 1_100_000_000, [3, 300, 2, 200]);
 
         let report = infer_packet_zeek_correspondence_v0(
@@ -921,13 +976,16 @@ mod tests {
         let edges = exact_edges(&report);
         assert_eq!(edges.len(), 1);
         assert_eq!(edges[0].corresponds_relative_belief_ppb, 998_050_682);
-        assert!(edges[0].map_corresponds);
+        assert_eq!(
+            edges[0].marginal_disposition,
+            PacketZeekMarginalDispositionV0::Corresponds
+        );
     }
 
     #[test]
     fn candidate_admission_is_directional_closed_and_tolerance_bounded() {
-        let row = row("1.000000000", 1234, "0.100000000", [3, 300, 2, 200]);
-        let zeek = zeek_stream(&[&row]);
+        let known_duration_row = row("1.000000000", 1234, "0.100000000", [3, 300, 2, 200]);
+        let zeek = zeek_stream(&[&known_duration_row]);
         let at_boundary = packet_flow(1234, 1_100_001_000, 1_100_001_000, [3, 300, 2, 200]);
         let outside = packet_flow(1234, 1_100_001_001, 1_100_001_001, [3, 300, 2, 200]);
 
@@ -961,6 +1019,28 @@ mod tests {
         .unwrap();
         assert_eq!(report.candidate_edges, 0);
         assert!(report.components.is_empty());
+
+        let unknown_duration_row = row("1.000000000", 1234, "-", [3, 300, 2, 200]);
+        let unknown_duration = zeek_stream(&[&unknown_duration_row]);
+        let reliable_origin = packet_flow(1234, 1_000_000_000, 1_100_000_000, [3, 300, 2, 200]);
+        let report = infer_packet_zeek_correspondence_v0(
+            &[reliable_origin],
+            &unknown_duration,
+            &PacketZeekCorrespondenceOptionsV0::default(),
+        )
+        .unwrap();
+        assert_eq!(report.candidate_edges, 0);
+
+        let mut uncertain_origin =
+            packet_flow(1234, 1_000_000_000, 1_100_000_000, [3, 300, 2, 200]);
+        uncertain_origin.origin_basis = PacketFlowOriginBasisV0::LowestFrameSource;
+        let report = infer_packet_zeek_correspondence_v0(
+            &[uncertain_origin],
+            &zeek,
+            &PacketZeekCorrespondenceOptionsV0::default(),
+        )
+        .unwrap();
+        assert_eq!(report.candidate_edges, 0);
     }
 
     #[test]
@@ -981,7 +1061,9 @@ mod tests {
 
         let edges = exact_edges(&report);
         assert_eq!(edges.len(), 2);
-        assert!(edges.iter().all(|edge| edge.map_corresponds));
+        assert!(edges.iter().all(|edge| {
+            edge.marginal_disposition == PacketZeekMarginalDispositionV0::Corresponds
+        }));
         assert!(edges
             .iter()
             .all(|edge| edge.corresponds_relative_belief_ppb > 999_000_000));
@@ -1003,7 +1085,9 @@ mod tests {
 
         let edges = exact_edges(&report);
         assert_eq!(edges.len(), 2);
-        assert!(edges.iter().all(|edge| edge.map_corresponds));
+        assert!(edges.iter().all(|edge| {
+            edge.marginal_disposition == PacketZeekMarginalDispositionV0::Corresponds
+        }));
         assert!(edges
             .iter()
             .all(|edge| edge.corresponds_relative_belief_ppb > 999_000_000));
@@ -1023,22 +1107,16 @@ mod tests {
 
         let report = infer_packet_zeek_correspondence_v0(&packets, &zeek, &options).unwrap();
 
-        assert!(matches!(
-            report.components[0].outcome,
-            PacketZeekComponentOutcomeV0::Exact {
-                assignments_evaluated: 2
-            }
-        ));
-        assert!(matches!(
-            report.components[1].outcome,
-            PacketZeekComponentOutcomeV0::Abstained(
-                PacketZeekAbstentionReasonV0::AssignmentBudgetExceeded {
-                    required: 2,
-                    remaining: 0
-                }
-            )
-        ));
-        assert!(report.components[1].edges.is_empty());
+        assert!(report.components.iter().all(|component| {
+            component.outcome
+                == PacketZeekComponentOutcomeV0::Abstained(
+                    PacketZeekAbstentionReasonV0::ReportAssignmentBudgetExceeded {
+                        required: 4,
+                        limit: 2,
+                    },
+                )
+                && component.edges.is_empty()
+        }));
 
         let mut component_limited = PacketZeekCorrespondenceOptionsV0::default();
         component_limited.limits.max_component_edges = 1;

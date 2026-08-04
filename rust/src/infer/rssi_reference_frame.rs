@@ -540,16 +540,17 @@ impl From<&RssiReferenceFrameLinkV0> for CanonicalLink {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct LinkAssessment {
-    shifted: bool,
-    delta_quarter_milli_db: Option<i64>,
+pub(super) struct LinkAssessment {
+    pub(super) shifted: bool,
+    pub(super) delta_quarter_milli_db: Option<i64>,
 }
 
-/// Reduce baseline and recent RSSI links into stable evidence and candidate lists.
-pub fn assess_rssi_reference_frame_v0(
+pub(super) type CanonicalLinkAssessments = BTreeMap<(String, String), LinkAssessment>;
+
+pub(super) fn classify_rssi_reference_frame_links_v0(
     links: &[RssiReferenceFrameLinkV0],
     profile: &RssiReferenceFrameProfileV0,
-) -> Result<RssiReferenceFrameAssessmentV0, RssiReferenceFrameErrorV0> {
+) -> Result<CanonicalLinkAssessments, RssiReferenceFrameErrorV0> {
     profile
         .validate()
         .map_err(RssiReferenceFrameErrorV0::InvalidProfile)?;
@@ -606,6 +607,16 @@ pub fn assess_rssi_reference_frame_v0(
         };
         link_assessments.insert((observer_id.clone(), source_id.clone()), assessment);
     }
+
+    Ok(link_assessments)
+}
+
+/// Reduce baseline and recent RSSI links into stable evidence and candidate lists.
+pub fn assess_rssi_reference_frame_v0(
+    links: &[RssiReferenceFrameLinkV0],
+    profile: &RssiReferenceFrameProfileV0,
+) -> Result<RssiReferenceFrameAssessmentV0, RssiReferenceFrameErrorV0> {
+    let link_assessments = classify_rssi_reference_frame_links_v0(links, profile)?;
 
     let mut assessments_by_source: BTreeMap<&str, Vec<(&str, LinkAssessment)>> = BTreeMap::new();
     for ((observer_id, source_id), assessment) in &link_assessments {

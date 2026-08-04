@@ -1,7 +1,6 @@
 mod composition;
 mod content_relation;
 mod counter_capture;
-#[cfg(any(feature = "adapter-zeek", test))]
 #[cfg_attr(
     not(test),
     allow(
@@ -14,6 +13,7 @@ mod hypothesis;
 #[cfg(feature = "adapter-zeek")]
 mod packet_zeek;
 mod rssi_reference_frame;
+mod rssi_shift_explanation;
 
 pub use crate::replay::{
     assess_packet_same_event_v0, assess_saved_pcap_fingerprint_v0, PacketSameEventBasisV0,
@@ -70,7 +70,8 @@ pub use packet_zeek::{
     infer_packet_zeek_correspondence_v0, PacketZeekAbstentionReasonV0,
     PacketZeekComponentOutcomeV0, PacketZeekComponentResultV0, PacketZeekCorrespondenceErrorV0,
     PacketZeekCorrespondenceOptionsV0, PacketZeekCorrespondenceReportV0, PacketZeekEdgeBeliefV0,
-    PacketZeekHeuristicProfileV0, PacketZeekInferenceLimitsV0, PACKET_ZEEK_HEURISTIC_PROFILE_V0,
+    PacketZeekHeuristicProfileV0, PacketZeekInferenceLimitsV0, PacketZeekMarginalDispositionV0,
+    PACKET_ZEEK_HEURISTIC_PROFILE_V0,
 };
 
 pub use rssi_reference_frame::{
@@ -82,4 +83,13 @@ pub use rssi_reference_frame::{
     RSSI_REFERENCE_FRAME_ASSESSMENT_SCHEMA_V0, RSSI_REFERENCE_FRAME_MAX_LINK_EVIDENCE_V0,
     RSSI_REFERENCE_FRAME_PPB_V0, RSSI_REFERENCE_FRAME_PROFILE_SCHEMA_V0,
     RSSI_REFERENCE_FRAME_REDUCER_V0,
+};
+
+pub use rssi_shift_explanation::{
+    infer_rssi_shift_explanations_v0, RssiObserverShiftBeliefV0, RssiResidualShiftBeliefV0,
+    RssiShiftExplanationAbstentionReasonV0, RssiShiftExplanationComponentOutcomeV0,
+    RssiShiftExplanationComponentResultV0, RssiShiftExplanationErrorV0,
+    RssiShiftExplanationHeuristicProfileV0, RssiShiftExplanationLimitsV0,
+    RssiShiftExplanationOptionsV0, RssiShiftExplanationReportV0, RssiSourceShiftBeliefV0,
+    RSSI_SHIFT_EXPLANATION_HEURISTIC_PROFILE_V0,
 };

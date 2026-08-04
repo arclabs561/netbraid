@@ -526,7 +526,7 @@ pub(crate) struct VariableBelief {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum InferenceAbstentionReason {
     ComponentVariableLimitExceeded { variables: usize, limit: usize },
-    AssignmentBudgetExceeded { required: u64, remaining: u64 },
+    ReportAssignmentBudgetExceeded { required: u64, limit: u64 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -534,7 +534,6 @@ pub(crate) enum ComponentInferenceOutcome {
     Exact {
         assignments_evaluated: u64,
         beliefs: BTreeMap<VariableId, VariableBelief>,
-        map_states: BTreeMap<VariableId, String>,
     },
     NoFeasibleAssignment {
         assignments_evaluated: u64,
@@ -561,10 +560,29 @@ pub(crate) fn infer_exact(
 ) -> Result<ExactInferenceReport, FactorGraphError> {
     let limits = limits.validate()?;
     let components = graph_components(graph);
+    let assignment_requirements = components
+        .iter()
+        .map(|component| {
+            if component.variable_indices.len() > limits.max_component_variables {
+                Ok(None)
+            } else {
+                component_assignment_count(graph, component).map(Some)
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let report_assignments_required =
+        assignment_requirements
+            .iter()
+            .flatten()
+            .try_fold(0_u64, |total, required| {
+                total
+                    .checked_add(*required)
+                    .ok_or(FactorGraphError::AssignmentCountOverflow)
+            })?;
+    let report_budget_exceeded = report_assignments_required > limits.max_assignments;
     let mut results = Vec::with_capacity(components.len());
-    let mut assignments_used = 0_u64;
 
-    for component in components {
+    for (component, assignments) in components.into_iter().zip(assignment_requirements) {
         let variable_ids: Vec<_> = component
             .variable_indices
             .iter()
@@ -588,36 +606,24 @@ pub(crate) fn infer_exact(
             });
             continue;
         }
-        let assignments = component
-            .variable_indices
-            .iter()
-            .try_fold(1_u64, |product, index| {
-                product.checked_mul(
-                    u64::try_from(graph.variables[*index].states.len())
-                        .expect("bounded state count fits u64"),
-                )
-            })
-            .ok_or(FactorGraphError::AssignmentCountOverflow)?;
-        let remaining = limits.max_assignments.saturating_sub(assignments_used);
-        if assignments > remaining {
+        let assignments = assignments.expect("admissible component has an assignment count");
+        if report_budget_exceeded {
             results.push(ComponentInferenceResult {
                 variables: variable_ids.into_boxed_slice(),
                 factors: factor_ids.into_boxed_slice(),
                 outcome: ComponentInferenceOutcome::Abstained(
-                    InferenceAbstentionReason::AssignmentBudgetExceeded {
-                        required: assignments,
-                        remaining,
+                    InferenceAbstentionReason::ReportAssignmentBudgetExceeded {
+                        required: report_assignments_required,
+                        limit: limits.max_assignments,
                     },
                 ),
             });
             continue;
         }
-        assignments_used += assignments;
         let outcome = match infer_component(graph, &component, assignments)? {
             Some(component_result) => ComponentInferenceOutcome::Exact {
                 assignments_evaluated: assignments,
                 beliefs: component_result.beliefs,
-                map_states: component_result.map_states,
             },
             None => ComponentInferenceOutcome::NoFeasibleAssignment {
                 assignments_evaluated: assignments,
@@ -634,6 +640,22 @@ pub(crate) fn infer_exact(
         semantics: graph.semantics.clone(),
         components: results.into_boxed_slice(),
     })
+}
+
+fn component_assignment_count(
+    graph: &DiscreteFactorGraph,
+    component: &Component,
+) -> Result<u64, FactorGraphError> {
+    component
+        .variable_indices
+        .iter()
+        .try_fold(1_u64, |product, index| {
+            product.checked_mul(
+                u64::try_from(graph.variables[*index].states.len())
+                    .expect("bounded state count fits u64"),
+            )
+        })
+        .ok_or(FactorGraphError::AssignmentCountOverflow)
 }
 
 struct Component {
@@ -704,7 +726,6 @@ fn graph_components(graph: &DiscreteFactorGraph) -> Vec<Component> {
 
 struct ComponentResult {
     beliefs: BTreeMap<VariableId, VariableBelief>,
-    map_states: BTreeMap<VariableId, String>,
 }
 
 fn infer_component(
@@ -728,8 +749,6 @@ fn infer_component(
         .map(|cardinality| vec![f64::NEG_INFINITY; *cardinality])
         .collect();
     let mut log_partition = f64::NEG_INFINITY;
-    let mut best_log_weight = f64::NEG_INFINITY;
-    let mut best_assignment = None;
     let mut states = vec![0_usize; cardinalities.len()];
 
     for assignment_index in 0..assignments {
@@ -757,10 +776,6 @@ fn infer_component(
         for (position, state) in states.iter().enumerate() {
             state_log_sums[position][*state] =
                 log_add_exp(state_log_sums[position][*state], log_weight);
-        }
-        if log_weight > best_log_weight {
-            best_log_weight = log_weight;
-            best_assignment = Some(states.clone());
         }
     }
     if log_partition == f64::NEG_INFINITY {
@@ -794,23 +809,7 @@ fn infer_component(
             },
         );
     }
-    let best_assignment = best_assignment.expect("finite partition has a best assignment");
-    let map_states = component
-        .variable_indices
-        .iter()
-        .enumerate()
-        .map(|(position, variable_index)| {
-            let variable = &graph.variables[*variable_index];
-            (
-                variable.id.clone(),
-                variable.states[best_assignment[position]].clone(),
-            )
-        })
-        .collect();
-    Ok(Some(ComponentResult {
-        beliefs,
-        map_states,
-    }))
+    Ok(Some(ComponentResult { beliefs }))
 }
 
 fn decode_assignment(mut encoded: u64, cardinalities: &[usize], states: &mut [usize]) {
@@ -1004,17 +1003,12 @@ mod tests {
     fn exact_component(
         report: &ExactInferenceReport,
         index: usize,
-    ) -> (
-        u64,
-        &BTreeMap<VariableId, VariableBelief>,
-        &BTreeMap<VariableId, String>,
-    ) {
+    ) -> (u64, &BTreeMap<VariableId, VariableBelief>) {
         match &report.components[index].outcome {
             ComponentInferenceOutcome::Exact {
                 assignments_evaluated,
                 beliefs,
-                map_states,
-            } => (*assignments_evaluated, beliefs, map_states),
+            } => (*assignments_evaluated, beliefs),
             outcome => panic!("expected exact component, got {outcome:?}"),
         }
     }
@@ -1062,13 +1056,56 @@ mod tests {
                 model: model_snapshot()
             }
         );
-        let (assignments, beliefs, _) = exact_component(&result, 0);
+        let (assignments, beliefs) = exact_component(&result, 0);
         for id in ["a", "b"] {
             let belief = &beliefs[&VariableId::try_new(id).unwrap()];
             assert_eq!(belief.states[0].probability_ppb, 142_857_143);
             assert_eq!(belief.states[1].probability_ppb, 857_142_857);
         }
         assert_eq!(assignments, 4);
+    }
+
+    #[test]
+    fn exact_ternary_marginal_preserves_declared_state_order() {
+        let variable_id = VariableId::try_new("ternary").unwrap();
+        let graph = DiscreteFactorGraph::try_new(
+            vec![
+                DiscreteVariable::try_new(variable_id.clone(), ["first", "second", "third"])
+                    .unwrap(),
+            ],
+            vec![DiscreteFactor::try_positive(
+                FactorId::try_new("ternary-likelihood").unwrap(),
+                vec![variable_id.clone()],
+                vec![1.0, 2.0, 3.0],
+                FactorSemantics::Heuristic,
+                provenance("evidence:ternary"),
+            )
+            .unwrap()],
+            FactorGraphLimits::conservative(),
+        )
+        .unwrap();
+
+        let result = infer_exact(&graph, ExactInferenceLimits::conservative()).unwrap();
+        let (assignments, beliefs) = exact_component(&result, 0);
+
+        assert_eq!(assignments, 3);
+        assert_eq!(
+            beliefs[&variable_id].states.as_ref(),
+            [
+                StateBelief {
+                    state: "first".into(),
+                    probability_ppb: 166_666_667,
+                },
+                StateBelief {
+                    state: "second".into(),
+                    probability_ppb: 333_333_333,
+                },
+                StateBelief {
+                    state: "third".into(),
+                    probability_ppb: 500_000_000,
+                },
+            ]
+        );
     }
 
     #[test]
@@ -1087,7 +1124,7 @@ mod tests {
         let result = infer_exact(&graph, ExactInferenceLimits::conservative()).unwrap();
 
         assert_eq!(result.semantics, GraphSemantics::ModelRelative);
-        let (_, beliefs, _) = exact_component(&result, 0);
+        let (_, beliefs) = exact_component(&result, 0);
         assert_eq!(
             beliefs[&VariableId::try_new("edge").unwrap()].states[1].probability_ppb,
             800_000_000
@@ -1145,7 +1182,7 @@ mod tests {
         )
         .unwrap();
         let result = infer_exact(&graph, ExactInferenceLimits::conservative()).unwrap();
-        let (_, beliefs, _) = exact_component(&result, 0);
+        let (_, beliefs) = exact_component(&result, 0);
         assert_eq!(
             beliefs[&VariableId::try_new("edge").unwrap()].states[1].probability_ppb,
             PROBABILITY_SCALE
@@ -1188,7 +1225,7 @@ mod tests {
         )
         .unwrap();
         let result = infer_exact(&graph, ExactInferenceLimits::conservative()).unwrap();
-        let (_, beliefs, _) = exact_component(&result, 0);
+        let (_, beliefs) = exact_component(&result, 0);
         assert_eq!(
             beliefs[&VariableId::try_new("edge").unwrap()].states[1].probability_ppb,
             857_142_857
@@ -1237,13 +1274,60 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(exact_component(&result, 0).0, 2);
+        assert!(result.components.iter().all(|component| {
+            component.outcome
+                == ComponentInferenceOutcome::Abstained(
+                    InferenceAbstentionReason::ReportAssignmentBudgetExceeded {
+                        required: 4,
+                        limit: 2,
+                    },
+                )
+        }));
+    }
+
+    #[test]
+    fn oversized_component_abstains_before_assignment_count_overflow() {
+        let state_names = (0..64).map(|index| format!("state-{index}"));
+        let variables = (0..11)
+            .map(|index| {
+                DiscreteVariable::try_new(
+                    VariableId::try_new(format!("v-{index}")).unwrap(),
+                    state_names.clone(),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let factors = (0..10)
+            .map(|index| {
+                let left = format!("v-{index}");
+                let right = format!("v-{}", index + 1);
+                positive_factor(
+                    &format!("edge-{index}"),
+                    &[left.as_str(), right.as_str()],
+                    &vec![1.0; 64 * 64],
+                    &format!("evidence:{index}"),
+                )
+            })
+            .collect::<Vec<_>>();
+        let graph =
+            DiscreteFactorGraph::try_new(variables, factors, FactorGraphLimits::conservative())
+                .unwrap();
+
+        let result = infer_exact(
+            &graph,
+            ExactInferenceLimits {
+                max_component_variables: 10,
+                max_assignments: 1,
+            },
+        )
+        .unwrap();
+
         assert_eq!(
-            result.components[1].outcome,
+            result.components[0].outcome,
             ComponentInferenceOutcome::Abstained(
-                InferenceAbstentionReason::AssignmentBudgetExceeded {
-                    required: 2,
-                    remaining: 0,
+                InferenceAbstentionReason::ComponentVariableLimitExceeded {
+                    variables: 11,
+                    limit: 10,
                 }
             )
         );

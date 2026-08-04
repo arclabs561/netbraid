@@ -25,6 +25,12 @@ packet-flow/Zeek candidate graph. It keeps split and merge candidates, then
 reports normalized belief under an explicit heuristic profile. Those values
 are not calibrated probabilities, and the report is not a durable claim.
 
+The same private inference machinery is used by a separate RSSI family. It
+compares baseline and recent observer/source links, keeps stable links as
+counter-evidence, and reports relative belief in observer-wide, source-wide,
+and residual link explanations. It does not use packet, flow, port, or Zeek
+types and does not identify a physical cause.
+
 The CLI reads saved artifacts. The record types can be used by live consumers,
 but Netbraid does not acquire observations or run a service.
 
