@@ -241,6 +241,13 @@
       "recipe": "operanet-layout-profile"
     },
     {
+      "path": "data/derived/eval/operanet-layout-profile-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-operanet-layout.py",
+      "recipe": "operanet-layout-profile"
+    },
+    {
       "path": "data/derived/eval/osu-lora-observation-oracles.json",
       "format": "json",
       "retention": "reproducibility_output",

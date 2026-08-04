@@ -242,10 +242,17 @@ sorbonne-rssi-explanation-eval:
     {{ python }} eval/evaluate-sorbonne-rssi-explanation.py --archive {{ raw_data }}/220211012-SU-Outdoors-Campus.zip --campaign eval/fixtures/sorbonne-rssi-explanation-campaign-v0.json --bridge-bin rust/target/debug/examples/rssi_shift_explanation_jsonl --report {{ eval_output }}/sorbonne-rssi-explanation-report-repeat.json
     cmp {{ eval_output }}/sorbonne-rssi-explanation-report.json {{ eval_output }}/sorbonne-rssi-explanation-report-repeat.json
 
+# Verify the bounded OPERAnet archive-layout profiler without corpus data.
+operanet-layout-profile-check:
+    {{ python }} eval/test-profile-operanet-layout.py
+
 # Verify all pinned OPERAnet archives and profile only their ZIP metadata.
 # Member payload streams are never opened, extracted, or deserialized.
 operanet-layout-profile:
-    {{ python }} eval/profile-operanet-layout.py
+    {{ python }} eval/test-profile-operanet-layout.py
+    {{ python }} eval/profile-operanet-layout.py --report {{ eval_output }}/operanet-layout-profile.json
+    {{ python }} eval/profile-operanet-layout.py --report {{ eval_output }}/operanet-layout-profile-repeat.json
+    cmp {{ eval_output }}/operanet-layout-profile.json {{ eval_output }}/operanet-layout-profile-repeat.json
 
 # Profile a bounded CAEZ CSI shape slice directly from the verified local tar.
 # The target never extracts members or deserializes position/model payloads.
