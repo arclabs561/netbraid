@@ -66,6 +66,16 @@ wlan-rff-layout-profile-check:
 wlan-rff-layout-profile:
     {{ python }} eval/profile-wlan-rff-layout.py
 
+sdr4iot-layout-profile-check:
+    {{ python }} eval/test-profile-sdr4iot-layout.py
+
+# Verify the pinned archive and profile BLE/Zigbee collection structure twice.
+# Capture, tabular, and publisher-named SigMF payloads remain unopened.
+sdr4iot-layout-profile:
+    {{ python }} eval/profile-sdr4iot-layout.py --report {{ eval_output }}/sdr4iot-layout-profile.json
+    {{ python }} eval/profile-sdr4iot-layout.py --report {{ eval_output }}/sdr4iot-layout-profile-repeat.json
+    cmp {{ eval_output }}/sdr4iot-layout-profile.json {{ eval_output }}/sdr4iot-layout-profile-repeat.json
+
 smorffi-fetcher-check:
     uv run --python 3.10 data/tests/test-fetch-smorffi.py
 

@@ -87,6 +87,14 @@ aggregate report can establish cross-environment token reuse, but deliberately
 does not promote publisher-undocumented tokens to physical-device or
 physical-source identity.
 
+`profile-sdr4iot-layout.py` verifies the pinned SDR4IoT archive and profiles its
+BLE and Zigbee collection structure without opening capture, CSV, or
+publisher-named SigMF payloads. It counts candidate packet/table/signal
+artifact groups separately for each protocol and reports receiver-token reuse
+across protocols. Filename co-grouping does not establish payload alignment,
+event identity, cross-protocol identity, physical device/source identity,
+location truth, or SigMF conformance.
+
 `profile-gnss-rff-layout.py` verifies the pinned GNSS RFF archive and profiles
 its encrypted ZIP central directory without accepting a password or opening a
 member payload. It reports controlled clean/spoof, day, and acquisition-category
