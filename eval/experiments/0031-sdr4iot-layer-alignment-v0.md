@@ -45,6 +45,39 @@ six checks. A partial result remains useful as an inventory of which alignment
 relations are and are not supported, but it does not establish synchronized
 fusion input for the failing groups.
 
+## Results
+
+At producer commit `6615841`, `just sdr4iot-layer-alignment` evaluated the
+pinned archive twice and produced byte-identical 859-byte reports, both mode
+0600. The archive had 218 complete filename groups. One was excluded as the
+development partition; 3 of the remaining 217 groups passed every registered
+check and 214 failed at least one check.
+
+The evaluation partition contained 18,500 packet records, 13,718 CSV rows,
+13,516 SigMF captures, 13,516 SigMF annotations, and 145,009,280 signal-data
+bytes. Failure reasons are non-exclusive across groups:
+
+| Reason | Groups |
+|---|---:|
+| layer count mismatch | 134 |
+| nonzero count required | 126 |
+| timing residual above 2 ms | 70 |
+| invalid CSV timestamp | 8 |
+| unsupported CSV schema | 2 |
+| signal-data extent mismatch | 1 |
+
+The largest observed relative-timing residual was 45.574018 seconds. Signal
+bytes and source identifiers were not retained in either report.
+
+## Conclusion
+
+The registered archive-wide hypothesis was rejected. Three sibling filenames
+are not sufficient evidence that all three layers are populated or synchronized,
+and the available packet and table clocks do not support the registered
+2-millisecond rule for most count-comparable groups. This archive remains
+useful for packet conformance and for narrower descriptive BLE alignment work,
+but it is not an archive-wide packet/table/signal fusion oracle.
+
 ## Non-claims
 
 Filename co-grouping and row alignment do not establish event identity across
