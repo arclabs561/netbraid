@@ -318,6 +318,20 @@
       "recipe": "sorbonne-structural-reducer-eval"
     },
     {
+      "path": "data/derived/eval/ujiindoorloc-phone-holdout-baseline-v0-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ujiindoorloc-phone-holdout.py",
+      "recipe": "ujiindoorloc-phone-holdout"
+    },
+    {
+      "path": "data/derived/eval/ujiindoorloc-phone-holdout-baseline-v0.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-ujiindoorloc-phone-holdout.py",
+      "recipe": "ujiindoorloc-phone-holdout"
+    },
+    {
       "path": "data/derived/eval/ujiindoorloc-phone-holdout-feasibility-repeat.json",
       "format": "json",
       "retention": "reproducibility_output",

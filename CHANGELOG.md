@@ -32,6 +32,9 @@ GitHub native binary releases remain available independently.
   a relation split when acquisition-session evidence is absent.
 - A bounded rank-one NPY vector projection for complex binary64 and unsigned
   64-bit arrays, including exact unsigned range and adjacent-order summaries.
+- A preregistered phone-disjoint UJIIndoorLoc building/floor baseline with
+  train-only fitting, calibration-only abstention selection, and a validation
+  gate before test RSSI is read.
 
 ### Changed
 

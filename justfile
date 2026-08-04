@@ -147,6 +147,10 @@ public-corpus-inventory dataset="all" verify_workers="4":
 ujiindoorloc-split-capability-check:
     {{ python }} eval/test-evaluate-ujiindoorloc-split-capability.py
 
+ujiindoorloc-phone-holdout-check:
+    {{ python }} eval/test-evaluate-ujiindoorloc-phone-holdout.py
+    {{ python }} eval/test-evaluate-ujiindoorloc-split-capability.py
+
 # Verify the pinned IPIN 2015 archive and report aggregate publisher-split
 # intersections without retaining fingerprints, coordinates, or identifiers.
 ujiindoorloc-split-capability:
@@ -159,6 +163,13 @@ ujiindoorloc-phone-holdout-feasibility:
     {{ python }} eval/evaluate-ujiindoorloc-split-capability.py --phone-holdout-report {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility.json
     {{ python }} eval/evaluate-ujiindoorloc-split-capability.py --phone-holdout-report {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility-repeat.json
     cmp {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility.json {{ eval_output }}/ujiindoorloc-phone-holdout-feasibility-repeat.json
+
+# Fit only on phone-disjoint train rows, choose the abstention threshold only
+# on calibration, gate test use on validation, and verify deterministic bytes.
+ujiindoorloc-phone-holdout:
+    {{ python }} eval/evaluate-ujiindoorloc-phone-holdout.py --report {{ eval_output }}/ujiindoorloc-phone-holdout-baseline-v0.json
+    {{ python }} eval/evaluate-ujiindoorloc-phone-holdout.py --report {{ eval_output }}/ujiindoorloc-phone-holdout-baseline-v0-repeat.json
+    cmp {{ eval_output }}/ujiindoorloc-phone-holdout-baseline-v0.json {{ eval_output }}/ujiindoorloc-phone-holdout-baseline-v0-repeat.json
 
 # Evaluate the complete admitted capture-fixture manifest through the current
 # production binary and retain only the ignored metadata report.

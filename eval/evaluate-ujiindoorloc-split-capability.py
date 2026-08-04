@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
+import ujiindoorloc as shared_uji
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ARCHIVE = ROOT / "data" / "raw" / "UJIIndoorLoc.zip"
 DEFAULT_RECEIPT = (
@@ -355,10 +357,16 @@ def _read_verified_partitions(
 ) -> Tuple[Tuple[int, str, str], PartitionSummary, PartitionSummary]:
     """Verify one archive and return bounded in-memory aggregate summaries."""
 
-    integrity = _verify_integrity(archive_path, receipt_path, contract)
     try:
-        with zipfile.ZipFile(archive_path, "r") as archive:
-            members = _validated_members(archive, contract)
+        with shared_uji.verified_archive(
+            archive_path,
+            receipt_path,
+            contract,
+            verify=_verify_integrity,
+            validate=_validated_members,
+            digest=_digest_regular_file,
+        ) as opened:
+            integrity, archive, members = opened
             train = _read_partition(
                 archive, members[TRAIN_MEMBER], contract.row_counts["train"]
             )
@@ -367,10 +375,8 @@ def _read_verified_partitions(
                 members[VALIDATION_MEMBER],
                 contract.row_counts["validation"],
             )
-    except (OSError, zipfile.BadZipFile) as error:
-        raise SplitCapabilityError("invalid_zip_archive") from error
-    if _digest_regular_file(archive_path) != integrity:
-        raise SplitCapabilityError("archive_changed_during_evaluation")
+    except shared_uji.UjiIndoorLocError as error:
+        raise SplitCapabilityError(error.code) from error
     return integrity, train, validation
 
 
@@ -609,33 +615,7 @@ def _union_mask(units: Sequence[HoldoutUnit]) -> int:
 def _find_role_assignment(
     units: Sequence[HoldoutUnit], full_mask: int, role_count: int
 ) -> Optional[Tuple[Tuple[HoldoutUnit, ...], ...]]:
-    ordered = tuple(sorted(units, key=lambda unit: unit.key))
-
-    def visit(
-        available: Tuple[HoldoutUnit, ...], roles_remaining: int
-    ) -> Optional[Tuple[Tuple[HoldoutUnit, ...], ...]]:
-        if len(available) < roles_remaining:
-            return None
-        if _minimum_target_support(available, full_mask) < roles_remaining:
-            return None
-        if roles_remaining == 1:
-            if available and _union_mask(available) == full_mask:
-                return (available,)
-            return None
-        for selected in _covering_subsets(available, full_mask):
-            selected_keys = {unit.key for unit in selected}
-            remaining = tuple(
-                unit for unit in available if unit.key not in selected_keys
-            )
-            tail = visit(remaining, roles_remaining - 1)
-            if tail is not None:
-                return (selected, *tail)
-        return None
-
-    assignment = visit(ordered, role_count)
-    if assignment is None:
-        return None
-    return _balance_assignment(assignment, full_mask)
+    return shared_uji.find_role_assignment(units, full_mask, role_count)
 
 
 def _assignment_balance(

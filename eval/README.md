@@ -175,6 +175,14 @@ co-locates every user/phone connected component to expose the stricter joint
 holdout boundary. The aggregate witness is a feasibility result, not a chosen
 benchmark split, and retains neither identifiers nor group assignments.
 
+`evaluate-ujiindoorloc-phone-holdout.py` uses that deterministic four-role
+phone split for a 13-class building/floor nearest-centroid baseline. Feature
+handling and centroids use train only, the abstention margin uses calibration
+only, and a fixed validation gate decides whether test RSSI rows are read. The
+report keeps raw reconciliation, coverage, selective error, and macro,
+per-phone, and per-class counts without retaining phone values, coordinates,
+fingerprints, rows, or paths. It does not evaluate fine-grained location.
+
 `compile-ruff-uwb-oracles.py` verifies the two pinned RUFF-UWB archives and
 reads only their bounded label arrays. It aggregates observed
 source/location/campaign cells, preserves cross-day source and device identity,
