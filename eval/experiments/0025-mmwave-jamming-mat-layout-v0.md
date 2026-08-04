@@ -10,8 +10,8 @@ payload evaluation is designed.
 ## Method
 
 This hypothesis was written before the real corpus run. The implementation and
-preregistration start from Git commit `34aebea`; the result update will record
-the exact producer commit.
+preregistration started from Git commit `34aebea`. The exact producer commit is
+`2e62c42`.
 
 Run:
 
@@ -44,8 +44,27 @@ tamper, authorization, or malicious-intent truth.
 
 ## Results
 
-Not recorded. The real corpus has not been run against this producer yet.
+The canonical recipe completed twice with byte-identical 1,413-byte reports,
+both mode 0600. All 80 receipt-bound artifacts were admitted (738,542,988
+bytes), and no array values were materialized.
+
+| Pairwise gate | Matching | Mismatching |
+|---|---:|---:|
+| variable-name, shape, and class signature | 20 | 20 |
+| exact file extent | 0 | 40 |
+| one-MiB extent class | 16 | 24 |
+
+The report status is `blocked` with all three preregistered reasons. It retains
+no path, filename, variable name, condition label, receiver/target label,
+digest, or per-artifact row.
 
 ## Conclusion
 
-Pending the preregistered real-corpus run.
+The hypothesis did not hold. Storage extent is condition-associated throughout
+the matched grid and cannot be admitted as a model feature. The combined MAT
+signature also differs in half the pairs.
+
+That combined signature is sufficient for the preregistered block but not for
+attribution: it does not say whether the 20 mismatches come from variable names,
+array shape/class, or both. A follow-up diagnostic must decompose those terms
+without weakening this result or admitting any of them as features.
