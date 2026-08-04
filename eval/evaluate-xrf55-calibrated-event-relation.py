@@ -471,6 +471,62 @@ def _validation_gate(
     return {"checks": checks, "passed": all(checks.values())}
 
 
+def _calibration_failure_report(
+    cache: Any,
+    calibration: Sequence[PairScores],
+    learned_thresholds: tuple[float, float, float, float],
+    unaligned_thresholds: tuple[float, float, float, float],
+) -> dict[str, Any]:
+    return {
+        "schema": REPORT_SCHEMA,
+        "status": "calibration_failed",
+        "task": {
+            "relation_axis": "event_relation",
+            "modality_pair": [SOURCE_MODALITY, TARGET_MODALITY],
+            "ridge_alpha": RETRIEVAL.RIDGE_ALPHA.hex(),
+            "score": "mean_squared_residual_in_fit_standardized_target_space",
+            "roles": {
+                role: [min(repetitions), max(repetitions)]
+                for role, repetitions in ROLE_REPETITIONS.items()
+            },
+            "session_separation": "unbounded_session_axis",
+        },
+        "profiles": {
+            "learned": {
+                "status": "invalid_threshold_order",
+                "digest": None,
+                "document": None,
+                "thresholds": [value.hex() for value in learned_thresholds],
+            },
+            "unaligned": {
+                "status": (
+                    "thresholds_ordered"
+                    if _thresholds_ordered(unaligned_thresholds)
+                    else "invalid_threshold_order"
+                ),
+                "digest": None,
+                "document": None,
+                "thresholds": [value.hex() for value in unaligned_thresholds],
+            },
+        },
+        "calibration": {
+            "reference_support": dict(
+                sorted(Counter(row.reference for row in calibration).items())
+            ),
+            "rows": len(calibration),
+        },
+        "validation": None,
+        "test": None,
+        "privacy": dict(cache.adapter["privacy"]),
+        "limitations": [
+            "pair outcomes reuse observations and are not independent",
+            "acquisition-session separation is not observed",
+            "same event does not imply same performer device source or identity",
+            "pairwise same-event predictions are not transitively merged",
+        ],
+    }
+
+
 def evaluate(cache: Any) -> dict[str, Any]:
     forward = _fit_direction(cache, SOURCE_MODALITY, TARGET_MODALITY)
     reverse = _fit_direction(cache, TARGET_MODALITY, SOURCE_MODALITY)
@@ -479,6 +535,10 @@ def evaluate(cache: Any) -> dict[str, Any]:
     unaligned_thresholds = _thresholds(
         calibration, "unaligned_forward", "unaligned_reverse"
     )
+    if not _thresholds_ordered(learned_thresholds):
+        return _calibration_failure_report(
+            cache, calibration, learned_thresholds, unaligned_thresholds
+        )
     learned_profile = _profile(
         cache, (forward, reverse), learned_thresholds, kind="learned"
     )

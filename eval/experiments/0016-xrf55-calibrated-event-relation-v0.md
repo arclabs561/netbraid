@@ -107,15 +107,31 @@ loading, deterministic private reports, and explicit failure of an unaligned
 control whose calibration thresholds overlap. The synthetic transformed
 fixture intentionally fails the validation gate rather than opening test.
 
-The real-corpus result is pending. No model-performance claim is made at this
-checkpoint.
+The real-corpus calibration failed before validation. The deterministic cache
+contained 160 events across eight opaque groups. Calibration used 72 pair rows:
+24 same-event references and 48 different-event references. In both learned
+directions, the 90th-percentile same-event distance exceeded the 10th-percentile
+different-event distance:
+
+- Wi-Fi to RFID: `0x1.573974beed63dp-2` versus
+  `0x1.5a79ff8f68976p-6`;
+- RFID to Wi-Fi: `0x1.7061164570d9ap-2` versus
+  `0x1.fc9202d874368p-8`.
+
+The unaligned control also had invalid threshold order. The evaluator emitted
+`calibration_failed`, did not construct either profile, did not read the
+validation or locked-test roles, and reproduced the report byte for byte on a
+second run. The report retained no local paths, archive or member names, or raw
+scene, performer, or action identifiers.
 
 ## Conclusion
 
-The score-to-decision contract is narrow enough to evaluate without changing
-the Rust hypothesis engine. A production learned family is considered only
-after the hermetic evaluator, validation gate, and one-shot real result exist.
-Even a successful same-event result authenticates no performer, device,
-physical source, identifier, principal, intent, or tamper state, and pairwise
-same-event predictions must not be transitively merged into persistent
-identities.
+The score-to-decision contract is narrow enough to falsify this candidate
+without changing the Rust hypothesis engine. The preregistered reciprocal
+ridge-distance model does not separate same-event and different-event pairs on
+the calibration role, so it is not admitted as a production relation family
+and the locked test remains unopened. A replacement must be proposed as a new
+experiment rather than tuning against these calibration results. Even a future
+successful same-event result would authenticate no performer, device, physical
+source, identifier, principal, intent, or tamper state, and pairwise same-event
+predictions must not be transitively merged into persistent identities.

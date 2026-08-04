@@ -206,6 +206,39 @@ class Xrf55CalibratedEventRelationTests(unittest.TestCase):
         self.assertIsNone(report["test"])
         self.assertNotIn(MODULE.TEST_REPETITIONS, roles)
 
+    def test_calibration_failure_never_scores_validation_or_test_roles(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache = load_fixture(Path(directory))
+            original = MODULE._pair_scores
+            roles = []
+
+            def recording_pair_scores(cache, repetitions, forward, reverse):
+                roles.append(repetitions)
+                return original(cache, repetitions, forward, reverse)
+
+            invalid = (0.75, 0.25, 0.8, 0.2)
+            ordered = (0.25, 0.75, 0.2, 0.8)
+            with mock.patch.object(MODULE, "_pair_scores", recording_pair_scores):
+                with mock.patch.object(
+                    MODULE, "_thresholds", side_effect=(invalid, ordered)
+                ):
+                    report = MODULE.evaluate(cache)
+
+        self.assertEqual(report["status"], "calibration_failed")
+        self.assertEqual(
+            report["profiles"]["learned"]["status"], "invalid_threshold_order"
+        )
+        self.assertEqual(
+            report["profiles"]["learned"]["thresholds"],
+            [value.hex() for value in invalid],
+        )
+        self.assertEqual(
+            report["profiles"]["unaligned"]["status"], "thresholds_ordered"
+        )
+        self.assertIsNone(report["validation"])
+        self.assertIsNone(report["test"])
+        self.assertEqual(roles, [MODULE.CALIBRATION_REPETITIONS])
+
     def test_report_is_deterministic_private_and_mmap_backed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
