@@ -47,8 +47,8 @@ fusion input for the failing groups.
 
 ## Results
 
-At producer commit `6615841`, `just sdr4iot-layer-alignment` evaluated the
-pinned archive twice and produced byte-identical 859-byte reports, both mode
+At producer commit `7fed040`, `just sdr4iot-layer-alignment` evaluated the
+pinned archive twice and produced byte-identical 1,507-byte reports, both mode
 0600. The archive had 218 complete filename groups. One was excluded as the
 development partition; 3 of the remaining 217 groups passed every registered
 check and 214 failed at least one check.
@@ -68,6 +68,12 @@ bytes. Failure reasons are non-exclusive across groups:
 
 The largest observed relative-timing residual was 45.574018 seconds. Signal
 bytes and source identifiers were not retained in either report.
+
+The descriptive modality breakdown does not alter the gate. Of 94 evaluation
+BLE groups, 72 had equal nonzero counts and exact table-to-signal structural
+alignment; only 3 also met the clock rule. None of the 123 Zigbee groups had
+equal nonzero counts across all four record sets. The excluded development
+group is absent from these figures.
 
 ## Conclusion
 
