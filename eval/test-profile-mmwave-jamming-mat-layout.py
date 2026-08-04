@@ -50,13 +50,15 @@ class MmwaveJammingMatLayoutProfileTests(unittest.TestCase):
         left: np.ndarray,
         right: np.ndarray,
         compressed: bool = False,
+        left_name: str = "private_signal",
+        right_name: str = "private_signal",
     ) -> tuple[MODULE.ProfileInput, MODULE.ProfileInput]:
         root = self.temporary_directory() / PRIVATE_MARKERS[0]
         root.mkdir()
         left_path = root / "left-private.mat"
         right_path = root / "right-private.mat"
-        savemat(left_path, {"private_signal": left}, do_compression=compressed)
-        savemat(right_path, {"private_signal": right}, do_compression=compressed)
+        savemat(left_path, {left_name: left}, do_compression=compressed)
+        savemat(right_path, {right_name: right}, do_compression=compressed)
         return (
             MODULE.ProfileInput(
                 left_path,
@@ -116,6 +118,40 @@ class MmwaveJammingMatLayoutProfileTests(unittest.TestCase):
             "mat_layout_not_pair_invariant",
             report["feature_admission"]["reasons"],
         )
+        self.assertIn(
+            "mat_array_layout_not_pair_invariant",
+            report["feature_admission"]["reasons"],
+        )
+        self.assertEqual(report["feature_admission"]["payload_shape_status"], "blocked")
+
+    def test_variable_name_difference_is_separate_from_array_layout(self):
+        inputs = self.pair(
+            left=np.zeros((2, 16), dtype=np.float64),
+            right=np.ones((2, 16), dtype=np.float64),
+            left_name="left_private_signal",
+            right_name="right_private_signal",
+        )
+
+        report = MODULE.profile_inputs(inputs, expected_pairs=1)
+
+        self.assertEqual(
+            report["pair_invariance"]["mat_layout_signature"]["mismatching_pairs"],
+            1,
+        )
+        self.assertEqual(
+            report["pair_invariance"]["mat_variable_name_signature"][
+                "mismatching_pairs"
+            ],
+            1,
+        )
+        self.assertEqual(
+            report["pair_invariance"]["mat_array_layout_signature"]["matching_pairs"],
+            1,
+        )
+        self.assertEqual(report["feature_admission"]["payload_shape_status"], "pass")
+        rendered = MODULE.render_report(report).decode("ascii")
+        self.assertNotIn("left_private_signal", rendered)
+        self.assertNotIn("right_private_signal", rendered)
 
     def test_compressed_extent_difference_is_a_storage_blocker(self):
         inputs = self.pair(

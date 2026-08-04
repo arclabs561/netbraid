@@ -23,7 +23,7 @@ from typing import BinaryIO, Sequence
 from scipy.io import whosmat
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = "netbraid.mmwave_jamming_mat_layout_profile.v0"
+SCHEMA = "netbraid.mmwave_jamming_mat_layout_profile.v1"
 MIB = 1024 * 1024
 MAX_ARTIFACTS = 80
 MAX_ARTIFACT_BYTES = 32 * MIB
@@ -71,6 +71,16 @@ class ProfileInput:
 class LayoutFacts:
     signature: tuple[tuple[str, tuple[int, ...], str], ...]
     extent_bytes: int
+
+    @property
+    def variable_name_signature(self) -> tuple[str, ...]:
+        return tuple(name for name, _shape, _data_class in self.signature)
+
+    @property
+    def array_layout_signature(self) -> tuple[tuple[tuple[int, ...], str], ...]:
+        return tuple(
+            sorted((shape, data_class) for _name, shape, data_class in self.signature)
+        )
 
     @property
     def extent_mib_class(self) -> int:
@@ -211,17 +221,29 @@ def profile_inputs(
             ranks.append(len(shape))
 
     layout_matches = 0
+    variable_name_matches = 0
+    array_layout_matches = 0
     exact_extent_matches = 0
     extent_class_matches = 0
     for members in by_pair.values():
         left, right = members
         layout_matches += int(left.signature == right.signature)
+        variable_name_matches += int(
+            left.variable_name_signature == right.variable_name_signature
+        )
+        array_layout_matches += int(
+            left.array_layout_signature == right.array_layout_signature
+        )
         exact_extent_matches += int(left.extent_bytes == right.extent_bytes)
         extent_class_matches += int(left.extent_mib_class == right.extent_mib_class)
 
     reasons = []
     if layout_matches != expected_pairs:
         reasons.append("mat_layout_not_pair_invariant")
+    if variable_name_matches != expected_pairs:
+        reasons.append("mat_variable_names_not_pair_invariant")
+    if array_layout_matches != expected_pairs:
+        reasons.append("mat_array_layout_not_pair_invariant")
     if exact_extent_matches != expected_pairs:
         reasons.append("exact_storage_extent_not_pair_invariant")
     if extent_class_matches != expected_pairs:
@@ -248,6 +270,14 @@ def profile_inputs(
                 "matching_pairs": layout_matches,
                 "mismatching_pairs": expected_pairs - layout_matches,
             },
+            "mat_variable_name_signature": {
+                "matching_pairs": variable_name_matches,
+                "mismatching_pairs": expected_pairs - variable_name_matches,
+            },
+            "mat_array_layout_signature": {
+                "matching_pairs": array_layout_matches,
+                "mismatching_pairs": expected_pairs - array_layout_matches,
+            },
             "exact_storage_extent": {
                 "matching_pairs": exact_extent_matches,
                 "mismatching_pairs": expected_pairs - exact_extent_matches,
@@ -260,6 +290,9 @@ def profile_inputs(
         "feature_admission": {
             "status": "pass" if not reasons else "blocked",
             "reasons": reasons,
+            "payload_shape_status": (
+                "pass" if array_layout_matches == expected_pairs else "blocked"
+            ),
             "always_prohibited": [
                 "source_filename",
                 "source_path",

@@ -261,10 +261,11 @@ physical-source truth.
 
 `profile-mmwave-jamming-mat-layout.py` fully re-admits those artifacts, then
 reads MAT v5 variable metadata without materializing array values. It compares
-variable layout, exact file extent, and one-MiB extent class only within the 40
-matched condition pairs. Paths, filenames, variable names, condition labels,
-and per-artifact rows are absent from the report. A mismatch blocks that
-metadata from later feature extraction; it is not evidence of a detector.
+the combined named layout, variable names alone, array shape/class alone, exact
+file extent, and one-MiB extent class only within the 40 matched condition
+pairs. Paths, filenames, variable names, condition labels, and per-artifact
+rows are absent from the report. A mismatch blocks that metadata from later
+feature extraction; it is not evidence of a detector.
 
 `compile-indoor-jamming-oracles.py` binds the publisher workbook to the exact
 three HDF5 datasets in each of 31 MAT files. It reads dataset metadata but no
