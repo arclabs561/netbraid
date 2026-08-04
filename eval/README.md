@@ -37,6 +37,17 @@ combines decisions only across the named relation axes: abstention is neutral,
 equal decisions are idempotent, unspecified axes abstain, and two different
 decisions on one axis fail closed instead of being silently fused.
 
+`hypothesis_belief_metrics.py` evaluates finite normalized beliefs without
+changing the relation ontology. Each row selects one existing relation axis and
+is either exact, solver-abstained, or infeasible. Exact rows must distribute one
+billion integer parts across every non-unknown state of that axis. Validated
+hypothesis frames supply references; unknown references are not latent classes
+and remain unscored. Per-axis multiclass Brier totals are the primary proper
+score. Fixed top-state confidence bins are retained only as raw diagnostics;
+the report does not emit ECE or a cross-axis aggregate. Profile metadata states
+whether values are heuristic-relative or model-posterior, but neither label is
+an empirical calibration claim.
+
 `calibrated_event_relation.py` is the strict evaluation-only boundary between
 bidirectional model distances and one event-relation decision. A content-bound
 profile fixes model, feature, input, fit, calibration, threshold, and quantile

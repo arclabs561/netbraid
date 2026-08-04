@@ -50,6 +50,9 @@ hypothesis-frame-check:
 hypothesis-metrics-check:
     {{ python }} eval/test-hypothesis-metrics.py
 
+hypothesis-belief-metrics-check:
+    {{ python }} eval/test-hypothesis-belief-metrics.py
+
 calibrated-event-relation-check:
     {{ python }} eval/test-calibrated-event-relation.py
 
