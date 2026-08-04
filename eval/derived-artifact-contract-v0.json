@@ -213,6 +213,13 @@
       "recipe": "mmwave-jamming-receiver-crossfit"
     },
     {
+      "path": "data/derived/eval/modality-coverage-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/audit-modality-coverage.py",
+      "recipe": "modality-coverage-audit"
+    },
+    {
       "path": "data/derived/eval/netslab-alignment-profile-repeat.json",
       "format": "json",
       "retention": "reproducibility_output",
@@ -344,6 +351,20 @@
       "retention": "reproducibility_output",
       "producer": "eval/profile-sdr4iot-layout.py",
       "recipe": "sdr4iot-layout-profile"
+    },
+    {
+      "path": "data/derived/eval/sdr4iot-ble-slice/S1_s1_2020-03-16_16-36_server9_mobile5.cap",
+      "format": "cap",
+      "retention": "reproducibility_output",
+      "producer": "data/fetch/fetch-public-eval-corpus.py",
+      "recipe": "sdr4iot-ble-slice"
+    },
+    {
+      "path": "data/derived/eval/sdr4iot-ble-slice/extraction.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "data/fetch/fetch-public-eval-corpus.py",
+      "recipe": "sdr4iot-ble-slice"
     },
     {
       "path": "data/derived/eval/smorffi-iq.npy",

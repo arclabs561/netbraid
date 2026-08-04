@@ -140,6 +140,12 @@ derived-artifact-audit-check:
 derived-artifact-audit:
     {{ python }} eval/audit-derived-artifacts.py
 
+modality-coverage-audit-check:
+    {{ python }} eval/test-modality-coverage.py
+
+modality-coverage-audit:
+    {{ python }} eval/audit-modality-coverage.py --report {{ eval_output }}/modality-coverage-report.json
+
 # Evaluate checked, bounded slices from the ignored public archives. Fetch the
 # archives first; this target never admits or writes corpus bytes into Git.
 public-corpus-eval-check:
@@ -157,6 +163,11 @@ public-corpus-fetch dataset="all" verify_workers="4":
 # Write a path-free central-directory inventory for the selected allowlist.
 public-corpus-inventory dataset="all" verify_workers="4":
     uv run --script data/fetch/fetch-public-eval-corpus.py {{ dataset }} --verify-workers {{ verify_workers }} --inspect --inspect-output {{ eval_output }}/public-corpus-inventory.json
+
+# Materialize the receipt-bound BLE member used for adapter inspection. The
+# capture and receipt remain ignored under the derived-data tree.
+sdr4iot-ble-slice:
+    uv run --script data/fetch/fetch-public-eval-corpus.py sdr4iot-ble-zigbee --extract-member ble/scenario1/scene1/20200316_1636/S1_s1_2020-03-16_16-36_server9_mobile5.cap --extract-dir {{ eval_output }}/sdr4iot-ble-slice --extract-output {{ eval_output }}/sdr4iot-ble-slice/S1_s1_2020-03-16_16-36_server9_mobile5.cap --max-extract-bytes 12375
 
 ujiindoorloc-split-capability-check:
     {{ python }} eval/test-evaluate-ujiindoorloc-split-capability.py

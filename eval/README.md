@@ -9,6 +9,12 @@ This directory contains executable measurements of Netbraid behavior.
   production contract.
 - `test-*.py` provides exact hermetic oracles for the harnesses.
 
+`audit-modality-coverage.py` validates the eval-facing modality registry. The
+registry keeps radio technology, carrier regime, representation, observation
+level, and evaluation readiness on separate axes. A downloaded or profiled
+corpus is not counted as an evaluated surface, and cross-technology
+classification is not counted as synchronized fusion.
+
 `counter_capture_campaign.py` evaluates a bounded campaign containing only
 identifier-free traffic windows. Collection paths, addresses, interfaces, and
 deployment-selected runs remain outside this repository.

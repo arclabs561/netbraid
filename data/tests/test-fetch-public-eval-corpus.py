@@ -11,6 +11,7 @@ import sys
 import tempfile
 import types
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -291,6 +292,57 @@ class FetcherMetadataTests(unittest.TestCase):
             rendered = json.dumps(inventory, sort_keys=True)
             self.assertNotIn(str(base), rendered)
             self.assertNotIn(str(source["url"]), rendered)
+
+    def test_single_member_extraction_accepts_an_exact_output_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            raw_dir = base / "raw"
+            raw_dir.mkdir()
+            archive = raw_dir / "synthetic.zip"
+            with zipfile.ZipFile(archive, "w") as output:
+                output.writestr("nested/member.cap", b"capture bytes")
+            payload = archive.read_bytes()
+            source = {
+                **synthetic_source(payload),
+                "filename": archive.name,
+                "format": "zip",
+            }
+            receipt_dir = base / "receipts"
+            extract_dir = base / "extracted"
+            exact_output = extract_dir / "selected.cap"
+
+            with (
+                mock.patch.object(MODULE, "SOURCES", {"synthetic": source}),
+                mock.patch.object(MODULE, "GROUPS", frozenset({"baseline"})),
+                mock.patch.object(MODULE.urllib.request, "urlopen") as urlopen,
+                mock.patch("builtins.print"),
+            ):
+                exit_code = MODULE.main(
+                    [
+                        "synthetic",
+                        "--output-dir",
+                        str(raw_dir),
+                        "--receipt-dir",
+                        str(receipt_dir),
+                        "--extract-member",
+                        "nested/member.cap",
+                        "--extract-dir",
+                        str(extract_dir),
+                        "--extract-output",
+                        str(exact_output),
+                        "--max-extract-bytes",
+                        "13",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            urlopen.assert_not_called()
+            self.assertEqual(exact_output.read_bytes(), b"capture bytes")
+            receipt = json.loads(
+                (extract_dir / "extraction.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(receipt["members"][0]["output"], "selected.cap")
+            self.assertEqual(receipt["total_bytes"], 13)
 
     def test_receipt_and_inventory_writes_reject_unsafe_paths(self):
         payload = b"safe regular bytes"

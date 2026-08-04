@@ -659,6 +659,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="ignored directory for selected members and their receipt",
     )
     parser.add_argument(
+        "--extract-output",
+        type=Path,
+        help="exact output path when extracting exactly one member",
+    )
+    parser.add_argument(
         "--max-extract-bytes",
         type=int,
         default=100_000_000,
@@ -1055,11 +1060,14 @@ def extract_members(
     member_names: list[str],
     output_dir: Path,
     max_bytes: int,
+    output_path: Path | None = None,
 ) -> None:
     if spec.get("format", "zip") != "zip":
         raise RuntimeError("member extraction currently requires a ZIP artifact")
     if max_bytes <= 0:
         raise RuntimeError("--max-extract-bytes must be positive")
+    if output_path is not None and len(member_names) != 1:
+        raise RuntimeError("--extract-output requires exactly one member")
     output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     extracted: list[dict[str, Any]] = []
     total_bytes = 0
@@ -1088,7 +1096,9 @@ def extract_members(
                 raise RuntimeError(
                     f"selected members exceed extraction limit: {total_bytes} > {max_bytes}"
                 )
-            target = output_dir / Path(member.filename).name
+            target = output_path or output_dir / Path(member.filename).name
+            if target.parent.resolve() != output_dir.resolve():
+                raise RuntimeError("--extract-output must be inside --extract-dir")
             if target.exists():
                 raise RuntimeError(f"refusing to overwrite extracted member: {target}")
             partial = target.with_name(f".{target.name}.part")
@@ -1128,6 +1138,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     is_group = args.dataset in GROUPS or args.dataset == "all"
     if is_group and args.extract_member:
         raise RuntimeError("--extract-member requires one named artifact")
+    if args.extract_output is not None and len(args.extract_member) != 1:
+        raise RuntimeError("--extract-output requires exactly one --extract-member")
 
     if is_group:
         groups = {args.dataset} if args.dataset != "all" else GROUPS
@@ -1148,14 +1160,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.inspect:
             inventories[dataset] = inspect_archive(archive, spec, args.receipt_dir)
         if args.extract_member:
+            extraction_dir = (
+                args.extract_dir
+                or (args.extract_output.parent if args.extract_output else None)
+                or args.output_dir / f"extracted-{dataset}"
+            ).resolve()
             extract_members(
                 archive,
                 spec,
                 args.extract_member,
-                (
-                    args.extract_dir or args.output_dir / f"extracted-{dataset}"
-                ).resolve(),
+                extraction_dir,
                 args.max_extract_bytes,
+                args.extract_output.resolve() if args.extract_output else None,
             )
 
     if args.inspect:
