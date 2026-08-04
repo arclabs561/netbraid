@@ -10,8 +10,7 @@ as physical identity.
 ## Method
 
 This hypothesis was written before the corpus profile. The implementation basis
-is Git commit `ccbdc75`; the exact producer commit and command results will be
-recorded after the preregistered checks pass.
+is Git commit `ccbdc75`; the exact producer commit is `51d670b`.
 
 The profiler must verify the pinned archive byte count and MD5, reject unsafe or
 unknown ZIP members, and run twice with byte-identical reports. It may read the
@@ -36,8 +35,31 @@ not independently verified physical identities.
 
 ## Results
 
-Not run yet.
+`just sdr4iot-layout-profile` completed twice at producer commit `51d670b` with
+byte-identical 3,342-byte reports, both mode 0600. The verified archive contains
+702 file members and 173,658,727 uncompressed member bytes. No member payload
+was opened.
+
+| Modality | Collection runs | Observation groups | Complete three-layer groups |
+|---|---:|---:|---:|
+| BLE | 37 | 102 | 95 |
+| Zigbee | 31 | 123 | 123 |
+
+The remaining seven BLE groups are explicit: five have packet and table
+artifacts, one has only a publisher-named SigMF artifact, and one has SigMF and
+table artifacts. The two modality roots reuse four receiver tokens but no
+mobile token. The report also counts 24 irregular filename date tokens and 35
+supplemental or archive-metadata files without retaining their names or token
+values.
 
 ## Conclusion
 
-Pending the real corpus profile.
+The hypothesis held. The archive can support protocol-specific completeness
+and layer-pairing evals without payload I/O, and it supplies a concrete BLE
+corpus in addition to the existing Zigbee packet slice. It does not yet support
+a cross-protocol same-event eval: shared receiver tokens alone are insufficient.
+
+The next high-information step is to admit one complete BLE packet capture and
+compare its bounded TShark projection with the corresponding publisher table.
+The publisher-named `.sigmf` artifact requires independent format inspection
+before Netbraid's SigMF adapter can consume it.
