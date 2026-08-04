@@ -16,6 +16,20 @@
       "test": "eval/test-evaluate-public-corpus-slices.py"
     },
     {
+      "carrier_regimes": ["2_4_ghz"],
+      "evaluator": "eval/evaluate-sdr4iot-layer-alignment.py",
+      "evidence_record": "eval/experiments/0031-sdr4iot-layer-alignment-v0.md",
+      "id": "sdr4iot-layer-alignment",
+      "limitation": "Alignment is tested within each publisher group; it does not fuse BLE with Zigbee or establish event or entity identity.",
+      "observation_levels": ["detection", "packet", "signal"],
+      "readiness": "evaluated",
+      "representations": ["packet_capture", "sigmf_metadata", "signal_iq", "tabular_extract"],
+      "scope": "cross_representation_alignment",
+      "source_lead": "sdr4iot-paper",
+      "technologies": ["bluetooth_le", "ieee802154", "zigbee"],
+      "test": "eval/test-evaluate-sdr4iot-layer-alignment.py"
+    },
+    {
       "carrier_regimes": ["2_4_ghz", "5_ghz", "60_ghz"],
       "evaluator": "eval/evaluate-public-corpus-slices.py",
       "evidence_record": "docs/public-corpus-evaluation.md",

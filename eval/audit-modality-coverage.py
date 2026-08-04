@@ -21,7 +21,12 @@ MAX_INPUT_BYTES = 256 * 1024
 SCHEMA = "netbraid.modality_coverage.v0"
 REPORT_SCHEMA = "netbraid.modality_coverage_audit.v0"
 READINESS = {"blocked", "candidate", "evaluated", "profiled"}
-SCOPES = {"cross_modality", "multimodal_fusion", "single_modality"}
+SCOPES = {
+    "cross_modality",
+    "cross_representation_alignment",
+    "multimodal_fusion",
+    "single_modality",
+}
 FIELDS = {
     "carrier_regimes",
     "evaluator",
@@ -184,6 +189,11 @@ def build_report(path: Path = DEFAULT_REGISTRY) -> dict[str, Any]:
             surface["id"]
             for surface in surfaces
             if surface["scope"] == "multimodal_fusion"
+        ),
+        "alignment_surfaces": sorted(
+            surface["id"]
+            for surface in surfaces
+            if surface["scope"] == "cross_representation_alignment"
         ),
     }
 

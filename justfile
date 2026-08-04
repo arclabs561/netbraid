@@ -76,6 +76,16 @@ sdr4iot-layout-profile:
     {{ python }} eval/profile-sdr4iot-layout.py --report {{ eval_output }}/sdr4iot-layout-profile-repeat.json
     cmp {{ eval_output }}/sdr4iot-layout-profile.json {{ eval_output }}/sdr4iot-layout-profile-repeat.json
 
+sdr4iot-layer-alignment-check:
+    {{ python }} eval/test-evaluate-sdr4iot-layer-alignment.py
+
+# Compare packet, table, and signal metadata in every complete publisher group.
+# The report is aggregate and the inspected development group is excluded.
+sdr4iot-layer-alignment:
+    {{ python }} eval/evaluate-sdr4iot-layer-alignment.py --report {{ eval_output }}/sdr4iot-layer-alignment-v0.json
+    {{ python }} eval/evaluate-sdr4iot-layer-alignment.py --report {{ eval_output }}/sdr4iot-layer-alignment-v0-repeat.json
+    cmp {{ eval_output }}/sdr4iot-layer-alignment-v0.json {{ eval_output }}/sdr4iot-layer-alignment-v0-repeat.json
+
 smorffi-fetcher-check:
     uv run --python 3.10 data/tests/test-fetch-smorffi.py
 

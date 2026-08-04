@@ -32,6 +32,10 @@ class ModalityCoverageTests(unittest.TestCase):
             by_id["sub-ghz-technology-recognition"]["readiness"], "candidate"
         )
         self.assertEqual(by_id["xrf55-event-fusion"]["scope"], "multimodal_fusion")
+        self.assertEqual(
+            by_id["sdr4iot-layer-alignment"]["scope"],
+            "cross_representation_alignment",
+        )
 
     def test_report_is_aggregate_deterministic_and_names_admission_gaps(self):
         first = AUDIT.canonical_json(AUDIT.build_report())
@@ -39,11 +43,12 @@ class ModalityCoverageTests(unittest.TestCase):
         report = json.loads(first)
 
         self.assertEqual(first, second)
-        self.assertEqual(report["surfaces"], 11)
+        self.assertEqual(report["surfaces"], 12)
         self.assertEqual(report["readiness"]["candidate"], 2)
         self.assertIn("ieee80211ah", report["technologies"])
         self.assertIn("signal_iq", report["representations"])
         self.assertEqual(report["fusion_surfaces"], ["xrf55-event-fusion"])
+        self.assertEqual(report["alignment_surfaces"], ["sdr4iot-layer-alignment"])
 
     def test_duplicate_keys_and_unbound_candidate_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory_name:

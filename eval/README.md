@@ -13,7 +13,9 @@ This directory contains executable measurements of Netbraid behavior.
 registry keeps radio technology, carrier regime, representation, observation
 level, and evaluation readiness on separate axes. A downloaded or profiled
 corpus is not counted as an evaluated surface, and cross-technology
-classification is not counted as synchronized fusion.
+classification is not counted as synchronized fusion. Cross-representation
+alignment is also tracked separately: matching packet, table, and signal rows
+does not itself combine their evidence into a claim.
 
 `counter_capture_campaign.py` evaluates a bounded campaign containing only
 identifier-free traffic windows. Collection paths, addresses, interfaces, and
@@ -100,6 +102,14 @@ artifact groups separately for each protocol and reports receiver-token reuse
 across protocols. Filename co-grouping does not establish payload alignment,
 event identity, cross-protocol identity, physical device/source identity,
 location truth, or SigMF conformance.
+
+`evaluate-sdr4iot-layer-alignment.py` checks the complete publisher groups at
+the packet, table, and signal-metadata boundaries. It compares row counts,
+sample extents, frequency, rate, relative packet timing, signal-data extent,
+and digest while retaining aggregate results only. The one group inspected
+during parser development is excluded from the evaluation partition. Passing
+alignment supports synchronized inputs within one protocol group, not BLE to
+Zigbee fusion, event identity, entity identity, or packet-to-waveform cause.
 
 `evaluate-public-corpus-slices.py` includes one complete SDR4IoT Bluetooth LE
 capture. It runs the saved-capture normalizer twice and checks typed packet,

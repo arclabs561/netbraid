@@ -339,6 +339,20 @@
       "recipe": "ruff-uwb-two-meter-row-adapter"
     },
     {
+      "path": "data/derived/eval/sdr4iot-layer-alignment-v0-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-sdr4iot-layer-alignment.py",
+      "recipe": "sdr4iot-layer-alignment"
+    },
+    {
+      "path": "data/derived/eval/sdr4iot-layer-alignment-v0.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-sdr4iot-layer-alignment.py",
+      "recipe": "sdr4iot-layer-alignment"
+    },
+    {
       "path": "data/derived/eval/sdr4iot-layout-profile-repeat.json",
       "format": "json",
       "retention": "reproducibility_output",
