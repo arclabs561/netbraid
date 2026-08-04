@@ -1,3 +1,4 @@
+mod content_relation;
 mod counter_capture;
 mod hypothesis;
 mod rssi_reference_frame;
@@ -28,6 +29,16 @@ pub use counter_capture::{
     TrafficWindowV0, TrafficWindowValidationErrorV0, COUNTER_CAPTURE_HYPOTHESIS_SET_SCHEMA_V0,
     COUNTER_CAPTURE_PROFILE_SCHEMA_V0, COUNTER_CAPTURE_REDUCER_V0,
     COUNTER_CAPTURE_SCALE_FLOOR_PPB_V0, PPB, TRAFFIC_WINDOW_SCHEMA_V0,
+};
+
+pub use content_relation::{
+    assess_content_relation_v0, ContentDigestEvidenceV0, ContentDigestEvidenceValidationErrorV0,
+    ContentDigestStateV0, ContentDigestUnavailableReasonV0, ContentRelationBasisV0,
+    ContentRelationDispositionV0, ContentRelationErrorV0, ContentRelationEvidenceRefV0,
+    ContentRelationHypothesisSetV0, ContentRelationReferenceV0, ContentRelationUnknownReasonV0,
+    ContentRelationValidationErrorV0, ContentSha256ParseErrorV0, ContentSha256V0,
+    CONTENT_DIGEST_EVIDENCE_SCHEMA_V0, CONTENT_RELATION_HYPOTHESIS_SET_SCHEMA_V0,
+    CONTENT_RELATION_REDUCER_V0,
 };
 
 pub use hypothesis::{

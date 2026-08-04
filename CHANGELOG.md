@@ -11,6 +11,9 @@ GitHub native binary releases remain available independently.
 
 ### Added
 
+- A source-preserving SHA-256 content-relation family with exact digest-match,
+  digest-mismatch, and unknown alternatives. It projects content-bound finite claims
+  without treating changed bytes as corruption, tampering, or malicious intent.
 - Evidence-linked finite claim envelopes for the packet same-event,
   saved-PCAP packet-shape, and counter/capture hypothesis families. Claims bind
   canonical input references only after recomputing against resolved inputs,

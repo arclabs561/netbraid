@@ -13,10 +13,11 @@ artifacts. The resulting records retain their source, coverage, and limits.
 The braid is the set of typed links between those records. It is not one merged
 identity record.
 
-The Rust library currently tests packet same-event, saved-PCAP shape,
-counter/capture correspondence, and RSSI-shift hypotheses. Each result is
-supported, contradicted, or underdetermined and remains linked to its inputs.
-Broader cross-modal fusion is evaluation work, not a supported claim yet.
+The Rust library currently tests SHA-256 digest agreement, packet same-event,
+saved-PCAP shape, counter/capture correspondence, and RSSI-shift hypotheses.
+Each result is supported, contradicted, or underdetermined and remains linked
+to its inputs. Broader cross-modal fusion is evaluation work, not a supported
+claim yet.
 
 The CLI reads saved artifacts. The record types can be used by live consumers,
 but Netbraid does not acquire observations or run a service.

@@ -2,12 +2,15 @@ use serde::Serialize;
 
 use crate::evidence::{PacketEnvelopeV0, PACKET_ENVELOPE_SCHEMA_V0};
 use crate::infer::{
-    CounterCaptureDispositionV0, CounterCaptureErrorV0, CounterCaptureHypothesisSetV0,
-    CounterCaptureProfileV0, CounterCaptureValidationErrorV0, PacketSameEventDispositionV0,
-    PacketSameEventErrorV0, PacketSameEventHypothesisSetV0, PacketSameEventValidationErrorV0,
+    ContentDigestEvidenceV0, ContentRelationDispositionV0, ContentRelationErrorV0,
+    ContentRelationHypothesisSetV0, ContentRelationValidationErrorV0, CounterCaptureDispositionV0,
+    CounterCaptureErrorV0, CounterCaptureHypothesisSetV0, CounterCaptureProfileV0,
+    CounterCaptureValidationErrorV0, PacketSameEventDispositionV0, PacketSameEventErrorV0,
+    PacketSameEventHypothesisSetV0, PacketSameEventValidationErrorV0,
     SavedPcapFingerprintCandidateV0, SavedPcapFingerprintDispositionV0,
     SavedPcapFingerprintErrorV0, SavedPcapFingerprintHypothesisSetV0,
     SavedPcapFingerprintValidationErrorV0, TrafficWindowEvidenceV0,
+    CONTENT_DIGEST_EVIDENCE_SCHEMA_V0,
 };
 
 pub const FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0: &str = "netbraid.finite_hypothesis_projection.v0";
@@ -275,6 +278,7 @@ impl FiniteHypothesisClaimV0 {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum FiniteHypothesisClaimErrorV0 {
+    InvalidContentRelationResolution(ContentRelationErrorV0),
     InvalidProjection(FiniteHypothesisProjectionErrorV0),
     InvalidCounterCaptureResolution(CounterCaptureErrorV0),
     InvalidPacketSameEventResolution(PacketSameEventErrorV0),
@@ -291,6 +295,12 @@ pub enum FiniteHypothesisClaimErrorV0 {
 impl std::fmt::Display for FiniteHypothesisClaimErrorV0 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidContentRelationResolution(source) => {
+                write!(
+                    formatter,
+                    "invalid resolved content-relation claim: {source}"
+                )
+            }
             Self::InvalidProjection(source) => {
                 write!(formatter, "invalid finite projection: {source}")
             }
@@ -333,6 +343,7 @@ impl std::fmt::Display for FiniteHypothesisClaimErrorV0 {
 impl std::error::Error for FiniteHypothesisClaimErrorV0 {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::InvalidContentRelationResolution(source) => Some(source),
             Self::InvalidProjection(source) => Some(source),
             Self::InvalidCounterCaptureResolution(source) => Some(source),
             Self::InvalidPacketSameEventResolution(source) => Some(source),
@@ -346,6 +357,7 @@ impl std::error::Error for FiniteHypothesisClaimErrorV0 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FiniteHypothesisProjectionErrorV0 {
+    InvalidContentRelationAssessment(ContentRelationValidationErrorV0),
     InvalidCounterCaptureAssessment(CounterCaptureValidationErrorV0),
     InvalidPacketSameEventAssessment(PacketSameEventValidationErrorV0),
     InvalidSavedPcapFingerprintAssessment(SavedPcapFingerprintValidationErrorV0),
@@ -361,6 +373,9 @@ pub enum FiniteHypothesisProjectionErrorV0 {
 impl std::fmt::Display for FiniteHypothesisProjectionErrorV0 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidContentRelationAssessment(source) => {
+                write!(formatter, "invalid content-relation assessment: {source}")
+            }
             Self::InvalidCounterCaptureAssessment(source) => {
                 write!(formatter, "invalid counter/capture assessment: {source}")
             }
@@ -399,6 +414,7 @@ impl std::fmt::Display for FiniteHypothesisProjectionErrorV0 {
 impl std::error::Error for FiniteHypothesisProjectionErrorV0 {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::InvalidContentRelationAssessment(source) => Some(source),
             Self::InvalidCounterCaptureAssessment(source) => Some(source),
             Self::InvalidPacketSameEventAssessment(source) => Some(source),
             Self::InvalidSavedPcapFingerprintAssessment(source) => Some(source),
@@ -412,6 +428,7 @@ mod private {
 }
 
 impl private::Sealed for CounterCaptureHypothesisSetV0 {}
+impl private::Sealed for ContentRelationHypothesisSetV0 {}
 impl private::Sealed for PacketSameEventHypothesisSetV0 {}
 impl private::Sealed for SavedPcapFingerprintHypothesisSetV0 {}
 
@@ -469,6 +486,16 @@ impl From<CounterCaptureDispositionV0> for FiniteHypothesisDispositionV0 {
     }
 }
 
+impl From<ContentRelationDispositionV0> for FiniteHypothesisDispositionV0 {
+    fn from(value: ContentRelationDispositionV0) -> Self {
+        match value {
+            ContentRelationDispositionV0::Supported => Self::Supported,
+            ContentRelationDispositionV0::Contradicted => Self::Contradicted,
+            ContentRelationDispositionV0::Underdetermined => Self::Underdetermined,
+        }
+    }
+}
+
 impl From<PacketSameEventDispositionV0> for FiniteHypothesisDispositionV0 {
     fn from(value: PacketSameEventDispositionV0) -> Self {
         match value {
@@ -508,6 +535,24 @@ impl ProjectFiniteHypothesesV0 for CounterCaptureHypothesisSetV0 {
                     self.capture_does_not_account_for_window.into(),
                 ),
                 (UNKNOWN_ROLE, self.unknown.into()),
+            ],
+        )
+    }
+}
+
+impl ProjectFiniteHypothesesV0 for ContentRelationHypothesisSetV0 {
+    fn project_finite_hypotheses_v0(
+        &self,
+    ) -> Result<FiniteHypothesisProjectionV0, FiniteHypothesisProjectionErrorV0> {
+        self.validate()
+            .map_err(FiniteHypothesisProjectionErrorV0::InvalidContentRelationAssessment)?;
+        project_three(
+            self.schema(),
+            self.reducer(),
+            [
+                ("sha256_match", self.sha256_match().into()),
+                ("sha256_mismatch", self.sha256_mismatch().into()),
+                (UNKNOWN_ROLE, self.unknown().into()),
             ],
         )
     }
@@ -583,6 +628,36 @@ impl ProjectFiniteHypothesisClaimV0 for CounterCaptureHypothesisSetV0 {
                 &self.counter.source_schema,
                 &self.counter.record_id,
                 &self.counter.content_sha256,
+            )?,
+        ];
+        FiniteHypothesisClaimV0::try_new(projection, inputs)
+    }
+}
+
+impl ProjectFiniteHypothesisClaimV0 for ContentRelationHypothesisSetV0 {
+    type Inputs<'a> = (&'a ContentDigestEvidenceV0, &'a ContentDigestEvidenceV0);
+
+    fn project_finite_hypothesis_claim_v0(
+        &self,
+        (left, right): Self::Inputs<'_>,
+    ) -> Result<FiniteHypothesisClaimV0, FiniteHypothesisClaimErrorV0> {
+        self.validate_against(left, right)
+            .map_err(FiniteHypothesisClaimErrorV0::InvalidContentRelationResolution)?;
+        let projection = self
+            .project_finite_hypotheses_v0()
+            .map_err(FiniteHypothesisClaimErrorV0::InvalidProjection)?;
+        let inputs = vec![
+            FiniteHypothesisInputRefV0::try_new(
+                "left_content_evidence",
+                CONTENT_DIGEST_EVIDENCE_SCHEMA_V0,
+                self.left().record_id(),
+                self.left().evidence_sha256(),
+            )?,
+            FiniteHypothesisInputRefV0::try_new(
+                "right_content_evidence",
+                CONTENT_DIGEST_EVIDENCE_SCHEMA_V0,
+                self.right().record_id(),
+                self.right().evidence_sha256(),
             )?,
         ];
         FiniteHypothesisClaimV0::try_new(projection, inputs)

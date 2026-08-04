@@ -1,16 +1,18 @@
 use netbraid::evidence::PacketEnvelopeV0;
 use netbraid::infer::{
-    assess_counter_capture_v0, assess_packet_same_event_v0, assess_saved_pcap_fingerprint_v0,
-    CounterCaptureDispositionV0, CounterCaptureProfileV0, CounterCaptureReferenceV0,
-    CounterCaptureScaleVectorPpbV0, CounterCaptureUnknownReasonV0, PacketSameEventDispositionV0,
-    PacketSameEventReferenceV0, PacketSameEventUnknownReasonV0, ProjectFiniteHypothesesV0,
-    ProjectFiniteHypothesisClaimV0, SavedPcapFingerprintCandidateRefV0,
-    SavedPcapFingerprintCandidateV0, SavedPcapFingerprintComparisonV0,
-    SavedPcapFingerprintDispositionV0, SavedPcapFingerprintErrorV0,
-    SavedPcapFingerprintHypothesisSetV0, SavedPcapFingerprintReferenceV0,
-    SavedPcapFingerprintValidationErrorV0, TrafficWindowEvidenceV0, TrafficWindowV0,
-    FINITE_HYPOTHESIS_CLAIM_SCHEMA_V0, FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0,
-    SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_REDUCER_V0,
+    assess_content_relation_v0, assess_counter_capture_v0, assess_packet_same_event_v0,
+    assess_saved_pcap_fingerprint_v0, ContentDigestEvidenceV0, ContentRelationDispositionV0,
+    ContentRelationReferenceV0, ContentSha256V0, CounterCaptureDispositionV0,
+    CounterCaptureProfileV0, CounterCaptureReferenceV0, CounterCaptureScaleVectorPpbV0,
+    CounterCaptureUnknownReasonV0, PacketSameEventDispositionV0, PacketSameEventReferenceV0,
+    PacketSameEventUnknownReasonV0, ProjectFiniteHypothesesV0, ProjectFiniteHypothesisClaimV0,
+    SavedPcapFingerprintCandidateRefV0, SavedPcapFingerprintCandidateV0,
+    SavedPcapFingerprintComparisonV0, SavedPcapFingerprintDispositionV0,
+    SavedPcapFingerprintErrorV0, SavedPcapFingerprintHypothesisSetV0,
+    SavedPcapFingerprintReferenceV0, SavedPcapFingerprintValidationErrorV0,
+    TrafficWindowEvidenceV0, TrafficWindowV0, FINITE_HYPOTHESIS_CLAIM_SCHEMA_V0,
+    FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0,
+    SAVED_PCAP_FINGERPRINT_REDUCER_V0,
 };
 
 fn packet() -> PacketEnvelopeV0 {
@@ -223,6 +225,64 @@ fn public_counter_capture_family_obeys_finite_hypothesis_law() {
         CounterCaptureDispositionV0::Underdetermined,
     );
     assert!(result.basis.counter_features_ppb.is_none());
+}
+
+#[test]
+fn public_content_relation_family_obeys_finite_hypothesis_law() {
+    let left = ContentDigestEvidenceV0::observed(
+        "digest:left",
+        "netbraid.test_artifact.v0",
+        "artifact:left",
+        ContentSha256V0::try_new("a".repeat(64)).unwrap(),
+    )
+    .unwrap();
+    let right = ContentDigestEvidenceV0::observed(
+        "digest:right",
+        "netbraid.test_artifact.v0",
+        "artifact:right",
+        ContentSha256V0::try_new("b".repeat(64)).unwrap(),
+    )
+    .unwrap();
+
+    let result = assess_content_relation_v0(&left, &right).unwrap();
+    let projection = result.project_finite_hypotheses_v0().unwrap();
+    let claim = result
+        .project_finite_hypothesis_claim_v0((&left, &right))
+        .unwrap();
+    let swapped_claim = result
+        .project_finite_hypothesis_claim_v0((&right, &left))
+        .unwrap();
+
+    assert_eq!(
+        result.reference(),
+        ContentRelationReferenceV0::Sha256Mismatch
+    );
+    assert_finite_hypothesis_law(
+        "content relation substantive",
+        [
+            ("sha256_match", result.sha256_match()),
+            ("sha256_mismatch", result.sha256_mismatch()),
+        ],
+        result.unknown(),
+        Some("sha256_mismatch"),
+        ContentRelationDispositionV0::Supported,
+        ContentRelationDispositionV0::Contradicted,
+        ContentRelationDispositionV0::Underdetermined,
+    );
+    assert_eq!(
+        projection
+            .alternatives()
+            .iter()
+            .map(|alternative| alternative.role())
+            .collect::<Vec<_>>(),
+        ["sha256_match", "sha256_mismatch", "unknown"]
+    );
+    assert_eq!(claim.projection(), &projection);
+    assert_eq!(swapped_claim, claim);
+    assert_eq!(claim.inputs()[0].role(), "left_content_evidence");
+    assert_eq!(claim.inputs()[0].source_id(), "digest:left");
+    assert_eq!(claim.inputs()[1].role(), "right_content_evidence");
+    assert_eq!(claim.inputs()[1].source_id(), "digest:right");
 }
 
 #[test]
