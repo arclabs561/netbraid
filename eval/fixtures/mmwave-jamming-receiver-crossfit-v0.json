@@ -1,0 +1,81 @@
+{
+  "campaign_id": "mmwave-jamming-receiver-crossfit-v0",
+  "feature_policy": {
+    "components": [
+      "real",
+      "imaginary"
+    ],
+    "features": [
+      "log_mean_power",
+      "power_coefficient_of_variation",
+      "adc_sample_axis_power_dispersion",
+      "chirp_axis_power_dispersion",
+      "frame_axis_power_dispersion"
+    ],
+    "fit": "train_fold_only",
+    "grid_shape": [
+      16,
+      16,
+      8,
+      2
+    ],
+    "metadata_features": false,
+    "power": "real_squared_plus_imaginary_squared",
+    "zero_variance_features": "drop_per_fold"
+  },
+  "limitations": [
+    "receiver_elements_are_not_independent_devices_sites_or_sessions",
+    "single_campaign_crossfit_is_not_external_validation",
+    "event_session_device_and_physical_source_truth_are_not_observed",
+    "coarse_stratified_grid_does_not_measure_streaming_latency",
+    "no_identity_variant_actor_tamper_authorization_or_malicious_intent_claim",
+    "shape_name_path_storage_extent_and_digest_are_not_model_features"
+  ],
+  "model": {
+    "classifier": "train_standardized_nearest_centroid",
+    "distance": "squared_euclidean",
+    "hyperparameter_search": false,
+    "score": "distance_to_absent_centroid_minus_distance_to_present_centroid",
+    "threshold": 0.0,
+    "tie_policy": "abstain"
+  },
+  "preregistration": {
+    "execution_state": "not_executed",
+    "missing_required_fields": "reject",
+    "unknown_fields": "reject"
+  },
+  "primary_gate": {
+    "direction": "controlled_jammer_present_score_greater_than_absent_score",
+    "exact_test": "one_sided_binomial_sign_test_on_non_tied_pairs",
+    "minimum_non_tied_pairs": 36,
+    "p_value_at_most": 0.05,
+    "wins_strictly_greater_than_losses": true
+  },
+  "reporting": {
+    "primary": "heldout_pair_ranking",
+    "secondary": [
+      "heldout_balanced_accuracy",
+      "heldout_macro_f1",
+      "both_members_correct_pair_rate",
+      "per_fold_metrics_without_group_identifiers"
+    ],
+    "uniform_chance_balanced_accuracy": 0.5
+  },
+  "schema": "netbraid.mmwave_jamming_receiver_crossfit_policy.v0",
+  "split_policy": {
+    "folds": 4,
+    "pair_group_atomic": true,
+    "test_group": "receiver_group",
+    "test_receivers_per_fold": 1,
+    "train_receivers_per_fold": 3,
+    "use_each_receiver_once_for_test": true,
+    "validation_or_calibration_roles": false
+  },
+  "target": {
+    "classes": [
+      "controlled_jammer_absent",
+      "controlled_jammer_present"
+    ],
+    "field": "controlled_jamming_cause"
+  }
+}
