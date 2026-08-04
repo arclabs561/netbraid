@@ -54,12 +54,64 @@ authorization, tamper, or maliciousness.
 
 ## Results
 
-Not executed.
+The canonical recipe completed twice with byte-identical 4,627-byte reports,
+both mode 0600. Every observation was scored once while its receiver group was
+absent from the corresponding 60-row training fold.
+
+The primary pairwise result was 28 wins, 12 losses, and no ties across 40
+held-out pairs. The ranking rate was 0.70 and the preregistered one-sided exact
+binomial probability was `0.008294501687`; all three mechanical gate terms
+passed.
+
+The secondary zero-threshold row result was weaker. Balanced accuracy was
+`0.625`, macro-F1 was `0.624765478424`, and only 10 of 40 pairs had both
+members classified correctly. Fold balanced accuracies, reported without
+receiver identifiers, were `0.50`, `0.65`, `0.65`, and `0.70`. The 0.50 fold
+classified every row as jammer-absent.
+
+```json
+{
+  "schema": "netbraid.mmwave_jamming_receiver_crossfit_result_summary.v0",
+  "heldout_balanced_accuracy": 0.625,
+  "heldout_macro_f1": 0.624765478424,
+  "fold_balanced_accuracies": [
+    0.5,
+    0.65,
+    0.65,
+    0.7
+  ],
+  "paired_ranking": {
+    "both_members_correct_pairs": 10,
+    "losses": 12,
+    "one_sided_exact_p_value": 0.008294501687,
+    "ties": 0,
+    "wins": 28
+  },
+  "status": "pass"
+}
+```
+
+The report SHA-256 is
+`74cd462423999f915cb9b1085e69273362e30db48e4b687499412245d65aa326`.
+The canonical recipe verifies the tracked JSON summary against the ignored
+report before returning success.
 
 ## Conclusion
 
-Pending. A passing result would support only coarse-grid discrimination across
-receiver elements in this campaign. It would not be external validation or a
-standalone or live detector: the grid coordinates are derived jointly within
-each matched pair. It would not support claims about independent hardware,
-sessions, sites, physical identity, tamper, or malicious intent.
+The preregistered paired-ranking hypothesis held, but the result is narrower
+than the report's `pass` label may suggest. The five coarse content summaries
+contain a receiver-held-out ordering signal in this corpus; the fixed
+single-row threshold is not reliable enough to call this a detector.
+
+The exact binomial probability is conditional on treating pair signs as
+independent and exchangeable. Event and session relations are not observed, so
+that premise cannot be verified from this release. The raw 28/40 numerator is
+therefore the durable result; the probability is a model-based diagnostic, not
+population-level evidence.
+
+This is not external validation or a standalone or live detector: the grid
+coordinates are derived jointly within each matched pair. It does not support
+claims about independent hardware, sessions, sites, physical identity,
+tamper, intent, authorization, or maliciousness. Independent repeated
+acquisitions are the next requirement for stronger attribution or deployment
+claims.

@@ -284,6 +284,8 @@ other three receiver groups. The primary result is within-pair score ordering
 with an exact sign test; thresholded row metrics remain secondary. Because the
 cache coordinates are derived jointly within each matched pair, this measures
 paired corpus discrimination rather than standalone or live detection.
+`verify-mmwave-jamming-experiment.py` binds the tracked aggregate result in
+experiment 0028 to the ignored canonical report.
 
 `compile-indoor-jamming-oracles.py` binds the publisher workbook to the exact
 three HDF5 datasets in each of 31 MAT files. It reads dataset metadata but no

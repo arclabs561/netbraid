@@ -476,6 +476,7 @@ mmwave-jamming-paired-grid:
 
 mmwave-jamming-receiver-crossfit-check:
     uv run --script eval/test-evaluate-mmwave-jamming-receiver-crossfit.py
+    {{ python }} eval/test-verify-mmwave-jamming-experiment.py
 
 # Score every pair once under receiver-held-out cross-fitting. This consumes
 # only the ignored pair-aligned cache and the separate path-free oracle.
@@ -483,6 +484,7 @@ mmwave-jamming-receiver-crossfit:
     uv run --script eval/evaluate-mmwave-jamming-receiver-crossfit.py
     uv run --script eval/evaluate-mmwave-jamming-receiver-crossfit.py --output {{ eval_output }}/mmwave-jamming-receiver-crossfit-report-repeat.json
     cmp {{ eval_output }}/mmwave-jamming-receiver-crossfit-report.json {{ eval_output }}/mmwave-jamming-receiver-crossfit-report-repeat.json
+    {{ python }} eval/verify-mmwave-jamming-experiment.py
 
 indoor-jamming-oracles-check:
     uv run --script eval/test-compile-indoor-jamming-oracles.py
