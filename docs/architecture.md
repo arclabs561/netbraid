@@ -40,6 +40,13 @@ streams comparable. Occurrence receipts bind one run, its wall-clock interval,
 tool invocations, and the digest of the deterministic records. Occurrence
 fields are deliberately excluded from `--records-jsonl`.
 
+The bounded provenance graph records only generated-from lineage. Each record
+binds one output artifact to a descriptive producer, a fixed activity kind,
+and canonical content-bound inputs. The graph can distinguish matching bytes,
+direct or transitive derivation, and shared declared ancestry. A missing edge
+or disjoint declared ancestry remains insufficient to claim independence.
+Attribution does not authenticate a producer or judge a claim's truth.
+
 Evidence extent, observation provenance, interaction projections, event
 alignment, artifact lineage, topology, and attribution are orthogonal axes.
 Local containment exists where a source format guarantees it, but flow,
@@ -110,7 +117,7 @@ relation into identity, source, device, intent, authorization, or tamper.
 Several finite claims can be placed in one bounded canonical composition.
 Exact duplicates collapse and divergent claims for the same family, reducer,
 and canonical inputs are rejected. Claims in different slots remain
-independent: their co-presence does not establish a shared subject, identity,
+separate: their co-presence does not establish a shared subject, identity,
 confidence, or cross-family decision. A family omitted from the composition is
 not assessed, which is distinct from that family's explicit unknown result.
 

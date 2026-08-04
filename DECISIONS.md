@@ -31,6 +31,13 @@ Addresses, ports, protocol fields, network names, registrant hints, recurrence,
 and traffic shapes may support pivots or candidates. They do not by themselves
 verify a device, owner, application, person, place, intent, or security event.
 
+The public provenance graph is deliberately narrower than a general graph
+model. It is a bounded acyclic ledger of content-bound outputs, descriptive
+producers, fixed generation activities, and cited inputs. It can expose a
+direct derivation or shared declared ancestor. It cannot establish statistical
+independence when no shared ancestor is present, score a producer's merit,
+authenticate an attribution, or define identity and trust policy.
+
 ## Model evidence units and claims on separate axes
 
 Signal ranges, capture occurrences, decoded packets, flow/session projections,

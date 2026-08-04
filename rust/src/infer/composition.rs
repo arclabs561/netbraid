@@ -12,7 +12,7 @@ pub const FINITE_HYPOTHESIS_COMPOSITION_MAX_SUBMITTED_CLAIMS_V0: usize = 64;
 ///
 /// Each claim occupies the exact slot identified by its family schema,
 /// reducer, and canonical content-bound inputs. Different slots remain
-/// independent: co-presence does not assert that their inputs concern the
+/// separate: co-presence does not assert that their inputs concern the
 /// same identity or entity, and an omitted family remains absent rather than
 /// being synthesized as an unknown claim. The composition retains each claim
 /// unchanged, including its existing source identifiers; it adds no new

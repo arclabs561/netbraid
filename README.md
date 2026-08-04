@@ -23,6 +23,14 @@ prediction can enter the same claim form only when its two observations,
 profile, prediction, and a receipt recording a passed held-out gate are
 content-bound.
 
+A separate bounded provenance graph records how content-bound artifacts were
+produced from other artifacts. Its fixed activity kinds distinguish direct
+observation, original assertion, deterministic derivation, statistical
+inference, human or model annotation, quotation, and repetition. Content
+agreement and declared ancestry are compared separately. Finding no shared
+ancestry does not establish independence, and producer attribution does not
+establish trust or truth.
+
 The library can also build an in-memory candidate graph between packet-derived
 flows and a narrow flow-record type. It keeps split and merge candidates, then
 reports normalized belief under an explicit heuristic profile. The optional
@@ -119,7 +127,7 @@ The main modules are:
 
 - `evidence`: versioned records and provenance;
 - `replay`: strict JSONL parsing and deterministic reduction;
-- `infer`: finite hypothesis and counter-capture reducers; and
+- `infer`: provenance lineage, finite hypotheses, and relation reducers; and
 - `adapters`: optional boundaries for TShark, KismetDB, NPY, SigMF, and Zeek.
 
 Default builds include the CLI and TShark adapter. Optional KismetDB, NPY,

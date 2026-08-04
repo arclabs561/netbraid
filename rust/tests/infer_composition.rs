@@ -94,7 +94,7 @@ fn canonical_order_and_exact_duplicates_are_byte_invariant() {
 }
 
 #[test]
-fn unknown_families_remain_independent_and_omitted_families_remain_absent() {
+fn unknown_families_remain_separate_and_omitted_families_remain_absent() {
     let content = unknown_content_claim();
     let (left, right) = packet_pair();
     let packet = packet_claim(&left, &right);

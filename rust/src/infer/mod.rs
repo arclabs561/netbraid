@@ -11,6 +11,7 @@ mod counter_capture;
 )]
 mod factor_graph;
 mod hypothesis;
+mod lineage;
 mod packet_flow_correspondence;
 #[cfg(feature = "adapter-zeek")]
 mod packet_zeek;
@@ -81,6 +82,15 @@ pub use hypothesis::{
     FiniteHypothesisDispositionV0, FiniteHypothesisInputRefV0, FiniteHypothesisProjectionErrorV0,
     FiniteHypothesisProjectionV0, ProjectFiniteHypothesesV0, ProjectFiniteHypothesisClaimV0,
     FINITE_HYPOTHESIS_CLAIM_SCHEMA_V0, FINITE_HYPOTHESIS_PROJECTION_SCHEMA_V0,
+};
+
+pub use lineage::{
+    ProvenanceActivityKindV0, ProvenanceActivityV0, ProvenanceArtifactRefErrorV0,
+    ProvenanceArtifactRefV0, ProvenanceComparisonV0, ProvenanceContentRelationV0,
+    ProvenanceGraphErrorV0, ProvenanceGraphV0, ProvenanceLineageRelationV0,
+    ProvenanceProducerKindV0, ProvenanceProducerV0, ProvenanceRecordErrorV0, ProvenanceRecordV0,
+    PROVENANCE_GRAPH_MAX_RECORDS_V0, PROVENANCE_GRAPH_SCHEMA_V0, PROVENANCE_RECORD_MAX_INPUTS_V0,
+    PROVENANCE_RECORD_SCHEMA_V0,
 };
 
 pub use packet_flow_correspondence::{
