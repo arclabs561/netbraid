@@ -55,6 +55,16 @@ its identifier, digest, and declared semantics. The caller remains responsible
 for making those slots complete. Neither semantics label is an empirical
 calibration claim.
 
+`evaluate-sorbonne-rssi-explanation.py` compares unsynchronized 1 m and 50 m
+RSSI conditions through the non-packet shift-explanation API. Ten observer
+filenames become closed synthetic roles and the one address becomes a constant
+source role after an integrity-only uniqueness check. Only RSSI reaches Rust;
+time, sequence, event, frame, channel, packet-type, address, and condition
+fields do not. The bridge emits aggregate heuristic-relative beliefs without
+caller identifiers. This is a dependent condition-sensitivity check, not a
+distance, location, identity, cause, tamper, intent, calibration, or
+generalization result.
+
 `calibrated_event_relation.py` is the strict evaluation-only boundary between
 bidirectional model distances and one event-relation decision. A content-bound
 profile fixes model, feature, input, fit, calibration, threshold, and quantile

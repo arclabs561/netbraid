@@ -1,0 +1,121 @@
+{
+  "schema": "netbraid.sorbonne_rssi_explanation_campaign.v0",
+  "campaign_id": "sorbonne-rssi-condition-contrast-v0",
+  "protocol_lock": {
+    "status": "locked_before_evaluable_execution",
+    "revision": 1,
+    "revision_reason": "The 1 m S03 unsynchronized member has one receipt-bound leading space in its first header cell; preflight stopped before inference.",
+    "implementation_base_revision": "1efc6c366d93f915f17acc81ce961225c4d6ed28",
+    "evidence": "campaign_content_hash_enforced_by_evaluator",
+    "externally_timestamped": false
+  },
+  "source": {
+    "corpus": "Sorbonne University Outdoors Campus",
+    "publisher_doi": "10.57745/HAOPHF",
+    "archive_key": "sorbonne-campus-rssi",
+    "archive_filename": "220211012-SU-Outdoors-Campus.zip",
+    "archive_bytes": 3144312,
+    "archive_sha256": "7a650d450d339683cf7591bc24a6006238456b8dfa54e352aa1aceda8682c3f8",
+    "member_sets": [
+      {
+        "condition": "control",
+        "directory": "1m/csvTraces",
+        "filename_pattern": "01m-S{01..10}.txt",
+        "expected_members": 10
+      },
+      {
+        "condition": "contrast",
+        "directory": "50m/csvTraces",
+        "filename_pattern": "50m-S{01..10}.txt",
+        "expected_members": 10
+      }
+    ],
+    "header_errata": {
+      "member": "1m/csvTraces/01m-S03.txt",
+      "bytes": 103064,
+      "sha256": "14aaedfbaa196d385b5ce05282e458773fbc1ee7eec83bfce8804929a8570deb",
+      "observed_first_cell": " Frame_number",
+      "normalized_first_cell": "Frame_number"
+    }
+  },
+  "construction": {
+    "observer_roles": 10,
+    "source_roles": 1,
+    "baseline": "zero_based_even_rows_from_each_1m_member",
+    "control_recent": "lower_median_rssi_of_zero_based_odd_rows_from_same_1m_member",
+    "contrast_recent": "lower_median_rssi_of_all_rows_from_matching_50m_member",
+    "source_address_integrity_gate": "exactly_one_value_across_selected_rows"
+  },
+  "reference_frame_profile": {
+    "schema": "netmon.rssi_reference_frame_profile.v0",
+    "profile_id": "sorbonne-rssi-condition-contrast-v0",
+    "minimum_baseline_readings": 4,
+    "minimum_absolute_shift_milli_db": 8000,
+    "mad_multiplier_ppb": 4000000000,
+    "minimum_steady_links": 3,
+    "minimum_shifted_fraction_ppb": 600000000
+  },
+  "explanation_profile": {
+    "profile_id": "netbraid.rssi_shift_explanation.heuristic.v0",
+    "inactive_endpoint_potential_ppb": 4000000000,
+    "active_endpoint_potential_ppb": 1000000000,
+    "shifted_without_endpoint_potential_ppb": 1000000000,
+    "shifted_with_one_endpoint_potential_ppb": 64000000000,
+    "shifted_with_both_endpoints_potential_ppb": 8000000000,
+    "stable_without_endpoint_potential_ppb": 64000000000,
+    "stable_with_one_endpoint_potential_ppb": 4000000000,
+    "stable_with_both_endpoints_potential_ppb": 1000000000
+  },
+  "expectations": {
+    "control_shifted_links": 0,
+    "contrast_has_more_shifted_links_than_control": true,
+    "contrast_source_belief_exceeds_control_source_belief": true,
+    "contrast_source_belief_exceeds_each_contrast_observer_belief": true,
+    "all_components_exact": true,
+    "deterministic_report_bytes": true
+  },
+  "field_policy": {
+    "inference_inputs": [
+      "RSSI_dBm",
+      "synthetic_observer_role",
+      "constant_synthetic_source_role"
+    ],
+    "integrity_only": ["Source_MAC_address"],
+    "forbidden_inference_inputs": [
+      "Frame_time_epoch",
+      "Sequence_number",
+      "Frame_number",
+      "Channel",
+      "Frame_type",
+      "Frame_subtype",
+      "Retransmission",
+      "same_event_label",
+      "condition_label"
+    ],
+    "report_must_omit": [
+      "source_mac",
+      "sequence_number",
+      "timestamp",
+      "member_path",
+      "local_path",
+      "raw_observer_id",
+      "raw_rssi"
+    ]
+  },
+  "claims": {
+    "measured": "heuristic sensitivity to a publisher acquisition-condition contrast",
+    "not_measured": [
+      "distance estimation",
+      "physical source identity",
+      "device identity",
+      "location",
+      "same-event relation",
+      "physical cause",
+      "generalization",
+      "tampering",
+      "authorization",
+      "malicious intent",
+      "probability calibration"
+    ]
+  }
+}

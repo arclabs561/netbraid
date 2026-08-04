@@ -16,6 +16,7 @@ rust-check:
     cargo check --locked --manifest-path rust/Cargo.toml --lib --no-default-features --features scenario-fixtures,scenario-fixtures-capture-derived
     cargo build --locked --manifest-path rust/Cargo.toml
     cargo test --locked --manifest-path rust/Cargo.toml
+    cargo test --locked --manifest-path rust/Cargo.toml --no-default-features --example rssi_shift_explanation_jsonl
     cargo clippy --locked --manifest-path rust/Cargo.toml --all-targets -- -D warnings
     RUSTDOCFLAGS="-D warnings" cargo doc --locked --manifest-path rust/Cargo.toml --no-deps
 
@@ -195,6 +196,20 @@ sorbonne-structural-reducer-eval:
     {{ python }} eval/evaluate-sorbonne-structural-reducer.py --archive {{ raw_data }}/220211012-SU-Outdoors-Campus.zip --campaign eval/fixtures/sorbonne-structural-reducer-campaign-v0.json --netbraid-bin rust/target/debug/netbraid --reducer-bin rust/target/debug/examples/packet_same_event_jsonl --report {{ eval_output }}/sorbonne-structural-reducer-report.json
     {{ python }} eval/evaluate-sorbonne-structural-reducer.py --archive {{ raw_data }}/220211012-SU-Outdoors-Campus.zip --campaign eval/fixtures/sorbonne-structural-reducer-campaign-v0.json --netbraid-bin rust/target/debug/netbraid --reducer-bin rust/target/debug/examples/packet_same_event_jsonl --report {{ eval_output }}/sorbonne-structural-reducer-report-repeat.json
     cmp {{ eval_output }}/sorbonne-structural-reducer-report.json {{ eval_output }}/sorbonne-structural-reducer-report-repeat.json
+
+# Verify the RSSI condition evaluator and its aggregate-only Rust bridge
+# without opening the corpus.
+sorbonne-rssi-explanation-check:
+    cargo test --locked --manifest-path rust/Cargo.toml --no-default-features --example rssi_shift_explanation_jsonl
+    {{ python }} eval/test-evaluate-sorbonne-rssi-explanation.py
+
+# Compare the unsynchronized 1 m control and 50 m condition through the
+# source-agnostic RSSI explanation API. Reports contain aggregate values only.
+sorbonne-rssi-explanation-eval:
+    cargo build --locked --manifest-path rust/Cargo.toml --no-default-features --example rssi_shift_explanation_jsonl
+    {{ python }} eval/evaluate-sorbonne-rssi-explanation.py --archive {{ raw_data }}/220211012-SU-Outdoors-Campus.zip --campaign eval/fixtures/sorbonne-rssi-explanation-campaign-v0.json --bridge-bin rust/target/debug/examples/rssi_shift_explanation_jsonl --report {{ eval_output }}/sorbonne-rssi-explanation-report.json
+    {{ python }} eval/evaluate-sorbonne-rssi-explanation.py --archive {{ raw_data }}/220211012-SU-Outdoors-Campus.zip --campaign eval/fixtures/sorbonne-rssi-explanation-campaign-v0.json --bridge-bin rust/target/debug/examples/rssi_shift_explanation_jsonl --report {{ eval_output }}/sorbonne-rssi-explanation-report-repeat.json
+    cmp {{ eval_output }}/sorbonne-rssi-explanation-report.json {{ eval_output }}/sorbonne-rssi-explanation-report-repeat.json
 
 # Verify all pinned OPERAnet archives and profile only their ZIP metadata.
 # Member payload streams are never opened, extracted, or deserialized.
