@@ -197,6 +197,14 @@ order, and emits gap-free opaque row spans. It stream-extracts the waveform
 member to an ignored standalone NPY with full digest, CRC, extent, permission,
 and source-mutation checks; it never performs bulk archive extraction.
 
+`build-ruff-uwb-open-set-source-split.py` prepares a fixed 4/3/3/3
+device-disjoint train/calibration/validation/test split across both campaigns.
+It reads only opaque oracle metadata, requires a shared bijective source/device
+map, and publishes a manifest only if the canonical auditor can also prove
+event and session separation. The current publisher metadata does not expose
+those two axes, so the real command fails before waveform I/O; the hermetic
+check covers the complete future contract without weakening that gate.
+
 `evaluate-ruff-uwb-heldout-location.py` defines a deterministic 80/10/10
 held-out-location baseline with atomic source/device/location groups, bounded
 row and window sampling, read-only NumPy mmap, train-only prototype fitting,

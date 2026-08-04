@@ -234,6 +234,13 @@
       "recipe": "ruff-uwb-oracles"
     },
     {
+      "path": "data/derived/eval/ruff-uwb-open-set-source-split.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/build-ruff-uwb-open-set-source-split.py",
+      "recipe": "ruff-uwb-open-set-source-split"
+    },
+    {
       "path": "data/derived/eval/ruff-uwb-one-meter-row-adapter.json",
       "format": "json",
       "retention": "reproducibility_output",

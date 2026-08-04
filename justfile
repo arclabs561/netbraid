@@ -370,6 +370,14 @@ ruff-uwb-oracles-check:
 ruff-uwb-oracles:
     {{ python }} eval/compile-ruff-uwb-oracles.py
 
+# Prove the fixed device-disjoint assignment hermetically. The real metadata
+# must expose event and session groups before this can publish a split.
+ruff-uwb-open-set-source-split-check:
+    {{ python }} eval/test-build-ruff-uwb-open-set-source-split.py
+
+ruff-uwb-open-set-source-split:
+    {{ python }} eval/build-ruff-uwb-open-set-source-split.py
+
 ruff-uwb-row-adapter-check:
     uv run --script eval/test-compile-ruff-uwb-row-adapter.py
 
