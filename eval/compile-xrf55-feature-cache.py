@@ -58,6 +58,19 @@ def _load_module(name: str, path: Path) -> ModuleType:
 
 PROFILE = _load_module("_xrf55_cache_layout_profile", HERE / "profile-xrf55-layout.py")
 FEATURES = _load_module("xrf55_features", HERE / "xrf55_features.py")
+ROLE_CACHE_SCHEMA = "netbraid.xrf55_trimodal_role_cache.v0"
+ROLE_ORDER = ("train", "calibration", "validation", "locked_test")
+PRE_GATE_ROLES = ROLE_ORDER[:-1]
+ROLE_GROUP_RANKS = {
+    "train": (1, 8),
+    "calibration": (9, 10),
+    "validation": (11, 12),
+    "locked_test": (13, 16),
+}
+ROLE_EVENT_COUNTS = {
+    role: (last - first + 1) * len(FEATURES.PUBLISHER_REPETITIONS)
+    for role, (first, last) in ROLE_GROUP_RANKS.items()
+}
 
 
 @dataclass(frozen=True)
@@ -240,6 +253,147 @@ def compile_matrices(
     return events, matrices
 
 
+def _normalize_roles(roles: Sequence[str]) -> tuple[str, ...]:
+    requested = tuple(roles)
+    if (
+        not requested
+        or len(set(requested)) != len(requested)
+        or any(role not in ROLE_ORDER for role in requested)
+    ):
+        raise Xrf55CacheCompileError("invalid_role_request")
+    return tuple(role for role in ROLE_ORDER if role in requested)
+
+
+def select_role_events(
+    observations: Sequence[Any], roles: Sequence[str] = ROLE_ORDER
+) -> dict[str, tuple[Any, ...]]:
+    """Partition the first 16 complete ranked groups into fixed whole-group roles."""
+
+    selected_roles = _normalize_roles(roles)
+    try:
+        campaign = FEATURES.select_campaign(
+            observations,
+            group_count=ROLE_GROUP_RANKS["locked_test"][1],
+            repetitions=FEATURES.PUBLISHER_REPETITIONS,
+        )
+    except FEATURES.Xrf55FeatureError as error:
+        raise Xrf55CacheCompileError(str(error)) from error
+
+    ranked_group_ids = tuple(dict.fromkeys(event.group_id for event in campaign))
+    if len(ranked_group_ids) != ROLE_GROUP_RANKS["locked_test"][1]:
+        raise Xrf55CacheCompileError("role_group_count_mismatch")
+    role_by_group = {}
+    for role, (first, last) in ROLE_GROUP_RANKS.items():
+        for group_id in ranked_group_ids[first - 1 : last]:
+            role_by_group[group_id] = role
+
+    partitioned: dict[str, list[Any]] = {role: [] for role in selected_roles}
+    for event in campaign:
+        role = role_by_group[event.group_id]
+        if role not in partitioned:
+            continue
+        role_events = partitioned[role]
+        role_events.append(
+            FEATURES.CampaignEvent(
+                event_id=event.event_id,
+                group_id=event.group_id,
+                observation=event.observation,
+                repetition=event.repetition,
+                row=len(role_events),
+                split=role,
+            )
+        )
+
+    result = {role: tuple(partitioned[role]) for role in selected_roles}
+    if any(len(result[role]) != ROLE_EVENT_COUNTS[role] for role in selected_roles):
+        raise Xrf55CacheCompileError("role_event_count_mismatch")
+    return result
+
+
+def compile_role_matrices(
+    sources: Sequence[ArchiveSource],
+    *,
+    roles: Sequence[str] = PRE_GATE_ROLES,
+    layouts: Mapping[str, Any] = FEATURES.OFFICIAL_LAYOUTS,
+    extractor: Callable[..., np.ndarray] = FEATURES.feature_vector,
+) -> tuple[dict[str, tuple[Any, ...]], dict[str, dict[str, np.ndarray]]]:
+    """Compile only the member payloads belonging to the requested fixed roles."""
+
+    observations = set()
+    subject_groups = set()
+    for source in sources:
+        if observations.intersection(source.inspection.observations):
+            raise Xrf55CacheCompileError("processed_archive_observation_overlap")
+        if subject_groups.intersection(source.inspection.subject_groups):
+            raise Xrf55CacheCompileError("processed_archive_group_overlap")
+        observations.update(source.inspection.observations)
+        subject_groups.update(source.inspection.subject_groups)
+
+    events_by_role = select_role_events(tuple(observations), roles)
+    row_by_observation = {
+        event.observation: (role, event.row)
+        for role, events in events_by_role.items()
+        for event in events
+    }
+    matrices = {
+        role: {
+            modality: np.empty((len(events), FEATURES.FEATURE_COUNT), dtype="<f8")
+            for modality in FEATURES.MODALITIES
+        }
+        for role, events in events_by_role.items()
+    }
+    observed_cells = set()
+
+    for source in sources:
+        file_object, expected_identity = _open_verified(source)
+        with file_object:
+            try:
+                archive = zipfile.ZipFile(file_object, mode="r", allowZip64=True)
+            except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile) as error:
+                raise Xrf55CacheCompileError("invalid_zip_archive") from error
+            with archive:
+                for member in archive.infolist():
+                    if member.is_dir():
+                        continue
+                    parts, _ = PROFILE.safe_member_name(member.filename)
+                    scene, subject, action, repetition, modality = (
+                        PROFILE.processed_observation(parts, source.contract)
+                    )
+                    selected = row_by_observation.get(
+                        (scene, subject, action, repetition)
+                    )
+                    if selected is None:
+                        continue
+                    role, row = selected
+                    cell = (role, row, modality)
+                    if cell in observed_cells:
+                        raise Xrf55CacheCompileError("duplicate_selected_modality")
+                    array = _read_member(archive, member)
+                    try:
+                        vector = extractor(modality, array, layouts=layouts)
+                    except FEATURES.Xrf55FeatureError as error:
+                        raise Xrf55CacheCompileError(str(error)) from error
+                    if (
+                        vector.shape != (FEATURES.FEATURE_COUNT,)
+                        or vector.dtype.str != "<f8"
+                    ):
+                        raise Xrf55CacheCompileError("invalid_feature_vector")
+                    matrices[role][modality][row] = vector
+                    observed_cells.add(cell)
+            if _identity(os.fstat(file_object.fileno())) != expected_identity:
+                raise Xrf55CacheCompileError("archive_changed_during_cache_compile")
+
+    expected_cells = {
+        (role, event.row, modality)
+        for role, events in events_by_role.items()
+        for event in events
+        for modality in FEATURES.MODALITIES
+    }
+    if observed_cells != expected_cells:
+        raise Xrf55CacheCompileError("incomplete_selected_event_grid")
+    return events_by_role, matrices
+
+
 def _prepare_target(path: Path) -> None:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     parent = path.parent.lstat()
@@ -327,11 +481,68 @@ def _adapter_document(
     }
 
 
-def write_cache(
-    outputs: OutputSet,
+def _role_adapter_document(
+    role: str,
     events: Sequence[Any],
-    matrices: Mapping[str, np.ndarray],
+    artifacts: Mapping[str, Mapping[str, Any]],
     archive_count: int,
+) -> dict[str, Any]:
+    first_rank, last_rank = ROLE_GROUP_RANKS[role]
+    return {
+        "schema": ROLE_CACHE_SCHEMA,
+        "provenance": {
+            "dataset": "XRF55 processed RF arrays",
+            "publisher_implementation_revision": PUBLISHER_IMPLEMENTATION_REVISION,
+            "publisher_project": "https://aiotgroup.github.io/XRF55/",
+        },
+        "integrity": {
+            "all_archive_bytes_freshly_rehashed": False,
+            "basis": "exact_size_and_fetch_receipt_metadata_plus_selected_member_crc",
+            "artifacts": dict(sorted(artifacts.items())),
+        },
+        "feature_policy": FEATURES.feature_policy_document(),
+        "role_policy": {
+            "assignment": "complete_opaque_performer_action_group_rank",
+            "first_group_rank": first_rank,
+            "last_group_rank": last_rank,
+            "modalities_colocated": list(FEATURES.MODALITIES),
+            "role": role,
+            "whole_groups_disjoint": True,
+        },
+        "events": [
+            {
+                "event_id": event.event_id,
+                "group_id": event.group_id,
+                "role": role,
+                "row": event.row,
+            }
+            for event in events
+        ],
+        "counts": {
+            "archives": archive_count,
+            "events": len(events),
+            "features_per_modality": FEATURES.FEATURE_COUNT,
+            "groups": len({event.group_id for event in events}),
+            "modalities": len(FEATURES.MODALITIES),
+        },
+        "privacy": {
+            "archive_names_retained": 0,
+            "local_paths_retained": 0,
+            "member_names_retained": 0,
+            "raw_action_identifiers_retained": 0,
+            "raw_labels_retained": 0,
+            "raw_performer_identifiers_retained": 0,
+            "raw_repetition_identifiers_retained": 0,
+            "raw_scene_identifiers_retained": 0,
+            "raw_source_values_retained": 0,
+        },
+    }
+
+
+def _write_cache_files(
+    outputs: OutputSet,
+    matrices: Mapping[str, np.ndarray],
+    document: Callable[[Mapping[str, Mapping[str, Any]]], dict[str, Any]],
 ) -> dict[str, Any]:
     paths = [outputs.adapter, *(outputs.matrices[name] for name in FEATURES.MODALITIES)]
     if len({path.resolve(strict=False) for path in paths}) != len(paths):
@@ -353,7 +564,7 @@ def write_cache(
                 "sha256": digest,
                 "shape": list(matrices[modality].shape),
             }
-        adapter = _adapter_document(events, artifacts, archive_count)
+        adapter = document(artifacts)
         descriptor, temporary_adapter = tempfile.mkstemp(
             prefix=f".{outputs.adapter.name}.", dir=outputs.adapter.parent
         )
@@ -374,6 +585,65 @@ def write_cache(
                 os.unlink(temporary)
 
 
+def write_cache(
+    outputs: OutputSet,
+    events: Sequence[Any],
+    matrices: Mapping[str, np.ndarray],
+    archive_count: int,
+) -> dict[str, Any]:
+    return _write_cache_files(
+        outputs,
+        matrices,
+        lambda artifacts: _adapter_document(events, artifacts, archive_count),
+    )
+
+
+def role_output_set(directory: Path, role: str) -> OutputSet:
+    selected_role = _normalize_roles((role,))[0]
+    stem = f"xrf55-trimodal-fusion-{selected_role.replace('_', '-')}"
+    return OutputSet(
+        directory / f"{stem}-adapter.json",
+        {
+            modality: directory / f"{stem}-{modality}.npy"
+            for modality in FEATURES.MODALITIES
+        },
+    )
+
+
+def write_role_caches(
+    outputs: Mapping[str, OutputSet],
+    events: Mapping[str, Sequence[Any]],
+    matrices: Mapping[str, Mapping[str, np.ndarray]],
+    archive_count: int,
+) -> dict[str, dict[str, Any]]:
+    roles = _normalize_roles(tuple(events))
+    if set(outputs) != set(roles) or set(matrices) != set(roles):
+        raise Xrf55CacheCompileError("role_output_set_mismatch")
+    paths = [
+        path
+        for role in roles
+        for path in (
+            outputs[role].adapter,
+            *(outputs[role].matrices[name] for name in FEATURES.MODALITIES),
+        )
+    ]
+    if len({path.resolve(strict=False) for path in paths}) != len(paths):
+        raise Xrf55CacheCompileError("duplicate_output_path")
+
+    adapters = {}
+    for role in roles:
+        if len(events[role]) != ROLE_EVENT_COUNTS[role]:
+            raise Xrf55CacheCompileError("role_event_count_mismatch")
+        adapters[role] = _write_cache_files(
+            outputs[role],
+            matrices[role],
+            lambda artifacts, role=role: _role_adapter_document(
+                role, events[role], artifacts, archive_count
+            ),
+        )
+    return adapters
+
+
 def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR)
@@ -385,6 +655,17 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--mmwave-matrix", type=Path, default=DEFAULT_MATRICES["mmwave"]
     )
     parser.add_argument("--group-count", type=int, default=FEATURES.DEFAULT_GROUP_COUNT)
+    parser.add_argument(
+        "--role-cache-dir",
+        type=Path,
+        help="write fixed group-disjoint role caches instead of the legacy cache",
+    )
+    parser.add_argument(
+        "--role",
+        action="append",
+        choices=ROLE_ORDER,
+        help="role to compile; defaults to train, calibration, and validation",
+    )
     return parser.parse_args(argv)
 
 
@@ -396,16 +677,35 @@ def main(argv: Sequence[str] | None = None) -> int:
         "mmwave": arguments.mmwave_matrix,
     }
     try:
+        if (
+            arguments.role_cache_dir is not None
+            and arguments.group_count != FEATURES.DEFAULT_GROUP_COUNT
+        ):
+            raise Xrf55CacheCompileError("role_cache_group_count_is_fixed")
         sources = load_archive_sources(arguments.raw_dir, arguments.receipt_dir)
-        events, feature_matrices = compile_matrices(
-            sources, group_count=arguments.group_count
-        )
-        adapter = write_cache(
-            OutputSet(arguments.adapter, matrices),
-            events,
-            feature_matrices,
-            len(sources),
-        )
+        if arguments.role_cache_dir is None:
+            if arguments.role is not None:
+                raise Xrf55CacheCompileError("role_cache_directory_required")
+            events, feature_matrices = compile_matrices(
+                sources, group_count=arguments.group_count
+            )
+            adapter = write_cache(
+                OutputSet(arguments.adapter, matrices),
+                events,
+                feature_matrices,
+                len(sources),
+            )
+            summary = adapter["counts"]
+        else:
+            roles = _normalize_roles(arguments.role or PRE_GATE_ROLES)
+            role_events, role_matrices = compile_role_matrices(sources, roles=roles)
+            outputs = {
+                role: role_output_set(arguments.role_cache_dir, role) for role in roles
+            }
+            adapters = write_role_caches(
+                outputs, role_events, role_matrices, len(sources)
+            )
+            summary = {role: adapters[role]["counts"] for role in roles}
     except (
         OSError,
         ValueError,
@@ -415,7 +715,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     ) as error:
         print(str(error), file=sys.stderr)
         return 2
-    print(json.dumps(adapter["counts"], sort_keys=True))
+    print(json.dumps(summary, sort_keys=True))
     return 0
 
 
