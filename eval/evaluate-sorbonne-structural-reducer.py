@@ -66,6 +66,11 @@ MAX_JSONL_LINE_BYTES = 256 * 1024
 NORMALIZER_TIMEOUT_SECONDS = 120
 REDUCER_TIMEOUT_SECONDS = 30
 EXPECTED_FIELD_REGISTRY = "netmon.tshark.packet_envelope.v5"
+PACKET_SCHEMA = "netmon.packet_envelope.v0"
+CLAIM_SCHEMA = "netbraid.finite_hypothesis_claim.v0"
+PROJECTION_SCHEMA = "netbraid.finite_hypothesis_projection.v0"
+PACKET_EVENT_FAMILY = "netmon.packet_same_event_hypothesis_set.v0"
+PACKET_EVENT_REDUCER = "netbraid.packet_same_event.structural.v0"
 
 
 def load_shared() -> Any:
@@ -383,6 +388,62 @@ def packet_order(packet: Dict[str, Any], digest: str) -> Tuple[str, str, str]:
     return str(packet.get("capture_id")), str(packet.get("record_id")), digest
 
 
+def relation_participant(packet: Tuple[Dict[str, Any], str]) -> Tuple[str, str, str]:
+    value, digest = packet
+    source_id = value.get("record_id")
+    if (
+        value.get("schema") != PACKET_SCHEMA
+        or not isinstance(source_id, str)
+        or not source_id
+        or not isinstance(digest, str)
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+    ):
+        raise EvaluationError("packet cannot identify a relation participant")
+    return PACKET_SCHEMA, source_id, digest
+
+
+def relation_target(
+    left: Tuple[Dict[str, Any], str], right: Tuple[Dict[str, Any], str]
+) -> Tuple[Tuple[str, str, str], Tuple[str, str, str]]:
+    return tuple(sorted((relation_participant(left), relation_participant(right))))
+
+
+def relation_target_population(
+    pairs: Sequence[Tuple[str, Observation, Observation]],
+    packets: Dict[Tuple[str, int], Tuple[Dict[str, Any], str]],
+) -> Tuple[Dict[str, Any], set]:
+    claims = 0
+    unique = set()
+    for _, left, right in pairs:
+        claims += 1
+        unique.add(
+            relation_target(
+                packets[(left.observer, left.frame_number)],
+                packets[(right.observer, right.frame_number)],
+            )
+        )
+    return (
+        {
+            "claims": claims,
+            "targets": len(unique),
+            "duplicate_target_claims": claims - len(unique),
+            "population_sha256": relation_target_digest(unique),
+        },
+        unique,
+    )
+
+
+def relation_target_digest(targets: set) -> str:
+    digest = hashlib.sha256()
+    for target in sorted(targets):
+        digest.update(
+            json.dumps(target, separators=(",", ":"), sort_keys=False).encode("utf-8")
+        )
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
 def structural_group_key(
     left: Tuple[Dict[str, Any], str], right: Tuple[Dict[str, Any], str]
 ) -> Tuple[Any, ...]:
@@ -411,15 +472,21 @@ def structural_group_key(
 def group_population(
     pairs: Sequence[Tuple[str, Observation, Observation]],
     packets: Dict[Tuple[str, int], Tuple[Dict[str, Any], str]],
-) -> Dict[Tuple[Any, ...], Tuple[int, str, Dict[str, Any], Dict[str, Any]]]:
-    grouped: Dict[Tuple[Any, ...], List[Tuple[str, Dict[str, Any], Dict[str, Any]]]] = (
-        defaultdict(list)
-    )
+) -> Dict[
+    Tuple[Any, ...],
+    Tuple[
+        int,
+        str,
+        Tuple[Dict[str, Any], str],
+        Tuple[Dict[str, Any], str],
+    ],
+]:
+    grouped = defaultdict(list)
     for identifier, left, right in pairs:
         left_packet = packets[(left.observer, left.frame_number)]
         right_packet = packets[(right.observer, right.frame_number)]
         grouped[structural_group_key(left_packet, right_packet)].append(
-            (identifier, left_packet[0], right_packet[0])
+            (identifier, left_packet, right_packet)
         )
     result = {}
     for key, members in grouped.items():
@@ -431,7 +498,16 @@ def group_population(
 def run_reducer(
     binary: Path,
     populations: Dict[
-        str, Dict[Tuple[Any, ...], Tuple[int, str, Dict[str, Any], Dict[str, Any]]]
+        str,
+        Dict[
+            Tuple[Any, ...],
+            Tuple[
+                int,
+                str,
+                Tuple[Dict[str, Any], str],
+                Tuple[Dict[str, Any], str],
+            ],
+        ],
     ],
 ) -> Dict[str, Dict[str, Any]]:
     inputs = []
@@ -443,12 +519,12 @@ def run_reducer(
             reducer_id = "{}:{}:{}".format(label, index, identifier)
             inputs.append(
                 json.dumps(
-                    {"pair_id": reducer_id, "left": left, "right": right},
+                    {"pair_id": reducer_id, "left": left[0], "right": right[0]},
                     separators=(",", ":"),
                     sort_keys=False,
                 )
             )
-            weights[reducer_id] = (label, weight)
+            weights[reducer_id] = (label, weight, relation_target(left, right))
     encoded = ("\n".join(inputs) + "\n").encode("utf-8")
     try:
         completed = subprocess.run(
@@ -475,16 +551,21 @@ def run_reducer(
     result: Dict[str, Dict[str, Any]] = {}
     seen = set()
     for output, _ in outputs:
+        if set(output) != {"pair_id", "assessment", "claim"}:
+            raise EvaluationError("reducer output schema is invalid")
         reducer_id = output.get("pair_id")
         assessment = output.get("assessment")
+        claim = output.get("claim")
         if (
             reducer_id not in weights
             or reducer_id in seen
             or not isinstance(assessment, dict)
+            or not isinstance(claim, dict)
         ):
             raise EvaluationError("reducer output identity is invalid")
         seen.add(reducer_id)
-        label, weight = weights[reducer_id]
+        label, weight, expected_target = weights[reducer_id]
+        validate_packet_event_claim(claim, expected_target)
         decision = {
             key: value
             for key, value in assessment.items()
@@ -492,6 +573,56 @@ def run_reducer(
         }
         result[reducer_id] = {"label": label, "weight": weight, "decision": decision}
     return result
+
+
+def validate_packet_event_claim(
+    claim: Dict[str, Any],
+    expected_target: Tuple[Tuple[str, str, str], Tuple[str, str, str]],
+) -> None:
+    if set(claim) != {"schema", "projection", "inputs"}:
+        raise EvaluationError("finite claim schema is invalid")
+    projection = claim.get("projection")
+    inputs = claim.get("inputs")
+    if (
+        claim.get("schema") != CLAIM_SCHEMA
+        or not isinstance(projection, dict)
+        or set(projection) != {"schema", "family_schema", "reducer", "alternatives"}
+        or projection.get("schema") != PROJECTION_SCHEMA
+        or projection.get("family_schema") != PACKET_EVENT_FAMILY
+        or projection.get("reducer") != PACKET_EVENT_REDUCER
+        or not isinstance(inputs, list)
+        or len(inputs) != 2
+    ):
+        raise EvaluationError("finite claim contract is invalid")
+    alternatives = projection.get("alternatives")
+    expected_alternatives = [
+        {"role": "same_event", "disposition": "underdetermined"},
+        {"role": "different_event", "disposition": "underdetermined"},
+        {"role": "unknown", "disposition": "supported"},
+    ]
+    if alternatives != expected_alternatives:
+        raise EvaluationError("finite claim does not abstain")
+    expected_roles = ("left_packet", "right_packet")
+    participants = []
+    for value, role in zip(inputs, expected_roles):
+        if not isinstance(value, dict) or set(value) != {
+            "role",
+            "source_schema",
+            "source_id",
+            "content_sha256",
+        }:
+            raise EvaluationError("finite claim input schema is invalid")
+        if value.get("role") != role:
+            raise EvaluationError("finite claim input role is invalid")
+        participants.append(
+            (
+                value.get("source_schema"),
+                value.get("source_id"),
+                value.get("content_sha256"),
+            )
+        )
+    if tuple(sorted(participants)) != expected_target:
+        raise EvaluationError("finite claim target differs from packet evidence")
 
 
 def disposition_counts(
@@ -623,6 +754,22 @@ def evaluate_with_snapshots(
     ):
         raise EvaluationError("negative population differs from campaign")
 
+    positive_target_audit, positive_targets = relation_target_population(
+        positives, packets
+    )
+    negative_target_audit, negative_targets = relation_target_population(
+        negatives, packets
+    )
+    target_intersection = positive_targets.intersection(negative_targets)
+    all_targets = positive_targets.union(negative_targets)
+    if (
+        positive_target_audit["targets"] != len(positives)
+        or negative_target_audit["targets"] != len(negatives)
+        or target_intersection
+        or len(all_targets) != 128_298
+    ):
+        raise EvaluationError("content-bound relation targets are not one per pair")
+
     grouped = {
         "different_event_oracle": group_population(negatives, packets),
         "same_event_oracle": group_population(positives, packets),
@@ -640,6 +787,19 @@ def evaluate_with_snapshots(
     observed_results["representative_reducer_invocations"] = len(outputs)
     if observed_results != campaign["expected_results"]:
         raise EvaluationError("weighted reducer results differ from campaign")
+    unresolved_targets = sum(
+        result["dispositions"]["unknown"]["supported"]
+        for result in observed_results.values()
+        if isinstance(result, dict) and "dispositions" in result
+    )
+    substantive_targets = sum(
+        result["dispositions"][alternative]["supported"]
+        for result in observed_results.values()
+        if isinstance(result, dict) and "dispositions" in result
+        for alternative in ("same_event", "different_event")
+    )
+    if unresolved_targets != len(all_targets) or substantive_targets != 0:
+        raise EvaluationError("relation-target resolutions differ from reducer claims")
 
     tool_versions = sorted(
         {manifest["extractor"]["tool_version"] for manifest in manifests.values()}
@@ -711,6 +871,19 @@ def evaluate_with_snapshots(
             "intersection_count": 0,
         },
         "results": observed_results,
+        "relation_targets": {
+            "axis": "event",
+            "positive": positive_target_audit,
+            "negative": negative_target_audit,
+            "intersection_count": len(target_intersection),
+            "combined_population_sha256": relation_target_digest(all_targets),
+            "resolutions": {
+                "unresolved": unresolved_targets,
+                "single_alternative": substantive_targets,
+                "conflict": 0,
+            },
+            "limitation": "single_claim_per_target_does_not_test_conflict_resolution",
+        },
         "decision_projection_sha256": decision_sha256,
         "interpretation": "contract_confirmed_not_a_discrimination_benchmark",
     }

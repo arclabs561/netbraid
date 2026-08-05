@@ -9,7 +9,8 @@ so `assess_packet_same_event_v0` selects `unknown` for every weighted pair.
 ## Method
 
 Status: executed through the canonical target, including its required repeat,
-then re-executed after the packet-envelope registry advanced to v4.
+then re-executed after the packet-envelope registry advanced to v5 and the
+reducer bridge began projecting content-bound finite claims.
 
 The locked campaign is
 `eval/fixtures/sorbonne-structural-reducer-campaign-v0.json`. It was committed
@@ -59,7 +60,7 @@ normalization check, not an independent discovery or discrimination benchmark.
 
 The canonical target completed successfully. Its two independent executions
 produced byte-identical reports. The replay contract now requires
-`netmon.tshark.packet_envelope.v4`; it separately rejects disagreement between
+`netmon.tshark.packet_envelope.v5`; it separately rejects disagreement between
 observers and a single shared registry that is unsupported by the evaluator.
 
 - Normalization emitted 18,926 packets, zero quarantines, and zero unmatched
@@ -75,8 +76,17 @@ observers and a single shared registry that is unsupported by the evaluator.
   weighted pairs, `same_event` and `different_event` were underdetermined and
   `unknown` was supported with reason
   `no_discriminating_structural_conflict`.
+- Each representative reducer invocation also emitted a production finite
+  claim. Its participant references matched the normalized packet schema,
+  record IDs, and envelope digests. Across the complete populations, the
+  evaluator found 128,298 distinct content-bound event targets, no duplicate
+  target claims, and no overlap between oracle classes. All targets remained
+  unresolved; this one-claim-per-target campaign does not test conflict
+  resolution.
 - The canonical decision projection SHA-256 was
   `20b47442e49695c6f1289a4f7cb5ff31c1042fd4a0c07122717d1417f59dac45`.
+- The repeated report SHA-256 was
+  `78ab5aa9a6beda782fe9544cc09d1d9a5b654f27179e1f07ae2cbc6f2e00672e`.
 
 The reports remain local under ignored `data/derived/`; this ledger records only
 bounded metadata and content digests.
@@ -85,8 +95,10 @@ bounded metadata and content digests.
 
 The result confirms the registered contract: Netbraid normalization, exact
 publisher-label joins, deterministic population construction, weighted reducer
-execution, and the v0 abstention boundary agree end to end. This corpus cannot
-measure discrimination by the v0 structural baseline because both oracle
-classes project to the same basis. It does not show that same-event inference
-works; the next experiment needs richer non-oracle packet evidence and a
-separately justified negative set.
+execution, content-bound target construction, and the v0 abstention boundary
+agree end to end. This corpus cannot measure discrimination by the v0
+structural baseline because both oracle classes project to the same basis. It
+does not show that same-event inference works or that conflicts can be
+resolved; the next experiment needs richer non-oracle packet evidence, another
+legitimate claim family over the same participants, and a separately justified
+negative set.

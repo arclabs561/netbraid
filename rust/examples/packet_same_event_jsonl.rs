@@ -2,6 +2,7 @@ use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
 use std::process::ExitCode;
 
 use netbraid::evidence::PacketEnvelopeV0;
+use netbraid::infer::{FiniteHypothesisClaimV0, ProjectFiniteHypothesisClaimV0};
 use netbraid::replay::{assess_packet_same_event_v0, PacketSameEventHypothesisSetV0};
 use serde::{Deserialize, Serialize};
 
@@ -20,6 +21,7 @@ struct PairInput {
 struct PairOutput {
     pair_id: String,
     assessment: PacketSameEventHypothesisSetV0,
+    claim: FiniteHypothesisClaimV0,
 }
 
 fn run(reader: impl Read, writer: impl Write) -> Result<(), String> {
@@ -53,11 +55,15 @@ fn run(reader: impl Read, writer: impl Write) -> Result<(), String> {
             .map_err(|error| format!("parse pair line {line_number}: {error}"))?;
         let assessment = assess_packet_same_event_v0(&input.left, &input.right)
             .map_err(|error| format!("assess pair line {line_number}: {error}"))?;
+        let claim = assessment
+            .project_finite_hypothesis_claim_v0((&input.left, &input.right))
+            .map_err(|error| format!("project pair line {line_number}: {error}"))?;
         serde_json::to_writer(
             &mut writer,
             &PairOutput {
                 pair_id: input.pair_id,
                 assessment,
+                claim,
             },
         )
         .map_err(|error| format!("serialize pair line {line_number}: {error}"))?;
@@ -110,6 +116,12 @@ mod tests {
         let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(value["pair_id"], "pair-1");
         assert_eq!(value["assessment"]["reference"]["hypothesis"], "unknown");
+        assert_eq!(
+            value["claim"]["projection"]["family_schema"],
+            "netmon.packet_same_event_hypothesis_set.v0"
+        );
+        assert_eq!(value["claim"]["inputs"][0]["role"], "left_packet");
+        assert_eq!(value["claim"]["inputs"][1]["role"], "right_packet");
     }
 
     #[test]

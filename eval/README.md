@@ -422,9 +422,13 @@ publisher log through the Rust Zeek adapter twice. It rejects byte drift and
 requires the independent parser paths to agree on row and duration coverage
 before writing a path-free receipt beside the ignored outputs. Its hermetic
 producer/evaluator/adapter boundary is covered by
-`just iot23-flow-lineage-check` without requiring corpus bytes. The Sorbonne same-event recipe likewise writes
-two reports and rejects byte drift. Older local reports whose producer context
-predates this rule are not active derived outputs: `just
+`just iot23-flow-lineage-check` without requiring corpus bytes. The Sorbonne
+structural-reducer recipe likewise writes two reports and rejects byte drift.
+Its Rust bridge emits production finite claims; the evaluator verifies their
+content-bound packet references and reports only target counts and population
+digests. It does not retain packet IDs or claim that one abstaining family tests
+conflict resolution. Older local reports whose producer context predates this
+rule are not active derived outputs: `just
 legacy-derived-migration` preserves only their fixed allowlist under
 `data/archive/legacy-derived-unknown/` with a path-free integrity receipt. The
 script also relocates and verifies the former archive location without
