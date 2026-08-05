@@ -782,9 +782,8 @@ def _open(request: urllib.request.Request, *, timeout: int) -> Any:
 
 def _request(artifact: Artifact, offset: int) -> urllib.request.Request:
     headers = {
-        "Accept": "application/octet-stream",
+        "Accept": "*/*",
         "Accept-Encoding": "identity",
-        "User-Agent": "netbraid-curated-eval-fetcher/1",
     }
     if offset:
         headers["Range"] = f"bytes={offset}-"

@@ -186,6 +186,14 @@ class CuratedEvalFetcherTests(unittest.TestCase):
                 receipt["integrity"]["sha256"], hashlib.sha256(payload).hexdigest()
             )
 
+    def test_request_uses_publisher_compatible_content_negotiation(self):
+        artifact = synthetic_artifact(b"payload")
+        request = MODULE._request(artifact, 0)
+
+        self.assertEqual(request.get_header("Accept"), "*/*")
+        self.assertEqual(request.get_header("Accept-encoding"), "identity")
+        self.assertIsNone(request.get_header("User-agent"))
+
     def test_resume_requires_exact_content_range(self):
         payload = b"0123456789abcdef"
         artifact = synthetic_artifact(payload)
