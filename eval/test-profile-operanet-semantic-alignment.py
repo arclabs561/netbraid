@@ -14,6 +14,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 from scipy.io import savemat
@@ -194,6 +195,30 @@ class OperanetSemanticAlignmentTests(unittest.TestCase):
         self.assertEqual(report["privacy"]["participant_identifier_values_retained"], 0)
         self.assertEqual(report["privacy"]["raw_timestamp_values_retained"], 0)
         self.assertEqual(report["modalities"]["uwb1"]["person"]["cardinality"], 1)
+
+    def test_archive_profile_attributes_reader_failure_to_modality(self) -> None:
+        directory = self.temporary_directory()
+        protocol = self.protocol()
+        timelines = self.timelines()
+
+        def read_timeline(
+            _path: Path,
+            contract: object,
+            _protocol: object,
+            *,
+            verify_receipt: bool,
+        ) -> tuple[object, int]:
+            self.assertTrue(verify_receipt)
+            key = contract.modality.key
+            if key == "uwb1":
+                raise MODULE.SemanticProfileError("nonmonotonic_timestamp")
+            return timelines[key], 1
+
+        with mock.patch.object(MODULE, "_read_timeline", side_effect=read_timeline):
+            with self.assertRaisesRegex(
+                MODULE.SemanticProfileError, "uwb1_nonmonotonic_timestamp"
+            ):
+                MODULE.profile_archives(directory, protocol)
 
 
 if __name__ == "__main__":

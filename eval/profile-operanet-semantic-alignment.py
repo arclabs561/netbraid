@@ -974,12 +974,15 @@ def profile_archives(
     timelines: dict[str, Timeline] = {}
     total_selected_bytes = 0
     for key in MODALITY_KEYS:
-        timeline, selected_bytes = _read_timeline(
-            archive_dir / selected[key].layout_spec.filename,
-            selected[key],
-            protocol,
-            verify_receipt=verify_receipts,
-        )
+        try:
+            timeline, selected_bytes = _read_timeline(
+                archive_dir / selected[key].layout_spec.filename,
+                selected[key],
+                protocol,
+                verify_receipt=verify_receipts,
+            )
+        except SemanticProfileError as error:
+            raise SemanticProfileError(f"{key}_{error}") from error
         timelines[key] = timeline
         total_selected_bytes += selected_bytes
         if total_selected_bytes > MAX_TOTAL_SELECTED_MEMBER_BYTES:
