@@ -14,6 +14,7 @@ SHA-256 receipts live under the ignored receipts tree.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import http.client
 import json
@@ -23,10 +24,11 @@ import ssl
 import stat
 import sys
 import tempfile
+import time
 import unicodedata
 import urllib.error
 import urllib.request
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,8 +48,23 @@ MANIFEST_BYTE_LIMIT = 2 * 1024 * 1024
 RECEIPT_BYTE_LIMIT = 64 * 1024
 CHUNK_BYTES = 4 * 1024 * 1024
 DOWNLOAD_TIMEOUT_SECONDS = 120
+DOWNLOAD_RETRY_DELAYS_SECONDS = (1.0, 2.0, 4.0, 8.0, 16.0, 32.0)
+MAX_RETRY_AFTER_SECONDS = 60.0
 DEFAULT_MAX_TOTAL_BYTES = 8 * 1024**3
 DEFAULT_MAX_FILE_BYTES = 2 * 1024**3
+
+TRANSIENT_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
+TRANSIENT_SOCKET_ERRNOS = frozenset(
+    {
+        errno.ECONNABORTED,
+        errno.ECONNREFUSED,
+        errno.ECONNRESET,
+        errno.EHOSTUNREACH,
+        errno.ENETUNREACH,
+        errno.EPIPE,
+        errno.ETIMEDOUT,
+    }
+)
 
 EXPECTED_RECORDS = {
     1193563: ("10.5281/zenodo.1193563", "CC BY 4.0", "cc-by-4.0", 3, 77069096),
@@ -121,6 +138,14 @@ ARTIFACT_KEYS = frozenset({"filename", "bytes", "md5", "content_url"})
 
 class FetchError(RuntimeError):
     """Stable failure at a manifest, network, or local-integrity boundary."""
+
+
+class _RetryableDownloadError(Exception):
+    """Internal retry signal that carries only a sanitized delay header."""
+
+    def __init__(self, retry_after: str | None = None) -> None:
+        super().__init__()
+        self.retry_after = retry_after
 
 
 @dataclass(frozen=True)
@@ -806,6 +831,33 @@ def _header(response: Any, name: str) -> str | None:
     return None if value is None else str(value).strip()
 
 
+def _is_transient_download_error(error: BaseException) -> bool:
+    if isinstance(error, _RetryableDownloadError):
+        return True
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in TRANSIENT_HTTP_STATUSES
+    if isinstance(error, urllib.error.URLError):
+        return isinstance(error.reason, BaseException) and _is_transient_download_error(
+            error.reason
+        )
+    if isinstance(error, (TimeoutError, ConnectionError, http.client.IncompleteRead)):
+        return True
+    return isinstance(error, OSError) and error.errno in TRANSIENT_SOCKET_ERRNOS
+
+
+def _retry_delay(attempt: int, error: BaseException) -> float:
+    backoff = DOWNLOAD_RETRY_DELAYS_SECONDS[attempt]
+    retry_after = None
+    if isinstance(error, _RetryableDownloadError):
+        retry_after = error.retry_after
+    elif isinstance(error, urllib.error.HTTPError):
+        retry_after = _header(error, "Retry-After")
+    if retry_after is None or not retry_after.isascii() or not retry_after.isdigit():
+        return min(backoff, MAX_RETRY_AFTER_SECONDS)
+    requested = min(float(retry_after), MAX_RETRY_AFTER_SECONDS)
+    return min(max(backoff, requested), MAX_RETRY_AFTER_SECONDS)
+
+
 def _content_length(response: Any) -> int:
     value = _header(response, "Content-Length")
     if value is None or not value.isascii() or not value.isdigit():
@@ -840,6 +892,46 @@ def _validate_response(response: Any, artifact: Artifact, offset: int) -> None:
         raise FetchError("remote_size_drift")
 
 
+def _download_once(
+    artifact: Artifact,
+    partial: Path,
+    offset: int,
+    md5: Any,
+    sha256: Any,
+) -> tuple[int, Any, Any]:
+    request = _request(artifact, offset)
+    with _open(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+        if _status_code(response) in TRANSIENT_HTTP_STATUSES:
+            raise _RetryableDownloadError(_header(response, "Retry-After"))
+        _validate_response(response, artifact, offset)
+        flags = os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
+        if offset:
+            flags |= os.O_APPEND
+        else:
+            flags |= os.O_CREAT | os.O_EXCL
+        output_descriptor = os.open(partial, flags, 0o600)
+        with os.fdopen(output_descriptor, "ab" if offset else "wb") as output:
+            metadata = os.fstat(output.fileno())
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size != offset:
+                raise FetchError("partial_changed_before_write")
+            os.fchmod(output.fileno(), 0o600)
+            received = offset
+            try:
+                while chunk := response.read(CHUNK_BYTES):
+                    received += len(chunk)
+                    if received > artifact.bytes:
+                        raise FetchError("download_exceeded_declared_bytes")
+                    output.write(chunk)
+                    md5.update(chunk)
+                    sha256.update(chunk)
+            finally:
+                output.flush()
+                os.fsync(output.fileno())
+    if received != artifact.bytes:
+        raise _RetryableDownloadError()
+    return received, md5, sha256
+
+
 def _acquire_lock(path: Path) -> tuple[int, tuple[int, int]]:
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     try:
@@ -864,7 +956,11 @@ def _release_lock(path: Path, descriptor: int, identity: tuple[int, int]) -> Non
 
 
 def acquire_artifact(
-    artifact: Artifact, *, raw_dir: Path, receipt_dir: Path
+    artifact: Artifact,
+    *,
+    raw_dir: Path,
+    receipt_dir: Path,
+    sleeper: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
     """Acquire or verify one artifact without extracting its payload."""
 
@@ -897,14 +993,54 @@ def acquire_artifact(
         if os.path.lexists(receipt_path):
             raise FetchError("orphan_receipt")
 
-        offset, md5, sha256 = _partial_state(partial, artifact.bytes)
-        if offset == artifact.bytes:
+        for attempt in range(len(DOWNLOAD_RETRY_DELAYS_SECONDS) + 1):
+            offset, md5, sha256 = _partial_state(partial, artifact.bytes)
+            if offset == artifact.bytes:
+                digest = _finalize_partial(
+                    partial,
+                    target,
+                    receipt_path,
+                    artifact,
+                    offset,
+                    md5,
+                    sha256,
+                )
+                return {
+                    "record_id": artifact.record_id,
+                    "filename": artifact.filename,
+                    "bytes": artifact.bytes,
+                    "sha256": digest,
+                    "downloaded": True,
+                    "verified": True,
+                }
+            try:
+                received, md5, sha256 = _download_once(
+                    artifact,
+                    partial,
+                    offset,
+                    md5,
+                    sha256,
+                )
+            except FetchError:
+                raise
+            except (
+                OSError,
+                urllib.error.URLError,
+                http.client.HTTPException,
+                _RetryableDownloadError,
+            ) as error:
+                if not _is_transient_download_error(error) or attempt == len(
+                    DOWNLOAD_RETRY_DELAYS_SECONDS
+                ):
+                    raise FetchError("download_request_failed") from None
+                sleeper(_retry_delay(attempt, error))
+                continue
             digest = _finalize_partial(
                 partial,
                 target,
                 receipt_path,
                 artifact,
-                offset,
+                received,
                 md5,
                 sha256,
             )
@@ -916,57 +1052,7 @@ def acquire_artifact(
                 "downloaded": True,
                 "verified": True,
             }
-
-        request = _request(artifact, offset)
-        try:
-            with _open(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
-                _validate_response(response, artifact, offset)
-                flags = os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
-                if offset:
-                    flags |= os.O_APPEND
-                else:
-                    flags |= os.O_CREAT | os.O_EXCL
-                output_descriptor = os.open(partial, flags, 0o600)
-                with os.fdopen(output_descriptor, "ab" if offset else "wb") as output:
-                    metadata = os.fstat(output.fileno())
-                    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size != offset:
-                        raise FetchError("partial_changed_before_write")
-                    os.fchmod(output.fileno(), 0o600)
-                    received = offset
-                    while chunk := response.read(CHUNK_BYTES):
-                        received += len(chunk)
-                        if received > artifact.bytes:
-                            raise FetchError("download_exceeded_declared_bytes")
-                        output.write(chunk)
-                        md5.update(chunk)
-                        sha256.update(chunk)
-                    output.flush()
-                    os.fsync(output.fileno())
-        except FetchError:
-            raise
-        except (
-            OSError,
-            urllib.error.URLError,
-            http.client.HTTPException,
-        ) as error:
-            raise FetchError("download_request_failed") from error
-        digest = _finalize_partial(
-            partial,
-            target,
-            receipt_path,
-            artifact,
-            received,
-            md5,
-            sha256,
-        )
-        return {
-            "record_id": artifact.record_id,
-            "filename": artifact.filename,
-            "bytes": artifact.bytes,
-            "sha256": digest,
-            "downloaded": True,
-            "verified": True,
-        }
+        raise AssertionError("unreachable")
     finally:
         _release_lock(lock_path, descriptor, identity)
 
@@ -978,6 +1064,7 @@ def fetch_artifacts(
     receipt_dir: Path,
     max_total_bytes: int,
     max_file_bytes: int,
+    sleeper: Callable[[float], None] = time.sleep,
 ) -> list[dict[str, Any]]:
     """Preflight byte bounds, then acquire selected artifacts in order."""
 
@@ -988,7 +1075,12 @@ def fetch_artifacts(
     if sum(artifact.bytes for artifact in artifacts) > max_total_bytes:
         raise FetchError("max_total_bytes_exceeded")
     return [
-        acquire_artifact(artifact, raw_dir=raw_dir, receipt_dir=receipt_dir)
+        acquire_artifact(
+            artifact,
+            raw_dir=raw_dir,
+            receipt_dir=receipt_dir,
+            sleeper=sleeper,
+        )
         for artifact in artifacts
     ]
 

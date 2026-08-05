@@ -14,6 +14,7 @@ import sys
 import tempfile
 import types
 import unittest
+import urllib.error
 from contextlib import redirect_stdout
 from copy import deepcopy
 from dataclasses import replace
@@ -61,6 +62,25 @@ class Response(io.BytesIO):
         self.close()
 
 
+class PartialFailureResponse(Response):
+    """Return one persisted prefix, then simulate a dropped connection."""
+
+    def __init__(self, payload: bytes, url: str, prefix_bytes: int) -> None:
+        super().__init__(
+            b"",
+            url,
+            headers={"Content-Length": str(len(payload))},
+        )
+        self._prefix = payload[:prefix_bytes]
+        self._read_count = 0
+
+    def read(self, _size: int = -1) -> bytes:
+        self._read_count += 1
+        if self._read_count == 1:
+            return self._prefix
+        raise ConnectionResetError("sensitive upstream socket detail")
+
+
 def synthetic_artifact(payload: bytes, *, filename: str = "synthetic.bin"):
     base = MODULE.load_catalog().records[0].artifacts[0]
     return replace(
@@ -86,6 +106,17 @@ def response_for(
         artifact.content_url,
         status=status,
         headers=headers,
+    )
+
+
+def http_error(artifact, status: int, *, retry_after: str | None = None):
+    headers = {} if retry_after is None else {"Retry-After": retry_after}
+    return urllib.error.HTTPError(
+        artifact.content_url,
+        status,
+        "sensitive upstream HTTP detail",
+        headers,
+        None,
     )
 
 
@@ -267,6 +298,167 @@ class CuratedEvalFetcherTests(unittest.TestCase):
                         artifact, raw_dir=raw_dir, receipt_dir=receipt_dir
                     )
                 self.assertEqual(partial.read_bytes(), payload[:offset])
+
+    def test_transient_failure_retries_to_eventual_success(self):
+        payload = b"eventual success payload"
+        artifact = synthetic_artifact(payload)
+        sleeps = []
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            raw_dir = base / "raw"
+            receipt_dir = base / "receipts"
+            with mock.patch.object(
+                MODULE,
+                "_open",
+                side_effect=[
+                    urllib.error.URLError(
+                        TimeoutError("sensitive upstream timeout detail")
+                    ),
+                    response_for(artifact, payload),
+                ],
+            ) as opener:
+                result = MODULE.acquire_artifact(
+                    artifact,
+                    raw_dir=raw_dir,
+                    receipt_dir=receipt_dir,
+                    sleeper=sleeps.append,
+                )
+
+            target, partial, _, _ = MODULE._paths(artifact, raw_dir, receipt_dir)
+            self.assertEqual(target.read_bytes(), payload)
+            self.assertFalse(partial.exists())
+            self.assertTrue(result["verified"])
+            self.assertEqual(opener.call_count, 2)
+            self.assertEqual(sleeps, [MODULE.DOWNLOAD_RETRY_DELAYS_SECONDS[0]])
+
+    def test_transient_failures_exhaust_bounded_retries_without_leaking_details(self):
+        payload = b"retry exhaustion payload"
+        artifact = synthetic_artifact(payload)
+        sleeps = []
+        attempts = len(MODULE.DOWNLOAD_RETRY_DELAYS_SECONDS) + 1
+        failures = [
+            ConnectionResetError("token=do-not-expose") for _ in range(attempts)
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            with (
+                mock.patch.object(MODULE, "_open", side_effect=failures) as opener,
+                self.assertRaises(MODULE.FetchError) as caught,
+            ):
+                MODULE.acquire_artifact(
+                    artifact,
+                    raw_dir=base / "raw",
+                    receipt_dir=base / "receipts",
+                    sleeper=sleeps.append,
+                )
+
+        self.assertEqual(str(caught.exception), "download_request_failed")
+        self.assertIsNone(caught.exception.__cause__)
+        self.assertEqual(opener.call_count, attempts)
+        self.assertEqual(sleeps, list(MODULE.DOWNLOAD_RETRY_DELAYS_SECONDS))
+        self.assertNotIn("token=do-not-expose", str(caught.exception))
+
+    def test_retry_after_and_backoff_are_bounded(self):
+        payload = b"bounded retry delay payload"
+        artifact = synthetic_artifact(payload)
+        sleeps = []
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            with mock.patch.object(
+                MODULE,
+                "_open",
+                side_effect=[
+                    http_error(artifact, 503, retry_after="999999"),
+                    http_error(artifact, 429, retry_after="not-a-delay"),
+                    response_for(artifact, payload),
+                ],
+            ):
+                MODULE.acquire_artifact(
+                    artifact,
+                    raw_dir=base / "raw",
+                    receipt_dir=base / "receipts",
+                    sleeper=sleeps.append,
+                )
+
+        self.assertEqual(
+            sleeps,
+            [
+                MODULE.MAX_RETRY_AFTER_SECONDS,
+                MODULE.DOWNLOAD_RETRY_DELAYS_SECONDS[1],
+            ],
+        )
+        self.assertTrue(
+            all(0 <= delay <= MODULE.MAX_RETRY_AFTER_SECONDS for delay in sleeps)
+        )
+
+    def test_retry_resumes_from_bytes_persisted_before_disconnect(self):
+        payload = b"0123456789abcdef"
+        artifact = synthetic_artifact(payload)
+        prefix_bytes = 6
+        ranges = []
+        sleeps = []
+
+        def open_with_disconnect(request, *, timeout):
+            self.assertEqual(timeout, MODULE.DOWNLOAD_TIMEOUT_SECONDS)
+            ranges.append(request.get_header("Range"))
+            if len(ranges) == 1:
+                return PartialFailureResponse(
+                    payload,
+                    artifact.content_url,
+                    prefix_bytes,
+                )
+            return response_for(
+                artifact,
+                payload[prefix_bytes:],
+                status=206,
+                headers={
+                    "Content-Length": str(len(payload) - prefix_bytes),
+                    "Content-Range": (
+                        f"bytes {prefix_bytes}-{len(payload) - 1}/{len(payload)}"
+                    ),
+                },
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            raw_dir = base / "raw"
+            receipt_dir = base / "receipts"
+            with mock.patch.object(MODULE, "_open", side_effect=open_with_disconnect):
+                MODULE.acquire_artifact(
+                    artifact,
+                    raw_dir=raw_dir,
+                    receipt_dir=receipt_dir,
+                    sleeper=sleeps.append,
+                )
+            target, partial, _, _ = MODULE._paths(artifact, raw_dir, receipt_dir)
+            self.assertEqual(target.read_bytes(), payload)
+            self.assertFalse(partial.exists())
+
+        self.assertEqual(ranges, [None, f"bytes={prefix_bytes}-"])
+        self.assertEqual(sleeps, [MODULE.DOWNLOAD_RETRY_DELAYS_SECONDS[0]])
+
+    def test_permanent_http_error_is_not_retried(self):
+        artifact = synthetic_artifact(b"permanent failure payload")
+        sleeps = []
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            with (
+                mock.patch.object(
+                    MODULE,
+                    "_open",
+                    side_effect=http_error(artifact, 404),
+                ) as opener,
+                self.assertRaisesRegex(MODULE.FetchError, "download_request_failed"),
+            ):
+                MODULE.acquire_artifact(
+                    artifact,
+                    raw_dir=base / "raw",
+                    receipt_dir=base / "receipts",
+                    sleeper=sleeps.append,
+                )
+
+        self.assertEqual(opener.call_count, 1)
+        self.assertEqual(sleeps, [])
 
     def test_corruption_and_remote_drift_fail_without_promotion(self):
         payload = b"expected payload bytes"
