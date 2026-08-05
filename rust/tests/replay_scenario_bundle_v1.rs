@@ -20,7 +20,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 const SCENARIO: &str = "saved-capture-prefix-boundary";
-const BUILTIN_V1: &str = "synthetic-wlan-prefix-boundary";
+
 const RAW_CAPTURE_SHA256: &str =
     "sha256:d66a40532f2a67d3dac9bb8c438b6dca59f5228f531087f781ec03858b63162e";
 
@@ -556,7 +556,7 @@ fn reviewed_capture_builtin_inventory_is_exactly_one() {
         netbraid::replay::builtin_scenario_ids_v1(),
         ["synthetic-wlan-prefix-boundary"]
     );
-    let bundle = netbraid::replay::builtin_scenario_v1(BUILTIN_V1).unwrap();
+    let bundle = netbraid::replay::builtin_scenario_v1("synthetic-wlan-prefix-boundary").unwrap();
     let receipt = replay_scenario_v1(&bundle, "prefix-seven").unwrap();
     assert_eq!(receipt.projection.saved_captures.len(), 2);
     assert_eq!(

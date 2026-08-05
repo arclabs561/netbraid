@@ -31,7 +31,7 @@ fn scenario_validate_dispatches_without_changing_the_v0_json_contract() {
         "version 0 output remains byte-shape compatible"
     );
 
-    let v1 = fixture("saved-capture-prefix-boundary");
+    let v1 = fixture("synthetic-wlan-prefix-boundary");
     let output = run(&["scenario", "validate", v1.to_str().unwrap(), "--json"]);
     assert!(
         output.status.success(),
@@ -41,7 +41,7 @@ fn scenario_validate_dispatches_without_changing_the_v0_json_contract() {
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(value["schema"], "netbraid.scenario_validation.v1");
     assert_eq!(value["bundle_schema"], "netbraid.scenario_bundle.v1");
-    assert_eq!(value["scenario_id"], "saved-capture-prefix-boundary");
+    assert_eq!(value["scenario_id"], "synthetic-wlan-prefix-boundary");
     assert_eq!(value["declared_sensitivity"], "PUBLIC_REVIEWED");
     assert_eq!(value["provenance_sources"], 1);
     assert_eq!(
@@ -52,7 +52,7 @@ fn scenario_validate_dispatches_without_changing_the_v0_json_contract() {
 
 #[test]
 fn scenario_replay_preserves_declared_admission_metadata() {
-    let v1 = fixture("saved-capture-prefix-boundary");
+    let v1 = fixture("synthetic-wlan-prefix-boundary");
     let output = run(&[
         "scenario",
         "replay",
@@ -74,7 +74,7 @@ fn scenario_replay_preserves_declared_admission_metadata() {
         value["declared_disclosure_review"]["retained_evidence_identifier_classes"],
         serde_json::json!(["link_layer_address", "network_name", "packet_timestamp"])
     );
-    assert_eq!(value["scenario_id"], "saved-capture-prefix-boundary");
+    assert_eq!(value["scenario_id"], "synthetic-wlan-prefix-boundary");
     assert_eq!(value["checkpoint"], "prefix-seven");
     assert_eq!(
         value["projection"]["saved_captures"]
@@ -90,13 +90,13 @@ fn scenario_replay_preserves_declared_admission_metadata() {
             .iter()
             .filter(|conclusion| conclusion["disposition"] == "abstained")
             .count(),
-        6
+        3
     );
 }
 
 #[test]
 fn scenario_v1_text_does_not_authenticate_the_declared_review() {
-    let v1 = fixture("saved-capture-prefix-boundary");
+    let v1 = fixture("synthetic-wlan-prefix-boundary");
     let output = run(&["scenario", "validate", v1.to_str().unwrap()]);
     assert!(
         output.status.success(),
@@ -146,7 +146,6 @@ fn scenario_dispatch_does_not_follow_a_manifest_symlink_to_probe_its_schema() {
 
 #[test]
 fn capture_scenario_lineage_matches_the_admitted_adapter_corpus() {
-    let workspace = Path::new(env!("CARGO_MANIFEST_DIR"));
     let scenario: serde_json::Value = serde_json::from_slice(
         &std::fs::read(
             fixture("synthetic-wlan-prefix-boundary").join("scenario.json"),
