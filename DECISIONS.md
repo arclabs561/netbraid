@@ -170,6 +170,12 @@ hermetic integrity tests. Downloaded archives and captures, generated products,
 and machine-local receipts remain ignored under `data/raw/`, `data/derived/`,
 and `data/receipts/`.
 
+Catalog metadata is not an acquisition or redistribution grant. Bulk local
+acquisition requires a separate acknowledgement when terms are noncommercial,
+prohibit original-data redistribution, are incomplete, or are unspecified.
+The acknowledgement never changes the rule that dataset payloads and derived
+rows remain untracked.
+
 `eval/` owns dataset-backed evaluators, bounded fixtures, harness tests, and
 aggregate experiment ledgers. Evaluation may consume ignored artifacts but may
 not silently promote source bytes, labels, or dataset-specific policy into the

@@ -6,6 +6,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import re
+import subprocess
 import unittest
 from pathlib import Path
 from urllib.parse import urlparse
@@ -73,6 +74,116 @@ def entry_urls(entry: dict) -> list[str]:
 
 
 class CatalogTests(unittest.TestCase):
+    def test_dataset_payload_and_derived_roots_are_not_tracked(self):
+        completed = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(ROOT),
+                "ls-files",
+                "--",
+                "data",
+                "eval",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        tracked = completed.stdout.splitlines()
+        local_only_prefixes = (
+            "data/archive/",
+            "data/derived/",
+            "data/raw/",
+            "data/receipts/",
+            "eval/output/",
+        )
+        payload_suffixes = {
+            ".7z",
+            ".cap",
+            ".csv",
+            ".gz",
+            ".h5",
+            ".hdf5",
+            ".mat",
+            ".npy",
+            ".npz",
+            ".parquet",
+            ".pcap",
+            ".pcapng",
+            ".pkl",
+            ".tar",
+            ".zip",
+            ".zst",
+        }
+        self.assertFalse(
+            [path for path in tracked if path.startswith(local_only_prefixes)]
+        )
+        self.assertFalse(
+            [path for path in tracked if Path(path).suffix.lower() in payload_suffixes]
+        )
+
+    def test_eval_fixtures_are_bounded_metadata_without_local_paths(self):
+        fixture_root = ROOT / "eval" / "fixtures"
+        expected_schemas = {
+            "netbraid.indoor_jamming_controlled_cause_policy.v0",
+            "netbraid.mmwave_jamming_receiver_crossfit_policy.v0",
+            "netbraid.modality_coverage.v0",
+            "netbraid.operanet_semantic_alignment_protocol.v0",
+            "netbraid.public_corpus_slices.v0",
+            "netbraid.sorbonne_rssi_explanation_campaign.v0",
+            "netbraid.sorbonne_same_event_campaign.v0",
+            "netbraid.sorbonne_structural_reducer_campaign.v0",
+        }
+        fixtures = sorted(fixture_root.iterdir())
+        self.assertTrue(fixtures)
+        self.assertTrue(all(path.suffix == ".json" for path in fixtures))
+        self.assertEqual(
+            {
+                json.loads(path.read_text(encoding="utf-8"))["schema"]
+                for path in fixtures
+            },
+            expected_schemas,
+        )
+        for path in fixtures:
+            payload = path.read_text(encoding="utf-8")
+            self.assertLessEqual(len(payload.encode("utf-8")), 64 * 1024, path.name)
+            self.assertNotRegex(
+                payload,
+                r"(?i)(/users/|documents/dev|file://|\\\\users\\\\|[a-z]:\\\\)",
+                path.name,
+            )
+
+    def test_exact_upstream_capture_bytes_have_one_admitted_location(self):
+        completed = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(ROOT),
+                "ls-files",
+                "--",
+                "rust/tests/fixtures",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        marked = []
+        for relative in completed.stdout.splitlines():
+            path = ROOT / relative
+            if path.suffix != ".hex" or not path.is_file():
+                continue
+            first_line = path.read_text(encoding="ascii").splitlines()[0]
+            if first_line.startswith("# Exact upstream bytes"):
+                marked.append(relative)
+        self.assertTrue(marked)
+        self.assertTrue(
+            all(
+                path.startswith("rust/tests/fixtures/adapter/upstream/")
+                for path in marked
+            ),
+            marked,
+        )
+
     def test_catalog_has_stable_shape_and_unique_public_urls(self):
         catalog = load_catalog()
         self.assertEqual(catalog["schema"], "netbraid.public_source_leads.v1")

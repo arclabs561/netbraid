@@ -594,7 +594,9 @@ fn pcap_command_surfaces_bounded_wireless_operator_evidence() {
     let input = directory.path().join("ieee80211-radiotap.pcap");
     fs::write(
         &input,
-        decode_hex(include_str!("fixtures/libpcap-ieee80211-exthdr.pcap.hex")),
+        decode_hex(include_str!(
+            "fixtures/adapter/upstream/libpcap-ieee80211-exthdr.pcap.hex"
+        )),
     )
     .unwrap();
 
@@ -668,7 +670,7 @@ fn pcap_triage_surfaces_observed_wlan_disconnect_frames_without_attack_claims() 
     fs::write(
         &input,
         decode_hex(include_str!(
-            "fixtures/libpcap-network-join-nokia-mobile.pcap.hex"
+            "fixtures/adapter/upstream/libpcap-network-join-nokia-mobile.pcap.hex"
         )),
     )
     .unwrap();
@@ -736,7 +738,7 @@ fn records_jsonl_preserves_the_six_to_seven_frame_wlan_boundary() {
     fs::write(
         &input,
         decode_hex(include_str!(
-            "fixtures/libpcap-network-join-nokia-mobile.pcap.hex"
+            "fixtures/adapter/upstream/libpcap-network-join-nokia-mobile.pcap.hex"
         )),
     )
     .unwrap();

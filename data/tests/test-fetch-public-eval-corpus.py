@@ -156,6 +156,36 @@ def synthetic_source(payload: bytes) -> dict[str, object]:
 
 
 class FetcherMetadataTests(unittest.TestCase):
+    def test_restricted_or_unclear_terms_require_explicit_local_acknowledgement(self):
+        permissive = synthetic_source(b"permissive")
+        restricted = {
+            **synthetic_source(b"restricted"),
+            "license": "CC BY-NC-SA 4.0",
+        }
+        unclear = {
+            **synthetic_source(b"unclear"),
+            "license": "unspecified on the publisher record",
+        }
+
+        MODULE.validate_license_selection({"permissive": permissive}, False)
+        for name, source in {"restricted": restricted, "unclear": unclear}.items():
+            with self.assertRaisesRegex(
+                RuntimeError, "--acknowledge-license-restrictions"
+            ):
+                MODULE.validate_license_selection({name: source}, False)
+            MODULE.validate_license_selection({name: source}, True)
+
+        with (
+            mock.patch.object(MODULE, "SOURCES", {"restricted": restricted}),
+            mock.patch.object(MODULE, "GROUPS", frozenset({"baseline"})),
+            mock.patch.object(MODULE, "fetch_selected") as fetch_selected,
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "--acknowledge-license-restrictions"
+            ):
+                MODULE.main(["restricted"])
+        fetch_selected.assert_not_called()
+
     def test_default_and_custom_receipt_placement(self):
         payload = b"verified public artifact"
         source = synthetic_source(payload)

@@ -38,6 +38,15 @@ DEFAULT_RAW_DIR = REPOSITORY / "data" / "raw"
 DEFAULT_RECEIPT_DIR = REPOSITORY / "data" / "receipts" / "public-eval-corpus"
 RECEIPT_BYTE_LIMIT = 2 * 1024 * 1024
 CHUNK_BYTES = 1024 * 1024
+LICENSES_WITHOUT_EXTRA_ACKNOWLEDGEMENT = frozenset(
+    {
+        "CC BY 4.0",
+        "CC BY 4.0 (archive LICENSE.txt)",
+        "CC0",
+        "Etalab Open License 2.0",
+        "MIT",
+    }
+)
 
 SOURCES: dict[str, dict[str, Any]] = {
     "v2i-80211ad": {
@@ -675,11 +684,42 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=min(4, os.cpu_count() or 1),
         help="parallel workers for an existing artifact group (default: up to 4)",
     )
+    parser.add_argument(
+        "--acknowledge-license-restrictions",
+        action="store_true",
+        help=(
+            "allow local acquisition of selected sources with noncommercial, "
+            "no-redistribution, incomplete, or unspecified terms; this does not "
+            "permit redistribution"
+        ),
+    )
     return parser.parse_args(argv)
 
 
 def print_catalog() -> None:
     print(json.dumps(SOURCES, indent=2, sort_keys=True))
+
+
+def validate_license_selection(
+    selected: Mapping[str, Mapping[str, Any]], acknowledged: bool
+) -> None:
+    requiring_acknowledgement = []
+    for name, source in sorted(selected.items()):
+        license_name = source.get("license")
+        if (
+            not isinstance(license_name, str)
+            or license_name not in LICENSES_WITHOUT_EXTRA_ACKNOWLEDGEMENT
+        ):
+            requiring_acknowledgement.append((name, license_name))
+    if requiring_acknowledgement and not acknowledged:
+        details = ", ".join(
+            f"{name} ({license_name or 'missing terms'})"
+            for name, license_name in requiring_acknowledgement
+        )
+        raise RuntimeError(
+            "selected sources require --acknowledge-license-restrictions for "
+            f"local acquisition: {details}"
+        )
 
 
 def digest_file(path: Path) -> tuple[int, str, str]:
@@ -1148,6 +1188,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         }
     else:
         selected = {args.dataset: SOURCES[args.dataset]}
+    validate_license_selection(selected, args.acknowledge_license_restrictions)
     archives = fetch_selected(
         selected,
         args.output_dir,
