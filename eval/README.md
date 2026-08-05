@@ -213,6 +213,14 @@ group/event IDs and repetition roles enter the path-free adapter; raw scene,
 performer, action, archive, member, and local-path values are omitted. Matrices
 and adapters are written atomically with mode 0600 and are ignored by Git.
 
+`compile-xrf55-joint-role-cache.py` uses fresh complete-group ranks for a
+separate representation check: ranks 1-8 are train, 17-18 calibration, and
+19-20 validation; ranks 9-16 are omitted. It writes 160, 40, and 40 role-local
+rows for each modality under `data/derived/eval/xrf55-joint-representation-v0/`.
+Each matrix is a C-contiguous `<f8` NPY memmap with 512 fixed joint-grid
+features. Adapters retain opaque event/group bindings and content digests but
+no source labels or paths. Matrices are replaced before the mode-0600 adapters.
+
 `evaluate-xrf55-cross-modal-retrieval.py` verifies the adapter and matrix
 digests before reopening all three matrices as read-only NumPy memmaps. For
 each ordered modality pair it standardizes on publisher-train repetitions
@@ -232,6 +240,14 @@ The report uses exact dependent-pair confusion, coverage, selective-risk,
 false-link, false-nonmatch, and reciprocal-disagreement counts; it emits no
 row-level probability or confidence interval. Its qualified projection can
 change only `event_relation`; all identity-bearing axes abstain.
+
+`evaluate-xrf55-joint-representation-adequacy.py` reopens the three role caches
+as read-only memmaps after verifying adapter and matrix digests. Six fixed-alpha
+directed ridge maps produce three reciprocal modality-pair scores. Calibration
+alone fixes each pair's same/different thresholds; validation is scored only if
+all three profiles order, then reports aggregate and per-group coverage,
+abstention, selective risk, false-link, and false-nonmatch counts. The check has
+no fusion, macro-average, locked-test role, or identity claim.
 
 `evaluate-ujiindoorloc-split-capability.py` streams the pinned IPIN 2015 Track
 3 CSV members after verifying the archive and central receipt. It reports

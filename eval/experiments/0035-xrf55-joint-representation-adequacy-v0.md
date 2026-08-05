@@ -14,16 +14,17 @@ modality pairs, learn fusion weights, or define a locked-test role.
 
 Pre-implementation base revision: `a41636e`.
 
-The hermetic representation and partition contract is checked with:
+The hermetic representation, cache, and evaluator contracts are checked with:
 
 ```sh
-uv run --script eval/test-xrf55-joint-features.py
+just xrf55-joint-representation-adequacy-check
 ```
 
-A later evaluator must run without data-dependent arguments through:
+The preregistered real-data evaluation runs without data-dependent arguments
+and requires a byte-identical repeat through:
 
 ```sh
-uv run --script eval/evaluate-xrf55-joint-representation-adequacy.py
+just xrf55-joint-representation-adequacy
 ```
 
 The feature reducer validates each input through the existing XRF55 feature
@@ -43,7 +44,7 @@ calibration, and 40 validation events, plus 160 unused quarantine events.
 Groups cannot cross roles. Validation is the terminal evidence role for this
 experiment; no test role is created later from the quarantined ranks.
 
-The later evaluator will retain experiment 0033's fixed pair mechanics while
+The evaluator retains experiment 0033's fixed pair mechanics while
 removing fusion. Train-only means, population standard deviations, and active
 coordinates standardize each modality. Six directed ridge maps, one for every
 ordered modality pair, use fixed alpha 0.1. Each direction's mean paired-event
@@ -93,7 +94,7 @@ tests are implementation checks and do not count as experiment results.
 
 ## Conclusion
 
-Pending execution by the later evaluator. Failure of any pair's calibration
+Pending real-data execution. Failure of any pair's calibration
 order or any preregistered validation quality gate falsifies the joint
 representation-adequacy hypothesis without changing bins, moments, model
 mechanics, thresholds, pair selection, or role boundaries.

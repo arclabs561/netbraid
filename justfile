@@ -389,10 +389,40 @@ xrf55-trimodal-role-cache:
 xrf55-trimodal-fusion-check:
     uv run --script eval/test-evaluate-xrf55-trimodal-fusion.py
 
-# Check the fresh-group role policy and joint channel/sequence or
-# channel/spatial representation before admitting a real-data evaluator.
-xrf55-joint-representation-adequacy-check:
+# Check the private compiler separately so its archive and atomic-publication
+# boundaries remain visible when the complete evaluator check is unnecessary.
+xrf55-joint-role-cache-check:
+    uv run --script eval/test-compile-xrf55-joint-role-cache.py
+
+# Check the fresh-group role policy, joint representation, cache compiler, and
+# calibration/validation evaluator without opening the real corpus.
+xrf55-joint-representation-adequacy-check: xrf55-joint-role-cache-check
     uv run --script eval/test-xrf55-joint-features.py
+    uv run --script eval/test-evaluate-xrf55-joint-representation-adequacy.py
+
+# Compile only ranks 1-8, 17-18, and 19-20 into private role-local memmaps.
+# Ranks 9-16 remain quarantined and no locked-test role is created.
+xrf55-joint-role-cache:
+    uv run --script eval/compile-xrf55-joint-role-cache.py --output-dir {{ eval_output }}/xrf55-joint-representation-v0
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-train-adapter.json
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-train-wifi.npy
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-train-rfid.npy
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-train-mmwave.npy
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-calibration-adapter.json
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-calibration-wifi.npy
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-calibration-rfid.npy
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-calibration-mmwave.npy
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-validation-adapter.json
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-validation-wifi.npy
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-validation-rfid.npy
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-validation-mmwave.npy
+
+# Fit on train, calibrate each pair separately, score validation only after all
+# calibration profiles order, and require a byte-identical repeated report.
+xrf55-joint-representation-adequacy: xrf55-joint-role-cache
+    uv run --script eval/evaluate-xrf55-joint-representation-adequacy.py --report {{ eval_output }}/xrf55-joint-representation-v0/representation-adequacy-report.json
+    uv run --script eval/evaluate-xrf55-joint-representation-adequacy.py --report {{ eval_output }}/xrf55-joint-representation-v0/representation-adequacy-report-repeat.json
+    cmp {{ eval_output }}/xrf55-joint-representation-v0/representation-adequacy-report.json {{ eval_output }}/xrf55-joint-representation-v0/representation-adequacy-report-repeat.json
 
 # Fit only on train, fix thresholds on calibration, and evaluate validation.
 # There is deliberately no locked-test recipe: that role stays unopened unless

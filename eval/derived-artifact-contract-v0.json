@@ -598,6 +598,104 @@
       "recipe": "xrf55-feature-cache"
     },
     {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/representation-adequacy-report-repeat.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-joint-representation-adequacy.py",
+      "recipe": "xrf55-joint-representation-adequacy"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/representation-adequacy-report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-joint-representation-adequacy.py",
+      "recipe": "xrf55-joint-representation-adequacy"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-calibration-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-calibration-mmwave.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-calibration-rfid.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-calibration-wifi.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-train-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-train-mmwave.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-train-rfid.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-train-wifi.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-validation-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-validation-mmwave.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-validation-rfid.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-validation-wifi.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
       "path": "data/derived/eval/xrf55-trimodal-fusion-v0/validation-receipt.json",
       "format": "json",
       "retention": "reproducibility_output",
