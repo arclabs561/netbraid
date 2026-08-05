@@ -38,6 +38,13 @@ class ModalityCoverageTests(unittest.TestCase):
             by_id["sdr4iot-layer-alignment"]["scope"],
             "cross_representation_alignment",
         )
+        self.assertEqual(
+            by_id["operanet-activity-alignment"]["scope"], "cross_modality"
+        )
+        self.assertEqual(by_id["operanet-activity-alignment"]["readiness"], "evaluated")
+        self.assertIn(
+            "neither fusion", by_id["operanet-activity-alignment"]["limitation"]
+        )
 
     def test_report_is_aggregate_deterministic_and_names_admission_gaps(self):
         first = AUDIT.canonical_json(AUDIT.build_report())
@@ -45,14 +52,18 @@ class ModalityCoverageTests(unittest.TestCase):
         report = json.loads(first)
 
         self.assertEqual(first, second)
-        self.assertEqual(report["surfaces"], 12)
+        self.assertEqual(report["surfaces"], 13)
         self.assertEqual(report["readiness"]["candidate"], 2)
         self.assertIn("ieee80211ah", report["technologies"])
         self.assertIn("signal_iq", report["representations"])
         self.assertEqual(report["fusion_surfaces"], [])
         self.assertEqual(
             report["cross_modality_surfaces"],
-            ["sub-ghz-technology-recognition", "xrf55-cross-modal-retrieval"],
+            [
+                "operanet-activity-alignment",
+                "sub-ghz-technology-recognition",
+                "xrf55-cross-modal-retrieval",
+            ],
         )
         self.assertEqual(report["alignment_surfaces"], ["sdr4iot-layer-alignment"])
 

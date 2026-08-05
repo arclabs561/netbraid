@@ -100,6 +100,20 @@
       "test": "eval/test-evaluate-ruff-uwb-heldout-location.py"
     },
     {
+      "carrier_regimes": ["mixed_sensor", "ultra_wideband"],
+      "evaluator": "eval/profile-operanet-semantic-alignment.py",
+      "evidence_record": "eval/experiments/0032-operanet-semantic-alignment-v0.md",
+      "id": "operanet-activity-alignment",
+      "limitation": "The development-only exp018 gate is blocked by activity disagreements and duplicate-timestamp label conflicts; it establishes neither fusion nor same-event identity.",
+      "observation_levels": ["activity", "event", "signal"],
+      "readiness": "evaluated",
+      "representations": ["cir", "skeleton", "time_series"],
+      "scope": "cross_modality",
+      "source_lead": null,
+      "technologies": ["kinect", "power_sensing", "uwb"],
+      "test": "eval/test-profile-operanet-semantic-alignment.py"
+    },
+    {
       "carrier_regimes": ["mixed_rf"],
       "evaluator": "eval/evaluate-xrf55-cross-modal-retrieval.py",
       "evidence_record": "eval/experiments/0014-xrf55-cross-modal-retrieval-v0.md",

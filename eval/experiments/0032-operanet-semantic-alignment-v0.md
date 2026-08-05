@@ -12,7 +12,7 @@ archive-wide result.
 
 ## Method
 
-Producer commit: pending checkpoint.
+Producer commit: `fdf354e1776e5e4670488f3057480f6cfc6171a3`.
 
 Run `just operanet-semantic-alignment-profile`. The recipe first verifies the
 hermetic parser and alignment contracts. It then verifies the pinned archives
@@ -64,12 +64,40 @@ descriptive profile.
 
 ## Results
 
-Not recorded. The preregistered producer has not yet been run against the
-pinned corpus.
+At the producer commit above, `just operanet-semantic-alignment-profile` read
+the four pinned exp018 members twice and produced byte-identical 7,301-byte
+reports, both mode 0600. The joinability gate was blocked.
+
+The four timelines had a positive 903,463,236-microsecond intersection. Kinect
+and power each contained 9,149 semantic rows; their experiment, timestamp, and
+activity fields were exactly equal on every row. UWB1 contained 340,964 rows,
+and UWB2 contained 195,438 rows.
+
+The fixed grid had 9,035 candidate points. It excluded 308 transition-boundary
+points and assessed the remaining 8,727 with no missing-modality points. Of
+those assessed points, 5,875 had one activity label across all four modalities
+and 2,852 disagreed. UWB1 also contained 57 conflicting activity labels among
+229,789 duplicate-timestamp rows.
+
+UWB2 contained 1,073 adjacent source-order inversions. Their maximum backward
+jump was 96 microseconds, within the registered 1-millisecond normalization
+bound. No other modality had a source-order inversion.
+
+The reports retained no participant or room values, raw timestamps, raw rows,
+signal values, archive paths, or member paths. The publisher's clock statement
+remained provenance rather than a measured result.
 
 ## Conclusion
 
-Pending the registered corpus run.
+The hypothesis was rejected. Exp018 does not provide a clean four-modality
+activity-join oracle under the registered fixed-grid protocol, despite exact
+Kinect/power semantic equality and complete grid coverage. The activity
+disagreements and UWB1 duplicate-label conflicts close the gate.
+
+The result still identifies a narrower exact Kinect/power semantic relation and
+a bounded negative cross-modality case. Any revised temporal policy must be
+registered on another experiment or partition rather than tuned against these
+development results.
 
 ## Non-claims
 

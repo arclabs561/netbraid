@@ -168,6 +168,16 @@ arrays through the public bounded NPY vector projection, checks the exact
 complex and unsigned dtypes and extents, and verifies that the complete offset
 vector is strictly increasing from zero to the IQ sample count.
 
+`profile-operanet-semantic-alignment.py` verifies four pinned OPERAnet archives
+and compares exp018 Kinect, power, and two UWB activity streams on a registered
+fixed time grid. The development result is negative: Kinect and power have
+9,149 exactly equal semantic rows, but 2,852 of 8,727 assessed four-modality
+grid points disagree and UWB1 has 57 duplicate-timestamp label conflicts. The
+profiler therefore does not publish a fusion or same-event claim. Its reports
+retain aggregate counts and timing spans only; participant values, room values,
+raw timestamps, rows, signal values, archive paths, and member paths are
+omitted.
+
 `profile-xrf55-layout.py` validates the three local XRF55 archive and receipt
 metadata contracts, bounds their ZIP central directories, and reports aggregate
 format, path-depth, and cross-archive path-overlap evidence. The publisher's
