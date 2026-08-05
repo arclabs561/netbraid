@@ -386,6 +386,15 @@ xrf55-trimodal-role-cache:
     test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-validation-rfid.npy
     test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-validation-mmwave.npy
 
+xrf55-trimodal-fusion-check:
+    uv run --script eval/test-evaluate-xrf55-trimodal-fusion.py
+
+# Fit only on train, fix thresholds on calibration, and evaluate validation.
+# There is deliberately no locked-test recipe: that role stays unopened unless
+# this command records a passing preregistered gate.
+xrf55-trimodal-fusion-validate: xrf55-trimodal-role-cache
+    uv run --script eval/evaluate-xrf55-trimodal-fusion.py validate --report {{ eval_output }}/xrf55-trimodal-fusion-v0/validation-receipt.json
+
 xrf55-cross-modal-retrieval-check:
     uv run --script eval/test-evaluate-xrf55-cross-modal-retrieval.py
 

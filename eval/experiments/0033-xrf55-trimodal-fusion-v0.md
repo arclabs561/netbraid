@@ -43,7 +43,7 @@ default role-cache request excludes locked test; its raw member payloads and
 private cache artifacts are opened only by a later explicit locked-test request
 after the validation gate passes.
 
-The later evaluator is intentionally outside this checkpoint. It will fit all
+The evaluator fits all
 six directed fixed-alpha 0.1 ridge maps on the 160 train events only. Feature
 means, nonzero scales, active coordinates, and the positive paired-event mean
 residual used to normalize each direction are train-only quantities. Dividing
@@ -89,13 +89,25 @@ or maliciousness.
 
 ## Results
 
-Not executed. This checkpoint prepares the role-isolated cache contract and
-its hermetic tests only. No real cache payload, fitted model, threshold,
-validation metric, or locked-test result has been produced.
+The hermetic evaluator suite passed 12 tests. It covers an independent naive
+score oracle, exact metric and quantile oracles, role-isolation checks, gate
+boundaries, content-bound validation replay, locked-test non-open and
+single-use behavior, mmap access, deterministic private reports, and malformed
+or tampered inputs.
+
+The real pre-gate run completed with `calibration_failed`. For fusion and all
+three pair baselines, the calibration same-event 90th-percentile residual was
+higher than the different-event 10th-percentile residual, so none of the four
+abstention profiles had ordered thresholds. Validation was not scored. The
+locked-test adapter, matrices, and use marker were not created or opened.
 
 ## Conclusion
 
-Pending implementation and the preregistered gates. The next allowed steps are
-to verify the role compiler hermetically, compile only train, calibration, and
-validation caches, implement the private evaluator separately, and open the
-locked-test payloads only after a recorded validation pass.
+This fixed ridge-residual hypothesis failed at calibration and the locked test
+remains closed. The result does not show that trimodal event relation is
+impossible; it shows that these fixed summary features and independently
+linear cross-modal maps do not produce the preregistered low-is-same ordering
+on unseen performer/action groups. Any next model must be a new preregistered
+experiment with new calibration and validation roles or a separately declared
+follow-up question, not a threshold or weight adjustment against this failed
+split.

@@ -598,6 +598,13 @@
       "recipe": "xrf55-feature-cache"
     },
     {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/validation-receipt.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/evaluate-xrf55-trimodal-fusion.py",
+      "recipe": "xrf55-trimodal-fusion-validate"
+    },
+    {
       "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-calibration-adapter.json",
       "format": "json",
       "retention": "reproducibility_output",
