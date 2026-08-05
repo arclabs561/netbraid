@@ -354,6 +354,23 @@ xrf55-feature-cache:
     cmp {{ eval_output }}/xrf55-feature-cache-rfid.npy {{ eval_output }}/xrf55-feature-cache-rfid-repeat.npy
     cmp {{ eval_output }}/xrf55-feature-cache-mmwave.npy {{ eval_output }}/xrf55-feature-cache-mmwave-repeat.npy
 
+# Compile only preregistered train, calibration, and validation groups into
+# separate mmap-ready caches. Locked test requires an explicit later request.
+xrf55-trimodal-role-cache:
+    uv run --script eval/compile-xrf55-feature-cache.py --role-cache-dir {{ eval_output }}/xrf55-trimodal-fusion-v0
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-train-adapter.json
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-train-wifi.npy
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-train-rfid.npy
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-train-mmwave.npy
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-calibration-adapter.json
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-calibration-wifi.npy
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-calibration-rfid.npy
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-calibration-mmwave.npy
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-validation-adapter.json
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-validation-wifi.npy
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-validation-rfid.npy
+    test -f {{ eval_output }}/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-validation-mmwave.npy
+
 xrf55-cross-modal-retrieval-check:
     uv run --script eval/test-evaluate-xrf55-cross-modal-retrieval.py
 

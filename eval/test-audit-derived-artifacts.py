@@ -230,6 +230,33 @@ class DerivedArtifactAuditTests(unittest.TestCase):
         errors = self._audit()["error_counts"]
         self.assertNotIn("producer_not_invoked_by_recipe", errors)
 
+    def test_output_directory_option_declares_direct_child_artifacts(self) -> None:
+        (self.root / "eval/produce.py").write_text(
+            "import argparse\n"
+            "from pathlib import Path\n"
+            "def main():\n"
+            "    parser = argparse.ArgumentParser()\n"
+            "    parser.add_argument('--output-dir', type=Path)\n"
+            "    output = parser.parse_args().output_dir\n"
+            "    (output / 'result.json').write_text('{}')\n"
+            "    (output / 'future.json').write_text('{}')\n"
+            "    return 0\n"
+            "if __name__ == '__main__':\n"
+            "    raise SystemExit(main())\n",
+            encoding="utf-8",
+        )
+        (self.root / "justfile").write_text(
+            "derive:\n    python3 eval/produce.py --output-dir data/derived/eval\n",
+            encoding="utf-8",
+        )
+
+        report = self._audit()
+
+        self.assertTrue(report["ok"])
+        self.assertNotIn(
+            "artifact_not_declared_by_producer_or_recipe", report["error_counts"]
+        )
+
     def test_rejects_comment_only_producer(self) -> None:
         (self.root / "eval/produce.py").write_text(
             "# result.json\n# executable producer entrypoint\n",

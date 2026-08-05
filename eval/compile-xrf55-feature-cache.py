@@ -71,6 +71,32 @@ ROLE_EVENT_COUNTS = {
     role: (last - first + 1) * len(FEATURES.PUBLISHER_REPETITIONS)
     for role, (first, last) in ROLE_GROUP_RANKS.items()
 }
+ROLE_OUTPUT_FILENAMES = {
+    "train": {
+        "adapter": "xrf55-trimodal-fusion-train-adapter.json",
+        "wifi": "xrf55-trimodal-fusion-train-wifi.npy",
+        "rfid": "xrf55-trimodal-fusion-train-rfid.npy",
+        "mmwave": "xrf55-trimodal-fusion-train-mmwave.npy",
+    },
+    "calibration": {
+        "adapter": "xrf55-trimodal-fusion-calibration-adapter.json",
+        "wifi": "xrf55-trimodal-fusion-calibration-wifi.npy",
+        "rfid": "xrf55-trimodal-fusion-calibration-rfid.npy",
+        "mmwave": "xrf55-trimodal-fusion-calibration-mmwave.npy",
+    },
+    "validation": {
+        "adapter": "xrf55-trimodal-fusion-validation-adapter.json",
+        "wifi": "xrf55-trimodal-fusion-validation-wifi.npy",
+        "rfid": "xrf55-trimodal-fusion-validation-rfid.npy",
+        "mmwave": "xrf55-trimodal-fusion-validation-mmwave.npy",
+    },
+    "locked_test": {
+        "adapter": "xrf55-trimodal-fusion-locked-test-adapter.json",
+        "wifi": "xrf55-trimodal-fusion-locked-test-wifi.npy",
+        "rfid": "xrf55-trimodal-fusion-locked-test-rfid.npy",
+        "mmwave": "xrf55-trimodal-fusion-locked-test-mmwave.npy",
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -600,13 +626,10 @@ def write_cache(
 
 def role_output_set(directory: Path, role: str) -> OutputSet:
     selected_role = _normalize_roles((role,))[0]
-    stem = f"xrf55-trimodal-fusion-{selected_role.replace('_', '-')}"
+    filenames = ROLE_OUTPUT_FILENAMES[selected_role]
     return OutputSet(
-        directory / f"{stem}-adapter.json",
-        {
-            modality: directory / f"{stem}-{modality}.npy"
-            for modality in FEATURES.MODALITIES
-        },
+        directory / filenames["adapter"],
+        {modality: directory / filenames[modality] for modality in FEATURES.MODALITIES},
     )
 
 
@@ -617,7 +640,7 @@ def write_role_caches(
     archive_count: int,
 ) -> dict[str, dict[str, Any]]:
     roles = _normalize_roles(tuple(events))
-    if set(outputs) != set(roles) or set(matrices) != set(roles):
+    if not set(roles).issubset(outputs) or set(matrices) != set(roles):
         raise Xrf55CacheCompileError("role_output_set_mismatch")
     paths = [
         path
@@ -700,7 +723,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             roles = _normalize_roles(arguments.role or PRE_GATE_ROLES)
             role_events, role_matrices = compile_role_matrices(sources, roles=roles)
             outputs = {
-                role: role_output_set(arguments.role_cache_dir, role) for role in roles
+                "train": role_output_set(arguments.role_cache_dir, "train"),
+                "calibration": role_output_set(arguments.role_cache_dir, "calibration"),
+                "validation": role_output_set(arguments.role_cache_dir, "validation"),
+                "locked_test": role_output_set(arguments.role_cache_dir, "locked_test"),
             }
             adapters = write_role_caches(
                 outputs, role_events, role_matrices, len(sources)

@@ -329,9 +329,14 @@ def _producer_invocation_tokens(command: str, producer: str) -> tuple[str, ...] 
     return tokens if tokens[2] == producer else None
 
 
-def _token_declares_output(token: str, artifact: str) -> bool:
+def _token_declares_output(
+    token: str, artifact: str, *, directory_option: bool = False
+) -> bool:
     basename = PurePosixPath(artifact).name
-    return token == artifact or PurePosixPath(token).name == basename
+    token_name = PurePosixPath(token).name
+    if token == artifact or token_name == basename:
+        return True
+    return directory_option and token_name == PurePosixPath(artifact).parent.name
 
 
 def _invocation_declares_output(
@@ -341,12 +346,17 @@ def _invocation_declares_output(
         option, separator, inline_value = token.partition("=")
         if option not in output_options:
             continue
-        if separator and _token_declares_output(inline_value, artifact):
+        directory_option = option.replace("_", "-").endswith("-dir")
+        if separator and _token_declares_output(
+            inline_value, artifact, directory_option=directory_option
+        ):
             return True
         for candidate in tokens[index + 1 :]:
             if candidate.startswith("-"):
                 break
-            if _token_declares_output(candidate, artifact):
+            if _token_declares_output(
+                candidate, artifact, directory_option=directory_option
+            ):
                 return True
     return False
 

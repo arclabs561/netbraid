@@ -598,6 +598,90 @@
       "recipe": "xrf55-feature-cache"
     },
     {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-calibration-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-calibration-mmwave.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-calibration-rfid.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-calibration-wifi.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-train-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-train-mmwave.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-train-rfid.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-train-wifi.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-validation-adapter.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-validation-mmwave.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-validation-rfid.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
+      "path": "data/derived/eval/xrf55-trimodal-fusion-v0/xrf55-trimodal-fusion-validation-wifi.npy",
+      "format": "npy",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-feature-cache.py",
+      "recipe": "xrf55-trimodal-role-cache"
+    },
+    {
       "path": "data/derived/eval/xrf55-hypothesis-frames-repeat.json",
       "format": "json",
       "retention": "reproducibility_output",
