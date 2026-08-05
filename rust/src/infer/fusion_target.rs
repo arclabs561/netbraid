@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::evidence::PACKET_ENVELOPE_SCHEMA_V0;
 use crate::replay::{PACKET_SAME_EVENT_HYPOTHESIS_SET_SCHEMA_V0, PACKET_SAME_EVENT_REDUCER_V0};
@@ -12,7 +12,10 @@ use super::content_relation::{
     CONTENT_DIGEST_EVIDENCE_SCHEMA_V0, CONTENT_RELATION_HYPOTHESIS_SET_SCHEMA_V0,
     CONTENT_RELATION_REDUCER_V0,
 };
-use super::{FiniteHypothesisClaimV0, FiniteHypothesisInputRefV0};
+use super::{
+    FiniteHypothesisClaimV0, FiniteHypothesisDispositionV0, FiniteHypothesisInputRefV0,
+    ProvenanceQualifiedClaimLineageStatusV0, ProvenanceQualifiedFiniteHypothesisCompositionV0,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum RelationAxis {
@@ -49,9 +52,27 @@ pub(crate) struct RelationTargetGroup {
     claim_indices: Box<[usize]>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum RelationTargetResolution {
+    Unresolved,
+    SingleAlternative { role: String },
+    Conflict { roles: Box<[String]> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RelationTargetSummary {
+    target: RelationTarget,
+    claim_indices: Box<[usize]>,
+    substantive_claim_indices: Box<[usize]>,
+    abstaining_claim_indices: Box<[usize]>,
+    declared_shared_lineage_pairs: Box<[(usize, usize)]>,
+    resolution: RelationTargetResolution,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RelationTargetError {
     InvalidKnownFamilyContract,
+    InvalidClaimDisposition,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -108,6 +129,86 @@ pub(crate) fn group_relation_targets(
         })
         .collect::<Vec<_>>()
         .into_boxed_slice())
+}
+
+pub(crate) fn summarize_relation_targets(
+    qualified: &ProvenanceQualifiedFiniteHypothesisCompositionV0,
+) -> Result<Box<[RelationTargetSummary]>, RelationTargetError> {
+    let claims = qualified.composition().claims();
+    let groups = group_relation_targets(claims)?;
+    groups
+        .into_vec()
+        .into_iter()
+        .map(|group| summarize_group(group, claims, qualified.claim_lineage_pairs()))
+        .collect::<Result<Vec<_>, _>>()
+        .map(Vec::into_boxed_slice)
+}
+
+fn summarize_group(
+    group: RelationTargetGroup,
+    claims: &[FiniteHypothesisClaimV0],
+    lineage_pairs: &[super::ProvenanceQualifiedClaimPairSummaryV0],
+) -> Result<RelationTargetSummary, RelationTargetError> {
+    let mut substantive_claim_indices = Vec::new();
+    let mut abstaining_claim_indices = Vec::new();
+    let mut substantive_roles = BTreeSet::new();
+    for claim_index in &group.claim_indices {
+        let mut supported = claims[*claim_index]
+            .projection()
+            .alternatives()
+            .iter()
+            .filter(|alternative| {
+                alternative.disposition() == FiniteHypothesisDispositionV0::Supported
+            });
+        let alternative = supported
+            .next()
+            .ok_or(RelationTargetError::InvalidClaimDisposition)?;
+        if supported.next().is_some() {
+            return Err(RelationTargetError::InvalidClaimDisposition);
+        }
+        if alternative.role() == "unknown" {
+            abstaining_claim_indices.push(*claim_index);
+        } else {
+            substantive_claim_indices.push(*claim_index);
+            substantive_roles.insert(alternative.role().to_owned());
+        }
+    }
+
+    let resolution = match substantive_roles.len() {
+        0 => RelationTargetResolution::Unresolved,
+        1 => RelationTargetResolution::SingleAlternative {
+            role: substantive_roles
+                .into_iter()
+                .next()
+                .expect("the exact role count was checked"),
+        },
+        _ => RelationTargetResolution::Conflict {
+            roles: substantive_roles
+                .into_iter()
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        },
+    };
+    let group_indices = group.claim_indices.iter().copied().collect::<BTreeSet<_>>();
+    let declared_shared_lineage_pairs = lineage_pairs
+        .iter()
+        .filter(|pair| {
+            pair.status() == ProvenanceQualifiedClaimLineageStatusV0::DeclaredSharedLineage
+                && group_indices.contains(&pair.left_claim_index())
+                && group_indices.contains(&pair.right_claim_index())
+        })
+        .map(|pair| (pair.left_claim_index(), pair.right_claim_index()))
+        .collect::<Vec<_>>()
+        .into_boxed_slice();
+
+    Ok(RelationTargetSummary {
+        target: group.target,
+        claim_indices: group.claim_indices,
+        substantive_claim_indices: substantive_claim_indices.into_boxed_slice(),
+        abstaining_claim_indices: abstaining_claim_indices.into_boxed_slice(),
+        declared_shared_lineage_pairs,
+        resolution,
+    })
 }
 
 fn relation_target(
@@ -186,7 +287,8 @@ fn relation_contract(family_schema: &str) -> Option<RelationContract> {
 mod tests {
     use super::*;
     use crate::infer::{
-        FiniteHypothesisAlternativeV0, FiniteHypothesisDispositionV0, FiniteHypothesisProjectionV0,
+        FiniteHypothesisAlternativeV0, FiniteHypothesisCompositionV0,
+        FiniteHypothesisDispositionV0, FiniteHypothesisProjectionV0, ProvenanceGraphV0,
     };
 
     fn input(
@@ -210,14 +312,31 @@ mod tests {
         alternatives: [&str; 3],
         inputs: Vec<FiniteHypothesisInputRefV0>,
     ) -> FiniteHypothesisClaimV0 {
+        claim_supporting(
+            family_schema,
+            reducer,
+            alternatives,
+            alternatives[0],
+            inputs,
+        )
+    }
+
+    fn claim_supporting(
+        family_schema: &str,
+        reducer: &str,
+        alternatives: [&str; 3],
+        supported_role: &str,
+        inputs: Vec<FiniteHypothesisInputRefV0>,
+    ) -> FiniteHypothesisClaimV0 {
         let alternatives = alternatives
             .into_iter()
-            .enumerate()
-            .map(|(index, role)| {
+            .map(|role| {
                 FiniteHypothesisAlternativeV0::try_new(
                     role,
-                    if index == 0 {
+                    if role == supported_role {
                         FiniteHypothesisDispositionV0::Supported
+                    } else if supported_role == "unknown" {
+                        FiniteHypothesisDispositionV0::Underdetermined
                     } else {
                         FiniteHypothesisDispositionV0::Contradicted
                     },
@@ -231,10 +350,19 @@ mod tests {
     }
 
     fn packet_event_claim(left: (&str, char), right: (&str, char)) -> FiniteHypothesisClaimV0 {
-        claim(
+        packet_event_claim_supporting(left, right, "same_event")
+    }
+
+    fn packet_event_claim_supporting(
+        left: (&str, char),
+        right: (&str, char),
+        supported_role: &str,
+    ) -> FiniteHypothesisClaimV0 {
+        claim_supporting(
             PACKET_SAME_EVENT_HYPOTHESIS_SET_SCHEMA_V0,
             PACKET_SAME_EVENT_REDUCER_V0,
             ["same_event", "different_event", "unknown"],
+            supported_role,
             vec![
                 input("left_packet", PACKET_ENVELOPE_SCHEMA_V0, left.0, left.1),
                 input("right_packet", PACKET_ENVELOPE_SCHEMA_V0, right.0, right.1),
@@ -247,10 +375,20 @@ mod tests {
         right: (&str, char),
         support_digest: char,
     ) -> FiniteHypothesisClaimV0 {
-        claim(
+        calibrated_event_claim_supporting(left, right, support_digest, "same_event")
+    }
+
+    fn calibrated_event_claim_supporting(
+        left: (&str, char),
+        right: (&str, char),
+        support_digest: char,
+        supported_role: &str,
+    ) -> FiniteHypothesisClaimV0 {
+        claim_supporting(
             CALIBRATED_EVENT_RELATION_ASSESSMENT_SCHEMA_V0,
             CALIBRATED_EVENT_RELATION_REDUCER_V0,
             ["same_event", "different_event", "unknown"],
+            supported_role,
             vec![
                 input(
                     "calibration_profile",
@@ -306,6 +444,16 @@ mod tests {
                 ),
             ],
         )
+    }
+
+    fn summarize(claims: Vec<FiniteHypothesisClaimV0>) -> Box<[RelationTargetSummary]> {
+        let composition = FiniteHypothesisCompositionV0::try_new(claims).unwrap();
+        let qualified = ProvenanceQualifiedFiniteHypothesisCompositionV0::try_new(
+            composition,
+            ProvenanceGraphV0::try_new(Vec::new()).unwrap(),
+        )
+        .unwrap();
+        summarize_relation_targets(&qualified).unwrap()
     }
 
     #[test]
@@ -382,6 +530,69 @@ mod tests {
                 participants,
             }
         );
+    }
+
+    #[test]
+    fn unknown_abstains_without_masking_one_substantive_alternative() {
+        let summaries = summarize(vec![
+            packet_event_claim_supporting(("packet:a", 'a'), ("packet:b", 'b'), "unknown"),
+            calibrated_event_claim_supporting(
+                ("packet:a", 'a'),
+                ("packet:b", 'b'),
+                'c',
+                "same_event",
+            ),
+        ]);
+
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(summaries[0].claim_indices.len(), 2);
+        assert_eq!(summaries[0].substantive_claim_indices.len(), 1);
+        assert_eq!(summaries[0].abstaining_claim_indices.len(), 1);
+        assert_eq!(
+            summaries[0].resolution,
+            RelationTargetResolution::SingleAlternative {
+                role: "same_event".to_owned()
+            }
+        );
+        assert_eq!(&*summaries[0].declared_shared_lineage_pairs, &[(0, 1)]);
+    }
+
+    #[test]
+    fn substantive_disagreement_is_retained_as_conflict() {
+        let summaries = summarize(vec![
+            packet_event_claim_supporting(("packet:a", 'a'), ("packet:b", 'b'), "different_event"),
+            calibrated_event_claim_supporting(
+                ("packet:a", 'a'),
+                ("packet:b", 'b'),
+                'c',
+                "same_event",
+            ),
+        ]);
+
+        assert_eq!(
+            summaries[0].resolution,
+            RelationTargetResolution::Conflict {
+                roles: vec!["different_event".to_owned(), "same_event".to_owned()]
+                    .into_boxed_slice()
+            }
+        );
+        assert_eq!(summaries[0].substantive_claim_indices.len(), 2);
+        assert!(summaries[0].abstaining_claim_indices.is_empty());
+    }
+
+    #[test]
+    fn all_abstentions_leave_the_target_unresolved() {
+        let summaries = summarize(vec![
+            packet_event_claim_supporting(("packet:a", 'a'), ("packet:b", 'b'), "unknown"),
+            calibrated_event_claim_supporting(("packet:a", 'a'), ("packet:b", 'b'), 'c', "unknown"),
+        ]);
+
+        assert_eq!(
+            summaries[0].resolution,
+            RelationTargetResolution::Unresolved
+        );
+        assert!(summaries[0].substantive_claim_indices.is_empty());
+        assert_eq!(summaries[0].abstaining_claim_indices.len(), 2);
     }
 
     #[test]

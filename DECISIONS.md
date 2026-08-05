@@ -122,6 +122,13 @@ evidence, justify vote counting, or turn model-relative values into
 probabilities. The target registry remains private until more relation families
 and dataset-backed evaluations establish a stable public contract.
 
+The first private target summary treats a supported `unknown` alternative as
+an abstention. No substantive alternative leaves the target unresolved, one
+distinct substantive alternative is retained without a consensus claim, and
+multiple substantive alternatives remain an explicit conflict. The summary
+also retains same-target claim pairs with declared shared lineage. It assigns
+no weights and draws no conclusion from missing lineage declarations.
+
 ## Offline and passive Rust defaults
 
 The Rust CLI reads saved evidence or a regular saved capture. It does not open
