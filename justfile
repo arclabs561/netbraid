@@ -389,6 +389,11 @@ xrf55-trimodal-role-cache:
 xrf55-trimodal-fusion-check:
     uv run --script eval/test-evaluate-xrf55-trimodal-fusion.py
 
+# Check the fresh-group role policy and joint channel/sequence or
+# channel/spatial representation before admitting a real-data evaluator.
+xrf55-joint-representation-adequacy-check:
+    uv run --script eval/test-xrf55-joint-features.py
+
 # Fit only on train, fix thresholds on calibration, and evaluate validation.
 # There is deliberately no locked-test recipe: that role stays unopened unless
 # this command records a passing preregistered gate.
