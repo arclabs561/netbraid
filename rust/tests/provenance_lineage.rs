@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use netbraid::infer::{
     CalibratedEventRelationObservationRefV0, ContentBoundEvidenceRefV0, ContentSha256V0,
     ProvenanceActivityKindV0, ProvenanceActivityV0, ProvenanceArtifactRefErrorV0,
@@ -30,6 +32,132 @@ fn record(
     inputs: Vec<ProvenanceArtifactRefV0>,
 ) -> ProvenanceRecordV0 {
     ProvenanceRecordV0::try_new(output, producer, activity, inputs).unwrap()
+}
+
+fn naive_ancestors(
+    records: &[ProvenanceRecordV0],
+    artifact: &ProvenanceArtifactRefV0,
+) -> BTreeSet<ProvenanceArtifactRefV0> {
+    let by_output: BTreeMap<_, _> = records
+        .iter()
+        .map(|record| (record.output(), record))
+        .collect();
+    let mut ancestors = BTreeSet::new();
+    let mut pending = vec![artifact.clone()];
+    while let Some(current) = pending.pop() {
+        if !ancestors.insert(current.clone()) {
+            continue;
+        }
+        if let Some(record) = by_output.get(&current) {
+            pending.extend(record.inputs().iter().cloned());
+        }
+    }
+    ancestors
+}
+
+fn naive_lineage(
+    records: &[ProvenanceRecordV0],
+    left: &ProvenanceArtifactRefV0,
+    right: &ProvenanceArtifactRefV0,
+) -> ProvenanceLineageRelationV0 {
+    if left == right {
+        return ProvenanceLineageRelationV0::SameReference;
+    }
+    let left_ancestors = naive_ancestors(records, left);
+    let right_ancestors = naive_ancestors(records, right);
+    if left_ancestors.contains(right) {
+        ProvenanceLineageRelationV0::LeftDescendsFromRight
+    } else if right_ancestors.contains(left) {
+        ProvenanceLineageRelationV0::RightDescendsFromLeft
+    } else if left_ancestors
+        .intersection(&right_ancestors)
+        .next()
+        .is_some()
+    {
+        ProvenanceLineageRelationV0::SharedAncestor
+    } else {
+        ProvenanceLineageRelationV0::NoSharedAncestryFound
+    }
+}
+
+#[test]
+fn sorted_graph_lookup_matches_naive_lineage_for_every_artifact_pair() {
+    let root = artifact("netbraid.test.source.v0", "root", 'a');
+    let left = artifact("netbraid.test.derived.v0", "left", 'b');
+    let right = artifact("netbraid.test.derived.v0", "right", 'c');
+    let joined = artifact("netbraid.test.derived.v0", "joined", 'd');
+    let external_parent = artifact("netbraid.test.external.v0", "external-parent", 'e');
+    let external_child = artifact("netbraid.test.derived.v0", "external-child", 'f');
+    let disjoint = artifact("netbraid.test.external.v0", "disjoint", '0');
+    let records = vec![
+        record(
+            joined.clone(),
+            producer("software:joined", ProvenanceProducerKindV0::Software),
+            activity(
+                "derive:joined",
+                ProvenanceActivityKindV0::DeterministicDerivation,
+            ),
+            vec![right.clone(), left.clone()],
+        ),
+        record(
+            root.clone(),
+            producer("sensor:root", ProvenanceProducerKindV0::Sensor),
+            activity("observe:root", ProvenanceActivityKindV0::DirectObservation),
+            vec![],
+        ),
+        record(
+            right.clone(),
+            producer("software:right", ProvenanceProducerKindV0::Software),
+            activity(
+                "derive:right",
+                ProvenanceActivityKindV0::DeterministicDerivation,
+            ),
+            vec![root.clone()],
+        ),
+        record(
+            external_child.clone(),
+            producer(
+                "software:external-child",
+                ProvenanceProducerKindV0::Software,
+            ),
+            activity(
+                "derive:external-child",
+                ProvenanceActivityKindV0::DeterministicDerivation,
+            ),
+            vec![external_parent.clone()],
+        ),
+        record(
+            left.clone(),
+            producer("software:left", ProvenanceProducerKindV0::Software),
+            activity(
+                "derive:left",
+                ProvenanceActivityKindV0::DeterministicDerivation,
+            ),
+            vec![root.clone()],
+        ),
+    ];
+    let graph = ProvenanceGraphV0::try_new(records.clone()).unwrap();
+    let artifacts = [
+        root,
+        left,
+        right,
+        joined,
+        external_parent,
+        external_child,
+        disjoint,
+    ];
+
+    for left in &artifacts {
+        for right in &artifacts {
+            assert_eq!(
+                graph.compare(left, right).lineage(),
+                naive_lineage(&records, left, right),
+                "left={} right={}",
+                left.source_id(),
+                right.source_id()
+            );
+        }
+    }
 }
 
 #[test]

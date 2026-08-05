@@ -438,19 +438,17 @@ impl ProvenanceGraphV0 {
     }
 
     fn ancestors(&self, artifact: &ProvenanceArtifactRefV0) -> BTreeSet<ProvenanceArtifactRefV0> {
-        let by_output: BTreeMap<_, _> = self
-            .records
-            .iter()
-            .map(|record| (&record.output, record))
-            .collect();
         let mut ancestors = BTreeSet::new();
         let mut pending = vec![artifact.clone()];
         while let Some(current) = pending.pop() {
             if !ancestors.insert(current.clone()) {
                 continue;
             }
-            if let Some(record) = by_output.get(&current) {
-                pending.extend(record.inputs.iter().cloned());
+            if let Ok(index) = self
+                .records
+                .binary_search_by(|record| record.output.cmp(&current))
+            {
+                pending.extend(self.records[index].inputs.iter().cloned());
             }
         }
         ancestors
