@@ -2181,7 +2181,7 @@ fn load_scenario_bundle_from_memory_v0(
 
 #[cfg(feature = "scenario-fixtures-capture-derived")]
 pub fn builtin_scenario_ids_v1() -> &'static [&'static str] {
-    &["saved-capture-prefix-boundary"]
+    &["saved-capture-prefix-boundary", "synthetic-wlan-prefix-boundary"]
 }
 
 #[cfg(feature = "scenario-fixtures-capture-derived")]
@@ -2208,6 +2208,25 @@ pub fn builtin_scenario_v1(id: &str) -> Result<ScenarioBundleV1, ScenarioError> 
                     "LICENSE-libpcap-BSD-3-Clause.txt",
                     include_bytes!(
                         "../../tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt"
+                    ),
+                ),
+            ],
+        ),
+        "synthetic-wlan-prefix-boundary" => (
+            include_bytes!(
+                "../../tests/fixtures/replay/scenarios/synthetic-wlan-prefix-boundary/scenario.json"
+            ),
+            &[
+                (
+                    "prefix-6.jsonl",
+                    include_bytes!(
+                        "../../tests/fixtures/replay/scenarios/synthetic-wlan-prefix-boundary/prefix-6.jsonl"
+                    ),
+                ),
+                (
+                    "prefix-7.jsonl",
+                    include_bytes!(
+                        "../../tests/fixtures/replay/scenarios/synthetic-wlan-prefix-boundary/prefix-7.jsonl"
                     ),
                 ),
             ],

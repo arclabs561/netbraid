@@ -1,0 +1,234 @@
+{
+  "schema": "netbraid.scenario_bundle.v1",
+  "scenario_id": "synthetic-wlan-prefix-boundary",
+  "license": "MIT OR Unlicense",
+  "sensitivity": "PUBLIC_REVIEWED",
+  "disclosure_review": {
+    "retained_evidence_identifier_classes": [
+      "link_layer_address",
+      "network_name",
+      "packet_timestamp"
+    ],
+    "evidence_payload_handling": "omitted_from_ingestible_evidence_artifacts",
+    "summary": "Fully synthetic WLAN fixture with locally-administered MACs and project-authored SSID. No third-party identifiers or license dependencies."
+  },
+  "provenance": {
+    "generator": "netbraid-maintainers",
+    "generator_version": "scenario-v1",
+    "description": "Project-authored synthetic 7-frame WLAN capture for packet-limit boundary testing where frame 7 is a deauthentication.",
+    "sources": [
+      {
+        "id": "netbraid.synthetic-wlan-prefix-boundary",
+        "source_origin": "project_authored",
+        "derivation": "synthetic_capture",
+        "acquisition": "project_authored",
+        "corpus_schema": "netmon.capture_fixture_corpus.v0",
+        "corpus_fixture_id": "netbraid.synthetic-wlan-prefix-boundary",
+        "repository": null,
+        "revision": null,
+        "source_path": null,
+        "source_url": null,
+        "upstream_blob_sha1": null,
+        "content_sha256": "sha256:2e1d9c948cb1307a8de14a4cdb3e8e6556dd224d7fa2483fc7342a972daa2d89",
+        "size_bytes": 1,
+        "spdx_license_expression": "MIT OR Unlicense",
+        "license_artifact": null
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "prefix-six",
+      "path": "prefix-6.jsonl",
+      "role": "saved_capture_jsonl",
+      "media_type": "application/x-ndjson",
+      "bytes": 4141,
+      "sha256": "sha256:e204c73b473daacef66736e474ce9ba9010c4453a8e686f98d9866a2842dc082"
+    },
+    {
+      "id": "prefix-seven",
+      "path": "prefix-7.jsonl",
+      "role": "saved_capture_jsonl",
+      "media_type": "application/x-ndjson",
+      "bytes": 4708,
+      "sha256": "sha256:3c621b8a4df6e8216d78f71fd1f232e3d8bb590934ab5cb41cbc58e357126fc1"
+    }
+  ],
+  "timeline": [
+    {
+      "name": "prefix-six",
+      "at_ms": 0,
+      "ingest": [
+        "prefix-six#manifest",
+        "prefix-six#frame:1",
+        "prefix-six#frame:2",
+        "prefix-six#frame:3",
+        "prefix-six#frame:4",
+        "prefix-six#frame:5",
+        "prefix-six#frame:6"
+      ]
+    },
+    {
+      "name": "prefix-seven",
+      "at_ms": 1,
+      "ingest": [
+        "prefix-seven#manifest",
+        "prefix-seven#frame:1",
+        "prefix-seven#frame:2",
+        "prefix-seven#frame:3",
+        "prefix-seven#frame:4",
+        "prefix-seven#frame:5",
+        "prefix-seven#frame:6",
+        "prefix-seven#frame:7"
+      ]
+    }
+  ],
+  "expected": {
+    "source_coverage": [
+      {
+        "id": "saved-prefix-six",
+        "checkpoint": "prefix-six",
+        "source": "saved_capture_normalization",
+        "state": "partial",
+        "freshness": "current",
+        "evidence": [
+          "prefix-six#manifest"
+        ],
+        "limitation": "Normalization stopped at packet limit 6."
+      },
+      {
+        "id": "saved-prefix-seven",
+        "checkpoint": "prefix-seven",
+        "source": "saved_capture_normalization",
+        "state": "partial",
+        "freshness": "current",
+        "evidence": [
+          "prefix-seven#manifest"
+        ],
+        "limitation": "Normalization stopped at packet limit 7."
+      }
+    ],
+    "conclusions": [
+      {
+        "id": "disconnect-not-observed-in-prefix",
+        "checkpoint": "prefix-six",
+        "question": "Is a WLAN deauthentication or disassociation frame observed in the normalized six-frame prefix?",
+        "disposition": "supported",
+        "conclusion": "No WLAN disconnect-management frame is observed among normalized frames 1 through 6.",
+        "evidence": [
+          "prefix-six#manifest",
+          "prefix-six#frame:1",
+          "prefix-six#frame:2",
+          "prefix-six#frame:3",
+          "prefix-six#frame:4",
+          "prefix-six#frame:5",
+          "prefix-six#frame:6"
+        ],
+        "coverage": [
+          "saved-prefix-six"
+        ],
+        "limitations": [
+          "This is a normalized-prefix statement, not a source-wide absence claim."
+        ]
+      },
+      {
+        "id": "source-wide-disconnect-absence",
+        "checkpoint": "prefix-six",
+        "question": "Does the six-frame prefix establish that the source capture contains no disconnect-management frame?",
+        "disposition": "abstained",
+        "conclusion": "The six-frame prefix neither confirms nor refutes the presence of a disconnect-management frame in the full source.",
+        "evidence": [
+          "prefix-six#manifest",
+          "prefix-six#frame:1",
+          "prefix-six#frame:2",
+          "prefix-six#frame:3",
+          "prefix-six#frame:4",
+          "prefix-six#frame:5",
+          "prefix-six#frame:6"
+        ],
+        "coverage": [
+          "saved-prefix-six"
+        ],
+        "limitations": [
+          "A prefix cannot establish source-wide absence."
+        ],
+        "reason": "Coverage is partial and the acquisition context is unknown."
+      },
+      {
+        "id": "deauthentication-prefix-boundary",
+        "checkpoint": "prefix-seven",
+        "question": "Does the seven-frame prefix observe a WLAN deauthentication or disassociation frame?",
+        "disposition": "supported",
+        "conclusion": "The first six packet records remain identical and frame 7 adds one observed IEEE 802.11 subtype-12 deauthentication frame.",
+        "evidence": [
+          "prefix-seven#manifest",
+          "prefix-seven#frame:1",
+          "prefix-seven#frame:2",
+          "prefix-seven#frame:3",
+          "prefix-seven#frame:4",
+          "prefix-seven#frame:5",
+          "prefix-seven#frame:6",
+          "prefix-seven#frame:7"
+        ],
+        "coverage": [
+          "saved-prefix-six",
+          "saved-prefix-seven"
+        ],
+        "limitations": [
+          "This is a normalized-prefix statement, not a source-wide absence claim."
+        ]
+      },
+      {
+        "id": "deauthentication-not-malice",
+        "checkpoint": "prefix-seven",
+        "question": "Does the observed deauthentication frame establish an attack?",
+        "disposition": "abstained",
+        "conclusion": "An observed deauthentication frame does not prove receipt, effect, or cause.",
+        "evidence": [
+          "prefix-seven#frame:7"
+        ],
+        "coverage": [
+          "saved-prefix-seven"
+        ],
+        "limitations": [
+          "A single management frame recorded at the receiver is consistent with both normal operation and adversarial action."
+        ],
+        "reason": "An observed deauthentication frame does not prove receipt, effect, or cause."
+      },
+      {
+        "id": "deauthentication-transmitter",
+        "checkpoint": "prefix-seven",
+        "question": "Who transmitted the deauthentication frame?",
+        "disposition": "abstained",
+        "conclusion": "The recorded over-the-air transmitter identifier is 02:01:e3:41:bd:6e, a locally-administered synthetic address.",
+        "evidence": [
+          "prefix-seven#frame:7"
+        ],
+        "coverage": [
+          "saved-prefix-seven"
+        ],
+        "limitations": [
+          "Locally-administered addresses are self-assigned and do not carry manufacturer OUI trust."
+        ],
+        "reason": "Locally-administered addresses are self-assigned."
+      },
+      {
+        "id": "synthetic-provenance-gap",
+        "checkpoint": "prefix-seven",
+        "question": "Was the source capture independently verified before normalization?",
+        "disposition": "abstained",
+        "conclusion": "The synthetic capture was not independently verified by a separate tool; provenance is asserted by the generator.",
+        "evidence": [
+          "prefix-seven#manifest"
+        ],
+        "coverage": [
+          "saved-prefix-seven"
+        ],
+        "limitations": [
+          "Project-authored fixtures carry no independent upstream verification."
+        ],
+        "reason": "Project-authored fixtures carry no independent upstream verification."
+      }
+    ]
+  }
+}

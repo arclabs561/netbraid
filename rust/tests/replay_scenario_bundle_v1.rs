@@ -550,12 +550,27 @@ fn synthetic_v0_builtin_inventory_remains_exactly_four() {
 
 #[cfg(feature = "scenario-fixtures-capture-derived")]
 #[test]
-fn reviewed_capture_builtin_inventory_is_separate_and_exactly_one() {
+fn reviewed_capture_builtin_inventory_is_separate_and_v2() {
     assert_eq!(
         netbraid::replay::builtin_scenario_ids_v1(),
-        ["saved-capture-prefix-boundary"]
+        ["saved-capture-prefix-boundary", "synthetic-wlan-prefix-boundary"]
     );
+    // Both built-ins must load and replay correctly
     let bundle = netbraid::replay::builtin_scenario_v1(SCENARIO).unwrap();
     let receipt = replay_scenario_v1(&bundle, "prefix-seven").unwrap();
     assert_eq!(receipt.projection.saved_captures.len(), 2);
+
+    let synthetic = netbraid::replay::builtin_scenario_v1("synthetic-wlan-prefix-boundary").unwrap();
+    let synthetic_receipt = replay_scenario_v1(&synthetic, "prefix-seven").unwrap();
+    assert_eq!(synthetic_receipt.projection.saved_captures.len(), 2);
+    assert_eq!(
+        synthetic_receipt.declared_sensitivity,
+        ScenarioSensitivityV1::PublicReviewed
+    );
+    assert!(synthetic
+        .manifest()
+        .provenance
+        .sources
+        .iter()
+        .all(|s| s.license_artifact.is_none()));
 }
