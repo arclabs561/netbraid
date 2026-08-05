@@ -157,36 +157,45 @@ pub struct ScenarioSourceProvenanceV1 {
     pub acquisition: ScenarioAcquisitionV1,
     pub corpus_schema: String,
     pub corpus_fixture_id: String,
-    pub repository: String,
-    pub revision: String,
-    pub source_path: String,
-    pub source_url: String,
-    pub upstream_blob_sha1: String,
+    pub repository: Option<String>,
+    pub revision: Option<String>,
+    pub source_path: Option<String>,
+    pub source_url: Option<String>,
+    pub upstream_blob_sha1: Option<String>,
     pub content_sha256: String,
     pub size_bytes: u64,
     pub spdx_license_expression: String,
-    pub license_artifact: String,
+    pub license_artifact: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum ScenarioSourceOriginV1 {
+    #[serde(rename = "observed")]
     Observed,
+    #[serde(rename = "project_authored")]
+    ProjectAuthored,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum ScenarioDerivationV1 {
+    #[serde(rename = "normalized_saved_capture")]
     NormalizedSavedCapture,
+    #[serde(rename = "synthetic_capture")]
+    SyntheticCapture,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum ScenarioAcquisitionV1 {
+    #[serde(rename = "third_party_upstream")]
     ThirdPartyUpstream,
+    #[serde(rename = "project_authored")]
+    ProjectAuthored,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -835,50 +844,10 @@ fn validate_manifest_shape_v1(
                 source.id
             )));
         }
-        if [
-            &source.corpus_schema,
-            &source.corpus_fixture_id,
-            &source.repository,
-            &source.revision,
-            &source.source_path,
-            &source.source_url,
-            &source.upstream_blob_sha1,
-            &source.content_sha256,
-            &source.spdx_license_expression,
-            &source.license_artifact,
-        ]
-        .iter()
-        .any(|value| value.trim().is_empty())
-        {
-            return Err(ScenarioError::Invalid(format!(
-                "provenance source {:?} has an empty coordinate",
-                source.id
-            )));
+        validate_source_v1(source, &artifact_kinds)?;
+        if let Some(ref license_id) = source.license_artifact {
+            referenced_licenses.insert(license_id.as_str());
         }
-        validate_identifier("corpus fixture id", &source.corpus_fixture_id)?;
-        validate_sha256(&source.content_sha256).map_err(ScenarioError::Invalid)?;
-        validate_lower_hex("revision", &source.revision, 40)?;
-        validate_lower_hex("upstream_blob_sha1", &source.upstream_blob_sha1, 40)?;
-        if source.size_bytes == 0 {
-            return Err(ScenarioError::Invalid(format!(
-                "provenance source {:?} has zero size",
-                source.id
-            )));
-        }
-        if !source.source_url.starts_with("https://") {
-            return Err(ScenarioError::Invalid(format!(
-                "provenance source {:?} must use an HTTPS source_url",
-                source.id
-            )));
-        }
-        if artifact_kinds.get(source.license_artifact.as_str()) != Some(&ArtifactKind::LicenseText)
-        {
-            return Err(ScenarioError::Invalid(format!(
-                "provenance source {:?} must reference a license_text artifact",
-                source.id
-            )));
-        }
-        referenced_licenses.insert(source.license_artifact.as_str());
     }
     if license_artifacts != referenced_licenses {
         return Err(ScenarioError::Invalid(format!(
@@ -924,6 +893,75 @@ fn validate_manifest_shape_v1(
     }
     Ok(())
 }
+
+fn validate_source_v1(
+    source: &ScenarioSourceProvenanceV1,
+    artifact_kinds: &BTreeMap<&str, ArtifactKind>,
+) -> Result<(), ScenarioError> {
+    validate_identifier("corpus fixture id", &source.corpus_fixture_id)?;
+    validate_sha256(&source.content_sha256).map_err(ScenarioError::Invalid)?;
+    if source.size_bytes == 0 {
+        return Err(ScenarioError::Invalid(format!(
+            "provenance source {:?} has zero size",
+            source.id
+        )));
+    }
+    match source.source_origin {
+        ScenarioSourceOriginV1::Observed => {
+            // Third-party upstream sources require full provenance coordinates
+            for (name, value) in [
+                ("corpus_schema", Some(&source.corpus_schema)),
+                ("repository", source.repository.as_ref()),
+                ("revision", source.revision.as_ref()),
+                ("source_path", source.source_path.as_ref()),
+                ("source_url", source.source_url.as_ref()),
+                ("upstream_blob_sha1", source.upstream_blob_sha1.as_ref()),
+                ("spdx_license_expression", Some(&source.spdx_license_expression)),
+                ("license_artifact", source.license_artifact.as_ref()),
+            ] {
+                if value.is_none_or(|v| v.trim().is_empty()) {
+                    return Err(ScenarioError::Invalid(format!(
+                        "observed provenance source {:?} requires non-empty {name}",
+                        source.id
+                    )));
+                }
+            }
+            validate_lower_hex("revision", source.revision.as_deref().unwrap(), 40)?;
+            validate_lower_hex("upstream_blob_sha1", source.upstream_blob_sha1.as_deref().unwrap(), 40)?;
+            if !source.source_url.as_deref().unwrap().starts_with("https://") {
+                return Err(ScenarioError::Invalid(format!(
+                    "provenance source {:?} must use an HTTPS source_url",
+                    source.id
+                )));
+            }
+            let license_id = source.license_artifact.as_deref().unwrap();
+            if artifact_kinds.get(license_id) != Some(&ArtifactKind::LicenseText) {
+                return Err(ScenarioError::Invalid(format!(
+                    "provenance source {:?} must reference a license_text artifact",
+                    source.id
+                )));
+            }
+        }
+        ScenarioSourceOriginV1::ProjectAuthored => {
+            // Project-authored sources require only corpus_schema and license expression
+            // They do not need upstream git/blob coordinates or a separate license artifact
+            // because the project's own license covers authored fixtures.
+            for (name, value) in [
+                ("corpus_schema", Some(&source.corpus_schema)),
+                ("spdx_license_expression", Some(&source.spdx_license_expression)),
+            ] {
+                if value.is_none_or(|v| v.trim().is_empty()) {
+                    return Err(ScenarioError::Invalid(format!(
+                        "project-authored provenance source {:?} requires non-empty {name}",
+                        source.id
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 
 fn validate_saved_capture_provenance_v1(
     manifest: &ScenarioManifestV1,
@@ -2164,12 +2202,6 @@ pub fn builtin_scenario_v1(id: &str) -> Result<ScenarioBundleV1, ScenarioError> 
                     "prefix-7.jsonl",
                     include_bytes!(
                         "../../tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl"
-                    ),
-                ),
-                (
-                    "LICENSE-libpcap-BSD-3-Clause.txt",
-                    include_bytes!(
-                        "../../tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt"
                     ),
                 ),
             ],

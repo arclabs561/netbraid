@@ -114,24 +114,24 @@ fn reviewed_capture_fixture_preserves_exact_lineage_and_disclosure_review() {
         source.corpus_fixture_id,
         "libpcap.network-join-nokia-mobile"
     );
-    assert_eq!(source.repository, "the-tcpdump-group/libpcap");
-    assert_eq!(source.revision, "9f37478bad2abafb626a0bf8921506569960d48d");
+    assert_eq!(source.repository.as_deref(), Some("the-tcpdump-group/libpcap"));
+    assert_eq!(source.revision.as_deref(), Some("9f37478bad2abafb626a0bf8921506569960d48d"));
     assert_eq!(
-        source.source_path,
-        "tests/filter/Network_Join_Nokia_Mobile.pcap"
+        source.source_path.as_deref(),
+        Some("tests/filter/Network_Join_Nokia_Mobile.pcap")
     );
     assert_eq!(
-        source.source_url,
-        "https://raw.githubusercontent.com/the-tcpdump-group/libpcap/9f37478bad2abafb626a0bf8921506569960d48d/tests/filter/Network_Join_Nokia_Mobile.pcap"
+        source.source_url.as_deref(),
+        Some("https://raw.githubusercontent.com/the-tcpdump-group/libpcap/9f37478bad2abafb626a0bf8921506569960d48d/tests/filter/Network_Join_Nokia_Mobile.pcap")
     );
     assert_eq!(
-        source.upstream_blob_sha1,
-        "28997e70e3e584119286e54a4a7d0ebb3bd38e6b"
+        source.upstream_blob_sha1.as_deref(),
+        Some("28997e70e3e584119286e54a4a7d0ebb3bd38e6b")
     );
     assert_eq!(source.content_sha256, RAW_CAPTURE_SHA256);
     assert_eq!(source.size_bytes, 734);
     assert_eq!(source.spdx_license_expression, "BSD-3-Clause");
-    assert_eq!(source.license_artifact, "libpcap-license");
+    assert_eq!(source.license_artifact.as_deref(), Some("libpcap-license"));
 }
 
 #[test]
