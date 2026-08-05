@@ -25,6 +25,7 @@ adapter-tshark = ["dep:csv", "dep:tempfile"]
 adapter-kismetdb = ["dep:rusqlite", "dep:tempfile"]
 adapter-kismetdb-bundled = ["adapter-kismetdb", "rusqlite/bundled"]
 adapter-npy = []
+adapter-sdr4iot-csv = ["dep:csv"]
 adapter-sigmf = []
 adapter-zeek = ["dep:csv"]
 cli = ["adapter-tshark", "dep:anyhow", "dep:clap"]
@@ -66,6 +67,11 @@ required-features = ["adapter-kismetdb"]
 name = "adapter_npy"
 path = "tests/adapter_npy.rs"
 required-features = ["adapter-npy"]
+
+[[test]]
+name = "adapter_sdr4iot_csv"
+path = "tests/adapter_sdr4iot_csv.rs"
+required-features = ["adapter-sdr4iot-csv"]
 
 [[test]]
 name = "adapter_sigmf"

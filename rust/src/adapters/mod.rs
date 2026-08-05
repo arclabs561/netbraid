@@ -4,6 +4,8 @@
 pub mod kismetdb;
 #[cfg(feature = "adapter-npy")]
 pub mod npy;
+#[cfg(feature = "adapter-sdr4iot-csv")]
+pub mod sdr4iot_csv;
 #[cfg(feature = "adapter-sigmf")]
 pub mod sigmf;
 #[cfg(feature = "adapter-tshark")]

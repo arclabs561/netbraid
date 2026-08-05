@@ -128,10 +128,12 @@ The main modules are:
 - `evidence`: versioned records and provenance;
 - `replay`: strict JSONL parsing and deterministic reduction;
 - `infer`: provenance lineage, finite hypotheses, and relation reducers; and
-- `adapters`: optional boundaries for TShark, KismetDB, NPY, SigMF, and Zeek.
+- `adapters`: optional boundaries for TShark, KismetDB, NPY, SDR4IoT detection
+  CSV, SigMF, and Zeek.
 
 Default builds include the CLI and TShark adapter. Optional KismetDB, NPY,
-SigMF, and Zeek adapters and scenario fixtures are feature-gated. Run
+SDR4IoT detection CSV, SigMF, and Zeek adapters and scenario fixtures are
+feature-gated. Run
 `cargo info netbraid@0.3.3` for the released feature inventory.
 
 Some schema IDs retain the historical `netmon.*` namespace for wire
