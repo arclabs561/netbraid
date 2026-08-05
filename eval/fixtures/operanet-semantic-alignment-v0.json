@@ -2,6 +2,7 @@
   "alignment": {
     "fixed_grid_step_ms": 100,
     "maximum_sample_age_ms": 150,
+    "maximum_source_order_inversion_ms": 1,
     "transition_exclusion_ms": 50
   },
   "allowed_activity_labels": [
@@ -121,7 +122,7 @@
     }
   },
   "publisher": {
-    "dataset_doi": "10.6084/m9.figshare.16578299.v1",
+    "dataset_doi": "10.6084/m9.figshare.c.5551209.v1",
     "descriptor_doi": "10.1038/s41597-022-01573-2",
     "same_local_ntp_server": true,
     "stated_synchronization_accuracy_less_than_ms": 20

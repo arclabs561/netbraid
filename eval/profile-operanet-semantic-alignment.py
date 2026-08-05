@@ -42,7 +42,7 @@ LAYOUT_SPEC.loader.exec_module(LAYOUT)
 SCHEMA = "netbraid.operanet_semantic_alignment_profile.v0"
 PROTOCOL_SCHEMA = "netbraid.operanet_semantic_alignment_protocol.v0"
 PUBLISHER_DESCRIPTOR_DOI = "10.1038/s41597-022-01573-2"
-DATASET_DOI = "10.6084/m9.figshare.16578299.v1"
+DATASET_DOI = "10.6084/m9.figshare.c.5551209.v1"
 EXPERIMENT_NUMBER = 18
 EXPERIMENT_TOKEN = "exp_018"
 MODALITY_KEYS = ("kinect", "pwr", "uwb1", "uwb2")
@@ -52,7 +52,6 @@ MAX_PROTOCOL_BYTES = 64 * 1024
 MAX_REPORT_BYTES = 256 * 1024
 MAX_MAT_MEMBER_BYTES = 64 * MIB
 MAX_CSV_MEMBER_BYTES = 512 * MIB
-MAX_TOTAL_SELECTED_MEMBER_BYTES = 1200 * MIB
 MAX_ROWS_PER_MODALITY = 1_000_000
 MAX_CSV_COLUMNS = 128
 MAX_CSV_LINE_BYTES = MIB
@@ -85,6 +84,7 @@ class AlignmentProtocol:
     modalities: Mapping[str, ModalityProtocol]
     grid_step_us: int
     maximum_sample_age_us: int
+    maximum_source_order_inversion_us: int
     transition_exclusion_us: int
 
 
@@ -252,6 +252,7 @@ def load_protocol(path: Path = PROTOCOL_PATH) -> AlignmentProtocol:
         {
             "fixed_grid_step_ms",
             "maximum_sample_age_ms",
+            "maximum_source_order_inversion_ms",
             "transition_exclusion_ms",
         },
         "alignment_contract",
@@ -261,6 +262,12 @@ def load_protocol(path: Path = PROTOCOL_PATH) -> AlignmentProtocol:
     )
     maximum_sample_age_ms = _integer(
         alignment["maximum_sample_age_ms"], 1, 60_000, "alignment_contract"
+    )
+    maximum_source_order_inversion_ms = _integer(
+        alignment["maximum_source_order_inversion_ms"],
+        0,
+        60_000,
+        "alignment_contract",
     )
     transition_exclusion_ms = _integer(
         alignment["transition_exclusion_ms"], 0, 60_000, "alignment_contract"
@@ -341,6 +348,7 @@ def load_protocol(path: Path = PROTOCOL_PATH) -> AlignmentProtocol:
         modalities=modalities,
         grid_step_us=grid_step_ms * 1000,
         maximum_sample_age_us=maximum_sample_age_ms * 1000,
+        maximum_source_order_inversion_us=maximum_source_order_inversion_ms * 1000,
         transition_exclusion_us=transition_exclusion_ms * 1000,
     )
 
@@ -362,18 +370,19 @@ def production_contracts(protocol: AlignmentProtocol) -> dict[str, ArchiveContra
     return contracts
 
 
-def _identity(metadata: os.stat_result) -> tuple[int, int, int, int]:
+def _identity(metadata: os.stat_result) -> tuple[int, int, int, int, int]:
     return (
         metadata.st_dev,
         metadata.st_ino,
         metadata.st_size,
         metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
     )
 
 
 def _verified_identity(
     archive_path: Path, contract: ArchiveContract, verify_receipt: bool
-) -> tuple[int, int, int, int]:
+) -> tuple[int, int, int, int, int]:
     try:
         before = archive_path.lstat()
     except OSError as error:
@@ -534,6 +543,8 @@ def _build_timeline(
 
     if not records:
         raise SemanticProfileError("empty_modality")
+    if max_source_backward_jump_us > protocol.maximum_source_order_inversion_us:
+        raise SemanticProfileError("source_order_inversion_limit")
     records.sort(key=lambda item: item[0])
     times = tuple(item[0] for item in records)
     activities = tuple(item[1] for item in records)
@@ -674,7 +685,7 @@ def _read_timeline(
     protocol: AlignmentProtocol,
     *,
     verify_receipt: bool,
-) -> tuple[Timeline, int]:
+) -> Timeline:
     expected_identity = _verified_identity(archive_path, contract, verify_receipt)
     try:
         source, opened_identity = LAYOUT.open_regular(
@@ -690,7 +701,7 @@ def _read_timeline(
         opened_identity.size,
         opened_identity.modified_ns,
     )
-    if opened_identity_tuple != expected_identity:
+    if opened_identity_tuple != expected_identity[:4]:
         source.close()
         raise SemanticProfileError("archive_changed_before_payload_read")
     modality = contract.modality
@@ -729,7 +740,7 @@ def _read_timeline(
         raise
     except (OSError, EOFError, zipfile.BadZipFile, zipfile.LargeZipFile) as error:
         raise SemanticProfileError("archive_payload_read_failed") from error
-    return timeline, info.file_size
+    return timeline
 
 
 def _cardinality_report(value: FieldCardinality) -> dict[str, object]:
@@ -853,7 +864,10 @@ def _pwr_kinect_equality(timelines: Mapping[str, Timeline]) -> dict[str, object]
 
 
 def _profile_report(
-    timelines: Mapping[str, Timeline], protocol: AlignmentProtocol
+    timelines: Mapping[str, Timeline],
+    protocol: AlignmentProtocol,
+    *,
+    verify_receipts: bool = True,
 ) -> dict[str, object]:
     overlap_start = max(item.times_us[0] for item in timelines.values())
     overlap_end = min(item.times_us[-1] for item in timelines.values())
@@ -862,7 +876,7 @@ def _profile_report(
     pwr_kinect = _pwr_kinect_equality(timelines)
     grid = _fixed_grid_report(timelines, protocol)
     blockers: list[str] = []
-    if overlap_end < overlap_start:
+    if overlap_end <= overlap_start:
         blockers.append("no_common_timeline")
     if not pwr_kinect["exactly_equal"]:
         blockers.append("pwr_kinect_readable_semantic_rows_differ")
@@ -898,7 +912,7 @@ def _profile_report(
             "max_mat_member_bytes": MAX_MAT_MEMBER_BYTES,
             "max_report_bytes": MAX_REPORT_BYTES,
             "max_rows_per_modality": MAX_ROWS_PER_MODALITY,
-            "max_total_selected_member_bytes": MAX_TOTAL_SELECTED_MEMBER_BYTES,
+            "maximum_source_order_inversion_us": protocol.maximum_source_order_inversion_us,
         },
         "method": {
             "archive_verification": (
@@ -908,6 +922,7 @@ def _profile_report(
             "fixed_grid_label_selection": "latest observation at or before each grid point",
             "joinability_basis": "measured exp018 rows and timestamps, not publisher clock claims",
             "mat_reader": "SciPy MATLAB v5 cell-array deserialization",
+            "receipts_verified": verify_receipts,
             "timestamp_normalization": "stable ascending sort of parsed time-of-day values",
             "uwb_reader": "bounded streaming CSV",
         },
@@ -983,10 +998,9 @@ def profile_archives(
     if any(selected[key].modality != protocol.modalities[key] for key in MODALITY_KEYS):
         raise SemanticProfileError("archive_contract_modality_mismatch")
     timelines: dict[str, Timeline] = {}
-    total_selected_bytes = 0
     for key in MODALITY_KEYS:
         try:
-            timeline, selected_bytes = _read_timeline(
+            timeline = _read_timeline(
                 archive_dir / selected[key].layout_spec.filename,
                 selected[key],
                 protocol,
@@ -995,10 +1009,7 @@ def profile_archives(
         except SemanticProfileError as error:
             raise SemanticProfileError(f"{key}_{error}") from error
         timelines[key] = timeline
-        total_selected_bytes += selected_bytes
-        if total_selected_bytes > MAX_TOTAL_SELECTED_MEMBER_BYTES:
-            raise SemanticProfileError("selected_member_total_byte_limit")
-    return _profile_report(timelines, protocol)
+    return _profile_report(timelines, protocol, verify_receipts=verify_receipts)
 
 
 def render_report(report: Mapping[str, object]) -> bytes:
@@ -1086,6 +1097,12 @@ def run(argv: Sequence[str] | None = None) -> int:
     except SemanticProfileError as error:
         print(
             json.dumps({"error": str(error), "status": "rejected"}, sort_keys=True),
+            file=sys.stderr,
+        )
+        return 2
+    except OSError:
+        print(
+            json.dumps({"error": "io_failure", "status": "rejected"}, sort_keys=True),
             file=sys.stderr,
         )
         return 2

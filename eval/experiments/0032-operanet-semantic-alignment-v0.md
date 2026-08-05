@@ -18,12 +18,14 @@ Run `just operanet-semantic-alignment-profile`. The recipe first verifies the
 hermetic parser and alignment contracts. It then verifies the pinned archives
 and receipts, opens only the selected exp018 members, and reads:
 
-- required semantic columns from the Kinect and power MATLAB v5 cell arrays;
+- the complete pinned Kinect and power MATLAB v5 cell variables, from which it
+  retains only required semantic columns;
 - required semantic columns from the two UWB CSV streams; and
 - no Wi-Fi CSI payloads.
 
 The profiler stably orders each stream by its parsed time-of-day value while
 retaining aggregate source-order inversion counts and maximum backward jumps.
+It rejects any adjacent source-order inversion above 1 millisecond.
 It compares exact readable Kinect/power semantic rows and evaluates all four
 activity streams on a 100 millisecond fixed grid. At each grid point, it uses
 the latest sample no more than 150 milliseconds old and excludes points within
@@ -38,7 +40,7 @@ raw rows, signal values, archive paths, or member paths.
 
 The inputs are the pinned `OPERAnet-kinect.zip`, `OPERAnet-pwr.zip`,
 `OPERAnet-uwb1.zip`, and `OPERAnet-uwb2.zip` archives and their digest-bound
-receipts from dataset DOI `10.6084/m9.figshare.16578299.v1`. The registered
+receipts from collection DOI `10.6084/m9.figshare.c.5551209.v1`. The registered
 publisher descriptor is `10.1038/s41597-022-01573-2`.
 
 The profiler reads experiment 18 only. The publisher's same-local-NTP and

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import io
 import json
@@ -82,7 +83,9 @@ class OperanetSemanticAlignmentTests(unittest.TestCase):
         self.assertEqual(tuple(protocol.modalities), MODULE.MODALITY_KEYS)
         self.assertEqual(protocol.grid_step_us, 100_000)
         self.assertEqual(protocol.maximum_sample_age_us, 150_000)
+        self.assertEqual(protocol.maximum_source_order_inversion_us, 1_000)
         self.assertEqual(protocol.transition_exclusion_us, 50_000)
+        self.assertEqual(MODULE.DATASET_DOI, "10.6084/m9.figshare.c.5551209.v1")
         self.assertEqual(
             protocol.labels,
             (
@@ -170,8 +173,11 @@ class OperanetSemanticAlignmentTests(unittest.TestCase):
 
     def test_normalizes_source_order_and_reports_inversions(self) -> None:
         protocol = self.protocol()
-        rows = semantic_rows(("noactivity", "noactivity", "walk"))
-        reordered = (rows[0], rows[2], rows[1])
+        reordered = (
+            (MODULE.EXPERIMENT_TOKEN, "00:00:00.000000", "noactivity", "p", "r"),
+            (MODULE.EXPERIMENT_TOKEN, "00:00:00.001000", "noactivity", "p", "r"),
+            (MODULE.EXPERIMENT_TOKEN, "00:00:00.000904", "walk", "p", "r"),
+        )
 
         timeline = MODULE._build_timeline(
             "uwb2",
@@ -183,13 +189,53 @@ class OperanetSemanticAlignmentTests(unittest.TestCase):
 
         self.assertEqual(
             timeline.times_us,
-            (0, 100_000, 200_000),
+            (0, 904, 1_000),
         )
         self.assertEqual(report["timestamp_quality"]["source_order_inversions"], 1)
-        self.assertEqual(
-            report["timestamp_quality"]["max_source_backward_jump_us"], 100_000
-        )
+        self.assertEqual(report["timestamp_quality"]["max_source_backward_jump_us"], 96)
         self.assertTrue(report["timestamp_quality"]["monotonic_non_decreasing"])
+
+    def test_rejects_source_order_inversion_above_registered_bound(self) -> None:
+        protocol = self.protocol()
+        rows = semantic_rows(("noactivity", "noactivity", "walk"))
+
+        with self.assertRaisesRegex(
+            MODULE.SemanticProfileError, "source_order_inversion_limit"
+        ):
+            MODULE._build_timeline(
+                "uwb2",
+                (rows[0], rows[2], rows[1]),
+                protocol,
+                unreadable_reason="fixture_unreadable",
+            )
+
+    def test_zero_duration_intersection_blocks_joinability(self) -> None:
+        protocol = self.protocol()
+        one_row = semantic_rows(("noactivity",))
+        timelines = {
+            key: MODULE._build_timeline(
+                key,
+                one_row,
+                protocol,
+                unreadable_reason="fixture_unreadable",
+            )
+            for key in MODULE.MODALITY_KEYS
+        }
+
+        report = MODULE._profile_report(timelines, protocol)
+
+        self.assertFalse(
+            report["alignment"]["timeline_overlap"]["positive_intersection"]
+        )
+        self.assertIn("no_common_timeline", report["result"]["blockers"])
+        self.assertEqual(report["result"]["joinability"], "not_established")
+
+    def test_report_reflects_receipt_verification_mode(self) -> None:
+        report = MODULE._profile_report(
+            self.timelines(), self.protocol(), verify_receipts=False
+        )
+
+        self.assertFalse(report["method"]["receipts_verified"])
 
     def test_report_retains_aggregates_without_identifiers_or_timestamps(self) -> None:
         protocol = self.protocol()
@@ -230,18 +276,54 @@ class OperanetSemanticAlignmentTests(unittest.TestCase):
             _protocol: object,
             *,
             verify_receipt: bool,
-        ) -> tuple[object, int]:
+        ) -> object:
             self.assertTrue(verify_receipt)
             key = contract.modality.key
             if key == "uwb1":
                 raise MODULE.SemanticProfileError("nonmonotonic_timestamp")
-            return timelines[key], 1
+            return timelines[key]
 
         with mock.patch.object(MODULE, "_read_timeline", side_effect=read_timeline):
             with self.assertRaisesRegex(
                 MODULE.SemanticProfileError, "uwb1_nonmonotonic_timestamp"
             ):
                 MODULE.profile_archives(directory, protocol)
+
+    def test_io_failure_is_stable_and_does_not_disclose_paths(self) -> None:
+        directory = self.temporary_directory()
+        report_path = directory / "private-output.json"
+        protocol = self.protocol()
+        report = MODULE._profile_report(self.timelines(), protocol)
+        stderr = io.StringIO()
+
+        with (
+            mock.patch.object(MODULE, "load_protocol", return_value=protocol),
+            mock.patch.object(MODULE, "production_contracts", return_value={}),
+            mock.patch.object(MODULE, "ensure_output_target"),
+            mock.patch.object(MODULE, "profile_archives", return_value=report),
+            mock.patch.object(MODULE, "render_report", return_value=b"{}\n"),
+            mock.patch.object(
+                MODULE, "write_report", side_effect=OSError(str(report_path))
+            ),
+            contextlib.redirect_stderr(stderr),
+        ):
+            returncode = MODULE.run(
+                [
+                    "--archive-dir",
+                    str(directory),
+                    "--protocol",
+                    str(MODULE.PROTOCOL_PATH),
+                    "--report",
+                    str(report_path),
+                ]
+            )
+
+        self.assertEqual(returncode, 2)
+        self.assertEqual(
+            json.loads(stderr.getvalue()),
+            {"error": "io_failure", "status": "rejected"},
+        )
+        self.assertNotIn(str(directory), stderr.getvalue())
 
 
 if __name__ == "__main__":
