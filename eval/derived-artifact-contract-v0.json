@@ -297,6 +297,13 @@
       "recipe": "public-corpus-inventory"
     },
     {
+      "path": "data/derived/eval/robolocg-structural-alignment-v0/report.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/profile-robolocg-structural-alignment.py",
+      "recipe": "robolocg-structural-alignment-profile"
+    },
+    {
       "path": "data/derived/eval/ruff-uwb-heldout-location-blocker.json",
       "format": "json",
       "retention": "reproducibility_output",

@@ -66,6 +66,14 @@ relation-split-audit-check:
 robolocg-policy-check:
     {{ python }} eval/test-robolocg-policy.py
 
+robolocg-structural-alignment-check:
+    {{ python }} eval/test-profile-robolocg-structural-alignment.py
+
+# Authenticate the three tabular archives and profile only train, calibration,
+# and validation rows. Locked-test payload members remain unopened.
+robolocg-structural-alignment-profile:
+    {{ python }} eval/profile-robolocg-structural-alignment.py
+
 wlan-rff-layout-profile-check:
     {{ python }} eval/test-profile-wlan-rff-layout.py
 

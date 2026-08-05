@@ -99,6 +99,16 @@ creating a derived artifact. Ground truth is the sole oracle; raw gantry
 measurements remain dependent consistency evidence. Fusion and scoring stay
 blocked until every named alignment blocker is explicitly closed.
 
+`profile-robolocg-structural-alignment.py` authenticates the exact curated
+record, local receipts, and raw archive bytes before streaming bounded CSV rows
+from train, calibration, and validation takes. Locked-test payload members stay
+unopened. Its path-free metadata report contains only row/time extents,
+outer-versus-header clock deltas, UWB magnitude diagnostics, FTM anchor-set
+comparisons, and explicit blocker states. Ground truth remains the sole oracle;
+gantry measurements remain dependent consistency evidence, and no radar
+association, extrinsics, localization score, raw identifier, coordinate,
+timestamp, member name, or local path is emitted.
+
 `profile-wlan-rff-layout.py` verifies the two pinned WLAN RFF archives and
 profiles their strict filename grammar without opening NPZ payloads. Its
 aggregate report can establish cross-environment token reuse, but deliberately
