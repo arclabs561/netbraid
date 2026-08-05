@@ -117,6 +117,49 @@ def _source_document():
     }
 
 
+def _expected_cache_contract():
+    source_binding = {
+        "archive_profile_set_sha256": hashlib.sha256(
+            b"archive-profile-set"
+        ).hexdigest(),
+        "archive_receipt_set_sha256": hashlib.sha256(
+            b"archive-receipt-set"
+        ).hexdigest(),
+    }
+    role_manifests = {}
+    for role in MODULE.ROLE_ORDER:
+        first, last = MODULE.ROLE_GROUP_RANKS[role]
+        manifest = []
+        for group_index in range(first, last + 1):
+            group_id = hashlib.sha256(
+                f"group-{group_index}".encode("ascii")
+            ).hexdigest()
+            for repetition in range(1, MODULE.EVENTS_PER_GROUP + 1):
+                manifest.append(
+                    MODULE.EventRecord(
+                        event_id=hashlib.sha256(
+                            f"event-{group_index}-{repetition}".encode("ascii")
+                        ).hexdigest(),
+                        group_id=group_id,
+                        role=role,
+                        row=len(manifest),
+                    )
+                )
+        role_manifests[role] = tuple(manifest)
+    return MODULE.ExpectedCacheContract(
+        source_binding=source_binding,
+        role_manifests=role_manifests,
+    )
+
+
+def _run_evaluation(paths):
+    return MODULE.run_evaluation(paths, _expected_cache_contract())
+
+
+def _load_roles(paths):
+    return MODULE.load_roles(paths, _expected_cache_contract())
+
+
 def _adapter(role, events, artifacts):
     source = _source_document()
     feature_policy = MODULE.JOINT.feature_policy_document()
@@ -214,7 +257,7 @@ class Xrf55JointRepresentationOutcomeTests(unittest.TestCase):
     def test_clean_cache_passes_all_pair_and_group_gates(self):
         with tempfile.TemporaryDirectory() as directory:
             paths = _write_fixture(Path(directory))
-            report = MODULE.run_evaluation(paths)
+            report = _run_evaluation(paths)
 
         self.assertEqual(report["status"], "validation_pass")
         self.assertTrue(report["calibration"]["gate"]["all_pairs_ordered"])
@@ -260,7 +303,7 @@ class Xrf55JointRepresentationOutcomeTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             paths = _write_fixture(Path(directory), {"calibration": collapse})
-            report = MODULE.run_evaluation(paths)
+            report = _run_evaluation(paths)
 
         self.assertEqual(report["status"], "calibration_failed")
         self.assertFalse(report["calibration"]["gate"]["all_pairs_ordered"])
@@ -272,8 +315,8 @@ class Xrf55JointRepresentationOutcomeTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            baseline = MODULE.run_evaluation(_write_fixture(root / "baseline"))
-            changed = MODULE.run_evaluation(
+            baseline = _run_evaluation(_write_fixture(root / "baseline"))
+            changed = _run_evaluation(
                 _write_fixture(root / "changed", {"validation": scramble})
             )
 
@@ -284,6 +327,45 @@ class Xrf55JointRepresentationOutcomeTests(unittest.TestCase):
             changed["calibration"]["thresholds"],
         )
         self.assertEqual(baseline["model"], changed["model"])
+
+    def test_metrics_match_independent_hand_computed_oracle(self):
+        observed = MODULE.metrics(
+            np.array([0.1, 0.5, 0.9, 0.1, 0.9, 0.5], dtype=np.float64),
+            np.array([True, True, True, False, False, False], dtype=bool),
+            MODULE.Thresholds(same=0.2, different=0.8),
+        )
+
+        self.assertEqual(
+            observed,
+            {
+                "support": {"different": 3, "same": 3, "total": 6},
+                "coverage": {
+                    "denominator": 6,
+                    "numerator": 4,
+                    "rate": 0.666666666667,
+                },
+                "abstention": {
+                    "denominator": 6,
+                    "numerator": 2,
+                    "rate": 0.333333333333,
+                },
+                "selective_risk": {
+                    "denominator": 4,
+                    "numerator": 2,
+                    "rate": 0.5,
+                },
+                "false_link": {
+                    "denominator": 3,
+                    "numerator": 1,
+                    "rate": 0.333333333333,
+                },
+                "false_nonmatch": {
+                    "denominator": 3,
+                    "numerator": 1,
+                    "rate": 0.333333333333,
+                },
+            },
+        )
 
 
 class Xrf55JointRepresentationContractTests(unittest.TestCase):
@@ -300,7 +382,7 @@ class Xrf55JointRepresentationContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     MODULE.Xrf55JointEvaluationError, "matrix_digest_mismatch"
                 ):
-                    MODULE.run_evaluation(paths)
+                    _run_evaluation(paths)
 
         with self.subTest(case="row_misalignment"):
             with tempfile.TemporaryDirectory() as directory:
@@ -311,7 +393,7 @@ class Xrf55JointRepresentationContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     MODULE.Xrf55JointEvaluationError, "invalid_role_event_record"
                 ):
-                    MODULE.run_evaluation(paths)
+                    _run_evaluation(paths)
 
         with self.subTest(case="group_overlap"):
             with tempfile.TemporaryDirectory() as directory:
@@ -327,7 +409,7 @@ class Xrf55JointRepresentationContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     MODULE.Xrf55JointEvaluationError, "role_group_overlap"
                 ):
-                    MODULE.run_evaluation(paths)
+                    _run_evaluation(paths)
 
     def test_source_and_policy_digests_are_content_bound(self):
         cases = (
@@ -352,7 +434,7 @@ class Xrf55JointRepresentationContractTests(unittest.TestCase):
                     with self.assertRaisesRegex(
                         MODULE.Xrf55JointEvaluationError, expected
                     ):
-                        MODULE.run_evaluation(paths)
+                        _run_evaluation(paths)
 
     def test_role_source_mismatch_is_rejected_after_each_digest_verifies(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -367,17 +449,108 @@ class Xrf55JointRepresentationContractTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 MODULE.Xrf55JointEvaluationError, "role_source_mismatch"
             ):
-                MODULE.run_evaluation(paths)
+                _run_evaluation(paths)
+
+    def test_consistent_source_forgery_is_rejected_by_trusted_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = _write_fixture(Path(directory))
+            forged_source = {
+                "archive_profile_set_sha256": _opaque("forged-profile-set"),
+                "archive_receipt_set_sha256": _opaque("forged-receipt-set"),
+            }
+            for role in MODULE.ROLE_ORDER:
+                adapter = _read_adapter(paths[role].adapter)
+                adapter["integrity"]["source"] = forged_source.copy()
+                _write_adapter(paths[role].adapter, adapter)
+
+            with mock.patch.object(
+                MODULE,
+                "_load_role_matrices",
+                side_effect=AssertionError("matrix loading reached"),
+            ):
+                with self.assertRaisesRegex(
+                    MODULE.Xrf55JointEvaluationError,
+                    "expected_source_binding_mismatch",
+                ):
+                    _run_evaluation(paths)
+
+    def test_valid_regrouping_is_rejected_by_trusted_role_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = _write_fixture(Path(directory))
+            adapter = _read_adapter(paths["validation"].adapter)
+            first_group = adapter["events"][0]["group_id"]
+            second_group = adapter["events"][MODULE.EVENTS_PER_GROUP]["group_id"]
+            for row in range(10, 20):
+                adapter["events"][row]["group_id"] = second_group
+            for row in range(20, 30):
+                adapter["events"][row]["group_id"] = first_group
+            _write_adapter(paths["validation"].adapter, adapter)
+
+            with mock.patch.object(
+                MODULE,
+                "_load_role_matrices",
+                side_effect=AssertionError("matrix loading reached"),
+            ):
+                with self.assertRaisesRegex(
+                    MODULE.Xrf55JointEvaluationError,
+                    "expected_role_manifest_mismatch",
+                ):
+                    _run_evaluation(paths)
 
 
 class Xrf55JointRepresentationHardeningTests(unittest.TestCase):
+    def test_expected_contract_is_reconstructed_from_compiler_sources(self):
+        expected = _expected_cache_contract()
+        sources = (object(), object())
+        source_binding = mock.Mock(
+            archive_profile_set_sha256=(
+                expected.source_binding["archive_profile_set_sha256"]
+            ),
+            archive_receipt_set_sha256=(
+                expected.source_binding["archive_receipt_set_sha256"]
+            ),
+        )
+        compiler_events = {
+            role: tuple(
+                mock.Mock(
+                    event_id=event.event_id,
+                    group_id=event.group_id,
+                    row=event.row,
+                )
+                for event in expected.role_manifests[role]
+            )
+            for role in MODULE.ROLE_ORDER
+        }
+
+        with (
+            mock.patch.object(
+                MODULE.COMPILER,
+                "load_source_set",
+                return_value=(sources, source_binding),
+            ) as load_source_set,
+            mock.patch.object(
+                MODULE.COMPILER,
+                "_collect_events",
+                return_value=compiler_events,
+            ) as collect_events,
+        ):
+            observed = MODULE.load_expected_cache_contract(
+                Path("canonical-raw"), Path("canonical-receipts")
+            )
+
+        self.assertEqual(observed, expected)
+        load_source_set.assert_called_once_with(
+            Path("canonical-raw"), Path("canonical-receipts")
+        )
+        collect_events.assert_called_once_with(sources)
+
     def test_reports_are_deterministic_private_atomic_and_mmap_backed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             paths = _write_fixture(root)
-            roles = MODULE.load_roles(paths)
+            roles = _load_roles(paths)
             first_report = MODULE.evaluate_roles(roles)
-            second_report = MODULE.run_evaluation(paths)
+            second_report = _run_evaluation(paths)
             first_path = root / "first.json"
             second_path = root / "second.json"
             MODULE._write_atomic(first_path, first_report)
@@ -410,7 +583,7 @@ class Xrf55JointRepresentationHardeningTests(unittest.TestCase):
                 return original(*args, **kwargs)
 
             with mock.patch.object(MODULE.np, "load", side_effect=recording_load):
-                MODULE.load_roles(paths)
+                _load_roles(paths)
 
         self.assertEqual(len(calls), len(MODULE.ROLE_ORDER) * len(MODULE.MODALITIES))
         self.assertTrue(
@@ -423,6 +596,9 @@ class Xrf55JointRepresentationHardeningTests(unittest.TestCase):
         )
         self.assertEqual(MODULE.DEFAULT_CACHE_DIR, expected)
         self.assertEqual(MODULE.DEFAULT_REPORT.parent, expected)
+        arguments = MODULE._arguments([])
+        self.assertEqual(arguments.raw_dir, MODULE.COMPILER.DEFAULT_RAW_DIR)
+        self.assertEqual(arguments.receipt_dir, MODULE.COMPILER.DEFAULT_RECEIPT_DIR)
         for role in MODULE.ROLE_ORDER:
             paths = MODULE.role_paths(expected, role)
             self.assertEqual(paths.adapter.name, f"xrf55-joint-{role}-adapter.json")

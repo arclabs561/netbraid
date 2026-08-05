@@ -18,6 +18,7 @@ import re
 import stat
 import sys
 import tempfile
+import zipfile
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -71,6 +72,12 @@ def _load_module(name: str, path: Path) -> ModuleType:
 
 
 JOINT = _load_module("xrf55_joint_features", HERE / "xrf55_joint_features.py")
+COMPILER = _load_module(
+    "xrf55_joint_role_cache_compiler",
+    HERE / "compile-xrf55-joint-role-cache.py",
+)
+DEFAULT_RAW_DIR = COMPILER.DEFAULT_RAW_DIR
+DEFAULT_RECEIPT_DIR = COMPILER.DEFAULT_RECEIPT_DIR
 ROLE_GROUP_RANKS = JOINT.ROLE_GROUP_RANKS
 ROLE_EVENT_COUNTS = JOINT.ROLE_EVENT_COUNTS
 ROLE_GROUP_COUNTS = {
@@ -90,6 +97,12 @@ class EventRecord:
     group_id: str
     role: str
     row: int
+
+
+@dataclass(frozen=True)
+class ExpectedCacheContract:
+    source_binding: Mapping[str, str]
+    role_manifests: Mapping[str, tuple[EventRecord, ...]]
 
 
 @dataclass(frozen=True)
@@ -338,6 +351,28 @@ def _parse_events(role: str, documents: Any) -> tuple[EventRecord, ...]:
     return tuple(events)
 
 
+def load_expected_cache_contract(
+    raw_dir: Path, receipt_dir: Path
+) -> ExpectedCacheContract:
+    """Reconstruct the trusted cache binding from canonical admitted sources."""
+
+    sources, source_binding = COMPILER.load_source_set(raw_dir, receipt_dir)
+    role_events = COMPILER._collect_events(sources)  # noqa: SLF001
+    return ExpectedCacheContract(
+        source_binding={
+            "archive_profile_set_sha256": (source_binding.archive_profile_set_sha256),
+            "archive_receipt_set_sha256": (source_binding.archive_receipt_set_sha256),
+        },
+        role_manifests={
+            role: tuple(
+                EventRecord(event.event_id, event.group_id, role, event.row)
+                for event in role_events[role]
+            )
+            for role in ROLE_ORDER
+        },
+    )
+
+
 def _validate_artifacts(role: str, raw: Any) -> Mapping[str, Mapping[str, Any]]:
     artifacts = _require_fields(raw, set(MODALITIES), "artifact_set_mismatch")
     expected_shape = [ROLE_EVENT_COUNTS[role], FEATURE_COUNT]
@@ -558,13 +593,65 @@ def _verify_adapter_set(adapters: Mapping[str, RoleAdapter]) -> None:
                 raise Xrf55JointEvaluationError("role_event_overlap")
 
 
-def load_roles(paths_by_role: Mapping[str, RolePaths]) -> dict[str, LoadedRole]:
+def _validate_expected_cache_contract(
+    expected_cache: ExpectedCacheContract,
+) -> ExpectedCacheContract:
+    if type(expected_cache) is not ExpectedCacheContract:
+        raise Xrf55JointEvaluationError("invalid_expected_cache_contract")
+    try:
+        source_binding, _ = _parse_source_binding(expected_cache.source_binding)
+        if set(expected_cache.role_manifests) != set(ROLE_ORDER):
+            raise Xrf55JointEvaluationError("invalid_expected_cache_contract")
+        role_manifests = {}
+        for role in ROLE_ORDER:
+            manifest = expected_cache.role_manifests[role]
+            if not isinstance(manifest, tuple) or any(
+                type(event) is not EventRecord for event in manifest
+            ):
+                raise Xrf55JointEvaluationError("invalid_expected_cache_contract")
+            role_manifests[role] = _parse_events(
+                role,
+                [
+                    {
+                        "event_id": event.event_id,
+                        "group_id": event.group_id,
+                        "role": event.role,
+                        "row": event.row,
+                    }
+                    for event in manifest
+                ],
+            )
+    except (AttributeError, TypeError, Xrf55JointEvaluationError) as error:
+        raise Xrf55JointEvaluationError("invalid_expected_cache_contract") from error
+    return ExpectedCacheContract(dict(source_binding), role_manifests)
+
+
+def _verify_expected_cache_contract(
+    adapters: Mapping[str, RoleAdapter], expected_cache: ExpectedCacheContract
+) -> None:
+    expected = _validate_expected_cache_contract(expected_cache)
+    if any(
+        adapter.source_binding != expected.source_binding
+        for adapter in adapters.values()
+    ):
+        raise Xrf55JointEvaluationError("expected_source_binding_mismatch")
+    if any(
+        adapters[role].events != expected.role_manifests[role] for role in ROLE_ORDER
+    ):
+        raise Xrf55JointEvaluationError("expected_role_manifest_mismatch")
+
+
+def load_roles(
+    paths_by_role: Mapping[str, RolePaths],
+    expected_cache: ExpectedCacheContract,
+) -> dict[str, LoadedRole]:
     if set(paths_by_role) != set(ROLE_ORDER):
         raise Xrf55JointEvaluationError("role_path_set_mismatch")
     adapters = {
         role: _load_role_adapter(role, paths_by_role[role]) for role in ROLE_ORDER
     }
     _verify_adapter_set(adapters)
+    _verify_expected_cache_contract(adapters, expected_cache)
     return {
         role: _load_role_matrices(adapters[role], paths_by_role[role])
         for role in ROLE_ORDER
@@ -966,8 +1053,11 @@ def evaluate_roles(roles: Mapping[str, LoadedRole]) -> dict[str, Any]:
     return report
 
 
-def run_evaluation(paths_by_role: Mapping[str, RolePaths]) -> dict[str, Any]:
-    return evaluate_roles(load_roles(paths_by_role))
+def run_evaluation(
+    paths_by_role: Mapping[str, RolePaths],
+    expected_cache: ExpectedCacheContract,
+) -> dict[str, Any]:
+    return evaluate_roles(load_roles(paths_by_role, expected_cache))
 
 
 def _encode_report(report: Mapping[str, Any]) -> bytes:
@@ -1012,6 +1102,8 @@ def _write_atomic(path: Path, report: Mapping[str, Any]) -> None:
 def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
+    parser.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR)
+    parser.add_argument("--receipt-dir", type=Path, default=DEFAULT_RECEIPT_DIR)
     parser.add_argument("--report", type=Path)
     return parser.parse_args(argv)
 
@@ -1019,10 +1111,21 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _arguments(argv)
     try:
-        report = run_evaluation(cache_paths(arguments.cache_dir))
+        expected_cache = load_expected_cache_contract(
+            arguments.raw_dir, arguments.receipt_dir
+        )
+        report = run_evaluation(cache_paths(arguments.cache_dir), expected_cache)
         report_path = arguments.report or arguments.cache_dir / DEFAULT_REPORT.name
         _write_atomic(report_path, report)
-    except (OSError, ValueError, Xrf55JointEvaluationError) as error:
+    except (
+        OSError,
+        ValueError,
+        zipfile.BadZipFile,
+        COMPILER.BASE.PROFILE.Xrf55ProfileError,
+        COMPILER.BASE.Xrf55CacheCompileError,
+        COMPILER.Xrf55JointCacheCompileError,
+        Xrf55JointEvaluationError,
+    ) as error:
         print(str(error), file=sys.stderr)
         return 2
     print(json.dumps({"status": report["status"]}, sort_keys=True))
