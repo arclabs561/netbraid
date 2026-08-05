@@ -168,6 +168,29 @@ class OperanetSemanticAlignmentTests(unittest.TestCase):
             0,
         )
 
+    def test_normalizes_source_order_and_reports_inversions(self) -> None:
+        protocol = self.protocol()
+        rows = semantic_rows(("noactivity", "noactivity", "walk"))
+        reordered = (rows[0], rows[2], rows[1])
+
+        timeline = MODULE._build_timeline(
+            "uwb2",
+            reordered,
+            protocol,
+            unreadable_reason="fixture_unreadable",
+        )
+        report = MODULE._timeline_report(timeline, protocol.labels)
+
+        self.assertEqual(
+            timeline.times_us,
+            (0, 100_000, 200_000),
+        )
+        self.assertEqual(report["timestamp_quality"]["source_order_inversions"], 1)
+        self.assertEqual(
+            report["timestamp_quality"]["max_source_backward_jump_us"], 100_000
+        )
+        self.assertTrue(report["timestamp_quality"]["monotonic_non_decreasing"])
+
     def test_report_retains_aggregates_without_identifiers_or_timestamps(self) -> None:
         protocol = self.protocol()
         secret_person = "private-participant-value"

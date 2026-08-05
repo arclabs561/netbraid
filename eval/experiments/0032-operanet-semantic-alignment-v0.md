@@ -22,11 +22,13 @@ and receipts, opens only the selected exp018 members, and reads:
 - required semantic columns from the two UWB CSV streams; and
 - no Wi-Fi CSI payloads.
 
-The profiler compares exact readable Kinect/power semantic rows and evaluates
-all four activity streams on a 100 millisecond fixed grid. At each grid point,
-it uses the latest sample no more than 150 milliseconds old and excludes points
-within 50 milliseconds of any observed activity transition. The two generated
-reports must be byte-identical.
+The profiler stably orders each stream by its parsed time-of-day value while
+retaining aggregate source-order inversion counts and maximum backward jumps.
+It compares exact readable Kinect/power semantic rows and evaluates all four
+activity streams on a 100 millisecond fixed grid. At each grid point, it uses
+the latest sample no more than 150 milliseconds old and excludes points within
+50 milliseconds of any observed activity transition. The two generated reports
+must be byte-identical.
 
 The report retains aggregate counts, durations, gaps, cardinalities, and
 agreement totals. It retains no participant or room values, raw timestamps,

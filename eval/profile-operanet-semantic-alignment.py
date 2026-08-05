@@ -110,6 +110,8 @@ class Timeline:
     duplicate_times: int
     duplicate_label_conflicts: int
     max_gap_us: int
+    source_order_inversions: int
+    max_source_backward_jump_us: int
     person: FieldCardinality
     room: FieldCardinality
 
@@ -489,18 +491,15 @@ def _build_timeline(
     *,
     unreadable_reason: str,
 ) -> Timeline:
-    times: list[int] = []
-    activities: list[str] = []
+    records: list[tuple[int, str]] = []
     activity_counts: Counter[str] = Counter()
     people: set[str] = set()
     rooms: set[str] = set()
     people_readable = True
     rooms_readable = True
-    duplicate_times = 0
-    duplicate_label_conflicts = 0
-    max_gap_us = 0
-    previous_time: int | None = None
-    previous_activity: str | None = None
+    source_order_inversions = 0
+    max_source_backward_jump_us = 0
+    previous_source_time: int | None = None
     allowed = set(protocol.labels)
 
     for row_number, (experiment, timestamp, activity, person, room) in enumerate(
@@ -513,18 +512,13 @@ def _build_timeline(
         if activity not in allowed:
             raise SemanticProfileError("unexpected_activity_label")
         current_time = _timestamp_us(timestamp)
-        if previous_time is not None:
-            if current_time < previous_time:
-                raise SemanticProfileError("nonmonotonic_timestamp")
-            gap = current_time - previous_time
-            max_gap_us = max(max_gap_us, gap)
-            if gap == 0:
-                duplicate_times += 1
-                duplicate_label_conflicts += int(activity != previous_activity)
-        previous_time = current_time
-        previous_activity = activity
-        times.append(current_time)
-        activities.append(activity)
+        if previous_source_time is not None and current_time < previous_source_time:
+            source_order_inversions += 1
+            max_source_backward_jump_us = max(
+                max_source_backward_jump_us, previous_source_time - current_time
+            )
+        previous_source_time = current_time
+        records.append((current_time, activity))
         activity_counts[activity] += 1
 
         parsed_person = _identifier(person)
@@ -538,16 +532,30 @@ def _build_timeline(
         else:
             rooms.add(parsed_room)
 
-    if not times:
+    if not records:
         raise SemanticProfileError("empty_modality")
+    records.sort(key=lambda item: item[0])
+    times = tuple(item[0] for item in records)
+    activities = tuple(item[1] for item in records)
+    duplicate_times = 0
+    duplicate_label_conflicts = 0
+    max_gap_us = 0
+    for index in range(1, len(records)):
+        gap = times[index] - times[index - 1]
+        max_gap_us = max(max_gap_us, gap)
+        if gap == 0:
+            duplicate_times += 1
+            duplicate_label_conflicts += int(activities[index] != activities[index - 1])
     return Timeline(
         key=key,
-        times_us=tuple(times),
-        activities=tuple(activities),
+        times_us=times,
+        activities=activities,
         activity_counts=dict(sorted(activity_counts.items())),
         duplicate_times=duplicate_times,
         duplicate_label_conflicts=duplicate_label_conflicts,
         max_gap_us=max_gap_us,
+        source_order_inversions=source_order_inversions,
+        max_source_backward_jump_us=max_source_backward_jump_us,
         person=_field_cardinality(people, people_readable, unreadable_reason),
         room=_field_cardinality(rooms, rooms_readable, unreadable_reason),
     )
@@ -748,7 +756,9 @@ def _timeline_report(timeline: Timeline, labels: Sequence[str]) -> dict[str, obj
             "duplicate_label_conflicts": timeline.duplicate_label_conflicts,
             "duplicate_times": timeline.duplicate_times,
             "max_gap_us": timeline.max_gap_us,
+            "max_source_backward_jump_us": timeline.max_source_backward_jump_us,
             "monotonic_non_decreasing": True,
+            "source_order_inversions": timeline.source_order_inversions,
         },
     }
 
@@ -898,6 +908,7 @@ def _profile_report(
             "fixed_grid_label_selection": "latest observation at or before each grid point",
             "joinability_basis": "measured exp018 rows and timestamps, not publisher clock claims",
             "mat_reader": "SciPy MATLAB v5 cell-array deserialization",
+            "timestamp_normalization": "stable ascending sort of parsed time-of-day values",
             "uwb_reader": "bounded streaming CSV",
         },
         "modalities": {
