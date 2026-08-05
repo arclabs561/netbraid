@@ -54,7 +54,15 @@ class ProvenancePerturbationTests(unittest.TestCase):
             len(MODULE.report_json_bytes(first)), MODULE.MAX_OUTPUT_BYTES
         )
         serialized = first.canonical_json_bytes().decode("ascii").lower()
-        for forbidden in ("/users/", "documents/dev", "localhost", "@", "secret"):
+        for forbidden in (
+            "/users/",
+            "documents/dev",
+            "localhost",
+            "@",
+            "secret",
+            "dependence_group",
+            "independent",
+        ):
             self.assertNotIn(forbidden, serialized)
 
     def test_exact_schema_and_duplicate_json_keys_fail_closed(self):
@@ -71,6 +79,13 @@ class ProvenancePerturbationTests(unittest.TestCase):
             self,
             lambda: MODULE.parse_fixture(document),
             "invalid_provenance_schema",
+        )
+        document = self.fixture.document()
+        document["organic_annotations"][0]["dependence_group"] = "parallel-truth"
+        assert_error(
+            self,
+            lambda: MODULE.parse_fixture(document),
+            "invalid_annotation_schema",
         )
         assert_error(
             self,
@@ -131,7 +146,7 @@ class ProvenancePerturbationTests(unittest.TestCase):
         self.assertEqual(
             delayed["active_annotation_ids"], baseline["active_annotation_ids"]
         )
-        self.assertEqual(delayed["dependence_aware_evidence_count"], 2)
+        self.assertEqual(delayed["declared_lineage_root_count"], 2)
         self.assertEqual(
             delayed["decision"],
             {
@@ -151,7 +166,7 @@ class ProvenancePerturbationTests(unittest.TestCase):
             "event_chronology",
             "arrival_chronology",
             "active_annotation_ids",
-            "dependence_aware_evidence_count",
+            "declared_lineage_root_count",
             "decision",
         ):
             self.assertEqual(reordered[field], baseline[field], field)
@@ -163,13 +178,13 @@ class ProvenancePerturbationTests(unittest.TestCase):
             duplicate["active_annotation_ids"],
             ["annotation-a-v1", "annotation-b-v1"],
         )
-        self.assertEqual(duplicate["dependence_aware_evidence_count"], 2)
+        self.assertEqual(duplicate["declared_lineage_root_count"], 2)
         self.assertEqual(duplicate["decision"]["state"], "abstain")
 
     def test_copied_source_shares_ancestry_and_dependence(self):
         copied = self.scenarios["copied-evidence"]
         self.assertEqual(len(copied["active_annotation_ids"]), 3)
-        self.assertEqual(copied["dependence_aware_evidence_count"], 2)
+        self.assertEqual(copied["declared_lineage_root_count"], 2)
         self.assertEqual(copied["decision"]["state"], "abstain")
         copied_lineage = lineage_by_id(copied)["annotation-a-copy"]
         self.assertEqual(copied_lineage["parent_annotation_id"], "annotation-a-v1")
@@ -181,7 +196,7 @@ class ProvenancePerturbationTests(unittest.TestCase):
             correction["active_annotation_ids"],
             ["annotation-a-v2", "annotation-b-v1"],
         )
-        self.assertEqual(correction["dependence_aware_evidence_count"], 2)
+        self.assertEqual(correction["declared_lineage_root_count"], 2)
         self.assertEqual(
             correction["decision"],
             {"state": "decided", "label": "label-b", "reason": None},
@@ -195,19 +210,19 @@ class ProvenancePerturbationTests(unittest.TestCase):
         withdrawal = self.scenarios["withdrawal"]
         self.assertIn("annotation-b-withdrawal", withdrawal["event_chronology"])
         self.assertEqual(withdrawal["active_annotation_ids"], ["annotation-a-v1"])
-        self.assertEqual(withdrawal["dependence_aware_evidence_count"], 1)
+        self.assertEqual(withdrawal["declared_lineage_root_count"], 1)
         self.assertEqual(
             withdrawal["decision"],
             {"state": "decided", "label": "label-a", "reason": None},
         )
 
-    def test_independent_corroboration_counts_but_does_not_resolve_conflict(self):
-        independent = self.scenarios["independent-corroboration"]
-        self.assertEqual(len(independent["active_annotation_ids"]), 3)
-        self.assertEqual(independent["dependence_aware_evidence_count"], 3)
-        self.assertEqual(independent["decision"]["state"], "abstain")
+    def test_unlinked_corroboration_is_not_called_independent_or_used_as_a_vote(self):
+        unlinked = self.scenarios["unlinked-corroboration"]
+        self.assertEqual(len(unlinked["active_annotation_ids"]), 3)
+        self.assertEqual(unlinked["declared_lineage_root_count"], 3)
+        self.assertEqual(unlinked["decision"]["state"], "abstain")
         self.assertEqual(
-            lineage_by_id(independent)["annotation-c-v1"],
+            lineage_by_id(unlinked)["annotation-c-v1"],
             {
                 "annotation_id": "annotation-c-v1",
                 "parent_annotation_id": None,

@@ -18,8 +18,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
-FIXTURE_SCHEMA = "netbraid.provenance_perturbation_fixture.v0"
-REPORT_SCHEMA = "netbraid.provenance_perturbation_report.v0"
+FIXTURE_SCHEMA = "netbraid.provenance_perturbation_fixture.v1"
+REPORT_SCHEMA = "netbraid.provenance_perturbation_report.v1"
 FIXED_SEED = 3405
 
 MAX_INPUT_BYTES = 64 * 1024
@@ -39,7 +39,7 @@ PERTURBATION_KINDS = (
     "copied-evidence",
     "superseding-correction",
     "withdrawal",
-    "independent-corroboration",
+    "unlinked-corroboration",
 )
 
 FIXTURE_FIELDS = (
@@ -54,7 +54,6 @@ OBSERVATION_FIELDS = (
     "event_time",
     "arrival_time",
     "provenance",
-    "dependence_group",
 )
 ANNOTATION_FIELDS = (
     "annotation_id",
@@ -63,7 +62,6 @@ ANNOTATION_FIELDS = (
     "arrival_time",
     "label",
     "provenance",
-    "dependence_group",
     "revision",
     "origin",
 )
@@ -89,7 +87,7 @@ SCENARIO_FIELDS = (
     "event_chronology",
     "arrival_chronology",
     "active_annotation_ids",
-    "dependence_aware_evidence_count",
+    "declared_lineage_root_count",
     "lineage",
     "decision",
 )
@@ -184,7 +182,6 @@ class Observation:
     event_time: int
     arrival_time: int
     provenance: Provenance
-    dependence_group: str
 
     def document(self) -> dict[str, Any]:
         return {
@@ -192,7 +189,6 @@ class Observation:
             "event_time": self.event_time,
             "arrival_time": self.arrival_time,
             "provenance": self.provenance.document(),
-            "dependence_group": self.dependence_group,
         }
 
 
@@ -204,7 +200,6 @@ class Annotation:
     arrival_time: int
     label: str | None
     provenance: Provenance
-    dependence_group: str
     revision: Revision
     origin: str
 
@@ -216,7 +211,6 @@ class Annotation:
             "arrival_time": self.arrival_time,
             "label": self.label,
             "provenance": self.provenance.document(),
-            "dependence_group": self.dependence_group,
             "revision": self.revision.document(),
             "origin": self.origin,
         }
@@ -316,9 +310,6 @@ def _parse_observation(value: Any) -> Observation:
         event_time=_tick(value["event_time"], "invalid_observation_event_time"),
         arrival_time=_tick(value["arrival_time"], "invalid_observation_arrival_time"),
         provenance=_parse_provenance(value["provenance"]),
-        dependence_group=_opaque_id(
-            value["dependence_group"], "invalid_observation_dependence_group"
-        ),
     )
     if observation.provenance.parent_id is not None:
         raise ProvenancePerturbationError("invalid_observation_parent")
@@ -340,9 +331,6 @@ def _parse_annotation(value: Any) -> Annotation:
         arrival_time=_tick(value["arrival_time"], "invalid_annotation_arrival_time"),
         label=label,
         provenance=_parse_provenance(value["provenance"]),
-        dependence_group=_opaque_id(
-            value["dependence_group"], "invalid_annotation_dependence_group"
-        ),
         revision=_parse_revision(value["revision"]),
         origin=origin,
     )
@@ -439,7 +427,6 @@ def _validate_perturbations(
     by_id = {item.annotation_id: item for item in organic}
     organic_ids = tuple(item.annotation_id for item in organic)
     organic_sources = {item.provenance.source_id for item in organic}
-    organic_groups = {item.dependence_group for item in organic}
     generated_ids: set[str] = set()
 
     for perturbation in perturbations:
@@ -498,7 +485,6 @@ def _validate_perturbations(
                 parent is None
                 or generated.provenance.parent_id != parent.annotation_id
                 or generated.provenance.source_id == parent.provenance.source_id
-                or generated.dependence_group != parent.dependence_group
                 or generated.label != parent.label
                 or generated.revision.state != "original"
             ):
@@ -510,7 +496,6 @@ def _validate_perturbations(
                 or generated.provenance.source_id != parent.provenance.source_id
                 or generated.provenance.source_version
                 == parent.provenance.source_version
-                or generated.dependence_group != parent.dependence_group
                 or generated.label == parent.label
                 or generated.revision.supersedes_annotation_id != parent.annotation_id
             ):
@@ -522,20 +507,18 @@ def _validate_perturbations(
                 or generated.provenance.source_id != parent.provenance.source_id
                 or generated.provenance.source_version
                 == parent.provenance.source_version
-                or generated.dependence_group != parent.dependence_group
                 or generated.revision.withdraws_annotation_id != parent.annotation_id
             ):
                 raise ProvenancePerturbationError("invalid_withdrawal")
-        elif perturbation.kind == "independent-corroboration":
+        elif perturbation.kind == "unlinked-corroboration":
             if (
                 parent is not None
                 or generated.provenance.parent_id is not None
                 or generated.provenance.source_id in organic_sources
-                or generated.dependence_group in organic_groups
                 or generated.revision.state != "original"
                 or generated.label not in {item.label for item in organic}
             ):
-                raise ProvenancePerturbationError("invalid_independent_corroboration")
+                raise ProvenancePerturbationError("invalid_unlinked_corroboration")
 
 
 def load_fixture_bytes(payload: bytes) -> Fixture:
@@ -566,7 +549,6 @@ def _annotation(
     arrival_time: int,
     source_id: str,
     source_version: str,
-    dependence_group: str,
     origin: str,
     parent_id: str | None = None,
     revision: Revision | None = None,
@@ -578,7 +560,6 @@ def _annotation(
         arrival_time=arrival_time,
         label=label,
         provenance=Provenance(parent_id, source_id, source_version),
-        dependence_group=dependence_group,
         revision=_original_revision() if revision is None else revision,
         origin=origin,
     )
@@ -595,7 +576,6 @@ def generate_fixture(seed: int = FIXED_SEED) -> Fixture:
         event_time=0,
         arrival_time=0,
         provenance=Provenance(None, "observation-source", "version-a"),
-        dependence_group="observation-group",
     )
     annotation_a = _annotation(
         "annotation-a-v1",
@@ -604,7 +584,6 @@ def generate_fixture(seed: int = FIXED_SEED) -> Fixture:
         arrival_time=10,
         source_id="source-a",
         source_version="version-a",
-        dependence_group="group-a",
         origin="organic",
     )
     annotation_b = _annotation(
@@ -614,7 +593,6 @@ def generate_fixture(seed: int = FIXED_SEED) -> Fixture:
         arrival_time=20,
         source_id="source-b",
         source_version="version-a",
-        dependence_group="group-b",
         origin="organic",
     )
     organic = (annotation_a, annotation_b)
@@ -630,7 +608,6 @@ def generate_fixture(seed: int = FIXED_SEED) -> Fixture:
         arrival_time=24,
         source_id="source-copy",
         source_version="version-a",
-        dependence_group="group-a",
         origin="derived-perturbation",
         parent_id=annotation_a.annotation_id,
     )
@@ -641,7 +618,6 @@ def generate_fixture(seed: int = FIXED_SEED) -> Fixture:
         arrival_time=31,
         source_id="source-a",
         source_version="version-b",
-        dependence_group="group-a",
         origin="derived-perturbation",
         parent_id=annotation_a.annotation_id,
         revision=Revision("superseding-correction", annotation_a.annotation_id, None),
@@ -653,19 +629,17 @@ def generate_fixture(seed: int = FIXED_SEED) -> Fixture:
         arrival_time=31,
         source_id="source-b",
         source_version="version-b",
-        dependence_group="group-b",
         origin="derived-perturbation",
         parent_id=annotation_b.annotation_id,
         revision=Revision("withdrawal", None, annotation_b.annotation_id),
     )
-    independent = _annotation(
+    unlinked = _annotation(
         "annotation-c-v1",
         label="label-a",
         event_time=15,
         arrival_time=24,
         source_id="source-c",
         source_version="version-a",
-        dependence_group="group-c",
         origin="derived-perturbation",
     )
     delay_ticks = rng.randint(17, 29)
@@ -718,10 +692,10 @@ def generate_fixture(seed: int = FIXED_SEED) -> Fixture:
                 None,
             ),
             Perturbation(
-                "perturbation-independent",
-                "independent-corroboration",
+                "perturbation-unlinked",
+                "unlinked-corroboration",
                 None,
-                independent,
+                unlinked,
                 None,
                 None,
             ),
@@ -835,6 +809,10 @@ def _scenario_report(
     else:
         decision = {"state": "decided", "label": next(iter(labels)), "reason": None}
 
+    lineage = _lineage(unique)
+    roots_by_annotation = {
+        item["annotation_id"]: item["root_annotation_id"] for item in lineage
+    }
     report = {
         "scenario_id": "baseline"
         if perturbation is None
@@ -844,10 +822,10 @@ def _scenario_report(
         "event_chronology": [item.annotation_id for item in event_order],
         "arrival_chronology": [item.annotation_id for item in arrival_order],
         "active_annotation_ids": [item.annotation_id for item in active_annotations],
-        "dependence_aware_evidence_count": len(
-            {item.dependence_group for item in active_annotations}
+        "declared_lineage_root_count": len(
+            {roots_by_annotation[item.annotation_id] for item in active_annotations}
         ),
-        "lineage": _lineage(unique),
+        "lineage": lineage,
         "decision": decision,
     }
     _validate_scenario_report(report)
@@ -865,6 +843,13 @@ def _validate_scenario_report(value: Any) -> None:
             "active_annotation_ids",
             "lineage",
         )
+    ):
+        raise ProvenancePerturbationError("invalid_scenario_report_schema")
+    root_count = value["declared_lineage_root_count"]
+    if (
+        type(root_count) is not int
+        or root_count < 0
+        or root_count > len(value["active_annotation_ids"])
     ):
         raise ProvenancePerturbationError("invalid_scenario_report_schema")
     for item in value["lineage"]:

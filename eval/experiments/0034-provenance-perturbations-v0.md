@@ -1,5 +1,14 @@
 # Experiment 0034: provenance perturbations v0
 
+Post-hoc correction: v0 accepted caller-supplied dependence groups alongside
+declared parent links and named an unlinked source “independent.” That could
+drift from lineage and overstated what an absent ancestry edge establishes.
+The current v1 fixture removes dependence groups, derives a
+`declared_lineage_root_count` from parent links, and renames the perturbation
+`unlinked-corroboration`. The 12 hermetic tests pass with the corrected schema.
+This was an implementation correction after review, not a preregistered result;
+the original v0 record is retained below.
+
 Hypothesis: a provenance-aware oracle will preserve event chronology and
 dependence-aware evidence under bounded delay, reorder, duplicate, and copied
 evidence, while explicit supersession or withdrawal alone changes the active
