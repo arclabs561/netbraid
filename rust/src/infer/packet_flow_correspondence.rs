@@ -374,7 +374,9 @@ struct CandidateComponent {
 /// responsible for supplying timestamps in one comparable clock frame. All
 /// admitted edges remain available; there is no one-to-one assignment policy.
 /// Exact enumeration aggregates counters across split and merge candidates
-/// within each bounded connected component.
+/// within each bounded connected component. Counter aggregation applies only
+/// to selected stars whose leaves have no other selected edge; mixed
+/// many-to-many selections retain their edge evidence without reusing counters.
 pub fn infer_packet_flow_correspondence_v0(
     packet_flows: &[PacketFlowV0],
     flow_records: &[FlowRecordV0],
@@ -922,9 +924,16 @@ fn counter_potential(
             .edges
             .iter()
             .zip(selected)
-            .filter(|(edge, selected)| **selected && edge.packet == *packet_index)
+            .filter(|(edge, selected)| {
+                **selected
+                    && edge.packet == *packet_index
+                    && flow_record_degree.get(&edge.flow_record) == Some(&1)
+            })
             .map(|(edge, _)| edge.flow_record)
             .collect();
+        if selected_flow_records.len() != packet_degree[packet_index] {
+            continue;
+        }
         let packet = &packet_flows[*packet_index];
         for (observed, expected) in [
             (
@@ -1233,6 +1242,54 @@ mod tests {
         assert!(edges
             .iter()
             .all(|edge| edge.corresponds_relative_belief_ppb > 999_000_000));
+    }
+
+    #[test]
+    fn mixed_many_to_many_assignment_does_not_reuse_counter_evidence() {
+        let component = CandidateComponent {
+            packets: vec![0, 1].into_boxed_slice(),
+            flow_records: vec![0, 1].into_boxed_slice(),
+            edges: vec![
+                CandidateEdge {
+                    packet: 0,
+                    flow_record: 0,
+                    direct_overlap: true,
+                },
+                CandidateEdge {
+                    packet: 0,
+                    flow_record: 1,
+                    direct_overlap: true,
+                },
+                CandidateEdge {
+                    packet: 1,
+                    flow_record: 0,
+                    direct_overlap: true,
+                },
+                CandidateEdge {
+                    packet: 1,
+                    flow_record: 1,
+                    direct_overlap: true,
+                },
+            ]
+            .into_boxed_slice(),
+        };
+        let packets = [
+            packet_flow(1234, 1_000_000_000, 1_100_000_000, [2, 200, 2, 200]),
+            packet_flow(1234, 1_000_000_000, 1_100_000_000, [2, 200, 2, 200]),
+        ];
+        let left = row("1.000000000", 1234, "0.050000000", [1, 100, 1, 100]);
+        let right = row("1.050000000", 1234, "0.050000000", [1, 100, 1, 100]);
+        let flow_records = flow_record_stream(&[&left, &right]);
+
+        let potential = counter_potential(
+            &component,
+            &[true, true, true, true],
+            &packets,
+            &flow_records,
+            PacketFlowCorrespondenceHeuristicProfileV0::default(),
+        );
+
+        assert_eq!(potential, 1.0);
     }
 
     #[test]
