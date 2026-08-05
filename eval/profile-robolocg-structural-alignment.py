@@ -15,7 +15,7 @@ import tempfile
 import zipfile
 from contextlib import ExitStack
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, BinaryIO, Mapping, Sequence
 
@@ -164,6 +164,14 @@ class MemberPlan:
     modality: str | None
     header: policy.CsvHeaderContract | None
     directory: bool
+
+
+@dataclass(frozen=True)
+class RowValidationPlan:
+    header: policy.CsvHeaderContract
+    outer_clock_index: int
+    embedded_seconds_index: int | None
+    embedded_nanoseconds_index: int | None
 
 
 @dataclass
@@ -732,8 +740,9 @@ def _parse_row(
     if len(parsed) != 1 or len(parsed[0]) != columns:
         raise RoboLocGProfileError("csv_field_count_mismatch")
     row = tuple(parsed[0])
-    if any(len(value.encode("utf-8")) > MAX_FIELD_BYTES for value in row):
-        raise RoboLocGProfileError("csv_field_size_limit")
+    for value in row:
+        if len(value.encode("utf-8")) > MAX_FIELD_BYTES:
+            raise RoboLocGProfileError("csv_field_size_limit")
     if header and len(set(row)) != len(row):
         raise RoboLocGProfileError("duplicate_csv_header")
     return row
@@ -745,16 +754,9 @@ def _unsigned(value: str, code: str) -> int:
     return int(value)
 
 
-def _decimal(value: str) -> Decimal:
+def _validate_decimal(value: str) -> None:
     if NUMBER.fullmatch(value) is None:
         raise RoboLocGProfileError("invalid_decimal_field")
-    try:
-        parsed = Decimal(value)
-    except InvalidOperation as error:
-        raise RoboLocGProfileError("invalid_decimal_field") from error
-    if not parsed.is_finite():
-        raise RoboLocGProfileError("invalid_decimal_field")
-    return parsed
 
 
 def _role_for(take: policy.Take) -> policy.Role:
@@ -762,13 +764,34 @@ def _role_for(take: policy.Take) -> policy.Role:
     return assignment.role
 
 
+def _row_validation_plan(
+    header: policy.CsvHeaderContract,
+) -> RowValidationPlan:
+    try:
+        outer_clock_index = header.columns.index(header.outer_clock_column)
+        if header.embedded_clock_columns:
+            embedded_seconds_index = header.columns.index("header.stamp.sec")
+            embedded_nanoseconds_index = header.columns.index("header.stamp.nanosec")
+        else:
+            embedded_seconds_index = None
+            embedded_nanoseconds_index = None
+    except ValueError as error:
+        raise RoboLocGProfileError("invalid_csv_header_contract") from error
+    return RowValidationPlan(
+        header,
+        outer_clock_index,
+        embedded_seconds_index,
+        embedded_nanoseconds_index,
+    )
+
+
 def _validate_fields(
     modality: str,
-    header: policy.CsvHeaderContract,
+    plan: RowValidationPlan,
     row: Sequence[str],
 ) -> tuple[int, int | None, Decimal | None, str | None]:
-    values = dict(zip(header.columns, row))
-    clock_text = values[header.outer_clock_column]
+    header = plan.header
+    clock_text = row[plan.outer_clock_index]
     try:
         if header.outer_clock_column == "timestamp":
             clock_ns = policy.parse_integer_nanoseconds(clock_text)
@@ -778,10 +801,11 @@ def _validate_fields(
         raise RoboLocGProfileError(error.code) from error
 
     embedded_ns: int | None = None
-    if header.embedded_clock_columns:
-        seconds = _unsigned(values["header.stamp.sec"], "invalid_header_seconds")
+    if plan.embedded_seconds_index is not None:
+        seconds = _unsigned(row[plan.embedded_seconds_index], "invalid_header_seconds")
         nanoseconds = _unsigned(
-            values["header.stamp.nanosec"], "invalid_header_nanoseconds"
+            row[_required(plan.embedded_nanoseconds_index)],
+            "invalid_header_nanoseconds",
         )
         if nanoseconds >= policy.NANOSECONDS_PER_SECOND:
             raise RoboLocGProfileError("header_nanoseconds_out_of_range")
@@ -789,7 +813,7 @@ def _validate_fields(
 
     uwb_range: Decimal | None = None
     ftm_anchor: str | None = None
-    for column, value in values.items():
+    for column, value in zip(header.columns, row):
         if (
             column == header.outer_clock_column
             or column in header.embedded_clock_columns
@@ -816,7 +840,7 @@ def _validate_fields(
             if modality == "uwb" and column == "range":
                 uwb_range = numeric
         else:
-            _decimal(value)
+            _validate_decimal(value)
     return clock_ns, embedded_ns, uwb_range, ftm_anchor
 
 
@@ -845,6 +869,7 @@ def profile_member(
     deltas = IntegerStats()
     uwb = DecimalMagnitude()
     anchors: set[str] = set()
+    validation_plan = _row_validation_plan(header)
     with archive.open(info, "r") as source:
         observed_header = _parse_row(source, len(header.columns), header=True)
         if observed_header != header.columns:
@@ -857,7 +882,7 @@ def profile_member(
             if rows > row_limit:
                 raise RoboLocGProfileError(row_limit_code)
             clock_ns, embedded_ns, uwb_range, anchor = _validate_fields(
-                modality, header, row
+                modality, validation_plan, row
             )
             if last_clock is not None and clock_ns < last_clock:
                 raise RoboLocGProfileError("non_monotonic_member_clock")

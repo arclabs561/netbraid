@@ -61,6 +61,32 @@ mapping, radar association/extrinsics, and interpolation-tolerance blockers
 remain open, so both fusion and scoring remain false. No localization score was
 computed.
 
+## Performance profile
+
+The canonical open-role workload contains 1,859,398 data rows. A three-run
+`hyperfine` baseline took 22.272 s (standard deviation 0.138 s). `cProfile`
+attributed almost all of the work to per-row CSV and field validation; archive
+authentication, ZIP decompression, and file reads were minor. Three changes
+were retained and measured after a warmup:
+
+| Change | Mean time | Change from prior |
+| --- | ---: | ---: |
+| Validate discarded decimals without constructing `Decimal` values | 20.797 s | -6.6% |
+| Compile header column indexes once per member | 20.072 s | -3.5% |
+| Replace the field-size generator with an explicit short-circuiting loop | 19.394 s | -3.4% |
+
+The final result is 12.9% below baseline. An ASCII-only field-size fast path and
+a single-row CSV iterator change were rejected because each improved the full
+run by less than 1%. Generated reports were byte-identical to the baseline.
+
+The measured path is CPU-bound, so memory mapping the archives would not address
+the current limit. Dataset selection, split construction, and metric analysis
+remain Python because they change frequently and use the scientific Python
+stack. If this profiler becomes a repeated ingestion boundary, the next
+language experiment should move archive authentication, bounded CSV parsing,
+and aggregate construction together into one Rust process. A per-row language
+boundary would add overhead without removing the Python loop.
+
 ## Conclusion
 
 The hypothesis held for structural profiling: the permitted payload can be

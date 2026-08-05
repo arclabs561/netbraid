@@ -429,6 +429,14 @@ class RoboLocGStructuralProfilerTests(unittest.TestCase):
         self.assertEqual(states["uwb_unit_conflict"], "open")
         self.assertEqual(states["ftm_anchor_id_mismatch"], "open")
 
+    def test_decimal_syntax_validation_remains_strict_and_finite(self):
+        for accepted in ("0", "-0", "1", "-1", "1.25", "-0.001"):
+            MODULE._validate_decimal(accepted)
+        for rejected in ("", "+1", ".5", "1.", "01", "1e3", "NaN", "inf"):
+            self.assert_profile_error(
+                "invalid_decimal_field", MODULE._validate_decimal, rejected
+            )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
