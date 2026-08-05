@@ -286,10 +286,16 @@ fn relation_contract(family_schema: &str) -> Option<RelationContract> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::evidence::PacketEnvelopeV0;
     use crate::infer::{
-        FiniteHypothesisAlternativeV0, FiniteHypothesisCompositionV0,
-        FiniteHypothesisDispositionV0, FiniteHypothesisProjectionV0, ProvenanceGraphV0,
+        assess_calibrated_event_relation_v0, calibrated_event_relation_pair_id_v0,
+        CalibratedEventRelationObservationRefV0, CalibratedEventRelationProfileV0,
+        EventRelationPredictionV0, FiniteHypothesisAlternativeV0, FiniteHypothesisCompositionV0,
+        FiniteHypothesisDispositionV0, FiniteHypothesisProjectionV0,
+        HeldoutEventRelationEvaluationReceiptV0, ProjectFiniteHypothesisClaimV0, ProvenanceGraphV0,
     };
+    use crate::replay::assess_packet_same_event_v0;
+    use serde_json::json;
 
     fn input(
         role: &str,
@@ -627,5 +633,128 @@ mod tests {
         );
 
         assert!(group_relation_targets(&[unrecognized]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn production_projectors_retain_abstention_conflict_and_shared_lineage() {
+        let left_packet: PacketEnvelopeV0 = serde_json::from_str(include_str!(
+            "../../tests/fixtures/replay/evidence-v0/packet_envelope_v0.json"
+        ))
+        .unwrap();
+        let mut right_packet = left_packet.clone();
+        right_packet.capture_id =
+            "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789".into();
+        right_packet.record_id = format!("{}:frame:1", right_packet.capture_id);
+        let packet_claim = assess_packet_same_event_v0(&left_packet, &right_packet)
+            .unwrap()
+            .project_finite_hypothesis_claim_v0((&left_packet, &right_packet))
+            .unwrap();
+        assert_eq!(
+            packet_claim
+                .projection()
+                .alternatives()
+                .iter()
+                .find(|alternative| {
+                    alternative.disposition() == FiniteHypothesisDispositionV0::Supported
+                })
+                .unwrap()
+                .role(),
+            "unknown"
+        );
+
+        let left = CalibratedEventRelationObservationRefV0::try_new(
+            packet_claim.inputs()[0].source_schema(),
+            packet_claim.inputs()[0].source_id(),
+            packet_claim.inputs()[0].content_sha256(),
+        )
+        .unwrap();
+        let right = CalibratedEventRelationObservationRefV0::try_new(
+            packet_claim.inputs()[1].source_schema(),
+            packet_claim.inputs()[1].source_id(),
+            packet_claim.inputs()[1].content_sha256(),
+        )
+        .unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/infer/v0/calibrated-event-relation-admission.json"
+        ))
+        .unwrap();
+        let profile = CalibratedEventRelationProfileV0::from_json_bytes(
+            &serde_json::to_vec(&fixture["profile"]).unwrap(),
+        )
+        .unwrap();
+        let receipt = HeldoutEventRelationEvaluationReceiptV0::from_json_bytes(
+            &serde_json::to_vec(&fixture["heldout_evaluation_receipt"]).unwrap(),
+            &profile,
+        )
+        .unwrap();
+
+        let mut same_document = fixture["prediction"].clone();
+        same_document["frame_id"] =
+            json!(calibrated_event_relation_pair_id_v0(&left, &right).unwrap());
+        let same_prediction = EventRelationPredictionV0::from_json_bytes(
+            &serde_json::to_vec(&same_document).unwrap(),
+            &profile,
+        )
+        .unwrap();
+        let same_claim = assess_calibrated_event_relation_v0(
+            &left,
+            &right,
+            &profile,
+            &same_prediction,
+            &receipt,
+        )
+        .unwrap()
+        .project_finite_hypothesis_claim_v0((&left, &right, &profile, &same_prediction, &receipt))
+        .unwrap();
+
+        let mut different_document = same_document;
+        different_document["forward_score"] = json!("0x1.8000000000000p-1");
+        different_document["reverse_score"] = json!("0x1.999999999999ap-1");
+        different_document["decision"] = json!("different");
+        let different_prediction = EventRelationPredictionV0::from_json_bytes(
+            &serde_json::to_vec(&different_document).unwrap(),
+            &profile,
+        )
+        .unwrap();
+        let different_claim = assess_calibrated_event_relation_v0(
+            &left,
+            &right,
+            &profile,
+            &different_prediction,
+            &receipt,
+        )
+        .unwrap()
+        .project_finite_hypothesis_claim_v0((
+            &left,
+            &right,
+            &profile,
+            &different_prediction,
+            &receipt,
+        ))
+        .unwrap();
+
+        let composition =
+            FiniteHypothesisCompositionV0::try_new(vec![packet_claim, same_claim, different_claim])
+                .unwrap();
+        let qualified = ProvenanceQualifiedFiniteHypothesisCompositionV0::try_new(
+            composition,
+            ProvenanceGraphV0::try_new(Vec::new()).unwrap(),
+        )
+        .unwrap();
+        let summaries = summarize_relation_targets(&qualified).unwrap();
+
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(summaries[0].target.axis, RelationAxis::Event);
+        assert_eq!(summaries[0].claim_indices.len(), 3);
+        assert_eq!(summaries[0].substantive_claim_indices.len(), 2);
+        assert_eq!(summaries[0].abstaining_claim_indices.len(), 1);
+        assert_eq!(
+            summaries[0].resolution,
+            RelationTargetResolution::Conflict {
+                roles: vec!["different_event".to_owned(), "same_event".to_owned()]
+                    .into_boxed_slice()
+            }
+        );
+        assert_eq!(summaries[0].declared_shared_lineage_pairs.len(), 3);
     }
 }
