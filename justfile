@@ -254,6 +254,19 @@ operanet-layout-profile:
     {{ python }} eval/profile-operanet-layout.py --report {{ eval_output }}/operanet-layout-profile-repeat.json
     cmp {{ eval_output }}/operanet-layout-profile.json {{ eval_output }}/operanet-layout-profile-repeat.json
 
+# Verify the exp018 semantic-alignment profiler without corpus data.
+operanet-semantic-alignment-check:
+    uv run --script eval/test-profile-operanet-semantic-alignment.py
+
+# Compare activity labels on a fixed grid across the pinned exp018 Kinect,
+# power, and two UWB payloads. This is a development-only joinability profile,
+# not a fusion or identity result.
+operanet-semantic-alignment-profile:
+    uv run --script eval/test-profile-operanet-semantic-alignment.py
+    uv run --script eval/profile-operanet-semantic-alignment.py --report {{ eval_output }}/operanet-semantic-alignment-profile.json
+    uv run --script eval/profile-operanet-semantic-alignment.py --report {{ eval_output }}/operanet-semantic-alignment-profile-repeat.json
+    cmp {{ eval_output }}/operanet-semantic-alignment-profile.json {{ eval_output }}/operanet-semantic-alignment-profile-repeat.json
+
 # Profile a bounded CAEZ CSI shape slice directly from the verified local tar.
 # The target never extracts members or deserializes position/model payloads.
 caez-csi-profile:

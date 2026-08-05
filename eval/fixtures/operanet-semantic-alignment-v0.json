@@ -1,0 +1,135 @@
+{
+  "alignment": {
+    "fixed_grid_step_ms": 100,
+    "maximum_sample_age_ms": 150,
+    "transition_exclusion_ms": 50
+  },
+  "allowed_activity_labels": [
+    "bodyrotate",
+    "liedown",
+    "noactivity",
+    "sit",
+    "stand",
+    "standfromlie",
+    "walk"
+  ],
+  "modalities": {
+    "kinect": {
+      "archive_key": "kinect",
+      "format": "mat_v5_cell",
+      "headers": [
+        "exp_no",
+        "timestamp",
+        "activity",
+        "person_id",
+        "room_no",
+        "Kinect1_Markers",
+        "Kinect2_Markers"
+      ],
+      "member": "Kinect_exp_018.mat",
+      "variable": "Kinect"
+    },
+    "pwr": {
+      "archive_key": "pwr",
+      "format": "mat_v5_cell",
+      "headers": [
+        "exp_no",
+        "timestamp",
+        "activity",
+        "person_id",
+        "room_no",
+        "PWR_ch1",
+        "PWR_ch2",
+        "PWR_ch3"
+      ],
+      "member": "PWR_exp_018.mat",
+      "variable": "PWR"
+    },
+    "uwb1": {
+      "archive_key": "uwb1",
+      "cir_samples": 35,
+      "format": "streamed_csv",
+      "headers_before_cir": [
+        "timestamp",
+        "activity",
+        "exp_no",
+        "person_id",
+        "room_no",
+        "tag4422_x",
+        "tag4422_y",
+        "tag89b3_x",
+        "tag89b3_y",
+        "left_arm_tag_id",
+        "right_arm_tag_id",
+        "anchor_node_xy_positions",
+        "fp_pow_dbm",
+        "rx_pow_dbm",
+        "tx_id",
+        "rx_id",
+        "tx_x_coord",
+        "tx_y_coord",
+        "rx_x_coord",
+        "rx_y_coord",
+        "tx_rx_dist_meters",
+        "fp_index",
+        "fp_amp1",
+        "fp_amp2",
+        "fp_amp3",
+        "max_growth_cir",
+        "rx_pream_count",
+        "max_noise",
+        "std_noise"
+      ],
+      "member": "uwb1_exp018.csv"
+    },
+    "uwb2": {
+      "archive_key": "uwb2",
+      "cir_samples": 50,
+      "format": "streamed_csv",
+      "headers_before_cir": [
+        "timestamp",
+        "activity",
+        "exp_no",
+        "person_id",
+        "room_no",
+        "tag4422_x",
+        "tag4422_y",
+        "tag89b3_x",
+        "tag89b3_y",
+        "left_arm_tag_id",
+        "right_arm_tag_id",
+        "anchor_node_xy_positions",
+        "fp_pow_dbm",
+        "rx_pow_dbm",
+        "tx_id",
+        "rx_id",
+        "tx_x_coord",
+        "tx_y_coord",
+        "rx_x_coord",
+        "rx_y_coord",
+        "tx_rx_dist_meters",
+        "fp_index",
+        "fp_amp1",
+        "fp_amp2",
+        "fp_amp3",
+        "max_growth_cir",
+        "rx_pream_count",
+        "max_noise",
+        "std_noise"
+      ],
+      "member": "uwb2_exp018.csv"
+    }
+  },
+  "publisher": {
+    "dataset_doi": "10.6084/m9.figshare.16578299.v1",
+    "descriptor_doi": "10.1038/s41597-022-01573-2",
+    "same_local_ntp_server": true,
+    "stated_synchronization_accuracy_less_than_ms": 20
+  },
+  "schema": "netbraid.operanet_semantic_alignment_protocol.v0",
+  "scope": {
+    "development_only": true,
+    "experiment_number": 18,
+    "experiment_token": "exp_018"
+  }
+}
