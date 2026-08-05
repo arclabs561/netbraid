@@ -10,6 +10,14 @@ mod counter_capture;
     )
 )]
 mod factor_graph;
+#[cfg_attr(
+    not(test),
+    allow(
+        dead_code,
+        reason = "private relation-target binding is being validated before public exposure"
+    )
+)]
+mod fusion_target;
 mod hypothesis;
 mod lineage;
 mod packet_flow_correspondence;

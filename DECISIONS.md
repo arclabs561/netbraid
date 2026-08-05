@@ -107,6 +107,21 @@ family's single joint factor does not itself exercise cross-factor dependence
 validation, justify publishing the generic graph, or treat all observations as
 one schema.
 
+## Bind relation targets separately from support evidence
+
+Before heterogeneous finite claims can be grouped, private family adapters map
+each known claim to a closed relation axis and canonically ordered,
+content-bound participants. A model profile, prediction, evaluation receipt,
+reducer, or derivation may support a claim, but it does not identify the
+relation target. The same participants under different relation axes remain
+different targets.
+
+Unknown families remain ungrouped rather than being interpreted from role
+names. Shared targets permit comparison; they do not imply independent
+evidence, justify vote counting, or turn model-relative values into
+probabilities. The target registry remains private until more relation families
+and dataset-backed evaluations establish a stable public contract.
+
 ## Offline and passive Rust defaults
 
 The Rust CLI reads saved evidence or a regular saved capture. It does not open
