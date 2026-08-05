@@ -54,6 +54,9 @@ hypothesis-metrics-check:
 hypothesis-belief-metrics-check:
     {{ python }} eval/test-hypothesis-belief-metrics.py
 
+provenance-perturbation-check:
+    {{ python }} eval/test-provenance-perturbations.py
+
 calibrated-event-relation-check:
     {{ python }} eval/test-calibrated-event-relation.py
 
