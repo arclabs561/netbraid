@@ -2204,6 +2204,12 @@ pub fn builtin_scenario_v1(id: &str) -> Result<ScenarioBundleV1, ScenarioError> 
                         "../../tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/prefix-7.jsonl"
                     ),
                 ),
+                (
+                    "LICENSE-libpcap-BSD-3-Clause.txt",
+                    include_bytes!(
+                        "../../tests/fixtures/replay/scenarios/saved-capture-prefix-boundary/LICENSE-libpcap-BSD-3-Clause.txt"
+                    ),
+                ),
             ],
         ),
         _ => {
