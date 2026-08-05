@@ -625,7 +625,7 @@
       "modalities": ["packet_capture", "modbus_tcp", "conversation_state"],
       "roles": ["conversation_state_eval", "protocol_adapter_conformance", "campaign_grouping_eval"],
       "disposition": "candidate",
-      "fetch": "manifest_pinned",
+      "fetch": "existing_fetcher",
       "priority": "P0",
       "note": "The exact curated-eval manifest pins both publisher artifacts. Keep the staged campaign and related traces in one role: endpoints, trace names, and attack phase otherwise leak the relation target. Publisher scenario labels support protocol-state evaluation, not claims about operator identity or intent."
     },
@@ -640,7 +640,7 @@
       "modalities": ["packet_capture", "iec60870_5_104", "network_flow", "multi_observer_projection"],
       "roles": ["protocol_adapter_conformance", "transaction_lineage_eval", "duplicate_observer_eval", "authorization_qualified_command_eval"],
       "disposition": "candidate",
-      "fetch": "manifest_pinned",
+      "fetch": "existing_fetcher",
       "priority": "P0",
       "note": "The exact curated-eval manifest pins all 14 publisher artifacts. Full captures, protocol-filtered captures, entity views, and derived flow tables from one scenario must stay together so duplicate observations are not counted as independent evidence. Scenario labels do not by themselves establish tamper or malicious intent."
     },
@@ -655,7 +655,7 @@
       "modalities": ["bluetooth_channel_sounding", "rf_iq", "location_observation", "los_nlos_observation"],
       "roles": ["distance_belief_eval", "los_nlos_abstention_eval", "geometry_shift_eval"],
       "disposition": "candidate",
-      "fetch": "manifest_pinned",
+      "fetch": "existing_fetcher",
       "priority": "P0",
       "note": "The exact curated-eval manifest pins all four publisher artifacts. Repeated measurements at one geometry are one dependence group; split by scenario and geometry rather than rows, and retain the publisher's differing indoor and outdoor position precision."
     },
@@ -670,7 +670,7 @@
       "modalities": ["lora", "sigfox", "gateway_rssi", "geospatial_track"],
       "roles": ["geospatial_block_eval", "track_continuity_eval", "protocol_shift_eval", "temporal_drift_eval"],
       "disposition": "candidate",
-      "fetch": "manifest_pinned",
+      "fetch": "existing_fetcher",
       "priority": "P0",
       "note": "The exact curated-eval manifest pins all three publisher CSV files. Devices, temporal blocks, geographic cells, gateway geometry, and urban or rural regime must remain explicit grouping axes. RSSI supports localization and tracking evidence, not physical-source identity."
     },
@@ -685,7 +685,7 @@
       "modalities": ["wifi_csi", "camera_trajectory", "angle_of_arrival", "event_performer_observation"],
       "roles": ["cross_modal_performer_relation_eval", "track_continuity_eval", "crowd_size_abstention_eval"],
       "disposition": "candidate",
-      "fetch": "manifest_pinned",
+      "fetch": "existing_fetcher",
       "priority": "P0",
       "note": "The exact curated-eval manifest pins the v2 archive. Keep complete source files, days, reboot intervals, phone holders, and environments in one role; do not reuse the publisher's shuffled file order as chronology. Trajectory correspondence is an event-performer relation, not durable person identity."
     },
@@ -700,7 +700,7 @@
       "modalities": ["uwb", "wifi_ftm", "imu", "mmwave_radar", "optitrack", "video", "gantry_ground_truth"],
       "roles": ["multimodal_localization_eval", "sensor_dropout_eval", "track_smoothing_eval", "calibration_provenance_eval"],
       "disposition": "candidate",
-      "fetch": "manifest_pinned",
+      "fetch": "existing_fetcher",
       "priority": "P0",
       "note": "The exact curated-eval manifest pins all 26 publisher artifacts; the CSV, ground-truth, and gantry subset is the first evaluation tranche. Hold out complete trajectories and takes, bind coordinate transforms and the documented time offset as calibration provenance, and compare every fused result with its best single sensor."
     },

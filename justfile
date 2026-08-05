@@ -131,6 +131,18 @@ controlled-jamming-status record="all":
 controlled-jamming-fetch record max_total_bytes="137438953472" max_file_bytes="8589934592" workers="2":
     uv run --script data/fetch/fetch-controlled-jamming.py fetch {{ record }} --max-total-bytes {{ max_total_bytes }} --max-file-bytes {{ max_file_bytes }} --workers {{ workers }}
 
+curated-eval-fetcher-check:
+    uv run --python 3.11 data/tests/test-fetch-curated-eval.py
+
+curated-eval-list selection="all":
+    uv run --script data/fetch/fetch-curated-eval.py list {{ selection }}
+
+curated-eval-status selection="all":
+    uv run --script data/fetch/fetch-curated-eval.py status {{ selection }}
+
+curated-eval-fetch selection="all" max_total_bytes="8589934592" max_file_bytes="2147483648":
+    uv run --script data/fetch/fetch-curated-eval.py fetch {{ selection }} --max-total-bytes {{ max_total_bytes }} --max-file-bytes {{ max_file_bytes }}
+
 hdf5-window-check:
     uv run --script eval/test_hdf5_window.py
 

@@ -18,6 +18,11 @@ alignment, held-out sources, cross-modal fusion, conflicting annotations,
 longitudinal tracking, and controlled perturbations. Each rung names its
 relation axes, grouping boundary, leakage rules, and minimum evidence gates.
 
+`curated-eval-artifacts-v1.json` pins all 50 artifacts from six Zenodo records,
+including byte extents and publisher MD5 digests. `fetch-curated-eval.py` lists,
+checks, or fetches a record or artifact without extraction; it uses exact range
+validation for resume and writes local SHA-256 receipts under ignored storage.
+
 `fetch-osu-lora.py` lists the seven Oregon State LoRa RFFI setup roots from the
 publisher's release note without network access. Its explicit `discover` action
 emits a deterministic, bounded Apache-index inventory; `fetch` stores bytes and

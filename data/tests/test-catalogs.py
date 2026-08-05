@@ -152,7 +152,7 @@ class CatalogTests(unittest.TestCase):
             self.assertIn(canonical_url, leads)
             self.assertEqual(leads[canonical_url]["fetch"], "existing_fetcher")
 
-    def test_exact_curated_eval_records_are_marked_manifest_pinned(self):
+    def test_exact_curated_eval_records_are_marked_fetchable(self):
         leads = {entry["canonical_url"]: entry for entry in load_catalog()["entries"]}
         manifest = json.loads(CURATED_EVAL_CATALOG.read_text(encoding="utf-8"))
 
@@ -160,7 +160,7 @@ class CatalogTests(unittest.TestCase):
         for record in manifest["records"]:
             canonical_url = f"https://zenodo.org/records/{record['record_id']}"
             self.assertIn(canonical_url, leads)
-            self.assertEqual(leads[canonical_url]["fetch"], "manifest_pinned")
+            self.assertEqual(leads[canonical_url]["fetch"], "existing_fetcher")
 
     def test_sub_ghz_candidate_keeps_protocols_and_admission_gap_explicit(self):
         entries = {entry["id"]: entry for entry in load_catalog()["entries"]}
