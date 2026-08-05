@@ -13,6 +13,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -100,6 +101,19 @@ class Xrf55JointFeatureTests(unittest.TestCase):
             )
             self.assertEqual(vector.shape, (MODULE.FEATURE_COUNT,))
             np.testing.assert_array_equal(vector.reshape(-1, 4), expected)
+
+    def test_joint_reducer_does_not_compute_a_discarded_marginal_vector(self):
+        with mock.patch.object(
+            FEATURES,
+            "feature_vector",
+            side_effect=AssertionError("marginal reducer must not run"),
+        ):
+            vector = MODULE.feature_vector(
+                "rfid",
+                _constant_block_array("rfid"),
+                layouts=TEST_LAYOUTS,
+            )
+        self.assertEqual(vector.shape, (MODULE.FEATURE_COUNT,))
 
     def test_reuses_shape_order_and_nonfinite_validation(self):
         wrong_shape = np.zeros((16, 31), dtype="<f8")

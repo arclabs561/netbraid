@@ -56,9 +56,7 @@ def feature_vector(
 ) -> np.ndarray:
     """Reduce one validated publisher array to a 512-value joint-grid vector."""
 
-    # The existing marginal reducer owns the exact modality, ndarray, layout,
-    # dtype, memory-order, finite-value, and minimum-axis validation contract.
-    FEATURES.feature_vector(modality, array, layouts=layouts)
+    FEATURES._validate_feature_input(modality, array, layouts=layouts)  # noqa: SLF001
     result = np.asarray(
         [
             value

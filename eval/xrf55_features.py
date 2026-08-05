@@ -174,14 +174,12 @@ def _grid_regions(
     return regions
 
 
-def feature_vector(
+def _validate_feature_input(
     modality: str,
     array: np.ndarray,
     *,
     layouts: Mapping[str, ArrayLayout] = OFFICIAL_LAYOUTS,
-) -> np.ndarray:
-    """Reduce one publisher-shaped array to a geometry-aware 96-value vector."""
-
+) -> None:
     if modality not in MODALITIES or modality not in layouts:
         raise Xrf55FeatureError("unsupported_modality")
     if not isinstance(array, np.ndarray):
@@ -198,6 +196,17 @@ def feature_vector(
         raise Xrf55FeatureError("feature_order_mismatch")
     if not bool(np.isfinite(array).all()):
         raise Xrf55FeatureError("nonfinite_feature_input")
+
+
+def feature_vector(
+    modality: str,
+    array: np.ndarray,
+    *,
+    layouts: Mapping[str, ArrayLayout] = OFFICIAL_LAYOUTS,
+) -> np.ndarray:
+    """Reduce one publisher-shaped array to a geometry-aware 96-value vector."""
+
+    _validate_feature_input(modality, array, layouts=layouts)
 
     if modality in {"wifi", "rfid"}:
         regions = _axis_regions(array, 1, SEQUENCE_BINS)
