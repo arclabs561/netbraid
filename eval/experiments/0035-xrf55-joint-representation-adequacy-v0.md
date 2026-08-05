@@ -88,13 +88,28 @@ would support only bounded cross-modal event relation in this corpus.
 
 ## Results
 
-Not executed. The real-data calibration gate, validation gate, cache
-compilation, ridge fits, scores, and metrics have not been run. Hermetic policy
-tests are implementation checks and do not count as experiment results.
+The real-data recipe compiled 160 train, 40 calibration, and 40 validation
+events into the three role-local 512-feature matrices. Its two independently
+written reports were byte-identical. All three calibration profiles failed the
+required ordering:
+
+| modality pair | q90 same-event | q10 different-event | ordered |
+|---|---:|---:|---|
+| Wi-Fi / RFID | `0x1.a758a352c80f9p+10` | `0x1.73ab7f20058a6p+8` | no |
+| Wi-Fi / mmWave | `0x1.004c12704625ap+14` | `0x1.66e9c32c1bfffp+9` | no |
+| RFID / mmWave | `0x1.b4cb721ddac86p+12` | `0x1.65ed6901b8223p+9` | no |
+
+Calibration contained 40 same-event and 760 different-event ordered pairs
+across two complete opaque groups. Because no pair ordered, the evaluator
+reported `calibration_failed`; validation remained unscored as preregistered.
+No quarantined group was opened as a later test role.
 
 ## Conclusion
 
-Pending real-data execution. Failure of any pair's calibration
-order or any preregistered validation quality gate falsifies the joint
-representation-adequacy hypothesis without changing bins, moments, model
-mechanics, thresholds, pair selection, or role boundaries.
+The joint-representation-adequacy hypothesis was falsified. Preserving
+channel-by-sequence and channel-by-space moments did not recover an ordered
+exact-event relation for any modality pair under the fixed reciprocal linear
+model. The larger same-event tails, especially for mmWave pairs, make another
+fusion weighting or threshold adjustment unjustified: every atomic pair
+already fails before fusion. Validation and the quarantined ranks remain
+available for a differently preregistered question, not for tuning this one.
