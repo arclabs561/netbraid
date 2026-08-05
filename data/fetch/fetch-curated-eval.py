@@ -907,9 +907,17 @@ def _download_once(
         flags = os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
         if offset:
             flags |= os.O_APPEND
+            output_descriptor = os.open(partial, flags)
         else:
-            flags |= os.O_CREAT | os.O_EXCL
-        output_descriptor = os.open(partial, flags, 0o600)
+            try:
+                output_descriptor = os.open(
+                    partial, flags | os.O_CREAT | os.O_EXCL, 0o600
+                )
+            except FileExistsError:
+                # A failed request may leave a verified zero-byte partial.
+                # Reopen it without truncation; the descriptor checks below
+                # still reject replacement with a non-regular or nonempty file.
+                output_descriptor = os.open(partial, flags)
         with os.fdopen(output_descriptor, "ab" if offset else "wb") as output:
             metadata = os.fstat(output.fileno())
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_size != offset:

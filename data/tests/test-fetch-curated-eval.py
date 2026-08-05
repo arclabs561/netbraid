@@ -225,6 +225,34 @@ class CuratedEvalFetcherTests(unittest.TestCase):
         self.assertEqual(request.get_header("Accept-encoding"), "identity")
         self.assertIsNone(request.get_header("User-agent"))
 
+    def test_zero_byte_partial_restarts_without_a_range_request(self):
+        payload = b"restart an empty partial"
+        artifact = synthetic_artifact(payload)
+        captured = []
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve()
+            raw_dir = base / "raw"
+            receipt_dir = base / "receipts"
+            partial = raw_dir / str(artifact.record_id) / f".{artifact.filename}.part"
+            partial.parent.mkdir(parents=True)
+            partial.write_bytes(b"")
+            partial.chmod(0o600)
+
+            def open_restart(request, *, timeout):
+                captured.append((request.get_header("Range"), timeout))
+                return response_for(artifact, payload)
+
+            with mock.patch.object(MODULE, "_open", side_effect=open_restart):
+                result = MODULE.acquire_artifact(
+                    artifact, raw_dir=raw_dir, receipt_dir=receipt_dir
+                )
+
+            target, _, _, _ = MODULE._paths(artifact, raw_dir, receipt_dir)
+            self.assertEqual(target.read_bytes(), payload)
+            self.assertFalse(partial.exists())
+            self.assertTrue(result["verified"])
+        self.assertEqual(captured, [(None, MODULE.DOWNLOAD_TIMEOUT_SECONDS)])
+
     def test_resume_requires_exact_content_range(self):
         payload = b"0123456789abcdef"
         artifact = synthetic_artifact(payload)
