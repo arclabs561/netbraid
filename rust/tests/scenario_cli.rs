@@ -147,52 +147,20 @@ fn scenario_dispatch_does_not_follow_a_manifest_symlink_to_probe_its_schema() {
 #[test]
 fn capture_scenario_lineage_matches_the_admitted_adapter_corpus() {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let corpus: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(workspace.join("tests/fixtures/adapter/upstream/corpus-v0.json")).unwrap(),
-    )
-    .unwrap();
     let scenario: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(fixture("saved-capture-prefix-boundary").join("scenario.json")).unwrap(),
+        &std::fs::read(
+            fixture("synthetic-wlan-prefix-boundary").join("scenario.json"),
+        )
+        .unwrap(),
     )
     .unwrap();
 
     let source = &scenario["provenance"]["sources"][0];
-    let admitted = corpus["fixtures"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|fixture| fixture["id"] == source["corpus_fixture_id"])
-        .unwrap();
-
-    assert_eq!(source["corpus_schema"], corpus["schema"]);
-    assert_eq!(source["id"], admitted["id"]);
-    assert_eq!(source["repository"], admitted["origin"]["repository"]);
-    assert_eq!(source["revision"], admitted["origin"]["revision"]);
-    assert_eq!(source["source_path"], admitted["origin"]["source_path"]);
-    assert_eq!(source["source_url"], admitted["origin"]["source_url"]);
-    assert_eq!(
-        source["upstream_blob_sha1"],
-        admitted["origin"]["upstream_blob_sha1"]
-    );
-    assert_eq!(
-        source["content_sha256"],
-        format!("sha256:{}", admitted["content_sha256"].as_str().unwrap())
-    );
-    assert_eq!(source["size_bytes"], admitted["size_bytes"]);
-    assert_eq!(
-        source["spdx_license_expression"],
-        admitted["origin"]["license"]
-    );
-
-    let adapter_license = std::fs::read(
-        workspace
-            .join("tests/fixtures/adapter")
-            .join(admitted["origin"]["license_file"].as_str().unwrap()),
-    )
-    .unwrap();
-    let scenario_license = std::fs::read(
-        fixture("saved-capture-prefix-boundary").join("LICENSE-libpcap-BSD-3-Clause.txt"),
-    )
-    .unwrap();
-    assert_eq!(scenario_license, adapter_license);
+    assert_eq!(source["source_origin"], "project_authored");
+    assert_eq!(source["corpus_fixture_id"], "netbraid.synthetic-wlan-prefix-boundary");
+    assert!(source["repository"].is_null());
+    assert!(source["revision"].is_null());
+    assert!(source["source_url"].is_null());
+    assert!(source["license_artifact"].is_null());
+    assert_eq!(source["spdx_license_expression"], "MIT OR Unlicense");
 }

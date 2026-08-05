@@ -189,5 +189,4 @@ just pcap-smoke       # requires TShark and Capinfos
 ## License
 
 Authored code is available under MIT or the Unlicense. The package expression
-is `(MIT OR Unlicense) AND BSD-3-Clause` because one supported fixture carries
-the BSD-3-Clause license.
+is `MIT OR Unlicense` — project-authored fixtures use the same license as authored code.

@@ -20,6 +20,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 const SCENARIO: &str = "saved-capture-prefix-boundary";
+const BUILTIN_V1: &str = "synthetic-wlan-prefix-boundary";
 const RAW_CAPTURE_SHA256: &str =
     "sha256:d66a40532f2a67d3dac9bb8c438b6dca59f5228f531087f781ec03858b63162e";
 
@@ -550,24 +551,19 @@ fn synthetic_v0_builtin_inventory_remains_exactly_four() {
 
 #[cfg(feature = "scenario-fixtures-capture-derived")]
 #[test]
-fn reviewed_capture_builtin_inventory_is_separate_and_v2() {
+fn reviewed_capture_builtin_inventory_is_exactly_one() {
     assert_eq!(
         netbraid::replay::builtin_scenario_ids_v1(),
-        ["saved-capture-prefix-boundary", "synthetic-wlan-prefix-boundary"]
+        ["synthetic-wlan-prefix-boundary"]
     );
-    // Both built-ins must load and replay correctly
-    let bundle = netbraid::replay::builtin_scenario_v1(SCENARIO).unwrap();
+    let bundle = netbraid::replay::builtin_scenario_v1(BUILTIN_V1).unwrap();
     let receipt = replay_scenario_v1(&bundle, "prefix-seven").unwrap();
     assert_eq!(receipt.projection.saved_captures.len(), 2);
-
-    let synthetic = netbraid::replay::builtin_scenario_v1("synthetic-wlan-prefix-boundary").unwrap();
-    let synthetic_receipt = replay_scenario_v1(&synthetic, "prefix-seven").unwrap();
-    assert_eq!(synthetic_receipt.projection.saved_captures.len(), 2);
     assert_eq!(
-        synthetic_receipt.declared_sensitivity,
+        receipt.declared_sensitivity,
         ScenarioSensitivityV1::PublicReviewed
     );
-    assert!(synthetic
+    assert!(bundle
         .manifest()
         .provenance
         .sources
