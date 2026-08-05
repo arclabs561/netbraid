@@ -178,7 +178,12 @@ class FetchOsuLoraTests(unittest.TestCase):
                 mock.patch.object(MODULE, "_open", return_value=mismatch),
                 self.assertRaisesRegex(MODULE.FetchError, "invalid_content_range"),
             ):
-                MODULE.download_one(remote, base / "raw", base / "receipts")
+                MODULE.download_one(
+                    remote,
+                    base / "raw",
+                    base / "receipts",
+                    acknowledge_research_terms=True,
+                )
             self.assertEqual(partial.read_bytes(), payload[:4])
 
     def test_receipt_reuse_verifies_sha256_without_second_get(self):
@@ -192,11 +197,17 @@ class FetchOsuLoraTests(unittest.TestCase):
                 mock.patch.object(MODULE, "_open", return_value=response) as opener,
             ):
                 disposition, target = MODULE.download_one(
-                    remote, base / "raw", base / "receipts"
+                    remote,
+                    base / "raw",
+                    base / "receipts",
+                    acknowledge_research_terms=True,
                 )
                 self.assertEqual(disposition, "downloaded")
                 disposition, reused = MODULE.download_one(
-                    remote, base / "raw", base / "receipts"
+                    remote,
+                    base / "raw",
+                    base / "receipts",
+                    acknowledge_research_terms=True,
                 )
             self.assertEqual(disposition, "reused")
             self.assertEqual(reused, target)
@@ -205,6 +216,17 @@ class FetchOsuLoraTests(unittest.TestCase):
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
             self.assertEqual(receipt["source"], remote.as_dict())
             self.assertEqual(len(receipt["sha256"]), 64)
+            terms_path = base / "receipts" / "terms-acknowledgement.json"
+            terms = json.loads(terms_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                terms,
+                {
+                    "schema": "local.osu_lora_terms_acknowledgement.v1",
+                    "release_note": MODULE.RELEASE_NOTE,
+                    "terms": MODULE.TERMS_POLICY,
+                },
+            )
+            self.assertEqual(terms_path.stat().st_mode & 0o777, 0o600)
             self.assertEqual(opener.call_count, 1)
 
     def test_remote_drift_fails_before_get_or_local_write(self):
@@ -218,7 +240,12 @@ class FetchOsuLoraTests(unittest.TestCase):
                 mock.patch.object(MODULE, "_open") as opener,
                 self.assertRaisesRegex(MODULE.FetchError, "remote_drift"),
             ):
-                MODULE.download_one(expected, base / "raw", base / "receipts")
+                MODULE.download_one(
+                    expected,
+                    base / "raw",
+                    base / "receipts",
+                    acknowledge_research_terms=True,
+                )
             opener.assert_not_called()
             self.assertFalse((base / "raw").exists())
 
@@ -346,6 +373,7 @@ class FetchOsuLoraTests(unittest.TestCase):
                     workers=1,
                     max_total_bytes=remote.bytes - 1,
                     max_file_bytes=remote.bytes,
+                    acknowledge_research_terms=True,
                 )
             download.assert_not_called()
             self.assertFalse((base / "raw").exists())
@@ -370,6 +398,87 @@ class FetchOsuLoraTests(unittest.TestCase):
         ignores = set((ROOT / ".gitignore").read_text(encoding="utf-8").splitlines())
         self.assertIn("/data/raw/", ignores)
         self.assertIn("/data/receipts/", ignores)
+
+    def test_fetch_requires_terms_acknowledgement_before_network_or_writes(self):
+        remote = remote_file(b"publisher bytes")
+        inventory = {"files": [remote.as_dict()]}
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            with (
+                mock.patch.object(MODULE, "head_remote") as head,
+                mock.patch.object(MODULE, "_open") as opener,
+                self.assertRaisesRegex(
+                    MODULE.FetchError, "research_terms_acknowledgement_required"
+                ),
+            ):
+                MODULE.download_one(remote, base / "raw", base / "receipts")
+            head.assert_not_called()
+            opener.assert_not_called()
+            self.assertFalse((base / "raw").exists())
+            self.assertFalse((base / "receipts").exists())
+
+            with (
+                mock.patch.object(MODULE, "download_one") as download,
+                self.assertRaisesRegex(
+                    MODULE.FetchError, "research_terms_acknowledgement_required"
+                ),
+            ):
+                MODULE.fetch_inventory(
+                    inventory,
+                    raw_dir=base / "raw",
+                    receipt_dir=base / "receipts",
+                    workers=1,
+                    max_total_bytes=remote.bytes,
+                    max_file_bytes=remote.bytes,
+                )
+            download.assert_not_called()
+            self.assertFalse((base / "receipts").exists())
+
+    def test_fetch_cli_acknowledgement_is_explicit_and_wired(self):
+        error_output = io.StringIO()
+        with (
+            mock.patch.object(MODULE, "discover") as discover,
+            mock.patch.object(MODULE.sys, "stderr", error_output),
+        ):
+            self.assertEqual(MODULE.main(["fetch", "distances"]), 2)
+        discover.assert_not_called()
+        self.assertEqual(
+            error_output.getvalue(), "research_terms_acknowledgement_required\n"
+        )
+
+        with (
+            mock.patch.object(MODULE, "discover", return_value={"files": []}),
+            mock.patch.object(MODULE, "fetch_inventory", return_value=[]) as fetch,
+        ):
+            self.assertEqual(
+                MODULE.main(["fetch", "distances", "--acknowledge-research-terms"]),
+                0,
+            )
+        self.assertIs(fetch.call_args.kwargs["acknowledge_research_terms"], True)
+
+    def test_terms_receipt_drift_fails_before_remote_access(self):
+        remote = remote_file(b"publisher bytes")
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            MODULE._ensure_terms_acknowledgement(base / "receipts", True)
+            terms_path = base / "receipts" / "terms-acknowledgement.json"
+            terms = json.loads(terms_path.read_text(encoding="utf-8"))
+            terms["terms"]["redistribution_license"] = "invented"
+            terms_path.write_text(json.dumps(terms), encoding="utf-8")
+
+            with (
+                mock.patch.object(MODULE, "head_remote") as head,
+                self.assertRaisesRegex(
+                    MODULE.FetchError, "terms_acknowledgement_receipt_mismatch"
+                ),
+            ):
+                MODULE.download_one(
+                    remote,
+                    base / "raw",
+                    base / "receipts",
+                    acknowledge_research_terms=True,
+                )
+            head.assert_not_called()
 
 
 if __name__ == "__main__":

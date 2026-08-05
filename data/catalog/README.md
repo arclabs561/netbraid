@@ -25,10 +25,13 @@ validation for resume and writes local SHA-256 receipts under ignored storage.
 
 `fetch-osu-lora.py` lists the seven Oregon State LoRa RFFI setup roots from the
 publisher's release note without network access. Its explicit `discover` action
-emits a deterministic, bounded Apache-index inventory; `fetch` stores bytes and
-local SHA-256 receipts only under the ignored `data/raw/` and `data/receipts/`
-trees. Fetching defaults to a 10 GiB aggregate cap because the full release is
-larger than 1.2 TB.
+emits a deterministic, bounded Apache-index inventory. The release note permits
+research use and requests citation for resulting publications, but does not
+state a redistribution license. `fetch` therefore requires
+`--acknowledge-research-terms` and stores bytes, the local acknowledgement, and
+SHA-256 receipts only under the ignored `data/raw/` and `data/receipts/` trees.
+Fetching defaults to a 10 GiB aggregate cap because the full release is larger
+than 1.2 TB.
 
 `controlled-jamming-artifacts-v1.json` is the exact acquisition boundary for
 two Zenodo controlled-jamming records. It pins 112 publisher artifacts, sizes,

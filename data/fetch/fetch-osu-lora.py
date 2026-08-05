@@ -37,6 +37,12 @@ RELEASE_NOTE = (
     "research.engr.oregonstate.edu.hamdaoui/files/"
     "release_note_lora_datasets_final_oct2023_v2.pdf"
 )
+TERMS_POLICY = {
+    "use": "research",
+    "publication_citation": "requested",
+    "redistribution_license": "not_stated_in_release_note",
+    "acknowledgement": "explicit_local_operator",
+}
 PUBLISHER_ORIGIN = "https://research.engr.oregonstate.edu"
 PUBLISHER_ROOT = f"{PUBLISHER_ORIGIN}/hamdaoui/RFFP-dataset/LoRa-Dataset/"
 SETUPS = {
@@ -678,6 +684,25 @@ def _write_receipt(path: Path, value: Mapping[str, Any]) -> None:
             os.unlink(temporary)
 
 
+def _ensure_terms_acknowledgement(
+    receipt_dir: Path, acknowledge_research_terms: bool
+) -> None:
+    if acknowledge_research_terms is not True:
+        raise FetchError("research_terms_acknowledgement_required")
+    _ensure_safe_directory(receipt_dir)
+    path = receipt_dir / "terms-acknowledgement.json"
+    expected = {
+        "schema": "local.osu_lora_terms_acknowledgement.v1",
+        "release_note": RELEASE_NOTE,
+        "terms": TERMS_POLICY,
+    }
+    if os.path.lexists(path):
+        if _read_receipt(path) != expected:
+            raise FetchError("terms_acknowledgement_receipt_mismatch")
+        return
+    _write_receipt(path, expected)
+
+
 def _verify_existing(target: Path, receipt_path: Path, remote: RemoteFile) -> None:
     size, sha256 = _digest_regular_file(target)
     value = _read_receipt(receipt_path)
@@ -772,7 +797,10 @@ def download_one(
     remote: RemoteFile,
     raw_dir: Path,
     receipt_dir: Path,
+    *,
+    acknowledge_research_terms: bool = False,
 ) -> tuple[str, Path]:
+    _ensure_terms_acknowledgement(receipt_dir, acknowledge_research_terms)
     live = head_remote(remote.setup, remote.path, remote.url)
     if live != remote:
         raise FetchError("remote_drift")
@@ -835,7 +863,10 @@ def fetch_inventory(
     workers: int,
     max_total_bytes: int,
     max_file_bytes: int,
+    acknowledge_research_terms: bool = False,
 ) -> list[tuple[str, Path]]:
+    if acknowledge_research_terms is not True:
+        raise FetchError("research_terms_acknowledgement_required")
     if not 1 <= workers <= MAX_WORKERS:
         raise FetchError(f"workers_must_be_between_1_and_{MAX_WORKERS}")
     if max_total_bytes <= 0 or max_file_bytes <= 0:
@@ -851,10 +882,16 @@ def fetch_inventory(
         raise FetchError("max_total_bytes_exceeded")
 
     def acquire(item: RemoteFile) -> tuple[str, Path]:
-        return download_one(item, raw_dir, receipt_dir)
+        return download_one(
+            item,
+            raw_dir,
+            receipt_dir,
+            acknowledge_research_terms=acknowledge_research_terms,
+        )
 
     if not files:
         return []
+    _ensure_terms_acknowledgement(receipt_dir, acknowledge_research_terms)
     worker_count = min(workers, len(files))
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         return list(executor.map(acquire, files))
@@ -911,6 +948,14 @@ def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     fetch_parser.add_argument(
         "--max-file-bytes", type=int, default=DEFAULT_MAX_FILE_BYTES
     )
+    fetch_parser.add_argument(
+        "--acknowledge-research-terms",
+        action="store_true",
+        help=(
+            "confirm local review of the publisher's research-use and citation "
+            "terms; the release note does not state a redistribution license"
+        ),
+    )
     actual_argv = list(argv) if argv is not None else sys.argv[1:]
     if not actual_argv:
         actual_argv = ["list"]
@@ -922,6 +967,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.action == "list":
         print(json.dumps(_catalog(), indent=2, sort_keys=True))
         return 0
+    if arguments.action == "fetch" and arguments.acknowledge_research_terms is not True:
+        print("research_terms_acknowledgement_required", file=sys.stderr)
+        return 2
     try:
         inventory = discover(
             arguments.setups,
@@ -944,6 +992,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             workers=arguments.workers,
             max_total_bytes=arguments.max_total_bytes,
             max_file_bytes=arguments.max_file_bytes,
+            acknowledge_research_terms=arguments.acknowledge_research_terms,
         )
         for disposition, path in results:
             print(f"{disposition}: {path}")

@@ -364,7 +364,7 @@
       "disposition": "candidate",
       "fetch": "existing_fetcher",
       "priority": "P0",
-      "note": "The corpus is very large; pin its exact public file inventory and terms before acquisition."
+      "note": "The release note permits research use and requests citation for resulting publications but does not state a redistribution license. The corpus is very large; require explicit local terms acknowledgement and pin its exact public file inventory before acquisition."
     },
     {
       "id": "bristol-lora-rffi",
