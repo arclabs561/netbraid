@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import importlib.util
 import json
@@ -33,6 +34,12 @@ DEFAULT_OUTPUT_DIR = (
     ROOT / "data" / "derived" / "eval" / "xrf55-joint-representation-v0"
 )
 SCHEMA = "netbraid.xrf55_joint_role_cache.v0"
+MANIFEST_SCHEMA = "netbraid.xrf55_joint_role_cache_generation.v0"
+JOURNAL_SCHEMA = "netbraid.xrf55_joint_role_cache_transaction.v0"
+MANIFEST_FILENAME = "xrf55-joint-generation-manifest.json"
+JOURNAL_FILENAME = ".xrf55-joint-publication-journal.json"
+JOURNAL_TEMPORARY_FILENAME = f"{JOURNAL_FILENAME}.temporary"
+MAX_JOURNAL_BYTES = 16 * 1024
 READ_CHUNK_BYTES = 1024**2
 
 
@@ -220,14 +227,21 @@ def _prepare_outputs(
     outputs: Mapping[str, OutputSet], sources: Sequence[Any]
 ) -> tuple[Path, ...]:
     paths = _output_paths(outputs)
-    resolved = tuple(path.resolve(strict=False) for path in paths)
+    output_dir = paths[0].parent
+    transaction_paths = (
+        *paths,
+        _manifest_path(output_dir),
+        _journal_path(output_dir),
+        *_transaction_debris((*paths, _manifest_path(output_dir))),
+    )
+    resolved = tuple(path.resolve(strict=False) for path in transaction_paths)
     if len(set(resolved)) != len(resolved):
         raise Xrf55JointCacheCompileError("duplicate_output_path")
     source_paths = {source.path.resolve(strict=True) for source in sources}
     if source_paths.intersection(resolved):
         raise Xrf55JointCacheCompileError("output_aliases_source")
     try:
-        for path in paths:
+        for path in transaction_paths:
             BASE._prepare_target(path)  # noqa: SLF001
     except BASE.Xrf55CacheCompileError as error:
         raise Xrf55JointCacheCompileError(str(error)) from error
@@ -516,13 +530,318 @@ def _write_adapter_temporary(target: Path, document: Mapping[str, Any]) -> Path:
         raise
 
 
+def _manifest_path(output_dir: Path) -> Path:
+    return output_dir / MANIFEST_FILENAME
+
+
+def _journal_path(output_dir: Path) -> Path:
+    return output_dir / JOURNAL_FILENAME
+
+
+def _journal_temporary_path(output_dir: Path) -> Path:
+    return output_dir / JOURNAL_TEMPORARY_FILENAME
+
+
 def _backup_path(target: Path) -> Path:
-    descriptor, name = tempfile.mkstemp(
-        prefix=f".{target.name}.backup.", dir=target.parent
+    return target.parent / f".{target.name}.xrf55-backup"
+
+
+def _backup_temporary_path(target: Path) -> Path:
+    return target.parent / f".{target.name}.xrf55-backup-copy"
+
+
+def _restore_temporary_path(target: Path) -> Path:
+    return target.parent / f".{target.name}.xrf55-restore"
+
+
+def _fsync_directory(directory: Path) -> None:
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _require_regular_file(
+    path: Path, error_code: str, *, require_private: bool = True
+) -> os.stat_result:
+    try:
+        metadata = path.lstat()
+    except OSError as error:
+        raise Xrf55JointCacheCompileError(error_code) from error
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise Xrf55JointCacheCompileError(error_code)
+    if require_private and stat.S_IMODE(metadata.st_mode) != 0o600:
+        raise Xrf55JointCacheCompileError(error_code)
+    return metadata
+
+
+def _remove_regular_file(path: Path, error_code: str) -> bool:
+    if not os.path.lexists(path):
+        return False
+    _require_regular_file(path, error_code)
+    os.unlink(path)
+    return True
+
+
+def _transaction_targets(outputs: Mapping[str, OutputSet]) -> tuple[Path, ...]:
+    role_targets = tuple(
+        outputs[role].matrices[modality]
+        for role in ROLE_ORDER
+        for modality in FEATURES.MODALITIES
+    ) + tuple(outputs[role].adapter for role in ROLE_ORDER)
+    return (*role_targets, _manifest_path(role_targets[0].parent))
+
+
+def _transaction_debris(targets: Sequence[Path]) -> tuple[Path, ...]:
+    output_dir = targets[0].parent
+    return (
+        _journal_temporary_path(output_dir),
+        *(_backup_path(target) for target in targets),
+        *(_backup_temporary_path(target) for target in targets),
+        *(_restore_temporary_path(target) for target in targets),
     )
-    os.close(descriptor)
-    os.unlink(name)
-    return Path(name)
+
+
+def _cleanup_transaction_debris(targets: Sequence[Path]) -> None:
+    changed = False
+    for path in _transaction_debris(targets):
+        changed = _remove_regular_file(path, "unsafe_transaction_path") or changed
+    if changed:
+        _fsync_directory(targets[0].parent)
+
+
+def _copy_private_file(source: Path, destination: Path) -> None:
+    source_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    source_descriptor = os.open(source, source_flags)
+    destination_descriptor = -1
+    try:
+        before = os.fstat(source_descriptor)
+        if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+            raise Xrf55JointCacheCompileError("unsafe_output_path")
+        destination_descriptor = os.open(
+            destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+        )
+        with (
+            os.fdopen(source_descriptor, "rb", closefd=False) as source_file,
+            os.fdopen(destination_descriptor, "wb", closefd=False) as output,
+        ):
+            while chunk := source_file.read(READ_CHUNK_BYTES):
+                output.write(chunk)
+            output.flush()
+            os.fsync(output.fileno())
+        after = os.fstat(source_descriptor)
+        if (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        ):
+            raise Xrf55JointCacheCompileError("output_changed_during_backup")
+    finally:
+        os.close(source_descriptor)
+        if destination_descriptor >= 0:
+            os.close(destination_descriptor)
+
+
+def _create_backup(target: Path, backup: Path) -> None:
+    metadata = _require_regular_file(target, "unsafe_output_path")
+    try:
+        os.link(target, backup, follow_symlinks=False)
+    except OSError as error:
+        if error.errno not in {
+            errno.EACCES,
+            errno.EPERM,
+            errno.EXDEV,
+            getattr(errno, "EOPNOTSUPP", errno.EPERM),
+        }:
+            raise
+        temporary = _backup_temporary_path(target)
+        _copy_private_file(target, temporary)
+        os.replace(temporary, backup)
+    backup_metadata = _require_regular_file(backup, "unsafe_transaction_path")
+    if backup_metadata.st_size != metadata.st_size or _hash_file(backup) != _hash_file(
+        target
+    ):
+        raise Xrf55JointCacheCompileError("backup_content_mismatch")
+
+
+def _journal_document(targets: Sequence[Path]) -> dict[str, Any]:
+    return {
+        "schema": JOURNAL_SCHEMA,
+        "targets": [
+            {
+                "backup": _backup_path(target).name,
+                "existed": os.path.lexists(target),
+                "name": target.name,
+            }
+            for target in targets
+        ],
+    }
+
+
+def _write_journal(output_dir: Path, document: Mapping[str, Any]) -> None:
+    rendered = _canonical_bytes(document) + b"\n"
+    if len(rendered) > MAX_JOURNAL_BYTES:
+        raise Xrf55JointCacheCompileError("transaction_journal_too_large")
+    temporary = _journal_temporary_path(output_dir)
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb", closefd=False) as output:
+            output.write(rendered)
+            output.flush()
+            os.fsync(output.fileno())
+    finally:
+        os.close(descriptor)
+    os.replace(temporary, _journal_path(output_dir))
+    _fsync_directory(output_dir)
+
+
+def _strict_json_object(pairs: Sequence[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise Xrf55JointCacheCompileError("invalid_transaction_journal")
+        value[key] = item
+    return value
+
+
+def _read_journal(output_dir: Path, targets: Sequence[Path]) -> dict[str, Any]:
+    path = _journal_path(output_dir)
+    metadata = _require_regular_file(path, "unsafe_transaction_journal")
+    if metadata.st_size <= 0 or metadata.st_size > MAX_JOURNAL_BYTES:
+        raise Xrf55JointCacheCompileError("invalid_transaction_journal")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        observed = os.fstat(descriptor)
+        if (observed.st_dev, observed.st_ino) != (metadata.st_dev, metadata.st_ino):
+            raise Xrf55JointCacheCompileError("unsafe_transaction_journal")
+        with os.fdopen(descriptor, "rb", closefd=False) as source:
+            rendered = source.read(MAX_JOURNAL_BYTES + 1)
+    finally:
+        os.close(descriptor)
+    try:
+        document = json.loads(rendered, object_pairs_hook=_strict_json_object)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise Xrf55JointCacheCompileError("invalid_transaction_journal") from error
+    expected = [
+        {
+            "backup": _backup_path(target).name,
+            "name": target.name,
+        }
+        for target in targets
+    ]
+    if (
+        not isinstance(document, dict)
+        or set(document) != {"schema", "targets"}
+        or document["schema"] != JOURNAL_SCHEMA
+        or not isinstance(document["targets"], list)
+        or len(document["targets"]) != len(expected)
+    ):
+        raise Xrf55JointCacheCompileError("invalid_transaction_journal")
+    for item, names in zip(document["targets"], expected, strict=True):
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"backup", "existed", "name"}
+            or item["backup"] != names["backup"]
+            or item["name"] != names["name"]
+            or type(item["existed"]) is not bool
+        ):
+            raise Xrf55JointCacheCompileError("invalid_transaction_journal")
+    return document
+
+
+def _restore_backup(backup: Path, target: Path) -> None:
+    _require_regular_file(backup, "unsafe_transaction_path")
+    temporary = _restore_temporary_path(target)
+    _remove_regular_file(temporary, "unsafe_transaction_path")
+    os.link(backup, temporary, follow_symlinks=False)
+    os.replace(temporary, target)
+    _fsync_directory(target.parent)
+
+
+def _recover_interrupted_publication(
+    output_dir: Path, outputs: Mapping[str, OutputSet]
+) -> None:
+    targets = _transaction_targets(outputs)
+    journal = _journal_path(output_dir)
+    if not os.path.lexists(journal):
+        _cleanup_transaction_debris(targets)
+        return
+    document = _read_journal(output_dir, targets)
+    for target, item in zip(targets, document["targets"], strict=True):
+        backup = _backup_path(target)
+        if item["existed"]:
+            _require_regular_file(backup, "unsafe_transaction_path")
+        elif os.path.lexists(backup):
+            raise Xrf55JointCacheCompileError("invalid_transaction_journal")
+    for target, item in zip(targets, document["targets"], strict=True):
+        backup = _backup_path(target)
+        if item["existed"]:
+            _restore_backup(backup, target)
+        else:
+            if _remove_regular_file(target, "unsafe_output_path"):
+                _fsync_directory(output_dir)
+    os.unlink(journal)
+    _fsync_directory(output_dir)
+    _cleanup_transaction_debris(targets)
+
+
+def _role_publications(
+    output_dir: Path,
+    matrix_temporaries: Mapping[str, Mapping[str, Path]],
+    adapter_temporaries: Mapping[str, Path],
+) -> tuple[tuple[Path, Path], ...]:
+    return tuple(
+        (
+            matrix_temporaries[role][modality],
+            output_dir / OUTPUT_FILENAMES[role][modality],
+        )
+        for role in ROLE_ORDER
+        for modality in FEATURES.MODALITIES
+    ) + tuple(
+        (adapter_temporaries[role], output_dir / OUTPUT_FILENAMES[role]["adapter"])
+        for role in ROLE_ORDER
+    )
+
+
+def _generation_manifest(
+    publications: Sequence[tuple[Path, Path]], source_binding: SourceBinding
+) -> dict[str, Any]:
+    artifacts = {}
+    for temporary, target in publications:
+        digest, size = _hash_file(temporary)
+        artifacts[target.name] = {"bytes": size, "sha256": digest}
+    if len(artifacts) != 12:
+        raise Xrf55JointCacheCompileError("output_contract_mismatch")
+    return {
+        "schema": MANIFEST_SCHEMA,
+        "outputs": dict(sorted(artifacts.items())),
+        "binding": {
+            "feature_policy_sha256": _content_digest(
+                "netbraid.xrf55-joint.feature-policy.v0",
+                JOINT.feature_policy_document(),
+            ),
+            "role_policy_sha256": _content_digest(
+                "netbraid.xrf55-joint.role-policy.v0", JOINT.role_policy_document()
+            ),
+            "source": {
+                "archive_count": source_binding.archive_count,
+                "archive_profile_set_sha256": (
+                    source_binding.archive_profile_set_sha256
+                ),
+                "archive_receipt_set_sha256": (
+                    source_binding.archive_receipt_set_sha256
+                ),
+            },
+        },
+    }
 
 
 def _publish(
@@ -530,88 +849,39 @@ def _publish(
     outputs: Mapping[str, OutputSet],
     matrix_temporaries: Mapping[str, Mapping[str, Path]],
     adapter_temporaries: Mapping[str, Path],
+    manifest_temporary: Path,
 ) -> None:
-    matrix_publications = (
-        (
-            matrix_temporaries["train"]["wifi"],
-            output_dir / "xrf55-joint-train-wifi.npy",
-        ),
-        (
-            matrix_temporaries["train"]["rfid"],
-            output_dir / "xrf55-joint-train-rfid.npy",
-        ),
-        (
-            matrix_temporaries["train"]["mmwave"],
-            output_dir / "xrf55-joint-train-mmwave.npy",
-        ),
-        (
-            matrix_temporaries["calibration"]["wifi"],
-            output_dir / "xrf55-joint-calibration-wifi.npy",
-        ),
-        (
-            matrix_temporaries["calibration"]["rfid"],
-            output_dir / "xrf55-joint-calibration-rfid.npy",
-        ),
-        (
-            matrix_temporaries["calibration"]["mmwave"],
-            output_dir / "xrf55-joint-calibration-mmwave.npy",
-        ),
-        (
-            matrix_temporaries["validation"]["wifi"],
-            output_dir / "xrf55-joint-validation-wifi.npy",
-        ),
-        (
-            matrix_temporaries["validation"]["rfid"],
-            output_dir / "xrf55-joint-validation-rfid.npy",
-        ),
-        (
-            matrix_temporaries["validation"]["mmwave"],
-            output_dir / "xrf55-joint-validation-mmwave.npy",
-        ),
+    role_publications = _role_publications(
+        output_dir, matrix_temporaries, adapter_temporaries
     )
-    adapter_publications = (
-        (adapter_temporaries["train"], output_dir / "xrf55-joint-train-adapter.json"),
-        (
-            adapter_temporaries["calibration"],
-            output_dir / "xrf55-joint-calibration-adapter.json",
-        ),
-        (
-            adapter_temporaries["validation"],
-            output_dir / "xrf55-joint-validation-adapter.json",
-        ),
-    )
-    publications = matrix_publications + adapter_publications
-    targets = tuple(target for _, target in publications)
-    if set(targets) != set(_output_paths(outputs)):
+    if set(target for _, target in role_publications) != set(_output_paths(outputs)):
         raise Xrf55JointCacheCompileError("output_contract_mismatch")
-    backups: dict[Path, Path] = {}
-    replaced: set[Path] = set()
+    publications = (
+        *role_publications,
+        (manifest_temporary, _manifest_path(output_dir)),
+    )
+    targets = tuple(target for _, target in publications)
+    _cleanup_transaction_debris(targets)
+    journal_document = _journal_document(targets)
     try:
-        for target in targets:
-            if not os.path.lexists(target):
-                continue
-            metadata = target.lstat()
-            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-                raise Xrf55JointCacheCompileError("unsafe_output_path")
-            backup = _backup_path(target)
-            os.replace(target, backup)
-            backups[target] = backup
-
+        for target, item in zip(targets, journal_document["targets"], strict=True):
+            if item["existed"]:
+                _create_backup(target, _backup_path(target))
+        _fsync_directory(output_dir)
+        _write_journal(output_dir, journal_document)
         for temporary, target in publications:
+            _require_regular_file(temporary, "unsafe_temporary_output")
             os.replace(temporary, target)
-            replaced.add(target)
+            _fsync_directory(output_dir)
     except BaseException:
-        for target in reversed(targets):
-            backup = backups.get(target)
-            if backup is not None and os.path.lexists(backup):
-                os.replace(backup, target)
-            elif target in replaced and os.path.lexists(target):
-                os.unlink(target)
+        if os.path.lexists(_journal_path(output_dir)):
+            _recover_interrupted_publication(output_dir, outputs)
+        else:
+            _cleanup_transaction_debris(targets)
         raise
-    finally:
-        for backup in backups.values():
-            if os.path.lexists(backup):
-                os.unlink(backup)
+    os.unlink(_journal_path(output_dir))
+    _fsync_directory(output_dir)
+    _cleanup_transaction_debris(targets)
 
 
 def compile_joint_role_cache(
@@ -622,15 +892,17 @@ def compile_joint_role_cache(
     layouts: Mapping[str, Any] = FEATURES.OFFICIAL_LAYOUTS,
     extractor: Callable[..., np.ndarray] = JOINT.feature_vector,
 ) -> dict[str, dict[str, Any]]:
-    """Compile all three fixed roles and publish each adapter last."""
+    """Compile all three fixed roles and commit one generation manifest last."""
 
     sources = tuple(sources)
     _validate_source_binding(source_binding, len(sources))
     outputs = _all_outputs(output_dir)
     _prepare_outputs(outputs, sources)
+    _recover_interrupted_publication(output_dir, outputs)
     events = _collect_events(sources)
     matrix_temporaries: dict[str, dict[str, Path]] = {}
     adapter_temporaries: dict[str, Path] = {}
+    manifest_temporary: Path | None = None
     try:
         matrix_temporaries, artifacts = _compile_temporary_matrices(
             sources,
@@ -647,7 +919,20 @@ def compile_joint_role_cache(
             role: _write_adapter_temporary(outputs[role].adapter, adapters[role])
             for role in ROLE_ORDER
         }
-        _publish(output_dir, outputs, matrix_temporaries, adapter_temporaries)
+        role_publications = _role_publications(
+            output_dir, matrix_temporaries, adapter_temporaries
+        )
+        manifest_temporary = _write_adapter_temporary(
+            _manifest_path(output_dir),
+            _generation_manifest(role_publications, source_binding),
+        )
+        _publish(
+            output_dir,
+            outputs,
+            matrix_temporaries,
+            adapter_temporaries,
+            manifest_temporary,
+        )
         return adapters
     finally:
         for role_paths in matrix_temporaries.values():
@@ -657,6 +942,8 @@ def compile_joint_role_cache(
         for path in adapter_temporaries.values():
             if os.path.lexists(path):
                 os.unlink(path)
+        if manifest_temporary is not None and os.path.lexists(manifest_temporary):
+            os.unlink(manifest_temporary)
 
 
 def _arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:

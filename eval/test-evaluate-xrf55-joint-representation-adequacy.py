@@ -147,6 +147,7 @@ def _expected_cache_contract():
                 )
         role_manifests[role] = tuple(manifest)
     return MODULE.ExpectedCacheContract(
+        archive_count=2,
         source_binding=source_binding,
         role_manifests=role_manifests,
     )
@@ -238,10 +239,47 @@ def _write_role(root, role, *, mutate=None):
 
 def _write_fixture(root, mutations=None):
     mutations = {} if mutations is None else mutations
-    return {
+    paths = {
         role: _write_role(root, role, mutate=mutations.get(role))
         for role in MODULE.ROLE_ORDER
     }
+    _write_generation_manifest(root, paths)
+    return paths
+
+
+def _write_generation_manifest(root, paths):
+    outputs = {}
+    for role in MODULE.ROLE_ORDER:
+        adapter = paths[role].adapter
+        outputs[adapter.name] = {
+            "bytes": adapter.stat().st_size,
+            "sha256": _sha256(adapter),
+        }
+        for modality in MODULE.MODALITIES:
+            matrix = paths[role].matrices[modality]
+            outputs[matrix.name] = {
+                "bytes": matrix.stat().st_size,
+                "sha256": _sha256(matrix),
+            }
+    source = _source_document()
+    feature_policy = MODULE.JOINT.feature_policy_document()
+    manifest = {
+        "schema": MODULE.GENERATION_MANIFEST_SCHEMA,
+        "outputs": dict(sorted(outputs.items())),
+        "binding": {
+            "feature_policy_sha256": MODULE._json_digest(
+                b"netbraid.xrf55-joint.feature-policy.v0\x00", feature_policy
+            ),
+            "role_policy_sha256": MODULE._json_digest(
+                b"netbraid.xrf55-joint.role-policy.v0\x00",
+                MODULE.JOINT.role_policy_document(),
+            ),
+            "source": {"archive_count": 2, **source},
+        },
+    }
+    path = root / MODULE.GENERATION_MANIFEST_FILENAME
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    path.chmod(0o600)
 
 
 def _read_adapter(path):
@@ -474,6 +512,61 @@ class Xrf55JointRepresentationContractTests(unittest.TestCase):
                 ):
                     _run_evaluation(paths)
 
+    def test_generation_manifest_rejects_mixed_or_rewritten_outputs(self):
+        with self.subTest(case="mixed_matrix"):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                paths = _write_fixture(root)
+                manifest_path = root / MODULE.GENERATION_MANIFEST_FILENAME
+                manifest = json.loads(manifest_path.read_text())
+                manifest["outputs"][paths["train"].matrices["wifi"].name]["sha256"] = (
+                    _opaque("other-generation")
+                )
+                manifest_path.write_text(
+                    json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+                )
+                manifest_path.chmod(0o600)
+                with self.assertRaisesRegex(
+                    MODULE.Xrf55JointEvaluationError,
+                    "generation_matrix_mismatch",
+                ):
+                    _run_evaluation(paths)
+
+        with self.subTest(case="manifest_rewrite_during_load"):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                paths = _write_fixture(root)
+                manifest_path = root / MODULE.GENERATION_MANIFEST_FILENAME
+                original = MODULE._load_generation_manifest
+                calls = 0
+
+                def rewriting_load(path, expected):
+                    nonlocal calls
+                    result = original(path, expected)
+                    calls += 1
+                    if calls == 1:
+                        document = json.loads(manifest_path.read_text())
+                        document["schema"] = MODULE.GENERATION_MANIFEST_SCHEMA
+                        manifest_path.write_text(
+                            json.dumps(document, separators=(",", ":"), sort_keys=True)
+                            + "\n"
+                        )
+                        manifest_path.chmod(0o600)
+                    return result
+
+                with (
+                    mock.patch.object(
+                        MODULE,
+                        "_load_generation_manifest",
+                        side_effect=rewriting_load,
+                    ),
+                    self.assertRaisesRegex(
+                        MODULE.Xrf55JointEvaluationError,
+                        "generation_manifest_changed",
+                    ),
+                ):
+                    _run_evaluation(paths)
+
     def test_valid_regrouping_is_rejected_by_trusted_role_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
             paths = _write_fixture(Path(directory))
@@ -503,6 +596,7 @@ class Xrf55JointRepresentationHardeningTests(unittest.TestCase):
         expected = _expected_cache_contract()
         sources = (object(), object())
         source_binding = mock.Mock(
+            archive_count=expected.archive_count,
             archive_profile_set_sha256=(
                 expected.source_binding["archive_profile_set_sha256"]
             ),
@@ -596,6 +690,10 @@ class Xrf55JointRepresentationHardeningTests(unittest.TestCase):
         )
         self.assertEqual(MODULE.DEFAULT_CACHE_DIR, expected)
         self.assertEqual(MODULE.DEFAULT_REPORT.parent, expected)
+        self.assertEqual(
+            MODULE.GENERATION_MANIFEST_FILENAME,
+            "xrf55-joint-generation-manifest.json",
+        )
         arguments = MODULE._arguments([])
         self.assertEqual(arguments.raw_dir, MODULE.COMPILER.DEFAULT_RAW_DIR)
         self.assertEqual(arguments.receipt_dir, MODULE.COMPILER.DEFAULT_RECEIPT_DIR)

@@ -34,6 +34,8 @@ DEFAULT_CACHE_DIR = ROOT / "data" / "derived" / "eval" / "xrf55-joint-representa
 DEFAULT_REPORT = DEFAULT_CACHE_DIR / "representation-adequacy-report.json"
 
 ROLE_CACHE_SCHEMA = "netbraid.xrf55_joint_role_cache.v0"
+GENERATION_MANIFEST_SCHEMA = "netbraid.xrf55_joint_role_cache_generation.v0"
+GENERATION_MANIFEST_FILENAME = "xrf55-joint-generation-manifest.json"
 REPORT_SCHEMA = "netbraid.xrf55_joint_representation_adequacy.v0"
 PUBLISHER_IMPLEMENTATION_REVISION = "6cf95821e45277ee97c55e9c68d67bc7e33962ad"
 ROLE_ORDER = ("train", "calibration", "validation")
@@ -101,6 +103,7 @@ class EventRecord:
 
 @dataclass(frozen=True)
 class ExpectedCacheContract:
+    archive_count: int
     source_binding: Mapping[str, str]
     role_manifests: Mapping[str, tuple[EventRecord, ...]]
 
@@ -110,6 +113,7 @@ class RoleAdapter:
     role: str
     document: Mapping[str, Any]
     digest: str
+    encoded_bytes: int
     source_binding: Mapping[str, str]
     source_digest: str
     feature_policy_digest: str
@@ -359,6 +363,7 @@ def load_expected_cache_contract(
     sources, source_binding = COMPILER.load_source_set(raw_dir, receipt_dir)
     role_events = COMPILER._collect_events(sources)  # noqa: SLF001
     return ExpectedCacheContract(
+        archive_count=source_binding.archive_count,
         source_binding={
             "archive_profile_set_sha256": (source_binding.archive_profile_set_sha256),
             "archive_receipt_set_sha256": (source_binding.archive_receipt_set_sha256),
@@ -495,6 +500,7 @@ def _load_role_adapter(role: str, paths: RolePaths) -> RoleAdapter:
         role,
         adapter,
         hashlib.sha256(encoded).hexdigest(),
+        len(encoded),
         source_binding,
         source_digest,
         feature_digest,
@@ -599,6 +605,11 @@ def _validate_expected_cache_contract(
     if type(expected_cache) is not ExpectedCacheContract:
         raise Xrf55JointEvaluationError("invalid_expected_cache_contract")
     try:
+        if (
+            type(expected_cache.archive_count) is not int
+            or expected_cache.archive_count <= 0
+        ):
+            raise Xrf55JointEvaluationError("invalid_expected_cache_contract")
         source_binding, _ = _parse_source_binding(expected_cache.source_binding)
         if set(expected_cache.role_manifests) != set(ROLE_ORDER):
             raise Xrf55JointEvaluationError("invalid_expected_cache_contract")
@@ -623,7 +634,9 @@ def _validate_expected_cache_contract(
             )
     except (AttributeError, TypeError, Xrf55JointEvaluationError) as error:
         raise Xrf55JointEvaluationError("invalid_expected_cache_contract") from error
-    return ExpectedCacheContract(dict(source_binding), role_manifests)
+    return ExpectedCacheContract(
+        expected_cache.archive_count, dict(source_binding), role_manifests
+    )
 
 
 def _verify_expected_cache_contract(
@@ -641,21 +654,133 @@ def _verify_expected_cache_contract(
         raise Xrf55JointEvaluationError("expected_role_manifest_mismatch")
 
 
+def _cache_directory(paths_by_role: Mapping[str, RolePaths]) -> Path:
+    if set(paths_by_role) != set(ROLE_ORDER):
+        raise Xrf55JointEvaluationError("role_path_set_mismatch")
+    directory = paths_by_role[ROLE_ORDER[0]].adapter.parent
+    try:
+        metadata = directory.lstat()
+    except OSError as error:
+        raise Xrf55JointEvaluationError("cache_directory_unavailable") from error
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise Xrf55JointEvaluationError("unsafe_cache_directory")
+    if any(paths_by_role[role] != role_paths(directory, role) for role in ROLE_ORDER):
+        raise Xrf55JointEvaluationError("noncanonical_cache_paths")
+    return directory
+
+
+def _load_generation_manifest(
+    path: Path, expected_cache: ExpectedCacheContract
+) -> tuple[Mapping[str, Any], bytes]:
+    document, encoded = _load_json(path, "generation_manifest")
+    manifest = _require_fields(
+        document,
+        {"binding", "outputs", "schema"},
+        "invalid_generation_manifest_schema",
+    )
+    if manifest["schema"] != GENERATION_MANIFEST_SCHEMA:
+        raise Xrf55JointEvaluationError("generation_manifest_schema_mismatch")
+    manifest_directory = path.parent
+    expected_names = {
+        output_path.name
+        for role in ROLE_ORDER
+        for output_path in (
+            role_paths(manifest_directory, role).adapter,
+            *(
+                role_paths(manifest_directory, role).matrices[modality]
+                for modality in MODALITIES
+            ),
+        )
+    }
+    outputs = _require_fields(
+        manifest["outputs"], expected_names, "generation_output_set_mismatch"
+    )
+    for artifact in outputs.values():
+        fields = _require_fields(
+            artifact, {"bytes", "sha256"}, "invalid_generation_output"
+        )
+        if (
+            type(fields["bytes"]) is not int
+            or fields["bytes"] <= 0
+            or not isinstance(fields["sha256"], str)
+            or OPAQUE_ID.fullmatch(fields["sha256"]) is None
+        ):
+            raise Xrf55JointEvaluationError("invalid_generation_output")
+    binding = _require_fields(
+        manifest["binding"],
+        {"feature_policy_sha256", "role_policy_sha256", "source"},
+        "invalid_generation_binding",
+    )
+    source = _require_fields(
+        binding["source"],
+        {
+            "archive_count",
+            "archive_profile_set_sha256",
+            "archive_receipt_set_sha256",
+        },
+        "invalid_generation_source",
+    )
+    expected_source = {
+        "archive_count": expected_cache.archive_count,
+        **expected_cache.source_binding,
+    }
+    if source != expected_source:
+        raise Xrf55JointEvaluationError("expected_generation_source_mismatch")
+    for name in ("feature_policy_sha256", "role_policy_sha256"):
+        value = binding[name]
+        if not isinstance(value, str) or OPAQUE_ID.fullmatch(value) is None:
+            raise Xrf55JointEvaluationError("invalid_generation_binding")
+    return manifest, encoded
+
+
+def _verify_generation_manifest(
+    manifest: Mapping[str, Any], adapters: Mapping[str, RoleAdapter]
+) -> None:
+    outputs = manifest["outputs"]
+    for role in ROLE_ORDER:
+        paths = role_paths(Path("."), role)
+        adapter = adapters[role]
+        if outputs[paths.adapter.name] != {
+            "bytes": adapter.encoded_bytes,
+            "sha256": adapter.digest,
+        }:
+            raise Xrf55JointEvaluationError("generation_adapter_mismatch")
+        for modality in MODALITIES:
+            artifact = adapter.artifacts[modality]
+            if outputs[paths.matrices[modality].name] != {
+                "bytes": artifact["bytes"],
+                "sha256": artifact["sha256"],
+            }:
+                raise Xrf55JointEvaluationError("generation_matrix_mismatch")
+    binding = manifest["binding"]
+    if binding["feature_policy_sha256"] != adapters["train"].feature_policy_digest:
+        raise Xrf55JointEvaluationError("generation_feature_policy_mismatch")
+    if binding["role_policy_sha256"] != adapters["train"].role_policy_digest:
+        raise Xrf55JointEvaluationError("generation_role_policy_mismatch")
+
+
 def load_roles(
     paths_by_role: Mapping[str, RolePaths],
     expected_cache: ExpectedCacheContract,
 ) -> dict[str, LoadedRole]:
-    if set(paths_by_role) != set(ROLE_ORDER):
-        raise Xrf55JointEvaluationError("role_path_set_mismatch")
+    expected = _validate_expected_cache_contract(expected_cache)
+    directory = _cache_directory(paths_by_role)
+    manifest_path = directory / GENERATION_MANIFEST_FILENAME
+    manifest, manifest_bytes = _load_generation_manifest(manifest_path, expected)
     adapters = {
         role: _load_role_adapter(role, paths_by_role[role]) for role in ROLE_ORDER
     }
     _verify_adapter_set(adapters)
-    _verify_expected_cache_contract(adapters, expected_cache)
-    return {
+    _verify_expected_cache_contract(adapters, expected)
+    _verify_generation_manifest(manifest, adapters)
+    roles = {
         role: _load_role_matrices(adapters[role], paths_by_role[role])
         for role in ROLE_ORDER
     }
+    _, final_manifest_bytes = _load_generation_manifest(manifest_path, expected)
+    if final_manifest_bytes != manifest_bytes:
+        raise Xrf55JointEvaluationError("generation_manifest_changed")
+    return roles
 
 
 def _fit_standardizer(matrix: np.ndarray) -> Standardizer:

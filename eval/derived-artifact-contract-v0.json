@@ -640,6 +640,13 @@
       "recipe": "xrf55-joint-role-cache"
     },
     {
+      "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-generation-manifest.json",
+      "format": "json",
+      "retention": "reproducibility_output",
+      "producer": "eval/compile-xrf55-joint-role-cache.py",
+      "recipe": "xrf55-joint-role-cache"
+    },
+    {
       "path": "data/derived/eval/xrf55-joint-representation-v0/xrf55-joint-train-adapter.json",
       "format": "json",
       "retention": "reproducibility_output",

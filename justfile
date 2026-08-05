@@ -416,6 +416,7 @@ xrf55-joint-role-cache:
     test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-validation-wifi.npy
     test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-validation-rfid.npy
     test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-validation-mmwave.npy
+    test -f {{ eval_output }}/xrf55-joint-representation-v0/xrf55-joint-generation-manifest.json
 
 # Fit on train, calibrate each pair separately, score validation only after all
 # calibration profiles order, and require a byte-identical repeated report.
