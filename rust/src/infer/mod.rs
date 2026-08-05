@@ -15,6 +15,7 @@ mod lineage;
 mod packet_flow_correspondence;
 #[cfg(feature = "adapter-zeek")]
 mod packet_zeek;
+mod qualified_composition;
 mod rssi_reference_frame;
 mod rssi_shift_explanation;
 
@@ -85,12 +86,12 @@ pub use hypothesis::{
 };
 
 pub use lineage::{
-    ProvenanceActivityKindV0, ProvenanceActivityV0, ProvenanceArtifactRefErrorV0,
-    ProvenanceArtifactRefV0, ProvenanceComparisonV0, ProvenanceContentRelationV0,
-    ProvenanceGraphErrorV0, ProvenanceGraphV0, ProvenanceLineageRelationV0,
-    ProvenanceProducerKindV0, ProvenanceProducerV0, ProvenanceRecordErrorV0, ProvenanceRecordV0,
-    PROVENANCE_GRAPH_MAX_RECORDS_V0, PROVENANCE_GRAPH_SCHEMA_V0, PROVENANCE_RECORD_MAX_INPUTS_V0,
-    PROVENANCE_RECORD_SCHEMA_V0,
+    ContentBoundEvidenceRefV0, ProvenanceActivityKindV0, ProvenanceActivityV0,
+    ProvenanceArtifactRefErrorV0, ProvenanceArtifactRefV0, ProvenanceComparisonV0,
+    ProvenanceContentRelationV0, ProvenanceGraphErrorV0, ProvenanceGraphV0,
+    ProvenanceLineageRelationV0, ProvenanceProducerKindV0, ProvenanceProducerV0,
+    ProvenanceRecordErrorV0, ProvenanceRecordV0, PROVENANCE_GRAPH_MAX_RECORDS_V0,
+    PROVENANCE_GRAPH_SCHEMA_V0, PROVENANCE_RECORD_MAX_INPUTS_V0, PROVENANCE_RECORD_SCHEMA_V0,
 };
 
 pub use packet_flow_correspondence::{
@@ -101,6 +102,15 @@ pub use packet_flow_correspondence::{
     PacketFlowCorrespondenceHeuristicProfileV0, PacketFlowCorrespondenceLimitsV0,
     PacketFlowCorrespondenceOptionsV0, PacketFlowCorrespondenceReportV0,
     PACKET_FLOW_CORRESPONDENCE_HEURISTIC_PROFILE_V0,
+};
+
+pub use qualified_composition::{
+    ProvenanceQualifiedClaimInputRelationV0, ProvenanceQualifiedClaimLineageStatusV0,
+    ProvenanceQualifiedClaimPairSummaryV0, ProvenanceQualifiedFiniteHypothesisCompositionErrorV0,
+    ProvenanceQualifiedFiniteHypothesisCompositionV0,
+    PROVENANCE_QUALIFIED_FINITE_HYPOTHESIS_COMPOSITION_MAX_CLAIMS_V0,
+    PROVENANCE_QUALIFIED_FINITE_HYPOTHESIS_COMPOSITION_MAX_TOTAL_CLAIM_INPUTS_V0,
+    PROVENANCE_QUALIFIED_FINITE_HYPOTHESIS_COMPOSITION_SCHEMA_V0,
 };
 
 #[cfg(feature = "adapter-zeek")]

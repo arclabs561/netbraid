@@ -2,7 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
-use super::{ContentSha256ParseErrorV0, ContentSha256V0, FiniteHypothesisInputRefV0};
+use super::{
+    CalibratedEventRelationObservationRefV0, ContentSha256ParseErrorV0, ContentSha256V0,
+    FiniteHypothesisInputRefV0,
+};
 
 pub const PROVENANCE_RECORD_SCHEMA_V0: &str = "netbraid.provenance_record.v0";
 pub const PROVENANCE_GRAPH_SCHEMA_V0: &str = "netbraid.provenance_graph.v0";
@@ -23,6 +26,12 @@ pub struct ProvenanceArtifactRefV0 {
     source_id: String,
     content_sha256: ContentSha256V0,
 }
+
+/// Source-neutral name for a schema-defined, content-bound evidence reference.
+///
+/// This is the same wire and validation contract used by provenance artifacts;
+/// it does not imply that unlike evidence families share a payload schema.
+pub type ContentBoundEvidenceRefV0 = ProvenanceArtifactRefV0;
 
 impl ProvenanceArtifactRefV0 {
     pub fn try_new(
@@ -62,6 +71,16 @@ impl TryFrom<&FiniteHypothesisInputRefV0> for ProvenanceArtifactRefV0 {
     type Error = ProvenanceArtifactRefErrorV0;
 
     fn try_from(value: &FiniteHypothesisInputRefV0) -> Result<Self, Self::Error> {
+        let digest = ContentSha256V0::try_new(value.content_sha256())
+            .map_err(ProvenanceArtifactRefErrorV0::InvalidContentSha256)?;
+        Self::try_new(value.source_schema(), value.source_id(), digest)
+    }
+}
+
+impl TryFrom<&CalibratedEventRelationObservationRefV0> for ProvenanceArtifactRefV0 {
+    type Error = ProvenanceArtifactRefErrorV0;
+
+    fn try_from(value: &CalibratedEventRelationObservationRefV0) -> Result<Self, Self::Error> {
         let digest = ContentSha256V0::try_new(value.content_sha256())
             .map_err(ProvenanceArtifactRefErrorV0::InvalidContentSha256)?;
         Self::try_new(value.source_schema(), value.source_id(), digest)

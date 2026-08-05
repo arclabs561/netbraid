@@ -1,7 +1,8 @@
 use netbraid::infer::{
-    ContentSha256V0, ProvenanceActivityKindV0, ProvenanceActivityV0, ProvenanceArtifactRefV0,
-    ProvenanceContentRelationV0, ProvenanceGraphErrorV0, ProvenanceGraphV0,
-    ProvenanceLineageRelationV0, ProvenanceProducerKindV0, ProvenanceProducerV0,
+    CalibratedEventRelationObservationRefV0, ContentBoundEvidenceRefV0, ContentSha256V0,
+    ProvenanceActivityKindV0, ProvenanceActivityV0, ProvenanceArtifactRefErrorV0,
+    ProvenanceArtifactRefV0, ProvenanceContentRelationV0, ProvenanceGraphErrorV0,
+    ProvenanceGraphV0, ProvenanceLineageRelationV0, ProvenanceProducerKindV0, ProvenanceProducerV0,
     ProvenanceRecordErrorV0, ProvenanceRecordV0, PROVENANCE_GRAPH_SCHEMA_V0,
 };
 
@@ -29,6 +30,54 @@ fn record(
     inputs: Vec<ProvenanceArtifactRefV0>,
 ) -> ProvenanceRecordV0 {
     ProvenanceRecordV0::try_new(output, producer, activity, inputs).unwrap()
+}
+
+#[test]
+fn calibrated_and_family_specific_evidence_share_one_content_bound_reference_contract() {
+    let calibrated = CalibratedEventRelationObservationRefV0::try_new(
+        "netbraid.test.signal_window.v0",
+        "signal-window:7",
+        "a".repeat(64),
+    )
+    .unwrap();
+    let converted = ContentBoundEvidenceRefV0::try_from(&calibrated).unwrap();
+
+    assert_eq!(converted.source_schema(), calibrated.source_schema());
+    assert_eq!(converted.source_id(), calibrated.source_id());
+    assert_eq!(
+        converted.content_sha256().as_str(),
+        calibrated.content_sha256()
+    );
+
+    for (schema, source_id, digest) in [
+        ("netbraid.test.signal_window.v0", "signal:1", 'b'),
+        ("netmon.packet_envelope.v0", "packet:1", 'c'),
+        ("netbraid.packet_flow.v0", "flow:1", 'd'),
+    ] {
+        let reference = ContentBoundEvidenceRefV0::try_new(
+            schema,
+            source_id,
+            ContentSha256V0::try_new(digest.to_string().repeat(64)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(reference.source_schema(), schema);
+        assert_eq!(reference.source_id(), source_id);
+    }
+
+    assert_eq!(
+        serde_json::to_vec(&converted).unwrap(),
+        serde_json::to_vec(&ProvenanceArtifactRefV0::try_from(&calibrated).unwrap()).unwrap()
+    );
+
+    let digest = ContentSha256V0::try_new("e".repeat(64)).unwrap();
+    assert_eq!(
+        ContentBoundEvidenceRefV0::try_new("", "source:1", digest.clone()),
+        Err(ProvenanceArtifactRefErrorV0::InvalidSourceSchema)
+    );
+    assert_eq!(
+        ContentBoundEvidenceRefV0::try_new("netbraid.test.observation.v0", "x".repeat(513), digest,),
+        Err(ProvenanceArtifactRefErrorV0::InvalidSourceId)
+    );
 }
 
 #[test]
