@@ -16,6 +16,7 @@ CATALOG = ROOT / "data" / "catalog" / "research-leads-v1.json"
 CONTROLLED_JAMMING_CATALOG = (
     ROOT / "data" / "catalog" / "controlled-jamming-artifacts-v1.json"
 )
+CURATED_EVAL_CATALOG = ROOT / "data" / "catalog" / "curated-eval-artifacts-v1.json"
 
 SOURCE_TYPES = {
     "adapter_source",
@@ -40,6 +41,7 @@ ACCESS = {
 }
 LICENSES = {
     "cc_by_4_0",
+    "cc_by_nc_4_0",
     "cc_by_nc_sa_4_0",
     "manual_terms",
     "mit",
@@ -52,6 +54,7 @@ DISPOSITIONS = {"candidate", "manual_only", "name_collision", "reference_only"}
 FETCH_STATES = {
     "existing_fetcher",
     "investigate_before_pinning",
+    "manifest_pinned",
     "manual_access",
     "not_applicable",
 }
@@ -131,6 +134,10 @@ class CatalogTests(unittest.TestCase):
             if entry["fetch"] == "investigate_before_pinning":
                 self.assertEqual(entry["source_type"], "dataset")
                 self.assertNotEqual(entry["license"], "not_applicable")
+            if entry["fetch"] == "manifest_pinned":
+                self.assertEqual(entry["source_type"], "dataset")
+                self.assertEqual(entry["access"], "direct_download")
+                self.assertEqual(entry["disposition"], "candidate")
 
     def test_catalog_contains_no_local_or_secret_bearing_values(self):
         payload = CATALOG.read_text(encoding="utf-8")
@@ -144,6 +151,16 @@ class CatalogTests(unittest.TestCase):
             canonical_url = f"https://zenodo.org/records/{record['record_id']}"
             self.assertIn(canonical_url, leads)
             self.assertEqual(leads[canonical_url]["fetch"], "existing_fetcher")
+
+    def test_exact_curated_eval_records_are_marked_manifest_pinned(self):
+        leads = {entry["canonical_url"]: entry for entry in load_catalog()["entries"]}
+        manifest = json.loads(CURATED_EVAL_CATALOG.read_text(encoding="utf-8"))
+
+        self.assertEqual(len(manifest["records"]), 6)
+        for record in manifest["records"]:
+            canonical_url = f"https://zenodo.org/records/{record['record_id']}"
+            self.assertIn(canonical_url, leads)
+            self.assertEqual(leads[canonical_url]["fetch"], "manifest_pinned")
 
     def test_sub_ghz_candidate_keeps_protocols_and_admission_gap_explicit(self):
         entries = {entry["id"]: entry for entry in load_catalog()["entries"]}

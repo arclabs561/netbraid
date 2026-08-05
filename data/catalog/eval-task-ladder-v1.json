@@ -1,0 +1,525 @@
+{
+  "schema": "netbraid.eval_task_ladder.v1",
+  "bounds": {
+    "max_levels": 7,
+    "max_tasks_per_level": 6,
+    "max_surface_refs_per_level": 5,
+    "max_source_lead_refs_per_level": 10,
+    "max_relation_axes_per_level": 6,
+    "max_label_entries_per_class": 4
+  },
+  "relation_axis_policy": {
+    "axes": [
+      "artifact_object_relation",
+      "content_relation",
+      "event_relation",
+      "event_performer_relation",
+      "claimed_identifier_relation",
+      "cryptographic_principal_relation",
+      "physical_device_relation",
+      "physical_source_relation",
+      "software_relation",
+      "configuration_relation",
+      "variant_relation",
+      "lineage_relation"
+    ],
+    "separate_gates": [
+      "integrity",
+      "admissibility",
+      "freshness",
+      "continuity",
+      "transmission",
+      "scenario"
+    ]
+  },
+  "levels": [
+    {
+      "id": "bounded-packet-replay",
+      "difficulty": 1,
+      "capabilities": [
+        "bounded_ingest",
+        "typed_observation",
+        "deterministic_replay"
+      ],
+      "tasks": [
+        "packet_adapter_conformance",
+        "saved_live_replay_parity"
+      ],
+      "surface_ids": [
+        "bluetooth-le-packet",
+        "wifi-packet-radio",
+        "ieee802154-packet"
+      ],
+      "source_lead_ids": [
+        "sdr4iot-paper",
+        "data1813-matter-protocol-traces-v2"
+      ],
+      "relation_axes": [
+        "artifact_object_relation",
+        "content_relation"
+      ],
+      "labels": {
+        "organic": [
+          {
+            "origin": "publisher_structure",
+            "labels": ["artifact_membership", "protocol_family"]
+          }
+        ],
+        "derived_perturbations": []
+      },
+      "grouping": {
+        "unit_axes": ["artifact_object", "capture_event"],
+        "held_out_axes": [],
+        "leakage_rules": ["no_role_split_structural_only"]
+      },
+      "pass_gates": [
+        "artifact_admission_complete",
+        "resource_bounds_enforced",
+        "schema_conformance",
+        "deterministic_repeat",
+        "provenance_complete"
+      ]
+    },
+    {
+      "id": "representation-time-alignment",
+      "difficulty": 2,
+      "capabilities": [
+        "typed_observation",
+        "cross_representation_alignment",
+        "continuity_audit",
+        "relation_oracle"
+      ],
+      "tasks": [
+        "signal_family_recognition",
+        "signal_packet_alignment",
+        "timestamp_alignment",
+        "continuity_classification"
+      ],
+      "surface_ids": [
+        "sdr4iot-layer-alignment",
+        "sub-ghz-technology-recognition"
+      ],
+      "source_lead_ids": ["sdr4iot-paper", "idlab-sub-ghz-iq"],
+      "relation_axes": [
+        "artifact_object_relation",
+        "content_relation",
+        "event_relation"
+      ],
+      "labels": {
+        "organic": [
+          {
+            "origin": "publisher_structure",
+            "labels": ["representation_group", "technology_family"]
+          },
+          {
+            "origin": "publisher_measurement_metadata",
+            "labels": ["timestamp", "activity"]
+          }
+        ],
+        "derived_perturbations": [
+          {
+            "origin": "deterministic_transform",
+            "labels": ["duplicate", "reorder", "delete"]
+          }
+        ]
+      },
+      "grouping": {
+        "unit_axes": ["artifact_object", "capture_event", "configuration"],
+        "held_out_axes": [],
+        "leakage_rules": [
+          "no_exact_artifact_cross_role",
+          "derived_parent_stays_in_role"
+        ]
+      },
+      "pass_gates": [
+        "artifact_admission_complete",
+        "resource_bounds_enforced",
+        "deterministic_repeat",
+        "relation_oracle_complete",
+        "perturbation_parent_binding",
+        "provenance_complete"
+      ]
+    },
+    {
+      "id": "heldout-source-domain",
+      "difficulty": 3,
+      "capabilities": [
+        "relation_oracle",
+        "group_disjoint_evaluation",
+        "domain_transfer",
+        "calibrated_hypothesis_scoring",
+        "open_set_abstention"
+      ],
+      "tasks": [
+        "heldout_location_transfer",
+        "physical_source_relation",
+        "same_variant_different_source",
+        "receiver_day_environment_shift"
+      ],
+      "surface_ids": [
+        "lora-iq-relation",
+        "uwb-cir-heldout-location",
+        "cellular-mmwave-source-relation"
+      ],
+      "source_lead_ids": [
+        "ipin-2015-ujiindoorloc",
+        "osu-lora-rffi",
+        "zenodo-11083153-ruff-uwb",
+        "zenodo-18481702-mmwave-5g-rff"
+      ],
+      "relation_axes": [
+        "physical_device_relation",
+        "physical_source_relation",
+        "configuration_relation",
+        "variant_relation"
+      ],
+      "labels": {
+        "organic": [
+          {
+            "origin": "publisher_measurement_metadata",
+            "labels": [
+              "physical_device",
+              "physical_source",
+              "variant",
+              "location",
+              "day",
+              "receiver_chain",
+              "configuration"
+            ]
+          }
+        ],
+        "derived_perturbations": []
+      },
+      "grouping": {
+        "unit_axes": [
+          "physical_device",
+          "physical_source",
+          "variant",
+          "day",
+          "receiver_chain",
+          "location",
+          "configuration"
+        ],
+        "held_out_axes": [
+          "physical_source",
+          "day",
+          "receiver_chain",
+          "location"
+        ],
+        "leakage_rules": [
+          "zero_declared_group_overlap",
+          "validation_only_selection",
+          "test_role_unread_until_lock"
+        ]
+      },
+      "pass_gates": [
+        "artifact_admission_complete",
+        "relation_oracle_complete",
+        "zero_declared_group_overlap",
+        "per_group_metrics",
+        "calibration_report",
+        "abstention_report",
+        "provenance_complete"
+      ]
+    },
+    {
+      "id": "cross-modal-event-fusion",
+      "difficulty": 4,
+      "capabilities": [
+        "relation_oracle",
+        "calibrated_hypothesis_scoring",
+        "cross_modal_fusion",
+        "missing_modality_eval",
+        "provenance_graph"
+      ],
+      "tasks": [
+        "cross_modal_event_relation",
+        "event_performer_relation",
+        "independent_evidence_fusion",
+        "missing_modality_ablation"
+      ],
+      "surface_ids": ["xrf55-cross-modal-retrieval"],
+      "source_lead_ids": [
+        "zenodo-7396485-eyefi-v2",
+        "zenodo-15989282-roboloc-g",
+        "zenodo-19965384-data4cyber"
+      ],
+      "relation_axes": ["event_relation", "event_performer_relation"],
+      "labels": {
+        "organic": [
+          {
+            "origin": "publisher_measurement_metadata",
+            "labels": ["capture_event", "event_performer", "representation_group"]
+          }
+        ],
+        "derived_perturbations": []
+      },
+      "grouping": {
+        "unit_axes": ["capture_event", "event_performer", "representation"],
+        "held_out_axes": ["event_performer"],
+        "leakage_rules": [
+          "zero_declared_group_overlap",
+          "validation_only_selection",
+          "test_role_unread_until_lock"
+        ]
+      },
+      "pass_gates": [
+        "relation_oracle_complete",
+        "zero_declared_group_overlap",
+        "per_group_metrics",
+        "calibration_report",
+        "fusion_ablation",
+        "abstention_report",
+        "provenance_complete"
+      ]
+    },
+    {
+      "id": "conflicting-delayed-sources",
+      "difficulty": 5,
+      "capabilities": [
+        "relation_oracle",
+        "provenance_graph",
+        "annotation_revision",
+        "dependence_audit",
+        "conditional_source_reliability"
+      ],
+      "tasks": [
+        "delayed_annotation_revision",
+        "conflicting_annotation_resolution",
+        "copied_evidence_detection",
+        "conditional_source_reliability"
+      ],
+      "surface_ids": ["operanet-activity-alignment"],
+      "source_lead_ids": [
+        "zenodo-19965384-data4cyber",
+        "zenodo-18923275-netslab-5g-oran",
+        "ton-iot-unsw"
+      ],
+      "relation_axes": [
+        "content_relation",
+        "event_relation",
+        "lineage_relation"
+      ],
+      "labels": {
+        "organic": [
+          {
+            "origin": "publisher_measurement_metadata",
+            "labels": ["timestamp", "activity", "annotation_producer"]
+          },
+          {
+            "origin": "publisher_adjudicated_scenario",
+            "labels": ["controlled_cause", "annotation_revision"]
+          }
+        ],
+        "derived_perturbations": [
+          {
+            "origin": "deterministic_transform",
+            "labels": [
+              "delay",
+              "duplicate",
+              "reorder",
+              "withdrawal",
+              "copied_annotation"
+            ]
+          }
+        ]
+      },
+      "grouping": {
+        "unit_axes": [
+          "artifact_object",
+          "capture_event",
+          "annotation_producer",
+          "source_version"
+        ],
+        "held_out_axes": ["annotation_producer", "source_version"],
+        "leakage_rules": [
+          "derived_parent_stays_in_role",
+          "copied_sources_share_dependence_group",
+          "validation_only_selection",
+          "test_role_unread_until_lock"
+        ]
+      },
+      "pass_gates": [
+        "relation_oracle_complete",
+        "perturbation_parent_binding",
+        "source_version_binding",
+        "dependence_groups_complete",
+        "abstention_report",
+        "provenance_complete"
+      ]
+    },
+    {
+      "id": "longitudinal-tracking-drift",
+      "difficulty": 6,
+      "capabilities": [
+        "relation_oracle",
+        "group_disjoint_evaluation",
+        "chronological_evaluation",
+        "longitudinal_tracking",
+        "temporal_drift_eval",
+        "open_set_abstention"
+      ],
+      "tasks": [
+        "track_continuity",
+        "time_to_reacquire",
+        "false_merge_fragmentation",
+        "temporal_drift",
+        "open_set_abstention"
+      ],
+      "surface_ids": ["wifi-rssi-fingerprint"],
+      "source_lead_ids": [
+        "ipin-2015-ujiindoorloc",
+        "zenodo-1193563-lpwan-localization",
+        "ucla-wisig",
+        "zenodo-14502760-gotham-iot",
+        "zenodo-7396485-eyefi-v2"
+      ],
+      "relation_axes": [
+        "event_relation",
+        "event_performer_relation",
+        "claimed_identifier_relation",
+        "physical_source_relation"
+      ],
+      "labels": {
+        "organic": [
+          {
+            "origin": "publisher_measurement_metadata",
+            "labels": [
+              "timestamp",
+              "physical_source",
+              "location",
+              "day",
+              "receiver_chain"
+            ]
+          }
+        ],
+        "derived_perturbations": [
+          {
+            "origin": "deterministic_transform",
+            "labels": ["delete", "delay", "duplicate", "reorder"]
+          }
+        ]
+      },
+      "grouping": {
+        "unit_axes": [
+          "capture_event",
+          "physical_source",
+          "day",
+          "receiver_chain",
+          "location",
+          "track"
+        ],
+        "held_out_axes": ["physical_source", "day", "receiver_chain", "track"],
+        "leakage_rules": [
+          "chronological_roles_only",
+          "zero_declared_group_overlap",
+          "derived_parent_stays_in_role",
+          "validation_only_selection",
+          "test_role_unread_until_lock"
+        ]
+      },
+      "pass_gates": [
+        "relation_oracle_complete",
+        "zero_declared_group_overlap",
+        "chronological_split_audit",
+        "track_metrics",
+        "calibration_report",
+        "abstention_report",
+        "provenance_complete"
+      ]
+    },
+    {
+      "id": "controlled-scenario-perturbation",
+      "difficulty": 7,
+      "capabilities": [
+        "scenario_oracle",
+        "perturbation_harness",
+        "open_set_abstention",
+        "provenance_graph"
+      ],
+      "tasks": [
+        "controlled_cause_discrimination",
+        "replay_relay_discrimination",
+        "variant_lineage_relation",
+        "tamper_hypothesis",
+        "open_set_abstention"
+      ],
+      "surface_ids": ["mmwave-controlled-cause", "gnss-iq-layout"],
+      "source_lead_ids": [
+        "zenodo-6516954-mmwave-jamming",
+        "zenodo-7119040-indoor-jamming-iq",
+        "zenodo-13846381-gnss-rff",
+        "zenodo-17854328-rfid-exsim",
+        "zenodo-18268648-inria-pla",
+        "zenodo-15005190-cyber4ot",
+        "zenodo-7108614-iec104",
+        "ton-iot-unsw"
+      ],
+      "relation_axes": [
+        "event_relation",
+        "claimed_identifier_relation",
+        "physical_source_relation",
+        "software_relation",
+        "variant_relation",
+        "lineage_relation"
+      ],
+      "labels": {
+        "organic": [
+          {
+            "origin": "publisher_adjudicated_scenario",
+            "labels": ["controlled_cause", "acquisition_category"]
+          },
+          {
+            "origin": "publisher_measurement_metadata",
+            "labels": [
+              "physical_source",
+              "variant",
+              "day",
+              "receiver_chain",
+              "configuration"
+            ]
+          }
+        ],
+        "derived_perturbations": [
+          {
+            "origin": "reviewed_fixture",
+            "labels": ["replay", "relay"]
+          },
+          {
+            "origin": "deterministic_transform",
+            "labels": ["content_mutation", "metadata_mutation"]
+          }
+        ]
+      },
+      "grouping": {
+        "unit_axes": [
+          "capture_event",
+          "physical_source",
+          "variant",
+          "day",
+          "receiver_chain",
+          "configuration",
+          "scenario"
+        ],
+        "held_out_axes": ["physical_source", "day", "receiver_chain"],
+        "leakage_rules": [
+          "zero_declared_group_overlap",
+          "derived_parent_stays_in_role",
+          "validation_only_selection",
+          "test_role_unread_until_lock"
+        ]
+      },
+      "pass_gates": [
+        "artifact_admission_complete",
+        "relation_oracle_complete",
+        "scenario_provenance_required",
+        "zero_declared_group_overlap",
+        "perturbation_parent_binding",
+        "per_group_metrics",
+        "abstention_report",
+        "no_intent_from_anomaly",
+        "provenance_complete"
+      ]
+    }
+  ]
+}

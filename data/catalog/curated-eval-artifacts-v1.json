@@ -1,0 +1,417 @@
+{
+  "schema": "netbraid.curated_eval_artifacts.v1",
+  "publisher": "Zenodo",
+  "expected_record_count": 6,
+  "expected_artifact_count": 50,
+  "expected_total_bytes": 4862542072,
+  "records": [
+    {
+      "record_id": 1193563,
+      "api_url": "https://zenodo.org/api/records/1193563",
+      "record_url": "https://zenodo.org/records/1193563",
+      "api_updated": "2020-06-23T07:45:56.763953+00:00",
+      "title": "Sigfox and LoRaWAN Datasets for Fingerprint Localization in Large Urban and Rural Areas",
+      "version": "1.0",
+      "doi": "10.5281/zenodo.1193563",
+      "license": "CC BY 4.0",
+      "license_id": "cc-by-4.0",
+      "task_rationale": "Supports received-signal fingerprint localization comparisons across LoRaWAN and Sigfox measurements in urban Antwerp and a rural corridor.",
+      "difficulty_rationale": "Technology, receiver coverage, message density, and urban-versus-rural propagation change together, so cross-environment transfer is harder than interpolation within one collection.",
+      "grouping_warning": "Group messages by collection route, device/session, and time block before splitting; random rows can share receiver fingerprints and nearby GPS positions across train and evaluation partitions.",
+      "expected_artifact_count": 3,
+      "expected_total_bytes": 77069096,
+      "artifacts": [
+        {
+          "filename": "lorawan_dataset_antwerp.csv",
+          "bytes": 51451200,
+          "md5": "9b00daf8ccc9cdd0a89ff101d7a3cb34",
+          "content_url": "https://zenodo.org/api/records/1193563/files/lorawan_dataset_antwerp.csv/content"
+        },
+        {
+          "filename": "sigfox_dataset_antwerp.csv",
+          "bytes": 6804501,
+          "md5": "acd1899baaeae805f48f06a4ea3666e3",
+          "content_url": "https://zenodo.org/api/records/1193563/files/sigfox_dataset_antwerp.csv/content"
+        },
+        {
+          "filename": "sigfox_dataset_rural.csv",
+          "bytes": 18813395,
+          "md5": "41182626b5200d86772f010f3537d019",
+          "content_url": "https://zenodo.org/api/records/1193563/files/sigfox_dataset_rural.csv/content"
+        }
+      ]
+    },
+    {
+      "record_id": 7108614,
+      "api_url": "https://zenodo.org/api/records/7108614",
+      "record_url": "https://zenodo.org/records/7108614",
+      "api_updated": "2024-07-16T02:00:53.959562+00:00",
+      "title": "IEC 60870-5-104 Intrusion Detection Dataset",
+      "version": null,
+      "doi": "10.21227/fj7s-f281",
+      "license": "CC BY 4.0",
+      "license_id": "cc-by-4.0",
+      "task_rationale": "Supports IEC 60870-5-104 flow and protocol-event classification across the publisher's paired baseline and controlled-disruption captures.",
+      "difficulty_rationale": "Function code, capture date, traffic volume, and scenario condition are entangled, while the balanced CSV bundle is derived from the larger capture set.",
+      "grouping_warning": "Keep each dated function-code capture with its paired condition and keep the balanced train/test bundle separate from any evaluation built from the source archives; its rows may derive from those same captures.",
+      "expected_artifact_count": 14,
+      "expected_total_bytes": 1087237270,
+      "artifacts": [
+        {
+          "filename": "20200425_UOWM_IEC104_Dataset_m_sp_na_1_DoS.7z",
+          "bytes": 69419855,
+          "md5": "6b5747455eeda9bef97a7d1ea76a1185",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200425_UOWM_IEC104_Dataset_m_sp_na_1_DoS.7z/content"
+        },
+        {
+          "filename": "20200426_UOWM_IEC104_Dataset_c_ci_na_1.7z",
+          "bytes": 71204475,
+          "md5": "4b44aa31498aa1dc11dbd64f93ddc08e",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200426_UOWM_IEC104_Dataset_c_ci_na_1.7z/content"
+        },
+        {
+          "filename": "20200426_UOWM_IEC104_Dataset_c_ci_na_1_DoS.7z",
+          "bytes": 76189847,
+          "md5": "bd5c38da560ff6bd910a797e1dabcb10",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200426_UOWM_IEC104_Dataset_c_ci_na_1_DoS.7z/content"
+        },
+        {
+          "filename": "20200427_UOWM_IEC104_Dataset_c_se_na_1.7z",
+          "bytes": 81958663,
+          "md5": "f7b1dfc559ec4c393ca13439e7be2a6a",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200427_UOWM_IEC104_Dataset_c_se_na_1.7z/content"
+        },
+        {
+          "filename": "20200428_UOWM_IEC104_Dataset_c_sc_na_1.7z",
+          "bytes": 82660522,
+          "md5": "570ad1c99cc973aa083bb1d08bd49af6",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200428_UOWM_IEC104_Dataset_c_sc_na_1.7z/content"
+        },
+        {
+          "filename": "20200428_UOWM_IEC104_Dataset_c_se_na_1_DoS.7z",
+          "bytes": 80825143,
+          "md5": "59c78b36ecb166691b4899d65bedb4c9",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200428_UOWM_IEC104_Dataset_c_se_na_1_DoS.7z/content"
+        },
+        {
+          "filename": "20200429_UOWM_IEC104_Dataset_c_sc_na_1_DoS.7z",
+          "bytes": 88345077,
+          "md5": "9b154df61a324f64b01d1992499d2d44",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200429_UOWM_IEC104_Dataset_c_sc_na_1_DoS.7z/content"
+        },
+        {
+          "filename": "20200605_UOWM_IEC104_Dataset_c_rd_na_1.7z",
+          "bytes": 104566361,
+          "md5": "bceae9c20490b23d65317dc8d610b31d",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200605_UOWM_IEC104_Dataset_c_rd_na_1.7z/content"
+        },
+        {
+          "filename": "20200605_UOWM_IEC104_Dataset_c_rd_na_1_DoS.7z",
+          "bytes": 106622557,
+          "md5": "513c801492543936a9578f951292af60",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200605_UOWM_IEC104_Dataset_c_rd_na_1_DoS.7z/content"
+        },
+        {
+          "filename": "20200606_UOWM_IEC104_Dataset_c_rp_na_1.7z",
+          "bytes": 107022556,
+          "md5": "fb251e7ecfa7941e316e068499183a95",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200606_UOWM_IEC104_Dataset_c_rp_na_1.7z/content"
+        },
+        {
+          "filename": "20200606_UOWM_IEC104_Dataset_c_rp_na_1_DoS.7z",
+          "bytes": 104302179,
+          "md5": "aa1b53f3806ecf75701ac72a942d0e34",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200606_UOWM_IEC104_Dataset_c_rp_na_1_DoS.7z/content"
+        },
+        {
+          "filename": "20200608_UOWM_IEC104_Dataset_mitm_drop.7z",
+          "bytes": 102319063,
+          "md5": "bed8490fd5ba063a8eaf4e999f5d7579",
+          "content_url": "https://zenodo.org/api/records/7108614/files/20200608_UOWM_IEC104_Dataset_mitm_drop.7z/content"
+        },
+        {
+          "filename": "Balanced_IEC104_Train_Test_CSV_Files.7z",
+          "bytes": 11375113,
+          "md5": "c6fe36f0bea8df48481054182d600047",
+          "content_url": "https://zenodo.org/api/records/7108614/files/Balanced_IEC104_Train_Test_CSV_Files.7z/content"
+        },
+        {
+          "filename": "ReadMe.pdf",
+          "bytes": 425859,
+          "md5": "2104b1576bd7e961b5c035a3162e87be",
+          "content_url": "https://zenodo.org/api/records/7108614/files/ReadMe.pdf/content"
+        }
+      ]
+    },
+    {
+      "record_id": 7396485,
+      "api_url": "https://zenodo.org/api/records/7396485",
+      "record_url": "https://zenodo.org/records/7396485",
+      "api_updated": "2022-12-05T02:26:47.912512+00:00",
+      "title": "EyeFi: Fast Human Identification Through Vision and WiFi-based Trajectory Matching",
+      "version": "2.0.0",
+      "doi": "10.5281/zenodo.7396485",
+      "license": "CC BY 4.0",
+      "license_id": "cc-by-4.0",
+      "task_rationale": "Supports camera-coordinate and WiFi CSI trajectory/AoA matching under different scene occupancies and two collection spaces.",
+      "difficulty_rationale": "Hardware reboots introduce phase offsets, recordings span different days and phone holders, and the kitchen changes geometry and RF reflections relative to the lab.",
+      "grouping_warning": "Split at the source HDF5 recording/session level, keeping each trajectory and its camera/CSI rows together; the shuffled training files derive from the one-person lab recordings and are not independent evaluation groups.",
+      "expected_artifact_count": 1,
+      "expected_total_bytes": 1495738620,
+      "artifacts": [
+        {
+          "filename": "EyeFi_Dataset_V2.zip",
+          "bytes": 1495738620,
+          "md5": "76797ac8560da84f6ef1ca7f93e60322",
+          "content_url": "https://zenodo.org/api/records/7396485/files/EyeFi_Dataset_V2.zip/content"
+        }
+      ]
+    },
+    {
+      "record_id": 15005190,
+      "api_url": "https://zenodo.org/api/records/15005190",
+      "record_url": "https://zenodo.org/records/15005190",
+      "api_updated": "2025-05-30T18:26:01.134130+00:00",
+      "title": "Cyber4OT: ICS network traces containing normal activity and full attack traffic",
+      "version": "1.0.3",
+      "doi": "10.5281/zenodo.15005190",
+      "license": "CC BY-NC 4.0",
+      "license_id": "cc-by-nc-4.0",
+      "task_rationale": "Supports packet-trace sequence and change-point evaluation within the publisher's documented Modbus TCP test-bed progression.",
+      "difficulty_rationale": "Ninety-six traces share one test bed and a staged temporal progression, so setup signatures and neighboring phases can dominate a row- or file-randomized score.",
+      "grouping_warning": "Keep traces from the same staged progression and test-bed phase in one split group; the PDF is documentation, and publisher scenario annotations apply only to this controlled collection.",
+      "expected_artifact_count": 2,
+      "expected_total_bytes": 69726725,
+      "artifacts": [
+        {
+          "filename": "Cyber4OT.zip",
+          "bytes": 67667910,
+          "md5": "55510cbb43d8af72a69dfbcd6940daa5",
+          "content_url": "https://zenodo.org/api/records/15005190/files/Cyber4OT.zip/content"
+        },
+        {
+          "filename": "Cyber4OT_testbed_description.pdf",
+          "bytes": 2058815,
+          "md5": "c3ad5df7df0cb206538e0cca3fb820c0",
+          "content_url": "https://zenodo.org/api/records/15005190/files/Cyber4OT_testbed_description.pdf/content"
+        }
+      ]
+    },
+    {
+      "record_id": 15989282,
+      "api_url": "https://zenodo.org/api/records/15989282",
+      "record_url": "https://zenodo.org/records/15989282",
+      "api_updated": "2025-07-16T18:36:43.115698+00:00",
+      "title": "RoboLoc-G: Multisensor Localization Dataset from a Robotic Gantry System",
+      "version": null,
+      "doi": "10.5281/zenodo.15989282",
+      "license": "CC BY 4.0",
+      "license_id": "cc-by-4.0",
+      "task_rationale": "Supports synchronized WiFi FTM, UWB, IMU, mmWave, motion-capture, video, and gantry-ground-truth localization or sensor-fusion evaluation.",
+      "difficulty_rationale": "Multiple clocks, two coordinate systems, calibration transforms, sensor-specific rates, and eight repeated trajectory patterns make alignment and cross-trajectory transfer the central challenge.",
+      "grouping_warning": "Group every modality, reference video, and ground-truth product for the same trajectory take together; calibration and documentation artifacts configure evaluation and must not become samples.",
+      "expected_artifact_count": 26,
+      "expected_total_bytes": 2103062670,
+      "artifacts": [
+        {
+          "filename": "GANTRY_LINUX_CNC.zip",
+          "bytes": 3788,
+          "md5": "1e71d21facf7df5b15441d5bf057249e",
+          "content_url": "https://zenodo.org/api/records/15989282/files/GANTRY_LINUX_CNC.zip/content"
+        },
+        {
+          "filename": "GANTRY_MEASUREMENTS.zip",
+          "bytes": 115890,
+          "md5": "5ceb8fdc3752f16db985c2ea80392989",
+          "content_url": "https://zenodo.org/api/records/15989282/files/GANTRY_MEASUREMENTS.zip/content"
+        },
+        {
+          "filename": "GROUND_TRUTH.zip",
+          "bytes": 1084609,
+          "md5": "73436d35986a42d33844e2e5e5587edd",
+          "content_url": "https://zenodo.org/api/records/15989282/files/GROUND_TRUTH.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_CALIBRATION.zip",
+          "bytes": 11975,
+          "md5": "22bfb761a2c60c09b99f98fd0723a246",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_CALIBRATION.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_MEASUREMENTS_CSV.zip",
+          "bytes": 76147858,
+          "md5": "b7ffcdf6e31a7f6573a6fb066cf3c315",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_MEASUREMENTS_CSV.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_MEASUREMENTS_TAK.zip",
+          "bytes": 135609080,
+          "md5": "2a4224247dba5db4d779d5c69f2a879a",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_MEASUREMENTS_TAK.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_REF_VIDEOS_CIRCLE.zip",
+          "bytes": 72059539,
+          "md5": "ef6811b771293fdb37dd93712080e9fc",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_REF_VIDEOS_CIRCLE.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_REF_VIDEOS_RANDOM1.zip",
+          "bytes": 135876680,
+          "md5": "9929eb5c3e16f88fe98f06c4c5c8efd1",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_REF_VIDEOS_RANDOM1.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_REF_VIDEOS_RANDOM2.zip",
+          "bytes": 236686947,
+          "md5": "a075f500a0d2bbf74b27cd5e1d55e783",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_REF_VIDEOS_RANDOM2.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_REF_VIDEOS_STILL.zip",
+          "bytes": 15507692,
+          "md5": "9840185040f9e097b9dbe0c31dda9ef0",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_REF_VIDEOS_STILL.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_REF_VIDEOS_ZIGZAG1.zip",
+          "bytes": 155378181,
+          "md5": "f7c6e3926902193021575cc60e39b884",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_REF_VIDEOS_ZIGZAG1.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_REF_VIDEOS_ZIGZAG2.zip",
+          "bytes": 149532764,
+          "md5": "735229d2f1fc0363a6ae49f1373eef55",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_REF_VIDEOS_ZIGZAG2.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_REF_VIDEOS_ZIGZAG3.zip",
+          "bytes": 189636942,
+          "md5": "257e1ad6cfc5acee42d704b0ffd49760",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_REF_VIDEOS_ZIGZAG3.zip/content"
+        },
+        {
+          "filename": "OPTITRACK_REF_VIDEOS_ZIGZAG4.zip",
+          "bytes": 183655580,
+          "md5": "16c5e09b74ab36dd37eee3297d7baec7",
+          "content_url": "https://zenodo.org/api/records/15989282/files/OPTITRACK_REF_VIDEOS_ZIGZAG4.zip/content"
+        },
+        {
+          "filename": "RoboLoc-G.pdf",
+          "bytes": 842657,
+          "md5": "e55673e6a976932a92fe9dd4262f3194",
+          "content_url": "https://zenodo.org/api/records/15989282/files/RoboLoc-G.pdf/content"
+        },
+        {
+          "filename": "SENSORS_MEASUREMENTS_CSV.zip",
+          "bytes": 39518189,
+          "md5": "849cbc1fab3ff1ba6a36c34325575d06",
+          "content_url": "https://zenodo.org/api/records/15989282/files/SENSORS_MEASUREMENTS_CSV.zip/content"
+        },
+        {
+          "filename": "SENSORS_MEASUREMENTS_ROS2BAGS.zip",
+          "bytes": 31013727,
+          "md5": "7fcf18c22f1ef59223eb20ee5526857a",
+          "content_url": "https://zenodo.org/api/records/15989282/files/SENSORS_MEASUREMENTS_ROS2BAGS.zip/content"
+        },
+        {
+          "filename": "VIDEO_CAPTURES_CALIBRATION.zip",
+          "bytes": 1523,
+          "md5": "30b04d0fc86f0acdda79c5e080d7d5df",
+          "content_url": "https://zenodo.org/api/records/15989282/files/VIDEO_CAPTURES_CALIBRATION.zip/content"
+        },
+        {
+          "filename": "VIDEO_CAPTURES_CIRCLE.zip",
+          "bytes": 42511015,
+          "md5": "55475a9a1ad3e3beb5fd8ee931e82c75",
+          "content_url": "https://zenodo.org/api/records/15989282/files/VIDEO_CAPTURES_CIRCLE.zip/content"
+        },
+        {
+          "filename": "VIDEO_CAPTURES_RANDOM1.zip",
+          "bytes": 83013039,
+          "md5": "0abf31e180833048a31ee32d104f491c",
+          "content_url": "https://zenodo.org/api/records/15989282/files/VIDEO_CAPTURES_RANDOM1.zip/content"
+        },
+        {
+          "filename": "VIDEO_CAPTURES_RANDOM2.zip",
+          "bytes": 138153463,
+          "md5": "03df28895985f68330218c4c6c0dba53",
+          "content_url": "https://zenodo.org/api/records/15989282/files/VIDEO_CAPTURES_RANDOM2.zip/content"
+        },
+        {
+          "filename": "VIDEO_CAPTURES_STILL.zip",
+          "bytes": 7074762,
+          "md5": "9ebbb8cf5083c6163a4a455b5208c5bb",
+          "content_url": "https://zenodo.org/api/records/15989282/files/VIDEO_CAPTURES_STILL.zip/content"
+        },
+        {
+          "filename": "VIDEO_CAPTURES_ZIGZAG1.zip",
+          "bytes": 95129135,
+          "md5": "f0fce226cea27c4ff0de695e9807f616",
+          "content_url": "https://zenodo.org/api/records/15989282/files/VIDEO_CAPTURES_ZIGZAG1.zip/content"
+        },
+        {
+          "filename": "VIDEO_CAPTURES_ZIGZAG2.zip",
+          "bytes": 90222289,
+          "md5": "2cb434cffc029706efeb480a75145805",
+          "content_url": "https://zenodo.org/api/records/15989282/files/VIDEO_CAPTURES_ZIGZAG2.zip/content"
+        },
+        {
+          "filename": "VIDEO_CAPTURES_ZIGZAG3.zip",
+          "bytes": 112601055,
+          "md5": "1d59310e902e3f6b9afe9a07a2ab9a72",
+          "content_url": "https://zenodo.org/api/records/15989282/files/VIDEO_CAPTURES_ZIGZAG3.zip/content"
+        },
+        {
+          "filename": "VIDEO_CAPTURES_ZIGZAG4.zip",
+          "bytes": 111674291,
+          "md5": "97bd664e7787ef1b6a19487b3b5a9cdf",
+          "content_url": "https://zenodo.org/api/records/15989282/files/VIDEO_CAPTURES_ZIGZAG4.zip/content"
+        }
+      ]
+    },
+    {
+      "record_id": 17347695,
+      "api_url": "https://zenodo.org/api/records/17347695",
+      "record_url": "https://zenodo.org/records/17347695",
+      "api_updated": "2025-10-15T08:16:27.330994+00:00",
+      "title": "Bluetooth Channel Sounding IQ Dataset Across Diverse Scenarios",
+      "version": null,
+      "doi": "10.5281/zenodo.17347695",
+      "license": "CC BY 4.0",
+      "license_id": "cc-by-4.0",
+      "task_rationale": "Supports Bluetooth Channel Sounding distance or scenario generalization from IQ measurements linked to indoor and outdoor mapping tables.",
+      "difficulty_rationale": "Range, path geometry, and environment alter the channel response together, while the small one-meter sample is illustrative rather than an independent campaign.",
+      "grouping_warning": "Keep measurements from the same mapped location, path, range, and acquisition sequence together; mapping rows and their IQ payloads are one group and must not cross partitions.",
+      "expected_artifact_count": 4,
+      "expected_total_bytes": 29707691,
+      "artifacts": [
+        {
+          "filename": "data.zip",
+          "bytes": 29607474,
+          "md5": "6ba704003d1296459a7ddb12cf74ccfc",
+          "content_url": "https://zenodo.org/api/records/17347695/files/data.zip/content"
+        },
+        {
+          "filename": "mapping.csv",
+          "bytes": 19007,
+          "md5": "1d2544f572179f6db652ea8b7dd31a52",
+          "content_url": "https://zenodo.org/api/records/17347695/files/mapping.csv/content"
+        },
+        {
+          "filename": "outdoor_mapping.csv",
+          "bytes": 814,
+          "md5": "0a5456b373a08b89685a9e6b140297d9",
+          "content_url": "https://zenodo.org/api/records/17347695/files/outdoor_mapping.csv/content"
+        },
+        {
+          "filename": "sample_1_meter.csv",
+          "bytes": 80396,
+          "md5": "41da8e8ea7940ab699ff0297aa3e2114",
+          "content_url": "https://zenodo.org/api/records/17347695/files/sample_1_meter.csv/content"
+        }
+      ]
+    }
+  ]
+}

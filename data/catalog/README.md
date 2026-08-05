@@ -12,6 +12,12 @@ and secondary indexes. A `candidate` is not downloadable merely because it is
 listed: acquisition requires a canonical artifact inventory, explicit access
 terms, bounded size, and a publisher digest or a reviewed local pin.
 
+`eval-task-ladder-v1.json` orders evaluation surfaces by what must be inferred,
+not by file size. It starts with bounded replay, then adds representation
+alignment, held-out sources, cross-modal fusion, conflicting annotations,
+longitudinal tracking, and controlled perturbations. Each rung names its
+relation axes, grouping boundary, leakage rules, and minimum evidence gates.
+
 `fetch-osu-lora.py` lists the seven Oregon State LoRa RFFI setup roots from the
 publisher's release note without network access. Its explicit `discover` action
 emits a deterministic, bounded Apache-index inventory; `fetch` stores bytes and
