@@ -90,6 +90,15 @@ role-pair overlap separately for event, source, device, variant, session, and
 domain-shift axes; unknown coverage makes a required comparison unknown rather
 than silently passing it.
 
+`robolocg_policy.py` preregisters the policy-only RoboLoc-G boundary. Complete
+takes are session-atomic, trajectory families are domain-atomic, and frozen
+configuration may cross train, calibration, validation, and locked-test roles.
+It fixes archive evidence roles, exact CSV headers, integer clock parsing, and
+the published OptiTrack-to-gantry transform without reading payload rows or
+creating a derived artifact. Ground truth is the sole oracle; raw gantry
+measurements remain dependent consistency evidence. Fusion and scoring stay
+blocked until every named alignment blocker is explicitly closed.
+
 `profile-wlan-rff-layout.py` verifies the two pinned WLAN RFF archives and
 profiles their strict filename grammar without opening NPZ payloads. Its
 aggregate report can establish cross-environment token reuse, but deliberately

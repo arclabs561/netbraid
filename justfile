@@ -63,6 +63,9 @@ calibrated-event-relation-check:
 relation-split-audit-check:
     {{ python }} eval/test-relation-split-audit.py
 
+robolocg-policy-check:
+    {{ python }} eval/test-robolocg-policy.py
+
 wlan-rff-layout-profile-check:
     {{ python }} eval/test-profile-wlan-rff-layout.py
 
