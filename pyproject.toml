@@ -1,0 +1,46 @@
+[project]
+name = "netbraid"
+version = "0.3.3"
+description = "Netbraid tests how network observations relate while keeping their sources separate"
+requires-python = ">=3.11"
+authors = [{ name = "Arclabs", email = "arc@arclabs.dev" }]
+license = "MIT"
+readme = "README.md"
+
+[project.optional-dependencies]
+eval = [
+    "numpy>=1.26",
+    "scipy>=1.14",
+    "h5py>=3.12",
+    "xlrd>=2.0",
+]
+fetch = [
+    "truststore>=0.10",
+    "kagglehub>=1.0",
+]
+test = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "UP", "B", "SIM", "I", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"data/tests/*" = ["S101"]
+"eval/test-*" = ["S101"]
+
+[tool.pyright]
+include = ["data/", "eval/"]
+typeCheckingMode = "standard"
+reportMissingTypeStubs = false
+reportUnknownArgumentType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportMissingModuleSource = true
+
+[tool.pytest.ini_options]
+testpaths = ["data/tests", "eval"]
+python_files = ["test-*.py", "test_*.py"]
+filterwarnings = ["ignore::DeprecationWarning"]
