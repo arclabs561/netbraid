@@ -147,16 +147,16 @@ fn scenario_dispatch_does_not_follow_a_manifest_symlink_to_probe_its_schema() {
 #[test]
 fn capture_scenario_lineage_matches_the_admitted_adapter_corpus() {
     let scenario: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(
-            fixture("synthetic-wlan-prefix-boundary").join("scenario.json"),
-        )
-        .unwrap(),
+        &std::fs::read(fixture("synthetic-wlan-prefix-boundary").join("scenario.json")).unwrap(),
     )
     .unwrap();
 
     let source = &scenario["provenance"]["sources"][0];
     assert_eq!(source["source_origin"], "project_authored");
-    assert_eq!(source["corpus_fixture_id"], "netbraid.synthetic-wlan-prefix-boundary");
+    assert_eq!(
+        source["corpus_fixture_id"],
+        "netbraid.synthetic-wlan-prefix-boundary"
+    );
     assert!(source["repository"].is_null());
     assert!(source["revision"].is_null());
     assert!(source["source_url"].is_null());

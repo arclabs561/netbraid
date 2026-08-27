@@ -916,7 +916,10 @@ fn validate_source_v1(
                 ("source_path", source.source_path.as_ref()),
                 ("source_url", source.source_url.as_ref()),
                 ("upstream_blob_sha1", source.upstream_blob_sha1.as_ref()),
-                ("spdx_license_expression", Some(&source.spdx_license_expression)),
+                (
+                    "spdx_license_expression",
+                    Some(&source.spdx_license_expression),
+                ),
                 ("license_artifact", source.license_artifact.as_ref()),
             ] {
                 if value.is_none_or(|v| v.trim().is_empty()) {
@@ -927,8 +930,17 @@ fn validate_source_v1(
                 }
             }
             validate_lower_hex("revision", source.revision.as_deref().unwrap(), 40)?;
-            validate_lower_hex("upstream_blob_sha1", source.upstream_blob_sha1.as_deref().unwrap(), 40)?;
-            if !source.source_url.as_deref().unwrap().starts_with("https://") {
+            validate_lower_hex(
+                "upstream_blob_sha1",
+                source.upstream_blob_sha1.as_deref().unwrap(),
+                40,
+            )?;
+            if !source
+                .source_url
+                .as_deref()
+                .unwrap()
+                .starts_with("https://")
+            {
                 return Err(ScenarioError::Invalid(format!(
                     "provenance source {:?} must use an HTTPS source_url",
                     source.id
@@ -948,7 +960,10 @@ fn validate_source_v1(
             // because the project's own license covers authored fixtures.
             for (name, value) in [
                 ("corpus_schema", Some(&source.corpus_schema)),
-                ("spdx_license_expression", Some(&source.spdx_license_expression)),
+                (
+                    "spdx_license_expression",
+                    Some(&source.spdx_license_expression),
+                ),
             ] {
                 if value.is_none_or(|v| v.trim().is_empty()) {
                     return Err(ScenarioError::Invalid(format!(
@@ -961,7 +976,6 @@ fn validate_source_v1(
     }
     Ok(())
 }
-
 
 fn validate_saved_capture_provenance_v1(
     manifest: &ScenarioManifestV1,

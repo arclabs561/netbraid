@@ -115,8 +115,14 @@ fn reviewed_capture_fixture_preserves_exact_lineage_and_disclosure_review() {
         source.corpus_fixture_id,
         "libpcap.network-join-nokia-mobile"
     );
-    assert_eq!(source.repository.as_deref(), Some("the-tcpdump-group/libpcap"));
-    assert_eq!(source.revision.as_deref(), Some("9f37478bad2abafb626a0bf8921506569960d48d"));
+    assert_eq!(
+        source.repository.as_deref(),
+        Some("the-tcpdump-group/libpcap")
+    );
+    assert_eq!(
+        source.revision.as_deref(),
+        Some("9f37478bad2abafb626a0bf8921506569960d48d")
+    );
     assert_eq!(
         source.source_path.as_deref(),
         Some("tests/filter/Network_Join_Nokia_Mobile.pcap")
