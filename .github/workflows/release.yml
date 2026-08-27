@@ -55,7 +55,7 @@ jobs:
           jq -e '
             .packages[0].publish == ["crates-io"] and
             .packages[0].rust_version == "1.88" and
-            .packages[0].license == "(MIT OR Unlicense) AND BSD-3-Clause" and
+            .packages[0].license == "MIT OR Unlicense" and
             .packages[0].repository == "https://github.com/arclabs561/netbraid"
           ' <<<"$metadata" >/dev/null
           release_tag="netbraid-v${version}"
