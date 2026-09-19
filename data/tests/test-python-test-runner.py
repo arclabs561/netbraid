@@ -62,6 +62,7 @@ class PythonTestRunnerTests(unittest.TestCase):
             (
                 "uv",
                 "run",
+                "--no-project",
                 "--python",
                 "3.10",
                 "data/tests/test-fetch-smorffi.py",

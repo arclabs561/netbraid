@@ -75,7 +75,19 @@ def command_for(relative: PurePosixPath) -> Tuple[str, ...]:
     absolute = ROOT.joinpath(*relative.parts)
     version = INTERPRETER_OVERRIDES.get(relative)
     if version is not None:
-        return ("uv", "run", "--python", version, os.fspath(relative))
+        project_args = (
+            ("--no-project",)
+            if relative == PurePosixPath("data/tests/test-fetch-smorffi.py")
+            else ()
+        )
+        return (
+            "uv",
+            "run",
+            *project_args,
+            "--python",
+            version,
+            os.fspath(relative),
+        )
     if _has_inline_metadata(absolute):
         return ("uv", "run", "--script", os.fspath(relative))
     return (sys.executable, os.fspath(relative))
