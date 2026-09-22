@@ -628,7 +628,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "dataset",
-        choices=["list", *sorted(GROUPS), "all", *SOURCES],
+        choices=["list", "status", *sorted(GROUPS), "all", *SOURCES],
     )
     parser.add_argument(
         "--output-dir",
@@ -692,6 +692,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "no-redistribution, incomplete, or unspecified terms; this does not "
             "permit redistribution"
         ),
+    )
+    parser.add_argument(
+        "--status-selection",
+        help="selection to verify when dataset is status (default: all)",
     )
     return parser.parse_args(argv)
 
@@ -1013,6 +1017,41 @@ def fetch_selected(
     return archives
 
 
+def status_selected(
+    selected: Mapping[str, dict[str, Any]], output_dir: Path
+) -> list[dict[str, Any]]:
+    """Report local archive state without downloading or writing receipts."""
+
+    results = []
+    for dataset, spec in selected.items():
+        archive = archive_path(spec, output_dir)
+        result: dict[str, Any] = {
+            "dataset": dataset,
+            "archive": archive.name,
+            "expected_bytes": spec["bytes"],
+            "present": False,
+            "verified": False,
+            "error": None,
+        }
+        try:
+            if archive.is_symlink() or not archive.is_file():
+                results.append(result)
+                continue
+            result["present"] = True
+            size, md5, sha256 = digest_file(archive)
+            result["verified"] = (
+                size == spec["bytes"]
+                and md5 == spec["md5"]
+                and ("sha256" not in spec or sha256 == spec["sha256"])
+            )
+            if not result["verified"]:
+                result["error"] = "archive_integrity_mismatch"
+        except RuntimeError as error:
+            result["error"] = str(error)
+        results.append(result)
+    return results
+
+
 def inspect_archive(
     archive: Path, spec: dict[str, Any], receipt_dir: Path
 ) -> dict[str, Any]:
@@ -1175,6 +1214,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.dataset == "list":
         print_catalog()
         return 0
+    if args.dataset == "status":
+        selection = args.status_selection or "all"
+        groups = {selection} if selection in GROUPS else None
+        selected = (
+            {name: spec for name, spec in SOURCES.items() if spec["group"] in groups}
+            if groups is not None
+            else ({selection: SOURCES[selection]} if selection in SOURCES else None)
+        )
+        if selected is None:
+            raise RuntimeError(f"unknown status selection: {selection}")
+        results = status_selected(selected, args.output_dir)
+        print(json.dumps({"command": "status", "results": results}, indent=2, sort_keys=True))
+        return 0 if all(result["verified"] for result in results) else 1
     is_group = args.dataset in GROUPS or args.dataset == "all"
     if is_group and args.extract_member:
         raise RuntimeError("--extract-member requires one named artifact")

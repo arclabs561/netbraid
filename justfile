@@ -154,6 +154,21 @@ curated-eval-status selection="all":
 curated-eval-fetch selection="all" max_total_bytes="8589934592" max_file_bytes="2147483648":
     uv run --script data/fetch/fetch-curated-eval.py fetch {{ selection }} --max-total-bytes {{ max_total_bytes }} --max-file-bytes {{ max_file_bytes }}
 
+# Safe cross-fetcher surface. Source and selection are required; fetch prints
+# its byte/terms plan and needs --confirm before delegating to a receipt-aware
+# fetcher. It never writes raw data itself.
+dataset-fetch-sources:
+    {{ python }} data/fetch/dataset-fetch.py sources
+
+dataset-fetch-plan source selection:
+    {{ python }} data/fetch/dataset-fetch.py plan {{ source }} {{ selection }}
+
+dataset-fetch-status source selection:
+    {{ python }} data/fetch/dataset-fetch.py status {{ source }} {{ selection }}
+
+dataset-fetch source selection confirm="" acknowledge_terms="":
+    {{ python }} data/fetch/dataset-fetch.py fetch {{ source }} {{ selection }} {{ if confirm == "yes" { "--confirm" } else { "" } }} {{ if acknowledge_terms == "yes" { "--acknowledge-terms" } else { "" } }}
+
 hdf5-window-check:
     uv run --script eval/test_hdf5_window.py
 

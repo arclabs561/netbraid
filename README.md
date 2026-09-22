@@ -150,6 +150,14 @@ uv run --script data/fetch/fetch-public-eval-corpus.py list
 just public-corpus-eval-check
 ```
 
+For a single discoverable re-download/status surface, first enumerate the
+explicit source names with `just dataset-fetch-sources`. Then use
+`just dataset-fetch-plan SOURCE SELECTION` to review pinned byte estimates and
+terms, or `just dataset-fetch-status SOURCE SELECTION` to verify local state.
+`just dataset-fetch SOURCE SELECTION confirm=yes` delegates to the selected
+receipt/checksum-aware fetcher; there is no download-everything default, and
+the orchestration layer never handles raw payload bytes.
+
 Evaluations keep source lineage, split groups, limitations, and aggregate
 metrics explicit. Dataset-derived measurements are on-demand and are not part
 of the default test gate. See the
