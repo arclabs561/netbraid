@@ -7,6 +7,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -53,7 +55,9 @@ jobs:
           sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends tshark
       - run: cargo fmt --all -- --check
       - name: Check parser fuzz harness
-        run: cargo check --manifest-path fuzz/Cargo.toml --bin parse_saved_capture_jsonl
+        run: cargo check --manifest-path fuzz/Cargo.toml --bins
+        env:
+          RUSTFLAGS: --cfg fuzzing
       - name: Exercise default feature configurations
         run: |
           cargo test --locked --no-default-features
@@ -94,6 +98,30 @@ jobs:
       - run: cargo doc --locked --all-features --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
+
+  fuzz:
+    name: Fuzz (60 s per target)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: rust/fuzz -> target
+      - run: cargo install cargo-fuzz --version 0.13.2 --locked
+      - name: Run each fuzz target
+        run: |
+          for target in parse_saved_capture_jsonl tshark_fields npy_window; do
+            cargo fuzz run "$target" -- -max_total_time=60
+          done
 
   rust-windows:
     name: Rust / Windows

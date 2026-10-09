@@ -8,6 +8,19 @@ mod capinfos;
 mod fields;
 mod process;
 
+/// Entry point for the `tshark_fields` fuzz target (`cargo fuzz` sets
+/// `--cfg fuzzing`): parses raw TShark field rows without running TShark.
+#[cfg(fuzzing)]
+#[doc(hidden)]
+pub fn fuzz_parse_field_rows(stdout: &[u8]) -> (usize, usize, usize) {
+    let parsed = fields::parse_rows(stdout, "fuzz");
+    (
+        parsed.packets.len(),
+        parsed.quarantines.len(),
+        parsed.rows_seen,
+    )
+}
+
 use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::{self, BufReader, Read, Write};

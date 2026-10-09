@@ -11,11 +11,26 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-netbraid = { path = "..", default-features = false }
+netbraid = { path = "..", default-features = false, features = ["adapter-npy", "adapter-tshark"] }
+tempfile = "3"
 
 [[bin]]
 name = "parse_saved_capture_jsonl"
 path = "fuzz_targets/parse_saved_capture_jsonl.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tshark_fields"
+path = "fuzz_targets/tshark_fields.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "npy_window"
+path = "fuzz_targets/npy_window.rs"
 test = false
 doc = false
 bench = false
