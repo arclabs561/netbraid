@@ -9,6 +9,32 @@ GitHub native binary releases remain available independently.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-09
+
+### Changed
+
+- The TShark packet envelope adds a public `bluetooth_le` field and its field
+  registry moves from `netmon.tshark.packet_envelope.v4` to `v5`. Code that
+  builds `PacketEnvelopeV0` with a struct literal must set the new field.
+- The built-in replay scenario is now a project-authored synthetic WLAN
+  fixture with locally administered MACs. The package license expression is
+  `MIT OR Unlicense`; it no longer includes BSD-3-Clause.
+
+### Added
+
+- Bluetooth LE packet normalization and an SDR4IoT detection CSV adapter.
+- Provenance lineage types (`ProvenanceRecordV0`, `ProvenanceArtifactRefV0`
+  and related producer, activity and content-relation types). Compositions
+  are qualified by provenance, and declared lineage is preserved.
+- Inference: a bounded correspondence factor model, RSSI shift explanations,
+  generalized packet flow correspondence, calibrated event-relation claims,
+  and heterogeneous relation targets with conflict summaries.
+
+### Fixed
+
+- Counter evidence can no longer be reused across claims.
+- Provenance indexes are no longer rebuilt on every composition.
+
 ## [0.3.3] - 2026-08-03
 
 ### Added

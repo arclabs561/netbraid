@@ -1,6 +1,6 @@
 [package]
 name = "netbraid"
-version = "0.3.3"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Netbraid tests how network observations relate while keeping their sources separate"
