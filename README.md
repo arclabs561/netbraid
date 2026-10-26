@@ -8,7 +8,7 @@ separate.
 The Rust package requires Rust 1.88 or newer:
 
 ```sh
-cargo install netbraid --version 0.3.3 --locked
+cargo install netbraid --version 0.4.0 --locked
 ```
 
 Prebuilt archives are available from the
@@ -120,7 +120,7 @@ default features:
 
 ```toml
 [dependencies]
-netbraid = { version = "0.3", default-features = false }
+netbraid = { version = "0.4", default-features = false }
 ```
 
 The main modules are:
