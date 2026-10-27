@@ -54,3 +54,6 @@ token.txt
 id_rsa
 id_ed25519
 .venv/
+
+# Local build output
+/build/
