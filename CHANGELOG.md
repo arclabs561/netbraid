@@ -9,6 +9,15 @@ GitHub native binary releases remain available independently.
 
 ## [Unreleased]
 
+### Fixed
+
+- The SMoRFFI CSV adapter (`eval/compile-smorffi-csv-iq-adapter.py`) no
+  longer splits a NumPy-padded complex element such as
+  `0.2147587 +1.52928218e-01j` into two samples, which shifted every later
+  sample in the record. It rejects unpaired real or imaginary tokens. The
+  pinned corpus contract now expects 35,365,248 samples, with 121,998 records
+  of 288 samples and 513 of 448.
+
 ## [0.4.0] - 2026-10-09
 
 ### Changed

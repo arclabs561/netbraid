@@ -50,13 +50,21 @@ metadata-only result was then produced with `just smorffi-split-capability`.
 
 ## Results
 
-The adapter's ten hermetic tests and capability report's seven hermetic tests
+The adapter's hermetic tests and capability report's seven hermetic tests
 pass. The real compiler accepted all 123 receipt-bound CSV files as 122,511
-logical records containing 38,561,309 finite complex samples. Sequence lengths
-range from 288 through 579; only 37,288 records have the nominal 288 samples.
-The private NPY artifacts reopen as read-only memmaps, contain strictly
-increasing half-open row offsets, and occupy about 618 MB for IQ plus 1 MB for
-offsets.
+logical records containing 35,365,248 finite complex samples. 121,998 records
+have the nominal 288 samples and the other 513 have 448. The private NPY
+artifacts reopen as read-only memmaps, contain strictly increasing half-open
+row offsets, and occupy about 566 MB for IQ plus 1 MB for offsets.
+
+Correction: the first run reported 38,561,309 samples, lengths from 288
+through 579, and only 37,288 records at 288 samples. Those figures came from a
+parser bug. The publisher's preamble cells are NumPy's printed form of a
+complex array, which pads the real part for column alignment
+(`0.2147587 +1.52928218e-01j`), and the adapter split such an element into a
+real sample and an imaginary sample. The adapter now rejoins the two parts and
+rejects any unpaired real or imaginary token; the counts above are from a
+recompile with that fix.
 
 The Rust vector adapter integration also passed. It read a bounded two-value IQ
 window and the complete 122,512-value offset vector, confirmed the exact source
@@ -74,9 +82,9 @@ The storage hypothesis held. The split hypothesis did not: publisher device
 labels can construct a same-model different-source oracle, but no valid
 train/calibration/validation/test isolation can be demonstrated without an
 acquisition-session axis. The observed row and sequence-length distribution
-also differs from the publisher's nominal 123,000 records of 288 samples; the
-adapter preserves the receipt-bound bytes but does not interpret the variable
-tails as a verified preamble boundary.
+also differs from the publisher's nominal 123,000 records of 288 samples (513
+records hold 448); the adapter preserves the receipt-bound bytes but does not
+interpret either length as a verified preamble boundary.
 
 This result does not establish physical identity, same-source continuity,
 receiver or location generalization, integrity, tamper, authorization, intent,

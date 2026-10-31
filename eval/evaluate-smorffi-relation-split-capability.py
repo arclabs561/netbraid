@@ -164,11 +164,11 @@ def evaluate(adapter_path: Path) -> Mapping[str, Any]:
     if (
         files != 123
         or rows != 122_511
-        or samples != 38_561_309
+        or samples != 35_365_248
         or spans_count != files
         or counts["minimum_samples_per_row"] != 288
-        or counts["maximum_samples_per_row"] != 579
-        or counts["rows_with_288_samples"] != 37_288
+        or counts["maximum_samples_per_row"] != 448
+        or counts["rows_with_288_samples"] != 121_998
     ):
         raise CapabilityError("unexpected_corpus_cardinality")
     axes = _exact_mapping(

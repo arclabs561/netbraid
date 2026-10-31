@@ -62,6 +62,13 @@ CHUNK_BYTES = 4 * 1024 * 1024
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 ADDRESS = re.compile(r"[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}\Z")
 DECIMAL = re.compile(r"[0-9]{1,9}\Z")
+# One complex element as NumPy prints it: a real part, then a signed imaginary
+# part. NumPy pads the real part for column alignment, so the two parts may be
+# separate whitespace tokens ("0.2147587 +1.52928218e-01j").
+_NUMBER = r"(?:nan|inf|(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)"
+COMPLEX_REAL = re.compile(rf"\(?[+-]?{_NUMBER}\Z")
+COMPLEX_IMAG = re.compile(rf"[+-]{_NUMBER}j\)?\Z")
+COMPLEX_ELEMENT = re.compile(rf"\(?[+-]?{_NUMBER}[+-]{_NUMBER}j\)?\Z")
 
 
 class AdapterCompileError(RuntimeError):
@@ -97,10 +104,10 @@ PRODUCTION_CONTRACT = CorpusContract(
     receipt_files=124,
     csv_files=123,
     rows=122_511,
-    samples=38_561_309,
+    samples=35_365_248,
     minimum_samples_per_row=288,
-    maximum_samples_per_row=579,
-    rows_with_288_samples=37_288,
+    maximum_samples_per_row=448,
+    rows_with_288_samples=121_998,
     sources=123,
     errata_sha256=frozenset({ANOMALOUS_HEADER_SHA256}),
 )
@@ -378,6 +385,29 @@ def _opaque(kind: str, value: str) -> str:
     return f"{kind}-{hashlib.sha256(payload).hexdigest()[:24]}"
 
 
+def _complex_elements(tokens: list[str]) -> list[str]:
+    """Rejoin complex elements that NumPy's alignment padding split in two."""
+    if any(len(token) > MAX_TOKEN_BYTES for token in tokens):
+        raise AdapterCompileError("invalid_complex_token")
+    elements: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if COMPLEX_ELEMENT.match(token):
+            elements.append(token)
+            index += 1
+        elif (
+            COMPLEX_REAL.match(token)
+            and index + 1 < len(tokens)
+            and COMPLEX_IMAG.match(tokens[index + 1])
+        ):
+            elements.append(token + tokens[index + 1])
+            index += 2
+        else:
+            raise AdapterCompileError("invalid_complex_token")
+    return elements
+
+
 def _samples(value: str, maximum: int) -> np.ndarray:
     if (
         len(value.encode("utf-8")) > MAX_LINE_BYTES
@@ -385,7 +415,7 @@ def _samples(value: str, maximum: int) -> np.ndarray:
         or not value.endswith("]")
     ):
         raise AdapterCompileError("invalid_preamble")
-    tokens = value[1:-1].split()
+    tokens = _complex_elements(value[1:-1].split())
     if not tokens or len(tokens) > maximum:
         raise AdapterCompileError("invalid_sample_count")
     if any(
