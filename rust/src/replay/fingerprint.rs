@@ -694,9 +694,14 @@ fn fingerprint_conversation(
 }
 
 fn fingerprint_digest(basis: &SavedPcapFingerprintBasisV0) -> String {
+    schema_digest(SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0, basis)
+}
+
+/// `sha256:` digest of `schema | 0x00 | JSON(basis)`.
+pub(super) fn schema_digest<T: Serialize>(schema: &str, basis: &T) -> String {
     let encoded = serde_json::to_vec(basis).expect("fingerprint basis is serializable");
     let mut hasher = Sha256::new();
-    hasher.update(SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0.as_bytes());
+    hasher.update(schema.as_bytes());
     hasher.update([0]);
     hasher.update(encoded);
     let digest = hasher.finalize();

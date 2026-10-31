@@ -8,16 +8,20 @@ use netbraid::evidence::{
 };
 use netbraid::replay::{
     assess_saved_pcap_fingerprint_v0, compare_saved_pcap_fingerprints_v0,
-    parse_saved_capture_jsonl, project_saved_pcap_fingerprint_v0, project_saved_pcap_triage,
-    project_saved_pcap_triage_v1, project_saved_pcap_wlan_fingerprint_v0, SavedPcapClaimScopeV0,
+    compare_saved_pcap_fingerprints_v1, parse_saved_capture_jsonl,
+    project_saved_pcap_fingerprint_v0, project_saved_pcap_fingerprint_v1,
+    project_saved_pcap_triage, project_saved_pcap_triage_v1,
+    project_saved_pcap_wlan_fingerprint_v0, SavedPcapClaimScopeV0,
     SavedPcapConversationAggregationV0, SavedPcapConversationTriageV0,
     SavedPcapFingerprintComparisonReasonV0, SavedPcapFingerprintComparisonV0,
     SavedPcapFingerprintDispositionV0, SavedPcapFingerprintReferenceV0,
-    SavedPcapFingerprintStatusV0, SavedPcapNegativeClaimAbstentionReasonV1,
-    SavedPcapNegativeClaimQualificationV1, SavedPcapTrailingConversationAggregationV1,
-    SavedPcapTrailingConversationTriageV1, SavedPcapTrailingIntervalAnchorV1,
-    SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1, SavedPcapTriageProjectionError,
-    SavedPcapWlanDisconnectKindV0, SavedPcapWlanFingerprintStatusV0, SavedPcapWlanTriageV0,
+    SavedPcapFingerprintStatusV0, SavedPcapFingerprintStatusV1,
+    SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
+    SavedPcapTrailingConversationAggregationV1, SavedPcapTrailingConversationTriageV1,
+    SavedPcapTrailingIntervalAnchorV1, SavedPcapTransportProtocolV0, SavedPcapTriageOptionsV1,
+    SavedPcapTriageProjectionError, SavedPcapWlanDisconnectKindV0,
+    SavedPcapWlanFingerprintStatusV0, SavedPcapWlanTriageV0,
+    SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V1,
 };
 use proptest::prelude::*;
 
@@ -210,6 +214,223 @@ fn fingerprint_candidate_preserves_partial_and_unsupported_abstentions() {
     );
     assert_eq!(
         compare_saved_pcap_fingerprints_v0(&partial_clone, &partial_candidate),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::LeftNotObserved,
+        }
+    );
+}
+
+/// Triage for the same two-packet TCP exchange plus one deauthentication
+/// frame, with a chosen packet limit (never reached) and every packet's event
+/// time shifted by `shift_ns`.
+fn packet_shape_triage(packet_limit: u64, shift_ns: i64) -> netbraid::replay::SavedPcapTriageV1 {
+    let mut manifest = manifest(NormalizationStateV0::Complete, 3, 0);
+    manifest.normalization.packet_limit = packet_limit;
+    let packets = vec![
+        tcp_packet(1, "192.0.2.1", 40_000, "198.51.100.2", 443, 0x0002),
+        tcp_packet(2, "198.51.100.2", 443, "192.0.2.1", 40_000, 0x0012),
+        wlan_packet(3, 12),
+    ]
+    .into_iter()
+    .map(|mut packet| {
+        packet.frame.event_time_unix_ns += shift_ns;
+        packet
+    })
+    .collect();
+    let records = validated_stream(manifest, packets, vec![]);
+    project_saved_pcap_triage_v1(&records, SavedPcapTriageOptionsV1::default()).unwrap()
+}
+
+#[test]
+fn fingerprint_v1_candidate_omits_packet_limit_and_absolute_times() {
+    // Event times become 7_000_000_001_000 ns and up: recognizable if leaked.
+    let candidate = project_saved_pcap_fingerprint_v1(&packet_shape_triage(10, 7_000_000_000_000));
+
+    assert_eq!(candidate.schema, SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V1);
+    assert_eq!(
+        candidate.schema,
+        "netmon.saved_pcap_fingerprint_candidate.v1"
+    );
+    assert_eq!(candidate.scope, SavedPcapClaimScopeV0::CompleteCapture);
+    let SavedPcapFingerprintStatusV1::Observed { digest, basis, .. } = &candidate.status else {
+        panic!("complete eligible packet evidence should produce an observed candidate");
+    };
+    assert!(digest.starts_with("sha256:"));
+    assert_eq!(
+        basis.feature_names,
+        [
+            "normalization.state",
+            "normalization.completeness",
+            "normalization.packet_rows_emitted",
+            "normalization.packet_rows_quarantined",
+            "normalization.packet_rows_inspected",
+            "normalization.packet_limit_reached",
+            "normalization.emitted_packet_span",
+            "wlan",
+            "conversation.aggregation",
+            "conversation.temporal_relevance",
+            "conversation.transport",
+            "conversation.observation_point",
+            "conversation.packet_envelopes_seen",
+            "conversation.packet_envelopes_grouped",
+            "conversation.packet_envelopes_excluded",
+            "conversation.exclusions",
+            "conversation.total_frames",
+            "conversation.total_original_frame_octets",
+            "conversation.total_captured_frame_octets",
+            "conversation.a_to_b",
+            "conversation.b_to_a",
+            "conversation.observed_span_ns",
+        ]
+    );
+
+    let basis_json = serde_json::to_string(basis).unwrap();
+    assert!(!basis_json.contains("\"packet_limit\""));
+    assert!(!basis_json.contains("earliest_event_time_unix_ns"));
+    assert!(!basis_json.contains("latest_event_time_unix_ns"));
+    assert!(
+        !basis_json.contains("7000000"),
+        "basis carries an absolute event time: {basis_json}"
+    );
+    let encoded = serde_json::to_string(&candidate).unwrap();
+    assert!(!encoded.contains("192.0.2.1"));
+    assert!(!encoded.contains("40000"));
+}
+
+#[test]
+fn fingerprint_v1_ignores_unreached_packet_limit_and_clock_offset() {
+    let baseline = packet_shape_triage(10, 0);
+    let other_limit = packet_shape_triage(100_000, 0);
+    let shifted = packet_shape_triage(10, 1_000_000);
+
+    for other in [&other_limit, &shifted] {
+        assert_eq!(
+            compare_saved_pcap_fingerprints_v1(
+                &project_saved_pcap_fingerprint_v1(&baseline),
+                &project_saved_pcap_fingerprint_v1(other),
+            ),
+            SavedPcapFingerprintComparisonV0::Corroborated
+        );
+        // v0 keeps its wire contract: both features stay in its digest.
+        assert_eq!(
+            compare_saved_pcap_fingerprints_v0(
+                &project_saved_pcap_fingerprint_v0(&baseline),
+                &project_saved_pcap_fingerprint_v0(other),
+            ),
+            SavedPcapFingerprintComparisonV0::Conflicting
+        );
+    }
+}
+
+#[test]
+fn fingerprint_v1_digest_changes_for_included_features() {
+    let triage = packet_shape_triage(10, 0);
+    let baseline = project_saved_pcap_fingerprint_v1(&triage);
+    let digest = |candidate: &netbraid::replay::SavedPcapFingerprintCandidateV1| {
+        let SavedPcapFingerprintStatusV1::Observed { digest, .. } = &candidate.status else {
+            panic!("candidate should remain observed");
+        };
+        digest.clone()
+    };
+
+    let mut endpoint_changed = triage.clone();
+    let SavedPcapConversationTriageV0::Observed { conversation, .. } =
+        &mut endpoint_changed.top_capture_conversation
+    else {
+        panic!("the fixture should produce an observed conversation");
+    };
+    conversation.endpoint_a.address = "203.0.113.9".parse().unwrap();
+    let endpoint_candidate = project_saved_pcap_fingerprint_v1(&endpoint_changed);
+    assert_eq!(digest(&baseline), digest(&endpoint_candidate));
+
+    let mut frames_changed = triage.clone();
+    let SavedPcapConversationTriageV0::Observed { conversation, .. } =
+        &mut frames_changed.top_capture_conversation
+    else {
+        panic!("the fixture should produce an observed conversation");
+    };
+    conversation.total_frames += 1;
+
+    let mut span_changed = triage.clone();
+    let SavedPcapConversationTriageV0::Observed { conversation, .. } =
+        &mut span_changed.top_capture_conversation
+    else {
+        panic!("the fixture should produce an observed conversation");
+    };
+    conversation.observed_span_ns += 1;
+
+    let mut limit_reached = triage;
+    limit_reached.normalization.packet_limit_reached = true;
+
+    for changed in [&frames_changed, &span_changed, &limit_reached] {
+        let candidate = project_saved_pcap_fingerprint_v1(changed);
+        assert_ne!(digest(&baseline), digest(&candidate));
+        assert_eq!(
+            compare_saved_pcap_fingerprints_v1(&baseline, &candidate),
+            SavedPcapFingerprintComparisonV0::Conflicting
+        );
+    }
+
+    let mut schema_changed = baseline.clone();
+    schema_changed.schema = SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0.into();
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v1(&baseline, &schema_changed),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentSchema,
+        }
+    );
+
+    let mut invalid_digest = baseline.clone();
+    let SavedPcapFingerprintStatusV1::Observed { digest, .. } = &mut invalid_digest.status else {
+        panic!("the fixture should produce an observed candidate");
+    };
+    *digest = "sha256:invalid".into();
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v1(&baseline, &invalid_digest),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::InvalidDigest,
+        }
+    );
+}
+
+#[test]
+fn fingerprint_v1_preserves_partial_and_unsupported_abstentions() {
+    let partial = validated_stream(
+        manifest(NormalizationStateV0::Partial, 0, 0),
+        vec![],
+        vec![],
+    );
+    let partial_triage =
+        project_saved_pcap_triage_v1(&partial, SavedPcapTriageOptionsV1::default()).unwrap();
+    let partial_candidate = project_saved_pcap_fingerprint_v1(&partial_triage);
+    assert!(matches!(
+        partial_candidate.status,
+        SavedPcapFingerprintStatusV1::Insufficient { .. }
+    ));
+
+    let unsupported = validated_stream(
+        manifest(NormalizationStateV0::Complete, 1, 0),
+        vec![wlan_packet(1, 8)],
+        vec![],
+    );
+    let unsupported_triage =
+        project_saved_pcap_triage_v1(&unsupported, SavedPcapTriageOptionsV1::default()).unwrap();
+    let unsupported_candidate = project_saved_pcap_fingerprint_v1(&unsupported_triage);
+    assert!(matches!(
+        unsupported_candidate.status,
+        SavedPcapFingerprintStatusV1::Unsupported { .. }
+    ));
+    assert!(!serde_json::to_string(&unsupported_candidate)
+        .unwrap()
+        .contains("digest"));
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v1(&partial_candidate, &unsupported_candidate),
+        SavedPcapFingerprintComparisonV0::NotComparable {
+            reason: SavedPcapFingerprintComparisonReasonV0::DifferentClaimScope,
+        }
+    );
+    assert_eq!(
+        compare_saved_pcap_fingerprints_v1(&partial_candidate, &partial_candidate.clone()),
         SavedPcapFingerprintComparisonV0::NotComparable {
             reason: SavedPcapFingerprintComparisonReasonV0::LeftNotObserved,
         }

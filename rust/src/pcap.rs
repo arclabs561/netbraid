@@ -16,10 +16,11 @@ use netbraid::evidence::{
 };
 use netbraid::replay::{
     project_saved_capture_flows_v0, project_saved_pcap_fingerprint_v0,
-    project_saved_pcap_ieee802154_v0, project_saved_pcap_triage_v1,
-    project_saved_pcap_wlan_fingerprint_v0, reduce_capture_conversations, CaptureConversationV0,
-    ConversationDirectionV0, PacketFlowSessionizationV0, SavedCaptureRecordStreamV0,
-    SavedPcapClaimScopeV0, SavedPcapCompletenessV0, SavedPcapConversationTriageV0,
+    project_saved_pcap_fingerprint_v1, project_saved_pcap_ieee802154_v0,
+    project_saved_pcap_triage_v1, project_saved_pcap_wlan_fingerprint_v0,
+    reduce_capture_conversations, CaptureConversationV0, ConversationDirectionV0,
+    PacketFlowSessionizationV0, SavedCaptureRecordStreamV0, SavedPcapClaimScopeV0,
+    SavedPcapCompletenessV0, SavedPcapConversationTriageV0,
     SavedPcapNegativeClaimAbstentionReasonV1, SavedPcapNegativeClaimQualificationV1,
     SavedPcapTopConversationV0, SavedPcapTrailingConversationTriageV1,
     SavedPcapTrailingIntervalAnchorV1, SavedPcapTrailingTopConversationV1,
@@ -100,6 +101,18 @@ impl FromStr for InactivitySecondsArg {
     }
 }
 
+/// Packet-shape fingerprint candidate schema emitted by `--fingerprint-json`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
+pub enum FingerprintSchemaArg {
+    /// `netmon.saved_pcap_fingerprint_candidate.v0`: includes the packet limit
+    /// and absolute event times.
+    #[default]
+    V0,
+    /// `netmon.saved_pcap_fingerprint_candidate.v1`: excludes the packet limit
+    /// and absolute event times.
+    V1,
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum AcquisitionModeArg {
     PassiveHostLocal,
@@ -144,6 +157,10 @@ pub struct PcapArgs {
         ]
     )]
     pub fingerprint_json: bool,
+
+    /// Candidate schema for --fingerprint-json.
+    #[arg(long, value_enum, default_value_t, requires = "fingerprint_json")]
+    pub fingerprint_schema: FingerprintSchemaArg,
 
     /// Emit one 802.11/radiotap fingerprint candidate as JSON.
     #[arg(
@@ -283,7 +300,9 @@ pub fn run(args: &PcapArgs) -> Result<()> {
     ) {
         (true, false, false, false, false, false) => print_ieee802154_json(&report),
         (false, true, false, false, false, false) => print_wlan_fingerprint_json(&report),
-        (false, false, true, false, false, false) => print_fingerprint_json(&report),
+        (false, false, true, false, false, false) => {
+            print_fingerprint_json(&report, args.fingerprint_schema)
+        }
         (false, false, false, true, false, false) => print_triage_json(&report, tail_window_ns),
         (false, false, false, false, true, false) => print_jsonl(&report, true),
         (false, false, false, false, false, true) => print_jsonl(&report, false),
@@ -380,12 +399,21 @@ fn print_ieee802154_json(report: &NormalizationReport) -> Result<()> {
     Ok(())
 }
 
-fn print_fingerprint_json(report: &NormalizationReport) -> Result<()> {
+fn print_fingerprint_json(
+    report: &NormalizationReport,
+    schema: FingerprintSchemaArg,
+) -> Result<()> {
     let triage = triage_for_report(report, None)?;
-    let candidate = project_saved_pcap_fingerprint_v0(&triage);
     let mut output = BufWriter::new(io::stdout().lock());
-    serde_json::to_writer(&mut output, &candidate)
-        .context("writing saved-PCAP fingerprint candidate")?;
+    match schema {
+        FingerprintSchemaArg::V0 => {
+            serde_json::to_writer(&mut output, &project_saved_pcap_fingerprint_v0(&triage))
+        }
+        FingerprintSchemaArg::V1 => {
+            serde_json::to_writer(&mut output, &project_saved_pcap_fingerprint_v1(&triage))
+        }
+    }
+    .context("writing saved-PCAP fingerprint candidate")?;
     output.write_all(b"\n")?;
     output.flush()?;
     Ok(())

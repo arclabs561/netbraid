@@ -9,6 +9,24 @@ GitHub native binary releases remain available independently.
 
 ## [Unreleased]
 
+### Added
+
+- Packet-shape fingerprint candidate schema v1
+  (`netmon.saved_pcap_fingerprint_candidate.v1`), produced by
+  `replay::project_saved_pcap_fingerprint_v1`, compared by
+  `replay::compare_saved_pcap_fingerprints_v1`, and emitted by
+  `netbraid pcap --fingerprint-json --fingerprint-schema v1`. Its digest basis
+  drops `normalization.packet_limit` and every absolute event time: the
+  emitted-packet, WLAN and disconnect windows keep only their observation
+  counts and spans, and the conversation keeps `observed_span_ns` without its
+  earliest and latest times. In v0, two complete captures of the same exchange
+  compared as different packet shapes when they were taken with different
+  `--packet-limit` values (neither reached) or by observers whose clocks
+  differ. v0 is unchanged and stays the default; v1 digests differ from v0
+  digests and the two schemas are not comparable with each other. The
+  packet-shape hypothesis set (`assess_saved_pcap_fingerprint_v0`) still
+  takes v0 candidates only.
+
 ### Fixed
 
 - The SMoRFFI CSV adapter (`eval/compile-smorffi-csv-iq-adapter.py`) no
