@@ -198,7 +198,12 @@ fn project_zeek_connection(connection: &ZeekConnV0) -> FlowRecordV0 {
                 FlowRecordProtocolV0::Unsupported
             }
         },
-        connection.duration_ns(),
+        // Zeek's conn script (base/protocols/conn/main.zeek, `set_conn`)
+        // logs `duration` only when it is greater than zero, so an unset
+        // duration is a zero-length connection such as an unanswered SYN,
+        // not an unknown interval. The adapter keeps it unset; this
+        // projection admits it as a point at the start time.
+        Some(connection.duration_ns().unwrap_or(0)),
         connection.orig_packets(),
         connection.orig_ip_bytes(),
         connection.resp_packets(),
