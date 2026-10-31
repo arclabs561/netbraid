@@ -565,7 +565,7 @@ fn generated_smorffi_vectors_project_through_the_public_adapter() {
 
     let iq = project_npy_vector_window(&iq_path, &vector_options(0, 2)).unwrap();
     assert_eq!(iq.metadata().dtype(), NpyDtypeV0::ComplexFloat64);
-    assert_eq!(iq.metadata().length(), 38_561_309);
+    assert_eq!(iq.metadata().length(), 35_365_248);
     assert_eq!(iq.metadata().counts().finite_components(), 4);
     assert_eq!(iq.metadata().counts().nonfinite_components(), 0);
     assert_eq!(iq.read_audit().observed_bytes(), 32);
@@ -576,7 +576,7 @@ fn generated_smorffi_vectors_project_through_the_public_adapter() {
     assert_eq!(offsets.metadata().aggregates().unsigned_minimum(), Some(0));
     assert_eq!(
         offsets.metadata().aggregates().unsigned_maximum(),
-        Some(38_561_309)
+        Some(35_365_248)
     );
     assert_eq!(
         offsets.metadata().aggregates().unsigned_adjacent_equal(),

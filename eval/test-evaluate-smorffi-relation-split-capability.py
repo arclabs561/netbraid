@@ -61,7 +61,7 @@ def valid_adapter() -> dict[str, object]:
             "iq": {
                 "format": "npy",
                 "dtype": "<c16",
-                "shape": [38_561_309],
+                "shape": [35_365_248],
                 "sha256": "3" * 64,
             },
             "row_offsets": {
@@ -89,11 +89,11 @@ def valid_adapter() -> dict[str, object]:
         "counts": {
             "files": 123,
             "rows": row_count,
-            "samples": 38_561_309,
+            "samples": 35_365_248,
             "spans": 123,
             "minimum_samples_per_row": 288,
-            "maximum_samples_per_row": 579,
-            "rows_with_288_samples": 37_288,
+            "maximum_samples_per_row": 448,
+            "rows_with_288_samples": 121_998,
         },
         "source_spans": spans,
         "privacy": {

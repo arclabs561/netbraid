@@ -139,12 +139,53 @@ class SmorffiAdapterCompilerTests(unittest.TestCase):
         self.assertEqual(contract.receipt_files, 124)
         self.assertEqual(contract.csv_files, 123)
         self.assertEqual(contract.rows, 122_511)
-        self.assertEqual(contract.samples, 38_561_309)
+        self.assertEqual(contract.samples, 35_365_248)
         self.assertEqual(contract.minimum_samples_per_row, 288)
-        self.assertEqual(contract.maximum_samples_per_row, 579)
-        self.assertEqual(contract.rows_with_288_samples, 37_288)
+        self.assertEqual(contract.maximum_samples_per_row, 448)
+        self.assertEqual(contract.rows_with_288_samples, 121_998)
         self.assertEqual(contract.sources, 123)
         self.assertEqual(contract.errata_sha256, {MODULE.ANOMALOUS_HEADER_SHA256})
+
+    def test_numpy_padded_complex_element_is_one_sample(self):
+        # The publisher's preamble cells are NumPy's str() of a complex array,
+        # which pads the real part for column alignment, e.g.
+        # "[ 0.21494181+1.12491198e-01j  0.2147587 +1.52928218e-01j ...]".
+        values = np.array(
+            [
+                0.19928582 - 0.114963196j,
+                -0.05133212 + 0.200689673j,
+                -0.1027558 + 0.151066586j,
+                0.00997955 + 0.05j,
+            ],
+            dtype=np.complex64,
+        )
+        text = str(values)
+        self.assertIn("-0.1027558 +", text)
+        parsed = MODULE._samples(text, 1_000)
+        self.assertEqual(parsed.shape, values.shape)
+        # str() prints eight decimals, so compare at that precision.
+        np.testing.assert_allclose(
+            parsed, values.astype(np.complex128), rtol=1e-6, atol=1e-8
+        )
+
+    def test_nominal_288_sample_preambles_keep_288_samples(self):
+        rng = np.random.default_rng(1)
+        for _ in range(50):
+            row = (rng.normal(0, 0.1, 288) + 1j * rng.normal(0, 0.1, 288)).astype(
+                np.complex64
+            )
+            parsed = MODULE._samples(str(row), 100_000)
+            self.assertEqual(parsed.shape, (288,))
+            np.testing.assert_allclose(
+                parsed, row.astype(np.complex128), rtol=1e-6, atol=1e-8
+            )
+
+    def test_unpaired_real_or_imaginary_token_is_rejected(self):
+        for value in ("[0.5 1+2j]", "[1+2j +0.5j]", "[0.5]", "[1+2j 0.5]"):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                MODULE.AdapterCompileError, "invalid_complex_token"
+            ):
+                MODULE._samples(value, 10)
 
     def test_compiles_variable_rows_to_mmap_ready_flat_arrays(self):
         fixture = Fixture(self)
