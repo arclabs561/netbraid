@@ -7,6 +7,7 @@ use std::path::Path;
 
 mod conversation;
 mod fingerprint;
+mod fingerprint_v1;
 mod flow;
 mod ieee802154;
 mod same_event;
@@ -38,6 +39,14 @@ pub use fingerprint::{
     SavedPcapFingerprintUnsupportedReasonV0, SavedPcapFingerprintValidationErrorV0,
     SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V0, SAVED_PCAP_FINGERPRINT_HYPOTHESIS_SET_SCHEMA_V0,
     SAVED_PCAP_FINGERPRINT_REDUCER_V0,
+};
+pub use fingerprint_v1::{
+    compare_saved_pcap_fingerprints_v1, project_saved_pcap_fingerprint_v1,
+    SavedPcapFingerprintBasisV1, SavedPcapFingerprintCandidateV1,
+    SavedPcapFingerprintConversationV1, SavedPcapFingerprintEventSpanV1,
+    SavedPcapFingerprintNormalizationV1, SavedPcapFingerprintStatusV1,
+    SavedPcapFingerprintWlanDisconnectV1, SavedPcapFingerprintWlanV1,
+    SAVED_PCAP_FINGERPRINT_CANDIDATE_SCHEMA_V1,
 };
 pub use flow::{
     project_saved_capture_flows_v0, PacketFlowEndBasisV0, PacketFlowExclusionReasonV0,

@@ -296,6 +296,39 @@ fn pcap_command_has_human_and_jsonl_operator_surfaces() {
     assert!(!fingerprint_text.contains("192.0.2.1"));
     assert!(!fingerprint_text.contains("40000"));
 
+    let fingerprint_v1 = Command::new(binary)
+        .args([
+            "pcap",
+            input.to_str().unwrap(),
+            "--packet-limit",
+            "10",
+            "--fingerprint-json",
+            "--fingerprint-schema",
+            "v1",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        fingerprint_v1.status.success(),
+        "{}",
+        String::from_utf8_lossy(&fingerprint_v1.stderr)
+    );
+    let fingerprint_v1: serde_json::Value = serde_json::from_slice(&fingerprint_v1.stdout).unwrap();
+    assert_eq!(
+        fingerprint_v1["schema"],
+        "netmon.saved_pcap_fingerprint_candidate.v1"
+    );
+    assert_eq!(fingerprint_v1["status"]["status"], "observed");
+    let basis_v1 = &fingerprint_v1["status"]["basis"];
+    assert!(basis_v1["normalization"].get("packet_limit").is_none());
+    assert!(basis_v1["conversation"]
+        .get("earliest_event_time_unix_ns")
+        .is_none());
+    assert_ne!(
+        fingerprint_v1["status"]["digest"],
+        fingerprint["status"]["digest"]
+    );
+
     let trailing = Command::new(binary)
         .args([
             "pcap",
@@ -892,6 +925,37 @@ fn pcap_flows_tsv_requires_explicit_thresholds_and_rejects_other_output_modes() 
     assert!(stderr.contains("--tail-seconds"));
     assert!(stderr.contains("cannot be used with"));
     assert!(!stderr.contains("normalizing does-not-need-to-exist.pcap"));
+}
+
+#[test]
+fn pcap_fingerprint_schema_requires_fingerprint_json_and_a_known_version() {
+    let without_mode = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+        .args([
+            "pcap",
+            "does-not-need-to-exist.pcap",
+            "--fingerprint-schema",
+            "v1",
+        ])
+        .output()
+        .unwrap();
+    assert!(!without_mode.status.success());
+    let stderr = String::from_utf8(without_mode.stderr).unwrap();
+    assert!(stderr.contains("--fingerprint-json"), "{stderr}");
+    assert!(!stderr.contains("normalizing does-not-need-to-exist.pcap"));
+
+    let unknown = Command::new(env!("CARGO_BIN_EXE_netbraid"))
+        .args([
+            "pcap",
+            "does-not-need-to-exist.pcap",
+            "--fingerprint-json",
+            "--fingerprint-schema",
+            "v2",
+        ])
+        .output()
+        .unwrap();
+    assert!(!unknown.status.success());
+    let stderr = String::from_utf8(unknown.stderr).unwrap();
+    assert!(stderr.contains("invalid value 'v2'"), "{stderr}");
 }
 
 #[test]
