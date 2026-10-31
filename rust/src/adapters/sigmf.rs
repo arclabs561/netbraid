@@ -248,8 +248,12 @@ fn project_sigmf_window_with_hook(
     };
     let stem = recording_stem(metadata_path)?;
     let parsed = match dialect {
-        SigmfDialect::SigmfCore => parse_sigmf_core(&value, options.first_sample)?,
-        SigmfDialect::OsuLoraV2 => parse_osu_lora_v2(&value, &stem, options.first_sample)?,
+        SigmfDialect::SigmfCore => {
+            parse_sigmf_core(&value, options.first_sample, options.sample_count)?
+        }
+        SigmfDialect::OsuLoraV2 => {
+            parse_osu_lora_v2(&value, &stem, options.first_sample, options.sample_count)?
+        }
         SigmfDialect::Auto => unreachable!("auto dialect is resolved before parsing"),
     };
 
@@ -400,13 +404,41 @@ fn detect_dialect(value: &Value) -> Result<SigmfDialect, SigmfAdapterError> {
     }
 }
 
-fn parse_sigmf_core(value: &Value, first_sample: u64) -> Result<ParsedMetadata, SigmfAdapterError> {
+/// Optional global core fields that describe a recording without changing how
+/// its dataset bytes map to samples.
+const INFORMATIONAL_GLOBAL_CORE_KEYS: &[&str] = &[
+    "core:author",
+    "core:collection",
+    "core:data_doi",
+    "core:description",
+    "core:geolocation",
+    "core:hw",
+    "core:license",
+    "core:meta_doi",
+    "core:recorder",
+    "core:sha512",
+];
+
+/// Optional capture core fields that describe a segment without changing how
+/// its dataset bytes map to samples.
+const INFORMATIONAL_CAPTURE_CORE_KEYS: &[&str] = &["core:datetime", "core:global_index"];
+
+fn parse_sigmf_core(
+    value: &Value,
+    first_sample: u64,
+    sample_count: u64,
+) -> Result<ParsedMetadata, SigmfAdapterError> {
     let top = exact_object(value, &["global", "captures", "annotations"], &[])?;
-    let global = exact_object(
+    let global = core_object(
         required(top, "global")?,
         &["core:datatype", "core:sample_rate", "core:version"],
-        &["core:num_channels", "core:extensions"],
+        &["core:num_channels", "core:extensions", "core:offset"],
+        INFORMATIONAL_GLOBAL_CORE_KEYS,
     )?;
+    // A nonzero offset renumbers every sample index in the recording.
+    if optional_u64(global, "core:offset")?.is_some_and(|offset| offset != 0) {
+        return Err(SigmfAdapterError::UnsupportedMetadataShape);
+    }
     let version = required_string(global, "core:version")?;
     if !version.starts_with("1.") {
         return Err(SigmfAdapterError::UnsupportedVersion);
@@ -416,7 +448,7 @@ fn parse_sigmf_core(value: &Value, first_sample: u64) -> Result<ParsedMetadata, 
         "cf32_be" => SigmfByteOrder::Big,
         _ => return Err(SigmfAdapterError::UnsupportedDatatype),
     };
-    let sample_rate_hz = required_u64(global, "core:sample_rate")?;
+    let sample_rate_hz = required_whole_hz(global, "core:sample_rate")?;
     if sample_rate_hz == 0 {
         return Err(SigmfAdapterError::UnsupportedMetadataShape);
     }
@@ -440,10 +472,13 @@ fn parse_sigmf_core(value: &Value, first_sample: u64) -> Result<ParsedMetadata, 
     let annotations = required(top, "annotations")?
         .as_array()
         .ok_or(SigmfAdapterError::UnsupportedMetadataShape)?;
-    if !annotations.is_empty() {
+    // Annotations label segments of the recording; they do not change how the
+    // dataset is decoded, so only their shape is checked.
+    if annotations.iter().any(|annotation| !annotation.is_object()) {
         return Err(SigmfAdapterError::UnsupportedMetadataShape);
     }
-    let center_frequency_hz = parse_core_captures(required(top, "captures")?, first_sample)?;
+    let center_frequency_hz =
+        parse_core_captures(required(top, "captures")?, first_sample, sample_count)?;
     Ok(ParsedMetadata {
         dialect: IqDialectV0::SigmfCore,
         byte_order: Some(byte_order),
@@ -453,30 +488,75 @@ fn parse_sigmf_core(value: &Value, first_sample: u64) -> Result<ParsedMetadata, 
     })
 }
 
-fn parse_core_captures(value: &Value, first_sample: u64) -> Result<Option<u64>, SigmfAdapterError> {
+fn parse_core_captures(
+    value: &Value,
+    first_sample: u64,
+    sample_count: u64,
+) -> Result<Option<u64>, SigmfAdapterError> {
     let captures = value
         .as_array()
         .ok_or(SigmfAdapterError::UnsupportedMetadataShape)?;
     let mut previous = None;
-    let mut center = None;
+    let mut segments = Vec::with_capacity(captures.len());
     for capture in captures {
-        let capture = exact_object(capture, &["core:sample_start"], &["core:frequency"])?;
+        let capture = core_object(
+            capture,
+            &["core:sample_start"],
+            &["core:frequency", "core:header_bytes"],
+            INFORMATIONAL_CAPTURE_CORE_KEYS,
+        )?;
+        // Header bytes inside the dataset would shift every later sample.
+        if optional_u64(capture, "core:header_bytes")?.is_some_and(|bytes| bytes != 0) {
+            return Err(SigmfAdapterError::UnsupportedMetadataShape);
+        }
         let start = required_u64(capture, "core:sample_start")?;
         if previous.is_none() && start != 0 || previous.is_some_and(|value| start <= value) {
             return Err(SigmfAdapterError::UnsupportedMetadataShape);
         }
         previous = Some(start);
-        if start <= first_sample {
-            center = optional_u64(capture, "core:frequency")?;
-        }
+        segments.push((start, optional_whole_hz(capture, "core:frequency")?));
     }
-    Ok(center)
+    Ok(window_center_frequency(
+        &segments,
+        first_sample,
+        sample_count,
+    ))
+}
+
+/// The center frequency shared by every capture segment the nonempty window
+/// `[first_sample, first_sample + sample_count)` touches, or `None` when the
+/// window spans segments tuned differently. `segments` holds strictly
+/// increasing `(sample_start, frequency)` pairs.
+fn window_center_frequency(
+    segments: &[(u64, Option<u64>)],
+    first_sample: u64,
+    sample_count: u64,
+) -> Option<u64> {
+    let end = first_sample.saturating_add(sample_count);
+    let mut touched = segments
+        .iter()
+        .zip(
+            segments
+                .iter()
+                .skip(1)
+                .map(|next| next.0)
+                .chain(std::iter::once(u64::MAX)),
+        )
+        .filter(|((start, _), next_start)| *start < end && *next_start > first_sample)
+        .map(|((_, frequency), _)| *frequency);
+    let center = touched.next()?;
+    if touched.all(|frequency| frequency == center) {
+        center
+    } else {
+        None
+    }
 }
 
 fn parse_osu_lora_v2(
     value: &Value,
     stem: &str,
     first_sample: u64,
+    sample_count: u64,
 ) -> Result<ParsedMetadata, SigmfAdapterError> {
     let wrapper = exact_object(value, &["version", "schema", "_metadata", "data_file"], &[])?;
     let version = required_string(wrapper, "version")?;
@@ -513,7 +593,8 @@ fn parse_osu_lora_v2(
         return Err(SigmfAdapterError::UnsupportedDatatype);
     }
     let sample_rate_hz = parse_scaled_quantity(required_string(global, "core:sample_rate")?)?;
-    let center_frequency_hz = parse_osu_captures(required(metadata, "captures")?, first_sample)?;
+    let center_frequency_hz =
+        parse_osu_captures(required(metadata, "captures")?, first_sample, sample_count)?;
     let declared_samples = parse_osu_annotations(required(metadata, "annotations")?)?;
     let declared_data_bytes = declared_samples
         .checked_mul(BYTES_PER_COMPLEX_SAMPLE)
@@ -527,13 +608,17 @@ fn parse_osu_lora_v2(
     })
 }
 
-fn parse_osu_captures(value: &Value, first_sample: u64) -> Result<Option<u64>, SigmfAdapterError> {
+fn parse_osu_captures(
+    value: &Value,
+    first_sample: u64,
+    sample_count: u64,
+) -> Result<Option<u64>, SigmfAdapterError> {
     let captures = value
         .as_array()
         .filter(|captures| !captures.is_empty())
         .ok_or(SigmfAdapterError::UnsupportedMetadataShape)?;
     let mut previous = None;
-    let mut center = None;
+    let mut segments = Vec::with_capacity(captures.len());
     for capture in captures {
         let capture = exact_object(
             capture,
@@ -546,14 +631,14 @@ fn parse_osu_captures(value: &Value, first_sample: u64) -> Result<Option<u64>, S
             return Err(SigmfAdapterError::UnsupportedMetadataShape);
         }
         previous = Some(start);
-        if start <= first_sample {
-            center = Some(parse_scaled_quantity(required_string(
-                capture,
-                "frequency",
-            )?)?);
-        }
+        let frequency = parse_scaled_quantity(required_string(capture, "frequency")?)?;
+        segments.push((start, Some(frequency)));
     }
-    Ok(center)
+    Ok(window_center_frequency(
+        &segments,
+        first_sample,
+        sample_count,
+    ))
 }
 
 fn parse_osu_annotations(value: &Value) -> Result<u64, SigmfAdapterError> {
@@ -1032,6 +1117,34 @@ fn exact_object<'a>(
     Ok(object)
 }
 
+/// Like [`exact_object`], but follows SigMF's rule that readers ignore fields
+/// outside the core namespace. Keys in the `core:` namespace must still be
+/// required, handled by the caller, or known to be informational, so a core
+/// field that changes decoding is never silently skipped.
+fn core_object<'a>(
+    value: &'a Value,
+    required_keys: &[&str],
+    handled_keys: &[&str],
+    informational_keys: &[&str],
+) -> Result<&'a Map<String, Value>, SigmfAdapterError> {
+    let object = value
+        .as_object()
+        .ok_or(SigmfAdapterError::UnsupportedMetadataShape)?;
+    let known = |key: &str| {
+        required_keys.contains(&key)
+            || handled_keys.contains(&key)
+            || informational_keys.contains(&key)
+    };
+    if required_keys.iter().any(|key| !object.contains_key(*key))
+        || object
+            .keys()
+            .any(|key| key.starts_with("core:") && !known(key.as_str()))
+    {
+        return Err(SigmfAdapterError::UnsupportedMetadataShape);
+    }
+    Ok(object)
+}
+
 fn required<'a>(object: &'a Map<String, Value>, key: &str) -> Result<&'a Value, SigmfAdapterError> {
     object
         .get(key)
@@ -1062,6 +1175,34 @@ fn optional_u64(object: &Map<String, Value>, key: &str) -> Result<Option<u64>, S
                 .ok_or(SigmfAdapterError::UnsupportedMetadataShape)
         })
         .transpose()
+}
+
+/// SigMF types frequencies and rates as doubles; the evidence records whole
+/// hertz, so only finite, non-negative, integer-valued numbers are accepted.
+fn whole_hz(value: &Value) -> Result<u64, SigmfAdapterError> {
+    if let Some(hz) = value.as_u64() {
+        return Ok(hz);
+    }
+    let hz = value
+        .as_f64()
+        .ok_or(SigmfAdapterError::UnsupportedMetadataShape)?;
+    // 2^64 is the first double above u64::MAX.
+    if hz.is_finite() && hz >= 0.0 && hz.fract() == 0.0 && hz < 18_446_744_073_709_551_616.0 {
+        Ok(hz as u64)
+    } else {
+        Err(SigmfAdapterError::UnsupportedMetadataShape)
+    }
+}
+
+fn required_whole_hz(object: &Map<String, Value>, key: &str) -> Result<u64, SigmfAdapterError> {
+    whole_hz(required(object, key)?)
+}
+
+fn optional_whole_hz(
+    object: &Map<String, Value>,
+    key: &str,
+) -> Result<Option<u64>, SigmfAdapterError> {
+    object.get(key).map(whole_hz).transpose()
 }
 
 fn required_bool(object: &Map<String, Value>, key: &str) -> Result<bool, SigmfAdapterError> {

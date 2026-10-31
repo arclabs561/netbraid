@@ -661,3 +661,113 @@ fn decode_hex(input: &str) -> Vec<u8> {
         })
         .collect()
 }
+
+fn cf32_le_samples(count: u32) -> Vec<u8> {
+    (0..count)
+        .flat_map(|value| {
+            let mut sample = (value as f32).to_le_bytes().to_vec();
+            sample.extend_from_slice(&0.0f32.to_le_bytes());
+            sample
+        })
+        .collect()
+}
+
+/// The metadata sigmf-python 1.x writes by default carries the optional
+/// global fields `core:offset` and `core:sha512`; SigMF requires readers to
+/// accept optional core fields.
+#[test]
+fn sigmf_python_default_global_fields_are_accepted() {
+    let metadata = r#"{"global":{"core:datatype":"cf32_le","core:num_channels":1,"core:offset":0,"core:sample_rate":1000000,"core:sha512":"f4984219b318894fa7144519185d1ae81ea721c6113243a52b51e444512a39d74cf41a4cec3c5d000bd7277cc71232c04d7a946717497e18619bdbe94bfeadd6","core:version":"1.2.6"},"captures":[{"core:frequency":915000000,"core:sample_start":0}],"annotations":[]}"#;
+    let recording = stage_recording(metadata, &cf32_le_samples(4), "ref", ".sigmf-data");
+    let projection = project_sigmf_window(&recording.metadata_path, &options(0, 4))
+        .expect("sigmf-python default metadata should be accepted");
+    assert_eq!(
+        projection.evidence().center_frequency_hz(),
+        Some(915_000_000)
+    );
+}
+
+/// Informational capture fields such as `core:datetime` and extension
+/// namespaces do not change how the dataset is decoded.
+#[test]
+fn informational_capture_fields_and_extension_namespaces_are_accepted() {
+    let metadata = r#"{"global":{"core:datatype":"cf32_le","core:sample_rate":1000000,"core:version":"1.2.0","core:description":"bench","antenna:gain":3.0},"captures":[{"core:sample_start":0,"core:frequency":915000000,"core:datetime":"2026-01-01T00:00:00Z"}],"annotations":[]}"#;
+    let recording = stage_recording(metadata, &cf32_le_samples(4), "info", ".sigmf-data");
+    assert!(project_sigmf_window(&recording.metadata_path, &options(0, 4)).is_ok());
+}
+
+/// Annotations describe segments of a recording; their presence does not
+/// change how the dataset is decoded.
+#[test]
+fn annotations_do_not_reject_a_recording() {
+    let metadata = r#"{"global":{"core:datatype":"cf32_le","core:sample_rate":1000000,"core:version":"1.2.0"},"captures":[{"core:sample_start":0,"core:frequency":915000000}],"annotations":[{"core:sample_start":0,"core:sample_count":4,"core:label":"burst"}]}"#;
+    let recording = stage_recording(metadata, &cf32_le_samples(4), "ann", ".sigmf-data");
+    assert!(project_sigmf_window(&recording.metadata_path, &options(0, 4)).is_ok());
+}
+
+/// Core fields that change how bytes map to samples stay fail-closed.
+#[test]
+fn decoding_relevant_core_fields_remain_unsupported() {
+    for (global_extra, capture_extra) in [
+        (r#","core:offset":16"#, ""),
+        (r#","core:trailing_bytes":8"#, ""),
+        (r#","core:metadata_only":true"#, ""),
+        (r#","core:dataset":"other.bin""#, ""),
+        ("", r#","core:header_bytes":8"#),
+        (r#","core:not_a_core_field":1"#, ""),
+    ] {
+        let metadata = format!(
+            r#"{{"global":{{"core:datatype":"cf32_le","core:sample_rate":1000000,"core:version":"1.2.0"{global_extra}}},"captures":[{{"core:sample_start":0{capture_extra}}}],"annotations":[]}}"#
+        );
+        let recording = stage_recording(&metadata, &cf32_le_samples(4), "strict", ".sigmf-data");
+        assert!(
+            matches!(
+                project_sigmf_window(&recording.metadata_path, &options(0, 4)),
+                Err(SigmfAdapterError::UnsupportedMetadataShape)
+            ),
+            "{global_extra}{capture_extra} should stay unsupported"
+        );
+    }
+}
+
+/// SigMF types `core:sample_rate` and `core:frequency` as doubles, so
+/// `1000000.0` is a valid sample rate.
+#[test]
+fn spec_typed_double_sample_rate_and_frequency_are_accepted() {
+    let metadata = r#"{"global":{"core:datatype":"cf32_le","core:sample_rate":1000000.0,"core:version":"1.2.0"},"captures":[{"core:sample_start":0,"core:frequency":915000000.0}],"annotations":[]}"#;
+    let recording = stage_recording(metadata, &cf32_le_samples(4), "double", ".sigmf-data");
+    let projection = project_sigmf_window(&recording.metadata_path, &options(0, 4))
+        .expect("spec-valid SigMF metadata should be accepted");
+    assert_eq!(projection.evidence().sample_rate_hz(), 1_000_000);
+    assert_eq!(
+        projection.evidence().center_frequency_hz(),
+        Some(915_000_000)
+    );
+}
+
+/// Integer-valued Hz fields only: a fractional or non-finite rate cannot be
+/// represented in the evidence and stays unsupported.
+#[test]
+fn fractional_sample_rate_remains_unsupported() {
+    let metadata = r#"{"global":{"core:datatype":"cf32_le","core:sample_rate":1000000.5,"core:version":"1.2.0"},"captures":[{"core:sample_start":0}],"annotations":[]}"#;
+    let recording = stage_recording(metadata, &cf32_le_samples(4), "fraction", ".sigmf-data");
+    assert!(matches!(
+        project_sigmf_window(&recording.metadata_path, &options(0, 4)),
+        Err(SigmfAdapterError::UnsupportedMetadataShape)
+    ));
+}
+
+/// A window that spans capture segments with different `core:frequency`
+/// values has no single center frequency.
+#[test]
+fn window_crossing_capture_segments_has_no_single_center_frequency() {
+    let metadata = r#"{"global":{"core:datatype":"cf32_le","core:sample_rate":1000000,"core:version":"1.2.0"},"captures":[{"core:sample_start":0,"core:frequency":915000000},{"core:sample_start":2,"core:frequency":2440000000}],"annotations":[]}"#;
+    let recording = stage_recording(metadata, &cf32_le_samples(4), "crossing", ".sigmf-data");
+    let crossing = project_sigmf_window(&recording.metadata_path, &options(0, 4)).unwrap();
+    assert_eq!(crossing.evidence().center_frequency_hz(), None);
+
+    let first = project_sigmf_window(&recording.metadata_path, &options(0, 2)).unwrap();
+    assert_eq!(first.evidence().center_frequency_hz(), Some(915_000_000));
+    let second = project_sigmf_window(&recording.metadata_path, &options(2, 2)).unwrap();
+    assert_eq!(second.evidence().center_frequency_hz(), Some(2_440_000_000));
+}
