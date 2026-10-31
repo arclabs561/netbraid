@@ -17,6 +17,11 @@ GitHub native binary releases remain available independently.
   sample in the record. It rejects unpaired real or imaginary tokens. The
   pinned corpus contract now expects 35,365,248 samples, with 121,998 records
   of 288 samples and 513 of 448.
+- Packet/Zeek correspondence admits `conn.log` rows with an unset `duration`
+  as zero-length connections. Zeek leaves `duration` unset only when it is
+  zero (for example an unanswered SYN), so these rows were dropped before
+  candidate admission and their packet flows got no candidate. The Zeek
+  adapter still reports the field as unset.
 
 ## [0.4.0] - 2026-10-09
 
