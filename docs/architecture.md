@@ -135,7 +135,10 @@ heuristic belief is model-relative rather than calibrated, and the in-memory
 source indices are not replay identifiers.
 
 The optional Zeek entry point projects retained `conn.log` fields into the
-flow-record contract and preserves its earlier result names. Other adapters can
+flow-record contract and preserves its earlier result names. Zeek logs
+`duration` only when it is greater than zero, so the projection maps an unset
+duration to zero and admits the row as a point at its start time; the adapter
+itself still reports the field as unset. Other adapters can
 project the same timestamp, endpoint, protocol, packet-count, and IP-octet
 semantics without depending on Zeek. This is not a common interface for signal,
 packet, conversation, source, or identity evidence. A new relation family keeps
