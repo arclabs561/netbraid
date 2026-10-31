@@ -425,11 +425,17 @@ pub fn replay(
             .then_with(|| left.source.observer_id.cmp(&right.source.observer_id))
             .then_with(|| left.record_id.cmp(&right.record_id))
     });
+    // Each observer's records form their own timeline; a transition compares a
+    // record only with the same observer's previous record.
+    let mut previous_by_observer: BTreeMap<&str, usize> = BTreeMap::new();
     let transitions = records
         .iter()
         .enumerate()
         .map(|(index, current)| {
-            compare_contexts(index.checked_sub(1).map(|i| &records[i]), current)
+            let previous = previous_by_observer
+                .insert(current.source.observer_id.as_str(), index)
+                .map(|previous| &records[previous]);
+            compare_contexts(previous, current)
         })
         .collect();
     Ok(ReplayStateV0 {
@@ -612,6 +618,39 @@ mod tests {
         assert_eq!(once, twice);
         assert_eq!(once.records.len(), 2);
         assert_eq!(once.records[0].record_id, "first");
+    }
+
+    #[test]
+    fn transitions_compare_each_record_with_the_same_observer() {
+        let mut records = Vec::new();
+        for (id, sequence, observer, network) in [
+            ("a-1", 1, "host-a", "alpha"),
+            ("b-1", 2, "host-b", "beta"),
+            ("a-2", 3, "host-a", "alpha"),
+            ("b-2", 4, "host-b", "beta"),
+        ] {
+            let mut record = observation(id, sequence, network);
+            record.source.observer_id = observer.into();
+            record.path.association_id = None;
+            record.path.associated_bssid = None;
+            records.push(record);
+        }
+        let state = replay(records).unwrap();
+        let relations: Vec<_> = state
+            .transitions
+            .iter()
+            .map(|transition| transition.relation)
+            .collect();
+
+        assert_eq!(
+            relations,
+            vec![
+                ContextRelationV0::FirstObservation,
+                ContextRelationV0::FirstObservation,
+                ContextRelationV0::SameContext,
+                ContextRelationV0::SameContext,
+            ]
+        );
     }
 
     #[test]

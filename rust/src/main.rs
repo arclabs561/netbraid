@@ -223,7 +223,10 @@ fn age_at(ts: i64, now: Option<i64>) -> String {
         };
         return format!("{amount} in the future; clock skew or timestamp error");
     }
-    let m = (now - ts) / 60;
+    let Some(elapsed) = now.checked_sub(ts) else {
+        return "age unavailable: timestamp is out of range".into();
+    };
+    let m = elapsed / 60;
     if m < 60 {
         format!("{m}m ago")
     } else {
@@ -864,6 +867,12 @@ mod tests {
         );
         assert_eq!(age_at(1_000, Some(1_120)), "2m ago");
         assert!(age_at(1_000, None).contains("age unavailable"));
+    }
+
+    #[test]
+    fn snapshot_age_rejects_out_of_range_timestamps() {
+        assert!(age_at(i64::MIN, Some(1_000)).contains("age unavailable"));
+        assert_eq!(age_at(i64::MAX, Some(i64::MAX)), "0m ago");
     }
 
     #[test]

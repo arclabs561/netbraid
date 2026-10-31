@@ -22,6 +22,22 @@ GitHub native binary releases remain available independently.
   zero (for example an unanswered SYN), so these rows were dropped before
   candidate admission and their packet flows got no candidate. The Zeek
   adapter still reports the field as unset.
+- Host-path replay compares each record with the previous record from the
+  same observer. It compared consecutive records across observers, so two
+  hosts that each stayed on one network reported context transitions that
+  neither experienced.
+- The SigMF adapter accepts spec-valid metadata it used to reject:
+  annotations, `core:datetime`, sigmf-python's default `core:offset` (zero)
+  and `core:sha512`, other informational core fields, and fields in extension
+  namespaces. `core:sample_rate` and `core:frequency` may be written as
+  doubles such as `1000000.0`; fractional hertz stay unsupported. Core fields
+  that change how bytes map to samples (`core:header_bytes`,
+  `core:trailing_bytes`, `core:dataset`, `core:metadata_only`, a nonzero
+  `core:offset`) and unknown `core:` keys still fail closed.
+- A SigMF window that spans capture segments with different frequencies
+  reports no center frequency instead of the first segment's.
+- `netbraid net`, `device` and `here` report an out-of-range snapshot
+  timestamp as an unavailable age instead of panicking on overflow.
 
 ## [0.4.0] - 2026-10-09
 
