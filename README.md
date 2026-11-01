@@ -12,7 +12,7 @@ cargo install netbraid --version 0.4.0 --locked
 ```
 
 Prebuilt archives are available from the
-[`netbraid-v0.3.3` release](https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.3.3).
+[`netbraid-v0.4.0` release](https://github.com/arclabs561/netbraid/releases/tag/netbraid-v0.4.0).
 The macOS archives are not signed or notarized.
 
 Saved-PCAP commands also require compatible `tshark` and `capinfos` binaries.
@@ -64,10 +64,9 @@ Run `netbraid --help` for the saved evidence and compatibility commands, and
 
 ## Why Netbraid?
 
-Kismet captures, tracks, stores, and replays wireless observations. Netbraid
-does not collect or track devices. It treats selected fields from a closed
-KismetDB as one evidence source alongside saved packet, log, and signal
-artifacts. The resulting records retain their source, coverage, and limits.
+Netbraid does not collect or track devices. It reads saved packet, log, and
+signal artifacts, and can treat selected fields from a closed KismetDB as one
+more evidence source. The resulting records retain their source, coverage, and limits.
 
 The braid is the set of typed links between those records. It is not one merged
 identity record.
@@ -134,7 +133,7 @@ The main modules are:
 Default builds include the CLI and TShark adapter. Optional KismetDB, NPY,
 SDR4IoT detection CSV, SigMF, and Zeek adapters and scenario fixtures are
 feature-gated. Run
-`cargo info netbraid@0.3.3` for the released feature inventory.
+`cargo info netbraid@0.4.0` for the released feature inventory.
 
 Some schema IDs retain the historical `netmon.*` namespace for wire
 compatibility. Product names and Rust paths use `netbraid`.
@@ -196,5 +195,5 @@ just pcap-smoke       # requires TShark and Capinfos
 
 ## License
 
-Authored code is available under MIT or the Unlicense. The package expression
-is `MIT OR Unlicense` — project-authored fixtures use the same license as authored code.
+Authored code is available under MIT or the Unlicense (`MIT OR Unlicense`).
+Project-authored fixtures use the same license as authored code.
