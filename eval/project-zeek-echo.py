@@ -1,11 +1,12 @@
 """Project one pinned Zeek test trace into per-connection observations for the Rust example."""
+import argparse
 import csv
 from decimal import Decimal
+import gzip
 import hashlib
 import json
 from pathlib import Path
 import subprocess
-import sys
 
 DIGEST = "381cdf0c0aa8e2ac1c72296a32e05b28afe935b55c567d368cdabd118bda8c5d"
 FIELDS = ("frame.number", "frame.time_epoch", "ip.len", "tcp.srcport",
@@ -39,7 +40,7 @@ def summarize(frames):
     }, bool(syn and ack)
 
 
-def project(lines):
+def project(lines, omit_phase=0):
     connections = {}
     for index, row in enumerate(csv.reader(lines, delimiter="\t"), 1):
         number, epoch, ip_len, sport, dport, flags, seq, ack = row
@@ -59,7 +60,7 @@ def project(lines):
             full, verified_both_directions = summarize(frames)
             assert verified_both_directions and full["label"] not in labels
             labels.add(full["label"])
-            partial, _ = summarize([f for f in frames if f[0] % 4 != 0])
+            partial, _ = summarize([f for f in frames if f[0] % 4 != omit_phase])
             if partial["label"] is not None:
                 assert partial["label"] == full["label"]
             complete.append(full)
@@ -75,14 +76,22 @@ def project(lines):
 
 
 def main():
-    path = Path(sys.argv[1])
-    if hashlib.sha256(path.read_bytes()).hexdigest() != DIGEST:
-        sys.exit("expected the pinned Zeek echo capture")
-    cmd = ["tshark", "-n", "-r", str(path), "-T", "fields"]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("capture", type=Path)
+    parser.add_argument("--omit-phase", type=int, choices=range(4), default=0,
+                        help="omit frames whose number modulo four equals this phase")
+    args = parser.parse_args()
+    path = args.capture
+    compressed = path.read_bytes()
+    if hashlib.sha256(compressed).hexdigest() != DIGEST:
+        parser.error("expected the pinned Zeek echo capture")
+    cmd = ["tshark", "-n", "-r", "-", "-T", "fields"]
     for field in FIELDS:
         cmd.extend(["-e", field])
-    lines = subprocess.run(cmd, text=True, capture_output=True, check=True).stdout.splitlines()
-    for pair in project(lines):
+    result = subprocess.run(cmd, input=gzip.decompress(compressed),
+                            stdout=subprocess.PIPE, check=True)
+    lines = result.stdout.decode("ascii").splitlines()
+    for pair in project(lines, args.omit_phase):
         print(json.dumps(pair))
 
 

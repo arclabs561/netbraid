@@ -15,6 +15,10 @@ Each row covers all 500 queries. The middle columns count queries with zero, one
 
 With missing packets and two admitted records, the default Rust scorer tied on all 497 queries. Midpoint distance chose the right record on 486 and the wrong one on 11. The two single-candidate queries account for both Rust wins in the last row. The remaining query lost the evidence needed to orient the flow.
 
+In the complete paired treatment, 69 pairs had identical directional counters, accounting for all 138 ties. With the default omission schedule, each of the 497 ambiguous queries differs from *both* records by more than the default 5% tolerance on *all four* counters. The heuristic gives those discrepancies the same weight.
+
+After the primary run, we shifted the omissions through the three other phases of the four-frame cycle. In phases one, two and three respectively, all 496, 493 and 496 two-candidate queries tied under the Rust scorer. Nearest midpoint made 6, 8 and 6 wrong choices. These are repeat measurements on the same connections. Pass `--omit-phase 1`, `2` or `3` to the projector to reproduce them.
+
 These are retrieval ranks, separate from the model's binary marginal dispositions. On complete observations the two views share both counters and timestamps by construction. The all-correct midpoint control shows what one shared clock can do. Independent exporters, different clocks and naturally reused ports remain untested.
 
 ## Construction
