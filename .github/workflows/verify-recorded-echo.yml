@@ -1,0 +1,26 @@
+name: Check the recorded echo result
+on:
+  push:
+    branches: [experiment/verify-zeek-echo-2215c6f]
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: "1.88"
+      - name: Read the pinned echo capture using Wireshark
+        run: |
+          sudo apt-get update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tshark
+          curl -fsSL -o "$RUNNER_TEMP/echo.pcap.gz" https://raw.githubusercontent.com/zeek/zeek/e392402c64972c1aa4701e3fd7a8fe6621c61d73/testing/btest/Traces/echo-connections.pcap.gz
+          python3 eval/project-zeek-echo.py "$RUNNER_TEMP/echo.pcap.gz" > "$RUNNER_TEMP/pairs.jsonl"
+          cargo run --locked --quiet --manifest-path rust/Cargo.toml --example recorded_echo_identity < "$RUNNER_TEMP/pairs.jsonl" > "$RUNNER_TEMP/results.tsv"
+          cat "$RUNNER_TEMP/results.tsv"
+          echo "a2013e8470493e8e6d5df056a3067cf65eebcb76e9ee3b43d5c6559693c5e159  $RUNNER_TEMP/results.tsv" | sha256sum --check
