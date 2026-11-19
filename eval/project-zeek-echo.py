@@ -2,6 +2,7 @@
 import argparse
 import csv
 from decimal import Decimal
+import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -81,12 +82,15 @@ def main():
                         help="omit frames whose number modulo four equals this phase")
     args = parser.parse_args()
     path = args.capture
-    if hashlib.sha256(path.read_bytes()).hexdigest() != DIGEST:
+    compressed = path.read_bytes()
+    if hashlib.sha256(compressed).hexdigest() != DIGEST:
         parser.error("expected the pinned Zeek echo capture")
-    cmd = ["tshark", "-n", "-r", str(path), "-T", "fields"]
+    cmd = ["tshark", "-n", "-r", "-", "-T", "fields"]
     for field in FIELDS:
         cmd.extend(["-e", field])
-    lines = subprocess.run(cmd, text=True, capture_output=True, check=True).stdout.splitlines()
+    result = subprocess.run(cmd, input=gzip.decompress(compressed),
+                            stdout=subprocess.PIPE, check=True)
+    lines = result.stdout.decode("ascii").splitlines()
     for pair in project(lines, args.omit_phase):
         print(json.dumps(pair))
 
